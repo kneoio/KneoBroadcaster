@@ -10,7 +10,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 @ApplicationScoped
 public class SoundFragmentQueue {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentSubscriber.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentQueue.class);
     private final BlockingQueue<SoundFragment> soundFragments = new LinkedBlockingQueue<>();
 
     public void addSoundFragment(SoundFragment fragment) {

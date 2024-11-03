@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.queue;
+package io.kneo.broadcaster.queue.google;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -9,6 +9,7 @@ import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.pubsub.v1.PubsubMessage;
 import io.kneo.broadcaster.config.PubSubConfig;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.queue.SoundFragmentQueue;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,10 +29,6 @@ public class SoundFragmentSubscriber {
 
     @Inject
     PubSubConfig config;
-
-    public SoundFragmentSubscriber() {
-        System.out.println("SoundFragmentSubscriber constructor called");
-    }
 
     @PostConstruct
     public void init() {
@@ -78,7 +75,7 @@ public class SoundFragmentSubscriber {
 
         LOGGER.info("Using file URI directly from message: {}", fileUri);
 
-        ((ObjectNode) rootNode).put("file_uri", fileUri);  // Ensure it's set directly as URI
+        ((ObjectNode) rootNode).put("file_uri", fileUri);
         return mapper.treeToValue(rootNode, SoundFragment.class);
     }
 

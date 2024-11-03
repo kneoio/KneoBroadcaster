@@ -1,6 +1,6 @@
 package io.kneo.broadcaster;
 
-import io.kneo.broadcaster.queue.SoundFragmentSubscriber;
+import io.kneo.broadcaster.queue.google.SoundFragmentSubscriber;
 import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.ext.web.Route;

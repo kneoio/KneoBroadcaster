@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Radio Player</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+    <script src="js/player.js" defer></script>  <!-- Removed leading slash -->
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f0f2f5;
+            font-family: Arial, sans-serif;
+        }
+        .player-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 90%;
+            width: 400px;
+        }
+        .controls {
+            margin-top: 1rem;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #status {
+            margin-top: 1rem;
+            color: #666;
+            word-wrap: break-word;
+        }
+        #debug {
+            margin-top: 1rem;
+            font-size: 0.8em;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+<div class="player-container">
+    <h2>Radio Player</h2>
+    <audio id="audio" controls></audio>
+    <div class="controls">
+        <button onclick="startPlaying()">Play</button>
+        <button onclick="stopPlaying()">Stop</button>
+    </div>
+    <div id="status">Ready to play</div>
+    <div id="debug"></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,16 @@
+*/target/
+/.idea/
+*/.env
+.env
+*.pub
+*.iml
+*.pem
+/*.jks
+
+/**/application-dev.properties
+/qodana.yaml
+/*.ps1
+/ci_cd
+/target
+/audio
+

@@ -6,6 +6,8 @@
 *.iml
 *.pem
 /*.jks
+*.db
+
 
 /**/application-dev.properties
 /qodana.yaml
@@ -13,4 +15,5 @@
 /ci_cd
 /target
 /audio
+/audio_files
 

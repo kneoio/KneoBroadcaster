@@ -1,72 +1,72 @@
 package io.kneo.broadcaster.resource;
 
-import io.kneo.broadcaster.queue.SoundQueueService;
 import io.kneo.broadcaster.stream.HlsPlaylist;
 import io.kneo.broadcaster.stream.HlsSegment;
-import io.quarkus.vertx.web.Route;
-import io.quarkus.vertx.web.RouteBase;
-import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.util.logging.Logger;
 
-
+@Path("/radio")
 @ApplicationScoped
-@RouteBase(path = "/radio")
 public class RadioResource {
     private static final Logger LOGGER = Logger.getLogger(RadioResource.class.getName());
 
     @Inject
-    SoundQueueService soundQueueService;
+    HlsPlaylist playlist;
 
-    @Route(path = "/stream", methods = Route.HttpMethod.GET)
-    void getPlaylist(RoutingContext rc) {
+    @GET
+    @Path("/stream")
+    @Produces("application/vnd.apple.mpegurl")
+    public Response getPlaylist() {
         LOGGER.info("Playlist request received");
 
-        HlsPlaylist playlist = soundQueueService.getPlaylist();
         if (playlist.getSegmentCount() == 0) {
             LOGGER.warning("No segments available in playlist");
-            rc.response()
-                    .setStatusCode(404)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("No segments available");
-            return;
+            return Response.status(Response.Status.NOT_FOUND)
+                    .entity("No segments available")
+                    .type(MediaType.TEXT_PLAIN)
+                    .build();
         }
 
         String playlistContent = playlist.generatePlaylist();
         LOGGER.info("Serving playlist with content:\n" + playlistContent);
 
-        rc.response()
-                .putHeader("Content-Type", "application/vnd.apple.mpegurl")
-                .putHeader("Access-Control-Allow-Origin", "*")
-                .putHeader("Cache-Control", "no-cache")
-                .end(playlistContent);
+        return Response.ok(playlistContent)
+                .header("Access-Control-Allow-Origin", "*")
+                .header("Cache-Control", "no-cache")
+                .build();
     }
 
-    @Route(path = "/segments/:segment", methods = Route.HttpMethod.GET)
-    void getSegment(RoutingContext rc) {
-        String segmentParam = rc.pathParam("segment");
+    @GET
+    @Path("/segments/{segment}")
+    @Produces("video/MP2T")
+    public Response getSegment(@PathParam("segment") String segmentParam) {
         LOGGER.info("Segment request received for: " + segmentParam);
 
         try {
             int sequence = Integer.parseInt(segmentParam.replaceAll("\\D+", ""));
 
-            HlsSegment segment = soundQueueService.getPlaylist().getSegment(sequence);
+            HlsSegment segment = playlist.getSegment(sequence);
             if (segment == null) {
                 LOGGER.warning("Segment not found: " + segmentParam);
-                rc.response().setStatusCode(404).end("Segment not found");
-                return;
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity("Segment not found")
+                        .build();
             }
 
-            rc.response()
-                    .putHeader("Content-Type", "video/MP2T")
-                    .putHeader("Access-Control-Allow-Origin", "*")
-                    .putHeader("Cache-Control", "no-cache")
-                    .end(io.vertx.core.buffer.Buffer.buffer(segment.getData()));
+            return Response.ok(segment.getData())
+                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Cache-Control", "no-cache")
+                    .build();
 
         } catch (NumberFormatException e) {
             LOGGER.severe("Invalid segment name format: " + segmentParam);
-            rc.response().setStatusCode(400).end("Invalid segment name format");
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Invalid segment name format")
+                    .build();
         }
     }
 }

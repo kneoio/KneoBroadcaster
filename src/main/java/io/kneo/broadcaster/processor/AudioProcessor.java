@@ -2,6 +2,7 @@ package io.kneo.broadcaster.processor;
 
 import io.kneo.broadcaster.model.FragmentStatus;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.service.ActionResultType;
 import io.kneo.broadcaster.store.AudioFileStore;
 import io.kneo.broadcaster.stream.HlsPlaylist;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -26,17 +27,19 @@ public class AudioProcessor {
     @Inject
     private HlsPlaylist hlsPlaylist;
 
-    public void processUnprocessedFragments() {
+    public ActionResultType processUnprocessedFragments() {
         List<SoundFragment> unprocessedFragments = audioFileStore.getFragmentsByStatus(FragmentStatus.NOT_PROCESSED);
 
         for (SoundFragment fragment : unprocessedFragments) {
             try {
                 LOGGER.info("Processing fragment ID: {}", fragment.getId());
-                                                  processFragment(fragment);
+                processFragment(fragment);
             } catch (IOException | InterruptedException e) {
                 LOGGER.error("Failed to process fragment ID: {}", fragment.getId(), e);
+                return ActionResultType.FAIL;
             }
         }
+        return ActionResultType.SUCCESS;
     }
 
     private void processFragment(SoundFragment fragment) throws IOException, InterruptedException {

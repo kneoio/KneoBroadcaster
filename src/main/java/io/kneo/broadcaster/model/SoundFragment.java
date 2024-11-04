@@ -15,7 +15,7 @@ public class SoundFragment {
     private int status;
     private String fileUri;
     private String localPath;
-    private String type;
+    private FragmentType type;
     private String name;
     private String author;
     private String createdAt;

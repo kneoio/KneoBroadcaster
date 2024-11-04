@@ -7,7 +7,12 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
+import java.util.Collections;
+import java.util.Map;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Path("/radio")
 @ApplicationScoped
@@ -68,5 +73,23 @@ public class RadioResource {
                     .entity("Invalid segment name format")
                     .build();
         }
+    }
+
+    @GET
+    @Path("/debug")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getDebugInfo() {
+        return Response.ok(Map.of(
+                "segmentCount", playlist.getSegmentCount(),
+                "hasPlaylist", playlist != null,
+                "segments", playlist.getSegmentCount() > 0 ?
+                        IntStream.range(0, playlist.getSegmentCount())
+                                .mapToObj(i -> Map.of(
+                                        "index", i,
+                                        "available", playlist.getSegment(i) != null
+                                ))
+                                .collect(Collectors.toList()) :
+                        Collections.emptyList()
+        )).build();
     }
 }

@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.CompletableFuture;
 
 @ApplicationScoped
 public class AudioService {
@@ -50,7 +51,7 @@ public class AudioService {
         }
     }
 
-    public ActionResultType executeAction(String actionType) {
+    public CompletableFuture<ActionResultType> executeAction(String actionType) {
         try {
             LOGGER.info("Executing action {}", actionType);
 

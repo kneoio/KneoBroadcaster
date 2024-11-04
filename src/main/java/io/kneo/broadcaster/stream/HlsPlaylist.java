@@ -58,7 +58,7 @@ public class HlsPlaylist {
 
     private void cleanupIfNeeded(int currentSeq) {
         if (segments.size() > config.getMaxSegments()) {
-            int oldestAllowed = currentSeq - config.getMaxSegments();
+            int oldestAllowed = Math.max(currentSeq - config.getMaxSegments(), 0);
             Map<Integer, HlsSegment> removedSegments = new HashMap<>(segments.headMap(oldestAllowed));
             segments.headMap(oldestAllowed).clear();
 
@@ -71,6 +71,7 @@ public class HlsPlaylist {
             }
         }
     }
+
 
     private void logMetrics() {
         if (segmentsCreated.get() % 10 == 0) {  // Log every 10 segments
@@ -109,30 +110,8 @@ public class HlsPlaylist {
         return segment;
     }
 
-    // Essential getters
-    public int getCurrentSequence() {
-        return currentSequence.get();
-    }
-
-    public int getFirstSequence() {
-        return segments.isEmpty() ? currentSequence.get() : segments.firstKey();
-    }
-
-    // Monitoring getters (only if monitoring enabled)
     public int getSegmentCount() {
         return segments.size();
     }
 
-    public long getTotalBytesProcessed() {
-        return totalBytesProcessed.get();
-    }
-
-    public int getTotalSegmentsCreated() {
-        return segmentsCreated.get();
-    }
-
-    public double getAverageSegmentSize() {
-        return segmentsCreated.get() == 0 ? 0 :
-                totalBytesProcessed.get() / (double) segmentsCreated.get();
-    }
 }

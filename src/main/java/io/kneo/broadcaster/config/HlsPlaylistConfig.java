@@ -7,7 +7,7 @@ import io.smallrye.config.WithName;
 @ConfigMapping(prefix = "radio.hls")
 public interface HlsPlaylistConfig {
     @WithName("max.segments")
-    @WithDefault("10")
+    @WithDefault("100")
     int getMaxSegments();
 
     @WithName("segment.duration")
@@ -23,7 +23,7 @@ public interface HlsPlaylistConfig {
     int getCleanupInterval();
 
     @WithName("buffer.size.multiplier")
-    @WithDefault("1")
+    @WithDefault("1.5")  // Changed from "1" to "1.5" to handle MPEGTS overhead
     double getBufferSizeMultiplier();
 
     @WithName("monitoring.enabled")
@@ -31,6 +31,9 @@ public interface HlsPlaylistConfig {
     boolean isMonitoringEnabled();
 
     default int getBufferSizeKb() {
-        return (int)(getBitrate() * getSegmentDuration() * getBufferSizeMultiplier() / 8);
+        // 128 kbps * 10 seconds = 1280 kb
+        // Convert to KB (divide by 8) = 160 KB
+        // Add 50% overhead for MPEGTS container and safety margin
+        return (int)((getBitrate() * getSegmentDuration() * 1.5) / 8);
     }
 }

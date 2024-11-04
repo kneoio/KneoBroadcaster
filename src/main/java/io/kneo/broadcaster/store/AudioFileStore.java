@@ -140,6 +140,27 @@ public class AudioFileStore {
         }
     }
 
+    public void updateStatus(int id, int status) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement("""
+             UPDATE sound_fragments 
+             SET status = ?
+             WHERE id = ?
+             """)) {
+
+            stmt.setInt(1, status);
+            stmt.setInt(2, id);
+
+            int rowsAffected = stmt.executeUpdate();
+            if (rowsAffected == 0) {
+                throw new RuntimeException("Failed to update status for sound fragment with id: " + id);
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public List<SoundFragment> getFragmentsByStatus(int status) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
@@ -182,6 +203,5 @@ public class AudioFileStore {
         }
     }
 
-    public void update(SoundFragment fragment) {
-    }
+
 }

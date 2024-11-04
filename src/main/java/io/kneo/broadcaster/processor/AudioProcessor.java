@@ -1,33 +1,24 @@
 package io.kneo.broadcaster.processor;
 
+import io.kneo.broadcaster.model.FragmentStatus;
+import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.store.AudioFileStore;
 import io.kneo.broadcaster.stream.HlsPlaylist;
-import io.vertx.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 @ApplicationScoped
 public class AudioProcessor {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioProcessor.class);
     private static final int SEGMENT_DURATION = 10;
-
-    private final Executor executor = Executors.newSingleThreadExecutor();
-
-    @Inject
-    Vertx vertx;
+    private static final int BUFFER_SIZE = 8192;
 
     @Inject
     private AudioFileStore audioFileStore;
@@ -35,115 +26,104 @@ public class AudioProcessor {
     @Inject
     private HlsPlaylist hlsPlaylist;
 
-   // @Scheduled(every="5s")
-    void processNewFiles() {
-     /*   List<AudioFileStore.AudioFile> unprocessedFiles = audioFileStore.getUnprocessedFiles();
-        if (!unprocessedFiles.isEmpty()) {
-            // Process files asynchronously
-            CompletableFuture.runAsync(() ->
-                            unprocessedFiles.forEach(this::processFile),
-                    executor
-            );
-        }*/
+    public void processUnprocessedFragments() {
+        List<SoundFragment> unprocessedFragments = audioFileStore.getFragmentsByStatus(FragmentStatus.NOT_PROCESSED);
+
+        for (SoundFragment fragment : unprocessedFragments) {
+            try {
+                LOGGER.info("Processing fragment ID: {}", fragment.getId());
+                                                  processFragment(fragment);
+            } catch (IOException | InterruptedException e) {
+                LOGGER.error("Failed to process fragment ID: {}", fragment.getId(), e);
+            }
+        }
     }
 
-  /*  private void processFile(AudioFileStore.AudioFile file) {
-        LOGGER.info("Processing file: {}", file.id());
+    private void processFragment(SoundFragment fragment) throws IOException, InterruptedException {
+        List<byte[]> segments = convertToSegments(fragment.getFile());
 
-        try {
-            List<byte[]> segments = convertToSegments(file.filePath());
-            for (byte[] segment : segments) {
-                // Use Vert.x to add segments to playlist on the event loop
-                vertx.runOnContext(v -> hlsPlaylist.addSegment(segment));
+        if (!segments.isEmpty()) {
+            for (byte[] segmentData : segments) {
+                hlsPlaylist.addSegment(segmentData);
             }
 
-            audioFileStore.markAsProcessed(file.id());
-            LOGGER.info("Successfully processed file: {}", file.id());
+            fragment.setStatus(FragmentStatus.CONVERTED);
+            audioFileStore.update(fragment);
 
-        } catch (Exception e) {
-            LOGGER.error("Failed to process file: {}", file.id(), e);
+            LOGGER.info("Successfully processed and added to playlist - fragment ID: {} as {} segments",
+                    fragment.getId(), segments.size());
+        } else {
+            LOGGER.warn("No segments were created for fragment ID: {}", fragment.getId());
         }
-    }*/
+    }
 
-    private List<byte[]> convertToSegments(Path audioFile) throws IOException {
+    private List<byte[]> convertToSegments(byte[] audioData) throws IOException, InterruptedException {
         List<byte[]> segments = new ArrayList<>();
-        Path outputDir = Files.createTempDirectory("segments");
 
-        try {
-            ProcessBuilder pb = new ProcessBuilder(
-                    "ffmpeg",
-                    "-i", audioFile.toString(),
-                    "-af", "apad",
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    "-ar", "44100",
-                    "-ac", "2",
-                    "-segment_time", String.valueOf(SEGMENT_DURATION),
-                    "-f", "segment",
-                    "-reset_timestamps", "1",
-                    outputDir.resolve("segment%03d.ts").toString()
-            );
+        ProcessBuilder pb = new ProcessBuilder(
+                "ffmpeg",
+                "-i", "pipe:0",  // Read from stdin
+                "-af", "apad",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-ar", "44100",
+                "-ac", "2",
+                "-segment_time", String.valueOf(SEGMENT_DURATION),
+                "-f", "segment",
+                "-reset_timestamps", "1",
+                "pipe:1"  // Write to stdout
+        );
 
-            Process process = pb.start();
+        Process process = pb.start();
 
-            // Handle FFmpeg output asynchronously
-            CompletableFuture.runAsync(() -> logProcess(process));
+        // Write audio data to FFmpeg's stdin
+        CompletableFuture.runAsync(() -> {
+            try (OutputStream ffmpegInput = process.getOutputStream()) {
+                ffmpegInput.write(audioData);
+            } catch (IOException e) {
+                LOGGER.error("Failed to write to FFmpeg input", e);
+            }
+        });
 
-            int exitCode = process.waitFor();
-            if (exitCode == 0) {
-                Files.list(outputDir)
-                        .filter(p -> p.toString().endsWith(".ts"))
-                        .sorted()
-                        .forEach(p -> {
-                            try {
-                                byte[] data = Files.readAllBytes(p);
-                                if (data.length > 0) {
-                                    segments.add(data);
-                                    LOGGER.debug("Added segment: {} (size: {} bytes)",
-                                            p.getFileName(), data.length);
-                                }
-                            } catch (IOException e) {
-                                LOGGER.error("Failed to read segment: {}", p, e);
+        // Read segments from FFmpeg's stdout
+        try (InputStream ffmpegOutput = process.getInputStream();
+             BufferedInputStream bis = new BufferedInputStream(ffmpegOutput)) {
+
+            ByteArrayOutputStream segmentBuffer = new ByteArrayOutputStream();
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int bytesRead;
+            int segmentMarkerCount = 0;
+
+            while ((bytesRead = bis.read(buffer)) != -1) {
+                for (int i = 0; i < bytesRead - 3; i++) {
+                    // Look for MPEG-TS sync byte (0x47) and segment markers
+                    if (buffer[i] == 0x47) {
+                        segmentMarkerCount++;
+
+                        // Assuming each segment has multiple TS packets
+                        if (segmentMarkerCount >= 1000) {  // Adjust based on your segment size
+                            if (segmentBuffer.size() > 0) {
+                                segments.add(segmentBuffer.toByteArray());
+                                segmentBuffer.reset();
                             }
-                        });
-            } else {
-                throw new IOException("FFmpeg failed with exit code: " + exitCode);
+                            segmentMarkerCount = 0;
+                        }
+                    }
+                }
+                segmentBuffer.write(buffer, 0, bytesRead);
             }
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("FFmpeg interrupted", e);
-        } finally {
-            cleanup(outputDir);
+            // Add final segment if any
+            if (segmentBuffer.size() > 0) {
+                segments.add(segmentBuffer.toByteArray());
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new IOException("FFmpeg failed with exit code: " + exitCode);
         }
 
         return segments;
-    }
-
-    private void logProcess(Process process) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                LOGGER.debug("FFmpeg: {}", line);
-            }
-        } catch (IOException e) {
-            LOGGER.error("Error reading FFmpeg output", e);
-        }
-    }
-
-    private void cleanup(Path dir) {
-        try {
-            Files.walk(dir)
-                    .sorted((a, b) -> -a.compareTo(b))
-                    .forEach(p -> {
-                        try {
-                            Files.delete(p);
-                        } catch (IOException e) {
-                            LOGGER.error("Cleanup failed for: {}", p, e);
-                        }
-                    });
-        } catch (IOException e) {
-            LOGGER.error("Failed to cleanup directory: {}", dir, e);
-        }
     }
 }

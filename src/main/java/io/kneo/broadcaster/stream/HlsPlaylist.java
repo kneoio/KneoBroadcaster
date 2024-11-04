@@ -1,90 +1,138 @@
 package io.kneo.broadcaster.stream;
 
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
 @Singleton
 public class HlsPlaylist {
     private static final Logger LOGGER = LoggerFactory.getLogger(HlsPlaylist.class);
+
     private final ConcurrentNavigableMap<Integer, HlsSegment> segments = new ConcurrentSkipListMap<>();
-    private int currentSequence = 0;
-    private static final int MAX_SEGMENTS = 10;
-    private static final int SEGMENT_DURATION = 10; // seconds
-    private static final int SEGMENT_RETENTION_COUNT = MAX_SEGMENTS * 2; // Keep twice the max segments temporarily
+    private final AtomicInteger currentSequence = new AtomicInteger(0);
+    private final AtomicLong totalBytesProcessed = new AtomicLong(0);
+    private final AtomicInteger segmentsCreated = new AtomicInteger(0);
 
-    public synchronized void addSegment(byte[] data) {
-        HlsSegment segment = new HlsSegment(currentSequence, data, SEGMENT_DURATION);
-        segments.put(currentSequence, segment);
-        currentSequence++;
+    private final HlsPlaylistConfig config;
 
-        // Remove old segments if we exceed MAX_SEGMENTS
-        while (segments.size() > MAX_SEGMENTS) {
-            segments.pollFirstEntry();
+    @Inject
+    public HlsPlaylist(HlsPlaylistConfig config) {
+        this.config = config;
+        LOGGER.info("Initialized HLS Playlist with maxSegments={}, duration={}, bitrate={}kbps",
+                config.getMaxSegments(), config.getSegmentDuration(), config.getBitrate());
+    }
+
+    public void addSegment(byte[] data) {
+        if (data == null || data.length == 0) {
+            LOGGER.warn("Attempted to add empty segment");
+            return;
+        }
+
+        if (data.length > config.getBufferSizeKb() * 1024) {
+            LOGGER.warn("Segment size {} exceeds maximum buffer size {}",
+                    data.length, config.getBufferSizeKb() * 1024);
+            return;
+        }
+
+        int sequence = currentSequence.getAndIncrement();
+        HlsSegment segment = new HlsSegment(sequence, data, config.getSegmentDuration());
+        segments.put(sequence, segment);
+
+        totalBytesProcessed.addAndGet(data.length);
+        segmentsCreated.incrementAndGet();
+
+        cleanupIfNeeded(sequence);
+        if (config.isMonitoringEnabled()) {
+            logMetrics();
         }
     }
 
-    public void cleanupOldSegments() {
-        LOGGER.debug("Starting cleanup of old segments...");
-        int oldestAllowedSequence = currentSequence - SEGMENT_RETENTION_COUNT;
+    private void cleanupIfNeeded(int currentSeq) {
+        if (segments.size() > config.getMaxSegments()) {
+            int oldestAllowed = currentSeq - config.getMaxSegments();
+            Map<Integer, HlsSegment> removedSegments = new HashMap<>(segments.headMap(oldestAllowed));
+            segments.headMap(oldestAllowed).clear();
 
-        // Remove segments older than the retention count
-        segments.headMap(oldestAllowedSequence).clear();
+            if (config.isMonitoringEnabled()) {
+                long freedBytes = removedSegments.values().stream()
+                        .mapToLong(segment -> segment.getData().length)
+                        .sum();
+                LOGGER.debug("Cleaned up {} segments, freed {} bytes",
+                        removedSegments.size(), freedBytes);
+            }
+        }
+    }
 
-        LOGGER.debug("Cleaned up segments. Remaining segment count: {}", segments.size());
+    private void logMetrics() {
+        if (segmentsCreated.get() % 10 == 0) {  // Log every 10 segments
+            LOGGER.info("Playlist metrics - Segments: {}, Memory: {}MB, Avg Segment Size: {}KB",
+                    segments.size(),
+                    totalBytesProcessed.get() / (1024 * 1024),
+                    segments.isEmpty() ? 0 : totalBytesProcessed.get() / (segmentsCreated.get() * 1024));
+        }
     }
 
     public String generatePlaylist() {
         if (segments.isEmpty()) {
+            LOGGER.warn("Attempted to generate playlist with no segments");
             return null;
         }
 
-        StringBuilder playlist = new StringBuilder();
-        playlist.append("#EXTM3U\n");
-        playlist.append("#EXT-X-VERSION:3\n");
-        playlist.append("#EXT-X-TARGETDURATION:").append(SEGMENT_DURATION).append("\n");
+        StringBuilder playlist = new StringBuilder(segments.size() * 100);
+        playlist.append("#EXTM3U\n")
+                .append("#EXT-X-VERSION:3\n")
+                .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
+                .append("#EXT-X-MEDIA-SEQUENCE:").append(segments.firstKey()).append("\n");
 
-        // Get the first sequence number from our current segments
-        int firstSequence = segments.firstKey();
-        playlist.append("#EXT-X-MEDIA-SEQUENCE:").append(firstSequence).append("\n");
-
-        // Add each segment
         segments.values().forEach(segment -> {
-            playlist.append("#EXTINF:").append(segment.getDuration()).append(".0,\n");
-            playlist.append("segments/segment").append(segment.getSequenceNumber()).append(".ts\n");
+            playlist.append("#EXTINF:").append(segment.getDuration()).append(",\n")
+                    .append("segments/").append(segment.getSequenceNumber()).append(".ts\n");
         });
 
         return playlist.toString();
     }
 
     public HlsSegment getSegment(int sequence) {
-        return segments.get(sequence);
+        HlsSegment segment = segments.get(sequence);
+        if (segment == null && config.isMonitoringEnabled()) {
+            LOGGER.debug("Segment {} not found", sequence);
+        }
+        return segment;
     }
 
-    public boolean hasSegment(int sequence) {
-        return segments.containsKey(sequence);
-    }
-
+    // Essential getters
     public int getCurrentSequence() {
-        return currentSequence;
+        return currentSequence.get();
     }
 
     public int getFirstSequence() {
-        return segments.isEmpty() ? currentSequence : segments.firstKey();
+        return segments.isEmpty() ? currentSequence.get() : segments.firstKey();
     }
 
-    public void clearSegments() {
-        segments.clear();
-    }
-
+    // Monitoring getters (only if monitoring enabled)
     public int getSegmentCount() {
         return segments.size();
     }
 
-    public static int getSegmentDuration() {
-        return SEGMENT_DURATION;
+    public long getTotalBytesProcessed() {
+        return totalBytesProcessed.get();
+    }
+
+    public int getTotalSegmentsCreated() {
+        return segmentsCreated.get();
+    }
+
+    public double getAverageSegmentSize() {
+        return segmentsCreated.get() == 0 ? 0 :
+                totalBytesProcessed.get() / (double) segmentsCreated.get();
     }
 }

@@ -13,18 +13,17 @@ import io.kneo.broadcaster.config.PubSubConfig;
 import io.kneo.broadcaster.model.FragmentStatus;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.store.AudioFileStore;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 
-@ApplicationScoped  // Changed to @ApplicationScoped because we want a single instance
+@ApplicationScoped
 public class SoundFragmentSubscriber {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentSubscriber.class);
 

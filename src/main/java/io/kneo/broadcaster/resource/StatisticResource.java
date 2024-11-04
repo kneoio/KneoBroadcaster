@@ -11,8 +11,8 @@ import org.slf4j.LoggerFactory;
 
 @Path("/api")
 @ApplicationScoped
-public class StatisticResourceHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(StatisticResourceHandler.class);
+public class StatisticResource {
+    private static final Logger LOGGER = LoggerFactory.getLogger(StatisticResource.class);
 
     @Inject
     AudioFileStore audioFileStore;

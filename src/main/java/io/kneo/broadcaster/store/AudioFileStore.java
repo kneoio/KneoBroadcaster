@@ -136,6 +136,10 @@ public class AudioFileStore {
         }
     }
 
+    public List<SoundFragment> getFragmentsByStatus(int status) {
+        return null;
+    }
+
     public void deleteFragment(int id) {
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
@@ -146,5 +150,8 @@ public class AudioFileStore {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void update(SoundFragment fragment) {
     }
 }

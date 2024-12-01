@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.model.cnst;
 
 public class FragmentStatus {
     public static final int NOT_PROCESSED = 10;

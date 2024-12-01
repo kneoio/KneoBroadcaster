@@ -1,30 +1,34 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.FragmentType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.core.model.SecureDataEntity;
+import io.kneo.core.dto.AbstractDTO;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 import java.util.UUID;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
 @Getter
+@SuperBuilder
 @NoArgsConstructor
-public class SoundFragment extends SecureDataEntity<UUID> {
+public class SoundFragmentDTO extends AbstractDTO {
     private SourceType source;
-    private int status;
-    private int priority = 10;
-    private int played;
+    private Integer status;
     private String fileUri;
     private String localPath;
     private FragmentType type;
     private String name;
     private String artist;
-    private String createdAt;
     private String genre;
     private String album;
-    private byte[] file;
 
+    public SoundFragmentDTO(String id) {
+        this.id = UUID.fromString(id);
+    }
 }

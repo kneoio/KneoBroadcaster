@@ -23,12 +23,8 @@ public interface HlsPlaylistConfig {
     int getCleanupInterval();
 
     @WithName("buffer.size.multiplier")
-    @WithDefault("1.5")  // Changed from "1" to "1.5" to handle MPEGTS overhead
+    @WithDefault("1.5")
     double getBufferSizeMultiplier();
-
-    @WithName("monitoring.enabled")
-    @WithDefault("true")
-    boolean isMonitoringEnabled();
 
     default int getBufferSizeKb() {
         // 128 kbps * 10 seconds = 1280 kb

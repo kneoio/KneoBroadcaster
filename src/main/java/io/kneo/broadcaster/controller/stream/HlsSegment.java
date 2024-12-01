@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.stream;
+package io.kneo.broadcaster.controller.stream;
 
 // HlsSegment.java
 public class HlsSegment {

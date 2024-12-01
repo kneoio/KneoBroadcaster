@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.stream;
+package io.kneo.broadcaster.controller.stream;
 
 public interface IHlsPlaylistConfig {
     int getMaxSegments();

@@ -2,7 +2,10 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.RadioStationPool;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.SoundUploadDTO;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.FragmentType;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -107,7 +110,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .fileUri(doc.getFileUri())
                     .localPath(doc.getLocalPath())
                     .type(doc.getType())
-                    .name(doc.getName())
+                    .name(doc.getTitle())
                     .artist(doc.getArtist())
                     .genre(doc.getGenre())
                     .album(doc.getAlbum())
@@ -122,7 +125,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setFileUri(dto.getFileUri());
         doc.setLocalPath(dto.getLocalPath());
         doc.setType(dto.getType());
-        doc.setName(dto.getName());
+        doc.setTitle(dto.getName());
         doc.setArtist(dto.getArtist());
         doc.setGenre(dto.getGenre());
         doc.setAlbum(dto.getAlbum());
@@ -137,5 +140,22 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<Void> streamDirectly(String brand, FileUpload upload) {
         assert radioService != null;
         return radioService.addFileUploadToPlaylist(brand, upload);
+    }
+
+    public Uni<SoundFragmentDTO> processUploadWithIntro(String brand, FileUpload file, SoundUploadDTO uploadDTO, IUser user) {
+        SoundFragment entity = new SoundFragment();
+        entity.setLocalPath(file.uploadedFileName());
+        entity.setTitle(file.fileName());
+        entity.setSource(SourceType.LOCAL_DISC);
+        entity.setType(FragmentType.SONG);
+
+        if (uploadDTO.isAutoGenerateIntro() && (uploadDTO.getIntroductionText() == null || uploadDTO.getIntroductionText().isEmpty())) {
+            uploadDTO.setIntroductionText("Now playing: " + file.fileName());
+        }
+
+        return repository.insert(entity, List.of(file), user)
+                .chain(doc -> streamDirectly(brand, file)
+                        .onItem().transform(v -> doc))
+                .chain(this::mapToDTO);
     }
 }

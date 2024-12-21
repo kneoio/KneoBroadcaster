@@ -85,7 +85,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .addString(doc.getFileUri())
                 .addString(doc.getLocalPath())
                 .addString(doc.getType().name())
-                .addString(doc.getName())
+                .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getGenre())
                 .addString(doc.getAlbum());
@@ -176,7 +176,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                 .addString(doc.getFileUri())
                                                 .addString(doc.getLocalPath())
                                                 .addString(doc.getType().name())
-                                                .addString(doc.getName())
+                                                .addString(doc.getTitle())
                                                 .addString(doc.getArtist())
                                                 .addString(doc.getGenre())
                                                 .addString(doc.getAlbum())
@@ -206,13 +206,13 @@ public class SoundFragmentRepository extends AsyncRepository {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
-        doc.setPriority(row.getInteger("priority"));
+       // doc.setPriority(row.getInteger("priority"));
         doc.setStatus(row.getInteger("status"));
-        doc.setPlayed(row.getInteger("played"));
+       // doc.setPlayed(row.getInteger("played"));
         doc.setFileUri(row.getString("file_uri"));
         doc.setLocalPath(row.getString("local_path"));
         doc.setType(FragmentType.valueOf(row.getString("type")));
-        doc.setName(row.getString("title"));
+        doc.setTitle(row.getString("title"));
         doc.setArtist(row.getString("artist"));
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));

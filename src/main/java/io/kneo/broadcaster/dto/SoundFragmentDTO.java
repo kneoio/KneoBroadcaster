@@ -18,12 +18,12 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 public class SoundFragmentDTO extends AbstractDTO {
-    private SourceType source;
+    private SourceType source = SourceType.LOCAL_DISC;
     private Integer status;
     private String fileUri;
     private String localPath;
     private FragmentType type;
-    private String name;
+    private String title;
     private String artist;
     private String genre;
     private String album;

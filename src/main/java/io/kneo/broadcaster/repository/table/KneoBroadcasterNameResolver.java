@@ -8,7 +8,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
 
     private static final String SOUND_FRAGMENT_TABLE_NAME = "kneobroadcaster__sound_fragments";
     private static final String SOUND_FRAGMENT_ACCESS_TABLE_NAME = "kneobroadcaster__sound_fragments_readers";
-    private static final String SOUND_FRAGMENT_IMAGES_TABLE_NAME = "kneobroadcaster__sound_fragments_images";
+    private static final String SOUND_FRAGMENT_FILES_TABLE_NAME = "kneobroadcaster__sound_fragments_audio_files";
 
     public EntityData getEntityNames(String type) {
         return switch (type) {
@@ -16,7 +16,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
                     SOUND_FRAGMENT_TABLE_NAME,
                     SOUND_FRAGMENT_ACCESS_TABLE_NAME,
                     null,
-                    SOUND_FRAGMENT_IMAGES_TABLE_NAME
+                    SOUND_FRAGMENT_FILES_TABLE_NAME
             );
             default -> super.getEntityNames(type);
         };

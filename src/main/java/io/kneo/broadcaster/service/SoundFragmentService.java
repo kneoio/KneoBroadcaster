@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.RadioStationPool;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundUploadDTO;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.FragmentStatus;
 import io.kneo.broadcaster.model.cnst.FragmentType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
@@ -54,12 +55,17 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         assert repository != null;
         return repository.getAll(limit, offset, user)
                 .chain(list -> {
-                    List<Uni<SoundFragmentDTO>> unis = list.stream()
-                            .map(this::mapToDTO)
-                            .collect(Collectors.toList());
-                    return Uni.join().all(unis).andFailFast();
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<SoundFragmentDTO>> unis = list.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                        return Uni.join().all(unis).andFailFast();
+                    }
                 });
     }
+
 
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
@@ -110,7 +116,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .fileUri(doc.getFileUri())
                     .localPath(doc.getLocalPath())
                     .type(doc.getType())
-                    .name(doc.getTitle())
+                    .title(doc.getTitle())
                     .artist(doc.getArtist())
                     .genre(doc.getGenre())
                     .album(doc.getAlbum())
@@ -125,7 +131,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setFileUri(dto.getFileUri());
         doc.setLocalPath(dto.getLocalPath());
         doc.setType(dto.getType());
-        doc.setTitle(dto.getName());
+        doc.setTitle(dto.getTitle());
         doc.setArtist(dto.getArtist());
         doc.setGenre(dto.getGenre());
         doc.setAlbum(dto.getAlbum());
@@ -148,6 +154,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         entity.setTitle(file.fileName());
         entity.setSource(SourceType.LOCAL_DISC);
         entity.setType(FragmentType.SONG);
+        entity.setStatus(FragmentStatus.NOT_PROCESSED);
 
         if (uploadDTO.isAutoGenerateIntro() && (uploadDTO.getIntroductionText() == null || uploadDTO.getIntroductionText().isEmpty())) {
             uploadDTO.setIntroductionText("Now playing: " + file.fileName());

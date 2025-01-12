@@ -16,6 +16,7 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.Router;
@@ -24,8 +25,14 @@ import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -168,12 +175,16 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     .end("No file uploaded");
             return;
         }
+        FileUpload file = files.getFirst();
+        String uniqueFileName = UUID.randomUUID() + "-" + file.fileName();
+        String filePath = "/uploads/" + brand + "/" + uniqueFileName;
+        String fileUrl = "https://your-server.com" + filePath;
         rc.response()
                 .setStatusCode(202)
-                .putHeader("Content-Type", "text/plain")
-                .end("File upload accepted, processing started");
+                .putHeader("Content-Type", "application/json")
+                .end(Json.encodePrettily(Map.of("url", fileUrl)));
         getContextUser(rc)
-                .chain(user -> service.streamDirectly(brand, files.getFirst()))
+                .chain(user -> service.streamDirectly(brand, file))
                 .subscribe().with(
                         success -> LOGGER.info("File processed successfully"),
                         throwable -> LOGGER.error("Error processing file", throwable)

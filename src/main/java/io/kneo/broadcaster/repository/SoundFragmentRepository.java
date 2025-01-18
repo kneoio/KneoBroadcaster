@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FragmentType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -21,6 +22,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -74,10 +76,36 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<FileData> getFileById(UUID fileId, Long userId) {
+        String sql = "SELECT file_data, mime_type FROM kneobroadcaster__sound_fragments_files " +
+                "WHERE entity_id = $1 AND EXISTS (" +
+                "SELECT 1 FROM kneobroadcaster__readers WHERE entity_id = $1 AND reader = $2)";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(fileId, userId))
+                .onItem().transformToUni(rows -> {
+                    if (rows.rowCount() == 0) {
+                        return Uni.createFrom().failure(new FileNotFoundException("File not found."));
+                    }
+                    Row row = rows.iterator().next();
+                    return Uni.createFrom().item(new FileData(
+                            row.getBuffer("file_data").getBytes(),
+                            row.getString("mime_type")
+                    ));
+                })
+                .onFailure().recoverWithUni(e -> Uni.createFrom().failure(e));
+    }
+
+
     public Uni<SoundFragment> insert(SoundFragment doc, List<FileUpload> files, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        String sql = String.format("INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, file_uri, local_path, type, title, artist, genre, album) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;", entityData.getTableName());
-        String filesSql = "INSERT INTO kneobroadcaster__sound_fragments_audio_files (fragment_id, audio_data, type) VALUES ($1, $2, $3)";
+        String sql = String.format(
+                "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, file_uri, local_path, type, title, artist, genre, album) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;",
+                entityData.getTableName()
+        );
+        String filesSql = "INSERT INTO kneobroadcaster__sound_fragments_files " +
+                "(entity_id, file_data, mime_type, size, original_name, version) VALUES ($1, $2, $3, $4, $5, $6)";
 
         Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
                 .addString(doc.getSource().name())
@@ -90,18 +118,19 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .addString(doc.getGenre())
                 .addString(doc.getAlbum());
 
-        String readersSql = String.format("INSERT INTO %s(reader, entity_id, can_edit, can_delete) VALUES($1, $2, $3, $4)", entityData.getRlsName());
+        String readersSql = String.format(
+                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
+                entityData.getRlsName()
+        );
 
         return client.withTransaction(tx -> {
             return tx.preparedQuery(sql)
                     .execute(params)
                     .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                    .onFailure().recoverWithUni(t -> Uni.createFrom().failure(t))
                     .onItem().transformToUni(id -> {
                         return tx.preparedQuery(readersSql)
                                 .execute(Tuple.of(user.getId(), id, true, true))
                                 .onItem().ignore().andContinueWithNull()
-                                .onFailure().recoverWithUni(t -> Uni.createFrom().failure(t))
                                 .onItem().transformToUni(unused -> {
                                     if (files.isEmpty()) {
                                         return Uni.createFrom().item(id);
@@ -115,7 +144,10 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                     .execute(Tuple.of(
                                                             id,
                                                             fileContent,
-                                                            file.contentType()
+                                                            file.contentType(),
+                                                            (int) Files.size(Paths.get(file.uploadedFileName())), // File size
+                                                            file.fileName(), // Original name
+                                                            1 // Initial version
                                                     ));
                                             fileInserts.add(fileInsert);
                                         } catch (IOException e) {

@@ -15,6 +15,7 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -29,7 +30,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,15 +53,14 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     public void setupRoutes(Router router) {
         String path = "/api/:brand/soundfragments";
         router.route().handler(BodyHandler.create()
-                .setHandleFileUploads(true)
-                .setUploadsDirectory("uploads")
-                .setDeleteUploadedFilesOnEnd(false)
+                .setHandleFileUploads(true)              // This still handles file uploads
+                .setDeleteUploadedFilesOnEnd(false)      // Prevents deleting files after the request
                 .setBodyLimit(100 * 1024 * 1024));
-
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
-        router.route(HttpMethod.POST, path + "/upload").handler(this::uploadFile);
+        router.route(HttpMethod.GET, path + "/files/:id").handler(this::getFileById);
+        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/upload-with-intro").handler(this::uploadWithIntro);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
@@ -108,6 +107,60 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         rc::fail
                 );
     }
+
+    private void getFileById(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        String id = rc.pathParam("id");
+        String uploadDir = "uploads/" + brand; // Dynamic directory based on brand
+        String filePath = uploadDir + "/" + id; // Full path to the file
+
+        // Check if the file exists in the local directory
+        File file = new File(filePath);
+
+        if (file.exists() && file.isFile()) {
+            // If the file exists, serve it directly
+            try {
+                byte[] fileData = Files.readAllBytes(file.toPath()); // Read file data as byte array
+                rc.response()
+                        .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
+                        .putHeader("Content-Type", getMimeType(file)) // Dynamically set the MIME type based on file extension
+                        .putHeader("Content-Length", String.valueOf(file.length()))
+                        .setStatusCode(200)
+                        .end(Buffer.buffer(fileData)); // Send the file content
+            } catch (IOException e) {
+                rc.response()
+                        .setStatusCode(500)
+                        .putHeader("Content-Type", "text/plain")
+                        .end("Error reading file from disk: " + e.getMessage());
+            }
+        } else {
+            rc.response()
+                    .setStatusCode(404)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("File not found or access denied");
+        }
+    }
+
+    // Method to get MIME type based on file extension (dynamically)
+    private String getMimeType(File file) {
+        String fileName = file.getName();
+        String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+
+        switch (fileExtension) {
+            case "mp3":
+                return "audio/mpeg"; // MIME type for .mp3 files
+            case "wav":
+                return "audio/wav"; // MIME type for .wav files
+            case "ogg":
+                return "audio/ogg"; // MIME type for .ogg files
+            case "flac":
+                return "audio/flac"; // MIME type for .flac files
+            default:
+                return "application/octet-stream"; // Default MIME type for unknown files
+        }
+    }
+
+
 
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
@@ -168,6 +221,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private void uploadFile(RoutingContext rc) {
         String brand = rc.pathParam("brand");
         List<FileUpload> files = rc.fileUploads();
+
         if (files.isEmpty()) {
             rc.response()
                     .setStatusCode(400)
@@ -175,20 +229,36 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     .end("No file uploaded");
             return;
         }
+
         FileUpload file = files.getFirst();
-        String uniqueFileName = UUID.randomUUID() + "-" + file.fileName();
-        String filePath = "/uploads/" + brand + "/" + uniqueFileName;
-        String fileUrl = "https://your-server.com" + filePath;
+        String originalFileName = file.fileName();
+        String uniqueFileName = UUID.randomUUID() + "_" + originalFileName;
+        String uploadDir = "uploads/" + brand;
+        String fileUrl = String.format("http://localhost:8090/api/%s/soundfragments/files/%s", brand,  uniqueFileName);
+
+        File dir = new File(uploadDir);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+
+        try {
+            Files.copy(Paths.get(file.uploadedFileName()), Paths.get(uploadDir + "/" + uniqueFileName)); // Fix the copy call
+        } catch (IOException e) {
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Error saving file");
+            return;
+        }
+
         rc.response()
                 .setStatusCode(202)
                 .putHeader("Content-Type", "application/json")
-                .end(Json.encodePrettily(Map.of("url", fileUrl)));
-        getContextUser(rc)
-                .chain(user -> service.streamDirectly(brand, file))
-                .subscribe().with(
-                        success -> LOGGER.info("File processed successfully"),
-                        throwable -> LOGGER.error("Error processing file", throwable)
-                );
+                .end(Json.encodePrettily(Map.of(
+                        "url", fileUrl,
+                        "fileName", originalFileName
+                )));
+
     }
 
     private void uploadWithIntro(RoutingContext rc) {

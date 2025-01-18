@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.RadioStationPool;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundUploadDTO;
+import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FragmentStatus;
 import io.kneo.broadcaster.model.cnst.FragmentType;
@@ -79,9 +80,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 .chain(this::mapToDTO);
     }
 
-    public Uni<SoundFragment> getById(UUID uuid, IUser user) {
+    public Uni<FileData> getFile(UUID fileId, IUser user) {
         assert repository != null;
-        return repository.findById(uuid, user.getId());
+        return repository.getFileById(fileId, user.getId());
     }
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, List<FileUpload> files, IUser user, LanguageCode code) {
@@ -160,6 +161,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             uploadDTO.setIntroductionText("Now playing: " + file.fileName());
         }
 
+        assert repository != null;
         return repository.insert(entity, List.of(file), user)
                 .chain(doc -> streamDirectly(brand, file)
                         .onItem().transform(v -> doc))

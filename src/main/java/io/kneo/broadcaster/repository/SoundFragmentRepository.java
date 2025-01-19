@@ -167,8 +167,8 @@ public class SoundFragmentRepository extends AsyncRepository {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (permissions[0]) {
-                        String deleteSql = String.format("DELETE FROM %s WHERE fragment_id=$1", entityData.getFilesTableName());
-                        String filesSql = String.format("INSERT INTO %s (fragment_id, audio_data, type) VALUES ($1, $2, $3)", entityData.getFilesTableName());
+                        String deleteSql = String.format("DELETE FROM %s WHERE entity_id=$1", entityData.getFilesTableName());
+                        String filesSql = String.format("INSERT INTO %s (entity_id, file_data, type) VALUES ($1, $2, $3)", entityData.getFilesTableName());
 
                         return client.withTransaction(tx -> {
                             return tx.preparedQuery(deleteSql)

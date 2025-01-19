@@ -160,8 +160,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
-
-
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
         String contentType = rc.request().getHeader("Content-Type");

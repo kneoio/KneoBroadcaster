@@ -100,8 +100,9 @@ public class SoundFragmentRepository extends AsyncRepository {
     public Uni<SoundFragment> insert(SoundFragment doc, List<FileUpload> files, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         String sql = String.format(
-                "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, file_uri, local_path, type, title, artist, genre, album) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;",
+                "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, file_uri, local_path, type, " +
+                        "title, artist, genre, album, priority, played) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id;",
                 entityData.getTableName()
         );
         String filesSql = "INSERT INTO kneobroadcaster__sound_fragments_files " +
@@ -116,7 +117,9 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getGenre())
-                .addString(doc.getAlbum());
+                .addString(doc.getAlbum())
+                .addInteger(doc.getPriority())
+                .addInteger(doc.getPlayed());
 
         String readersSql = String.format(
                 "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
@@ -200,7 +203,9 @@ public class SoundFragmentRepository extends AsyncRepository {
                                     .onItem().transformToUni(unused -> {
                                         // Update the main document
                                         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-                                        String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, source=$3, status=$4, file_uri=$5, local_path=$6, type=$7, title=$8, artist=$9, genre=$10, album=$11 WHERE id=$12;", entityData.getTableName());
+                                        String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
+                                                "source=$3, status=$4, file_uri=$5, local_path=$6, type=$7, title=$8, " +
+                                                "artist=$9, genre=$10, album=$11, priority=$12 WHERE id=$13;", entityData.getTableName());
 
                                         Tuple params = Tuple.of(user.getId(), nowTime)
                                                 .addString(doc.getSource().name())
@@ -212,6 +217,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                 .addString(doc.getArtist())
                                                 .addString(doc.getGenre())
                                                 .addString(doc.getAlbum())
+                                                .addInteger(doc.getPriority())
                                                 .addUUID(id);
 
                                         return tx.preparedQuery(updateSql)

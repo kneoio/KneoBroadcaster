@@ -228,7 +228,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-        FileUpload file = files.getFirst();
+        FileUpload file = files.get(0);
         String originalFileName = file.fileName();
         String uniqueFileName = UUID.randomUUID() + "_" + originalFileName;
         String uploadDir = "uploads/" + brand;
@@ -293,7 +293,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
 
         getContextUser(rc)
-                .chain(user -> service.processUploadWithIntro(brand, files.getFirst(), uploadDTO, user))
+                .chain(user -> service.processUploadWithIntro(brand, files.get(0), uploadDTO, user))
                 .subscribe().with(
                         result -> rc.response()
                                 .setStatusCode(202)

@@ -29,14 +29,11 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Keypractica dependency -->
         <dependency>
             <groupId>io.kneo</groupId>
-            <artifactId>keypractica-core</artifactId>
+            <artifactId>2next</artifactId>
             <version>0.0.3</version>
         </dependency>
-
-        <!-- Quarkus Core -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-resteasy-reactive</artifactId>
@@ -169,6 +166,19 @@
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.smallrye</groupId>
+                <artifactId>jandex-maven-plugin</artifactId>
+                <version>3.2.3</version>
+                <executions>
+                    <execution>
+                        <id>make-index</id>
+                        <goals>
+                            <goal>jandex</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

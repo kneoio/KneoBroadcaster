@@ -10,7 +10,7 @@
 /uploads
 
 
-/**/application-dev.properties
+/**/*.properties
 /qodana.yaml
 /*.ps1
 /ci_cd

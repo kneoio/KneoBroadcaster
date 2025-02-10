@@ -2,8 +2,11 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
+import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
+import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
@@ -16,9 +19,11 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.UUID;
 
+import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.RADIO_STATION;
+
 @ApplicationScoped
 public class RadioStationRepository extends AsyncRepository {
-    private static final String TABLE_NAME = "kneobroadcaster__brands";
+    private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
 
     @Inject
     public RadioStationRepository(PgPool client, ObjectMapper mapper) {
@@ -26,7 +31,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<List<RadioStation>> getAll(int limit, int offset) {
-        String sql = "SELECT * FROM " + TABLE_NAME + (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
+        String sql = "SELECT * FROM " + entityData.getTableName() + (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -35,7 +40,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<RadioStation> findById(UUID id) {
-        String sql = "SELECT * FROM " + TABLE_NAME + " WHERE id = $1";
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
                 .onItem().transform(RowSet::iterator)
@@ -46,7 +51,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<RadioStation> insert(RadioStation station) {
-        String sql = "INSERT INTO " + TABLE_NAME +
+        String sql = "INSERT INTO " + entityData.getTableName() +
                 " (brand, playlist, created, listeners_count) " +
                 "VALUES ($1, $2, $3, $4) RETURNING id";
         Tuple params = Tuple.of(
@@ -62,7 +67,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<RadioStation> update(UUID id, RadioStation station) {
-        String sql = "UPDATE " + TABLE_NAME +
+        String sql = "UPDATE " + entityData.getTableName() +
                 " SET brand=$1, playlist=$2, created=$3, listeners_count=$4 " +
                 "WHERE id=$5";
         Tuple params = Tuple.of(
@@ -81,10 +86,14 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<Integer> delete(UUID id) {
-        String sql = "DELETE FROM " + TABLE_NAME + " WHERE id=$1";
+        String sql = "DELETE FROM " + entityData.getTableName() + " WHERE id=$1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
                 .onItem().transform(RowSet::rowCount);
+    }
+
+    public Uni<Integer> getAllCount(IUser user) {
+        return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
     }
 
     private RadioStation from(Row row) {

@@ -9,15 +9,15 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class HlsPlaylist {
-    private static final Logger LOGGER = LoggerFactory.getLogger(HlsPlaylist.class);
+public class Playlist {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Playlist.class);
     private final ConcurrentNavigableMap<Integer, HlsSegment> segments = new ConcurrentSkipListMap<>();
     private final AtomicInteger currentSequence = new AtomicInteger(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
     private final AtomicInteger segmentsCreated = new AtomicInteger(0);
     private final HlsPlaylistConfig config;
 
-    public HlsPlaylist(HlsPlaylistConfig config) {
+    public Playlist(HlsPlaylistConfig config) {
         this.config = config;
     }
 

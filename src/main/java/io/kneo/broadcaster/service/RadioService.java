@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.config.RadioStationPool;
-import io.kneo.broadcaster.controller.stream.HlsPlaylist;
+import io.kneo.broadcaster.controller.stream.Playlist;
 import io.kneo.broadcaster.model.RadioStation;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.FileUpload;
@@ -49,7 +49,7 @@ public class RadioService {
         });
     }
 
-    public HlsPlaylist getPlaylist(String brand) {
+    public Playlist getPlaylist(String brand) {
         RadioStation radio = radiostationPool.get(brand);
         return radio.getPlaylist();
     }

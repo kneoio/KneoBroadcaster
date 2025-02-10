@@ -53,8 +53,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     public void setupRoutes(Router router) {
         String path = "/api/:brand/soundfragments";
         router.route().handler(BodyHandler.create()
-                .setHandleFileUploads(true)              // This still handles file uploads
-                .setDeleteUploadedFilesOnEnd(false)      // Prevents deleting files after the request
+                .setHandleFileUploads(true)
+                .setDeleteUploadedFilesOnEnd(false)
                 .setBodyLimit(100 * 1024 * 1024));
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);

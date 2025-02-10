@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.server;
 
+import io.kneo.broadcaster.controller.ListenerController;
 import io.kneo.broadcaster.controller.RadioController;
 import io.kneo.broadcaster.controller.RadioStationController;
 import io.kneo.broadcaster.controller.SoundFragmentController;
@@ -28,6 +29,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     @Inject
     RadioStationController radioStationController;
 
+    @Inject
+    ListenerController listenerController;
+
 
     @Inject
     protected Router router;
@@ -48,6 +52,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         soundFragmentController.setupRoutes(router);
         radioController.setupRoutes(router);
         radioStationController.setupRoutes(router);
+        listenerController.setupRoutes(router);
         logRegisteredRoutes(router);
 
         if (EnvConst.DEV_MODE) {

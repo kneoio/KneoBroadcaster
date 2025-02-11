@@ -141,23 +141,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
-    // Method to get MIME type based on file extension (dynamically)
     private String getMimeType(File file) {
         String fileName = file.getName();
         String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
 
-        switch (fileExtension) {
-            case "mp3":
-                return "audio/mpeg"; // MIME type for .mp3 files
-            case "wav":
-                return "audio/wav"; // MIME type for .wav files
-            case "ogg":
-                return "audio/ogg"; // MIME type for .ogg files
-            case "flac":
-                return "audio/flac"; // MIME type for .flac files
-            default:
-                return "application/octet-stream"; // Default MIME type for unknown files
-        }
+        return switch (fileExtension) {
+            case "mp3" -> "audio/mpeg";
+            case "wav" -> "audio/wav";
+            case "ogg" -> "audio/ogg";
+            case "flac" -> "audio/flac";
+            default -> "application/octet-stream";
+        };
     }
 
     private void upsert(RoutingContext rc) {

@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.Map;
+import java.util.EnumMap;
 import java.util.UUID;
 
 @Setter
@@ -15,8 +15,8 @@ import java.util.UUID;
 public class Listener extends SecureDataEntity<UUID> {
     private Long userId;
     private String country;
-    private Map<String, LanguageCode> locName;
-    private Map<String, LanguageCode> nickName;
+    private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+    private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
 }

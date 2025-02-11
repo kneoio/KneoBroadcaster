@@ -98,6 +98,8 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
+            dto.setLocalizedName(doc.getLocalizedName());
+            dto.setNickName(doc.getNickName());
             return dto;
         });
     }
@@ -107,6 +109,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setCountry(dto.getCountry());
         doc.setSlugName(dto.getSlugName());
         doc.setArchived(dto.getArchived());
+        doc.setLocalizedName(dto.getLocalizedName());
         return doc;
     }
 

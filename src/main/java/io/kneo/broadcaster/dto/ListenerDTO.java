@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
-import java.util.Map;
+import java.util.EnumMap;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
@@ -18,8 +18,8 @@ import java.util.Map;
 public class ListenerDTO extends AbstractReferenceDTO {
     long userId;
     private String country;
-    private Map<String, LanguageCode> locName;
-    private Map<String, LanguageCode> nickName;
+    private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+    private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
 

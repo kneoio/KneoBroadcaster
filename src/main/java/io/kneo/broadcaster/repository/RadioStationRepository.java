@@ -3,12 +3,14 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -16,6 +18,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,7 +60,6 @@ public class RadioStationRepository extends AsyncRepository {
         Tuple params = Tuple.of(
                 station.getBrand(),
                 mapper.valueToTree(station.getPlaylist()),
-                station.getCreated(),
                 station.getListenersCount()
         );
         return client.preparedQuery(sql)
@@ -73,7 +75,6 @@ public class RadioStationRepository extends AsyncRepository {
         Tuple params = Tuple.of(
                 station.getBrand(),
                 mapper.valueToTree(station.getPlaylist()),
-                station.getCreated(),
                 station.getListenersCount(),
                 id
         );
@@ -97,10 +98,16 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     private RadioStation from(Row row) {
-        RadioStation station = new RadioStation();
-        station.setId(row.getUUID("id"));
-        station.setBrand(row.getString("slug_name"));
-        station.setCreated(row.getLocalDateTime("reg_date"));
-        return station;
+        RadioStation doc = new RadioStation();
+        setDefaultFields(doc, row);
+        JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
+        if (localizedNameJson != null) {
+            EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+            localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
+            doc.setLocalizedName(localizedName);
+        }
+        doc.setSlugName(row.getString("slug_name"));
+        doc.setArchived(row.getInteger("archived"));
+        return doc;
     }
 }

@@ -49,7 +49,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.delete(UUID.fromString(id));
     }
 
-    public Uni<RadioStationDTO> upsert(String id, RadioStation dto) {
+    public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {
         assert repository != null;
         RadioStation entity = buildEntity(dto);
         if (id == null) {
@@ -68,9 +68,11 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         });
     }
 
-    private RadioStation buildEntity(RadioStation dto) {
+    private RadioStation buildEntity(RadioStationDTO dto) {
         RadioStation entity = new RadioStation();
 
         return entity;
     }
+
+
 }

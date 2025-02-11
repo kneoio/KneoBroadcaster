@@ -254,6 +254,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setArtist(row.getString("artist"));
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
+        doc.setArchived(row.getInteger("archived"));
         return doc;
     }
 }

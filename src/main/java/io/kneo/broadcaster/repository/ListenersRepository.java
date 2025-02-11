@@ -3,12 +3,14 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -17,6 +19,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -112,13 +115,18 @@ public class ListenersRepository extends AsyncRepository {
         doc.setId(row.getUUID("id"));
         doc.setUserId(row.getLong("user_id"));
         doc.setCountry(row.getString("country"));
-      /*  listener.setLocName(mapper.treeToValue(row.getJson("loc_name"), Map.class));
-        try {
-            List<String> nickNames = mapper.treeToValue(row.getJson("nick_name"), List.class);
-            listener.setNickName(nickNames);
-        } catch (Exception e) {
-            listener.setNickName(Collections.emptyList());
-        }*/
+        JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
+        if (localizedNameJson != null) {
+            EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+            localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
+            doc.setLocalizedName(localizedName);
+        }
+        JsonObject nickName = row.getJsonObject("nick_name");
+        if (nickName != null) {
+            EnumMap<LanguageCode, String> localizedNickName = new EnumMap<>(LanguageCode.class);
+            nickName.getMap().forEach((key, value) -> localizedNickName.put(LanguageCode.valueOf(key), (String) value));
+            doc.setNickName(localizedNickName);
+        }
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
         return doc;

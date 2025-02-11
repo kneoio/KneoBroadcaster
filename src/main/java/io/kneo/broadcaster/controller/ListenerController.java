@@ -4,10 +4,11 @@ import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.controller.AbstractSecuredController;
+import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
+import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -68,16 +69,21 @@ public class ListenerController extends AbstractSecuredController<Listener, List
     }
 
     private void getById(RoutingContext rc) {
-        String id = rc.pathParam("id");
-        LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.ENG.name()));
+        FormPage page = new FormPage();
+        page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
 
         getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(id), user, languageCode))
+                .chain(user -> service.getDTO(UUID.fromString(rc.pathParam("id")), user, resolveLanguage(rc)))
+                .onItem().transform(dto -> {
+                    page.addPayload(PayloadType.DOC_DATA, dto);
+                    return page;
+                })
                 .subscribe().with(
-                        dto -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(dto).encode()),
+                        formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
                         rc::fail
                 );
     }
+
 
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
@@ -85,7 +91,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         ListenerDTO dto = jsonObject.mapTo(ListenerDTO.class);
 
         getContextUser(rc)
-                .chain(user -> service.upsert(id, dto))
+                .chain(user -> service.upsert(id, dto, getUser(rc) ))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
                         rc::fail

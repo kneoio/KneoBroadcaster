@@ -47,42 +47,47 @@ public class ListenersRepository extends AsyncRepository {
         return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
     }
 
-    public Uni<Listener> findById(UUID id) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(id))
+    public Uni<Listener> findById(UUID uuid, Long userID) {
+        return client.preparedQuery(String.format(
+                        "SELECT theTable.*, rls.* FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id " +
+                                "WHERE rls.reader = $1 AND theTable.id = $2",
+                        entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(userID, uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> {
                     if (iterator.hasNext()) {
                         return from(iterator.next());
                     }
-                    throw new DocumentHasNotFoundException(id);
-                });
+                    LOGGER.warn("No {} found with id: {}, user: {} ", LISTENER, uuid, userID);
+                    return null;
+                })
+                .onItem().ifNull().failWith(new DocumentHasNotFoundException(uuid));
     }
 
-    public Uni<Listener> insert(Listener listener) {
+
+    public Uni<Listener> insert(Listener listener, Long user) {
         LocalDateTime now = LocalDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nick_name, slug_name, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
         Tuple params = Tuple.tuple()
-                .addLong(0L)                                  // user_id (placeholder)
-                .addLong(0L)                                  // author (placeholder)
+                .addLong(0L)
+                .addLong(0L)
                 .addLocalDateTime(now)
-                .addLong(0L)                                  // last_mod_user (placeholder)
+                .addLong(0L)
                 .addLocalDateTime(now)
-                .addString("UNK")                             // country default
-                //.add(mapper.valueToTree(Collections.emptyMap())) // loc_name as empty JSON
+                .addString("UNK")
+                //.add(mapper.valueToTree(Collections.emptyMap()))
                 //.add(mapper.valueToTree(listener.getNickName()))
                 .addString(listener.getSlugName())
-                .addInteger(0);                               // archived
+                .addInteger(0);
         return client.preparedQuery(sql)
                 .execute(params)
                 .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                .onItem().transformToUni(this::findById);
+                .onItem().transformToUni(id -> findById(id, user));
     }
 
-    public Uni<Listener> update(UUID id, Listener listener) {
+    public Uni<Listener> update(UUID id, Listener listener, Long user) {
         LocalDateTime now = LocalDateTime.now();
         String sql = "UPDATE " + entityData.getTableName() +
                 " SET nick_name=$1, slug_name=$2, last_mod_user=$3, last_mod_date=$4 " +
@@ -90,7 +95,7 @@ public class ListenersRepository extends AsyncRepository {
         Tuple params = Tuple.tuple()
               //  .add(mapper.valueToTree(listener.getNickName()))
                 .addString(listener.getSlugName())
-                .addLong(0L) // last_mod_user (placeholder)
+                .addLong(0L)
                 .addLocalDateTime(now)
                 .addUUID(id);
         return client.preparedQuery(sql)
@@ -98,7 +103,7 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transformToUni(rowSet -> {
                     if (rowSet.rowCount() == 0)
                         throw new DocumentHasNotFoundException(id);
-                    return findById(id);
+                    return findById(id, user);
                 });
     }
 

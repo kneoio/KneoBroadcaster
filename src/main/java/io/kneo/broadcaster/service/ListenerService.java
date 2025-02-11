@@ -5,6 +5,7 @@ import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.UserRepository;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
@@ -61,7 +62,8 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     @Override
     public Uni<ListenerDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
-        return repository.findById(uuid)
+        user = SuperUser.build();
+        return repository.findById(uuid, user.getId())
                 .chain(this::mapToDTO);
     }
 
@@ -71,15 +73,15 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.delete(UUID.fromString(id));
     }
 
-    public Uni<ListenerDTO> upsert(String id, ListenerDTO dto) {
+    public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, IUser user) {
         assert repository != null;
         Listener entity = buildEntity(dto);
 
         if (id == null) {
-            return repository.insert(entity)
+            return repository.insert(entity, user.getId())
                     .chain(this::mapToDTO);
         } else {
-            return repository.update(UUID.fromString(id), entity)
+            return repository.update(UUID.fromString(id), entity, user.getId())
                     .chain(this::mapToDTO);
         }
     }

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.UUID;
 
 @Setter
@@ -19,4 +20,5 @@ public class Listener extends SecureDataEntity<UUID> {
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
+    private List<RadioStation> radioStations;
 }

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto;
 
 import io.kneo.broadcaster.controller.stream.Playlist;
 import io.kneo.core.model.SecureDataEntity;
+import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,6 +18,7 @@ public class RadioStationDTO extends SecureDataEntity<UUID> {
     private Playlist playlist;
     private LocalDateTime created;
     private int listenersCount;
+    private CountryCode country;
 
 
 }

@@ -8,6 +8,7 @@ import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.table.EntityData;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -62,6 +63,29 @@ public class ListenersRepository extends AsyncRepository {
                     return null;
                 })
                 .onItem().ifNull().failWith(new DocumentHasNotFoundException(uuid));
+    }
+
+    public Uni<Listener> findByTelegramName(String telegramName, Long userID) {
+        return client.preparedQuery(String.format(
+                        "SELECT theTable.*, rls.*, fav_brands.rank, fav_brands.brand_id FROM %s theTable " +
+                                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                                "JOIN kneobroadcaster__listeners_brands fav_brands ON theTable.id = fav_brands.listener_id " +
+                                "JOIN _users u ON u.id = rls.reader " +
+                                "WHERE u.id = $1 AND u.telegram_name = $2 order by fav_brands.rank",
+                        entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(userID, telegramName))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transform(iterator -> {
+                    if (iterator.hasNext()) {
+                        Row row = iterator.next();
+                        Listener doc = from(row);
+                        doc.setRadioStations(List.of(row.getUUID("brand_id")));
+                        return doc;
+                    }
+                    LOGGER.warn("No {} found with telegram name: {}, user: {} ", LISTENER, telegramName, userID);
+                    return null;
+                })
+                .onItem().ifNull().failWith(new DocumentHasNotFoundException(telegramName));
     }
 
 
@@ -119,14 +143,14 @@ public class ListenersRepository extends AsyncRepository {
         setDefaultFields(doc, row);
         doc.setId(row.getUUID("id"));
         doc.setUserId(row.getLong("user_id"));
-        doc.setCountry(row.getString("country"));
+        doc.setCountry(CountryCode.valueOf(row.getString("country")));
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {
             EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
             localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
             doc.setLocalizedName(localizedName);
         }
-        JsonObject nickName = row.getJsonObject("nick_name");
+        JsonObject nickName = row.getJsonObject("nickname");
         if (nickName != null) {
             EnumMap<LanguageCode, String> localizedNickName = new EnumMap<>(LanguageCode.class);
             nickName.getMap().forEach((key, value) -> localizedNickName.put(LanguageCode.valueOf(key), (String) value));
@@ -134,6 +158,7 @@ public class ListenersRepository extends AsyncRepository {
         }
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
+
         return doc;
     }
 }

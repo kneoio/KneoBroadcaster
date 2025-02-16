@@ -3,6 +3,7 @@ package io.kneo.broadcaster.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.core.dto.AbstractReferenceDTO;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,7 +18,7 @@ import java.util.EnumMap;
 @NoArgsConstructor
 public class ListenerDTO extends AbstractReferenceDTO {
     long userId;
-    private String country;
+    private CountryCode country;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;

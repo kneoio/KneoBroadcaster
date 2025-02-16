@@ -43,6 +43,8 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
+        router.get(path + "/by-telegram-name/:telegramName").handler(this::getByTelegramName);
+
     }
 
     private void get(RoutingContext rc) {
@@ -74,6 +76,23 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
         getContextUser(rc)
                 .chain(user -> service.getDTO(UUID.fromString(rc.pathParam("id")), user, resolveLanguage(rc)))
+                .onItem().transform(dto -> {
+                    page.addPayload(PayloadType.DOC_DATA, dto);
+                    return page;
+                })
+                .subscribe().with(
+                        formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
+                        rc::fail
+                );
+    }
+
+    private void getByTelegramName(RoutingContext rc) {
+        String telegramName = rc.request().getParam("telegramName");
+        FormPage page = new FormPage();
+        page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+
+        getContextUser(rc)
+                .chain(user -> service.getListener(telegramName))
                 .onItem().transform(dto -> {
                     page.addPayload(PayloadType.DOC_DATA, dto);
                     return page;

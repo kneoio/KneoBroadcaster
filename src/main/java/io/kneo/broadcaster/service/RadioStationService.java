@@ -43,6 +43,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.findById(id).chain(this::mapToDTO);
     }
 
+    public Uni<RadioStation> getById(UUID id, IUser user, LanguageCode language) {
+        return repository.findById(id);
+    }
+
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;
@@ -59,10 +63,13 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         }
     }
 
+
+
     private Uni<RadioStationDTO> mapToDTO(RadioStation doc) {
         return Uni.createFrom().item(() -> {
             RadioStationDTO dto = new RadioStationDTO();
             dto.setId(doc.getId());
+            dto.setCountry(doc.getCountry());
 
             return dto;
         });

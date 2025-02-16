@@ -8,6 +8,7 @@ import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.table.EntityData;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -108,6 +109,7 @@ public class RadioStationRepository extends AsyncRepository {
         }
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
+        doc.setCountry(CountryCode.valueOf(row.getString("country")));
         return doc;
     }
 }

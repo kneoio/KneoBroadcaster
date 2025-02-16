@@ -3,6 +3,7 @@ package io.kneo.broadcaster.model;
 import io.kneo.broadcaster.controller.stream.Playlist;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
+import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -20,5 +21,6 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private int listenersCount;
     private String slugName;
     private Integer archived;
+    private CountryCode country;
 
 }

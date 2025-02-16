@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     private final ListenersRepository repository;
     private final Validator validator;
+    private RadioStationService radioStationService;
 
     protected ListenerService() {
         super(null, null);
@@ -32,9 +33,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     @Inject
     public ListenerService(UserRepository userRepository,
                             UserService userService,
+                            RadioStationService radioStationService,
                             Validator validator,
                             ListenersRepository repository) {
         super(userRepository, userService);
+        this.radioStationService = radioStationService;
         this.validator = validator;
         this.repository = repository;
     }
@@ -64,6 +67,12 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         assert repository != null;
         user = SuperUser.build();
         return repository.findById(uuid, user.getId())
+                .chain(this::mapToDTO);
+    }
+
+    public Uni<ListenerDTO> getListener(String telegramName) {
+        assert repository != null;
+        return repository.findByTelegramName(telegramName,  SuperUser.ID)
                 .chain(this::mapToDTO);
     }
 

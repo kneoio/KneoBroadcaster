@@ -141,18 +141,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
-    private String getMimeType(File file) {
-        String fileName = file.getName();
-        String fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
-
-        return switch (fileExtension) {
-            case "mp3" -> "audio/mpeg";
-            case "wav" -> "audio/wav";
-            case "ogg" -> "audio/ogg";
-            case "flac" -> "audio/flac";
-            default -> "application/octet-stream";
-        };
-    }
 
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");

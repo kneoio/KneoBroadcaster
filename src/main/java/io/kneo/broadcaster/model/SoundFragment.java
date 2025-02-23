@@ -17,12 +17,9 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private int status;
     private int priority = 10;
     private int played;
-    private String fileUri;
-    private String localPath;
     private FragmentType type;
     private String title;
     private String artist;
-    private String createdAt;
     private String genre;
     private String album;
     private byte[] file;

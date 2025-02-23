@@ -120,8 +120,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .lastModifiedDate(doc.getLastModifiedDate())
                     .source(doc.getSource())
                     .status(doc.getStatus())
-                    .fileUri(doc.getFileUri())
-                    .localPath(doc.getLocalPath())
                     .type(doc.getType())
                     .title(doc.getTitle())
                     .artist(doc.getArtist())
@@ -135,16 +133,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         SoundFragment doc = new SoundFragment();
         doc.setSource(dto.getSource());
         doc.setStatus(dto.getStatus());
-        doc.setFileUri(dto.getFileUri());
-        doc.setLocalPath(dto.getLocalPath());
         doc.setType(dto.getType());
         doc.setTitle(dto.getTitle());
         doc.setArtist(dto.getArtist());
         doc.setGenre(dto.getGenre());
         doc.setAlbum(dto.getAlbum());
         doc.setPriority(1);
-        doc.setFileUri("");
-        doc.setLocalPath("");
         return doc;
     }
 
@@ -160,7 +154,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<SoundFragmentDTO> processUploadWithIntro(String brand, FileUpload file, SoundUploadDTO uploadDTO, IUser user) {
         SoundFragment entity = new SoundFragment();
-        entity.setLocalPath(file.uploadedFileName());
         entity.setTitle(file.fileName());
         entity.setSource(SourceType.LOCAL);
         entity.setType(FragmentType.SONG);

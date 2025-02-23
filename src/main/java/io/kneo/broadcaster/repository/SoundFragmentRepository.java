@@ -53,7 +53,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
+                .onItem().transform(row -> from(row, false))
                 .collect().asList();
     }
 
@@ -74,11 +74,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onItem().transform(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        SoundFragment fragment = from(row);
-
-                        // Set the file data from the joined table
+                        SoundFragment fragment = from(row, false);
                         fragment.setFile(row.getBuffer("file_data").getBytes());
-
                         return fragment;
                     } else {
                         LOGGER.warn(String.format("No %s found with id: " + uuid, entityData.getTableName()));
@@ -111,9 +108,9 @@ public class SoundFragmentRepository extends AsyncRepository {
     public Uni<SoundFragment> insert(SoundFragment doc, List<FileUpload> files, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         String sql = String.format(
-                "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, file_uri, local_path, type, " +
+                "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
                         "title, artist, genre, album, priority, played) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id;",
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, $13, $14) RETURNING id;",
                 entityData.getTableName()
         );
         String filesSql = "INSERT INTO kneobroadcaster__sound_fragment_files " +
@@ -122,8 +119,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
                 .addString(doc.getSource().name())
                 .addInteger(doc.getStatus())
-                .addString(doc.getFileUri())
-                .addString(doc.getLocalPath())
                 .addString(doc.getType().name())
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
@@ -159,9 +154,9 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                             id,
                                                             fileContent,
                                                             file.contentType(),
-                                                            (int) Files.size(Paths.get(file.uploadedFileName())), // File size
-                                                            file.fileName(), // Original name
-                                                            1 // Initial version
+                                                            (int) Files.size(Paths.get(file.uploadedFileName())),
+                                                            file.fileName(),
+                                                            1
                                                     ));
                                             fileInserts.add(fileInsert);
                                         } catch (IOException e) {
@@ -212,17 +207,14 @@ public class SoundFragmentRepository extends AsyncRepository {
                                         return Uni.createFrom().item(id);
                                     })
                                     .onItem().transformToUni(unused -> {
-                                        // Update the main document
                                         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
                                         String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
-                                                "source=$3, status=$4, file_uri=$5, local_path=$6, type=$7, title=$8, " +
-                                                "artist=$9, genre=$10, album=$11, priority=$12 WHERE id=$13;", entityData.getTableName());
+                                                "source=$3, status=$4, type=$5, title=$6, " +
+                                                "artist=$7, genre=$8, album=$9, priority=$10 WHERE id=$11;", entityData.getTableName());
 
                                         Tuple params = Tuple.of(user.getId(), nowTime)
                                                 .addString(doc.getSource().name())
                                                 .addInteger(doc.getStatus())
-                                                .addString(doc.getFileUri())
-                                                .addString(doc.getLocalPath())
                                                 .addString(doc.getType().name())
                                                 .addString(doc.getTitle())
                                                 .addString(doc.getArtist())
@@ -251,29 +243,24 @@ public class SoundFragmentRepository extends AsyncRepository {
         return delete(uuid, entityData, user);
     }
 
-    private SoundFragment from(Row row) {
+    private SoundFragment from(Row row, boolean setFile) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
-        //doc.setSource(SourceType.valueOf(row.getString("source")));
-        doc.setSource(SourceType.LOCAL);
-       // doc.setPriority(row.getInteger("priority"));
+        doc.setSource(SourceType.valueOf(row.getString("source")));
+        doc.setPriority(row.getInteger("priority"));
         doc.setStatus(row.getInteger("status"));
-       // doc.setPlayed(row.getInteger("played"));
-        doc.setFileUri(row.getString("file_uri"));
-        doc.setLocalPath(row.getString("local_path"));
-        //doc.setType(FragmentType.valueOf(row.getString("type")));
-        doc.setType(FragmentType.SONG);
-
+        doc.setType(FragmentType.valueOf(row.getString("type")));
         doc.setTitle(row.getString("title"));
         doc.setArtist(row.getString("artist"));
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
-
-        try {
-            doc.setFile(Files.readAllBytes(Paths.get(doc.getLocalPath())));
-        } catch (Exception e) {
-            LOGGER.error("Failed to read file: {}", doc.getLocalPath(), e);
+        if (setFile) {
+            try {
+                //doc.setFile(Files.readAllBytes(Paths.get(doc.getLocalPath())));
+            } catch (Exception e) {
+               // LOGGER.error("Failed to read file: {}", doc.getLocalPath(), e);
+            }
         }
 
         return doc;

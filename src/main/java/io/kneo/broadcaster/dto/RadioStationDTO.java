@@ -1,24 +1,24 @@
 package io.kneo.broadcaster.dto;
 
-import io.kneo.broadcaster.controller.stream.Playlist;
-import io.kneo.core.model.SecureDataEntity;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.core.dto.AbstractDTO;
 import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import java.net.URL;
 
 @Setter
 @Getter
 @NoArgsConstructor
-public class RadioStationDTO extends SecureDataEntity<UUID> {
-    private String brand;
-    private Playlist playlist;
-    private LocalDateTime created;
-    private int listenersCount;
+public class RadioStationDTO  extends AbstractDTO {
     private CountryCode country;
-
+    private URL url;
+    private String slugName;
+    private Integer archived;
+    private int playlistCount;
+    private int listenersCount;
+    private RadioStationStatus status = RadioStationStatus.OFF_LINE;
 
 }

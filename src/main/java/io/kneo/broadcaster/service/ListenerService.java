@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.localization.LanguageCode;
@@ -72,8 +73,34 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     public Uni<ListenerDTO> getListener(String telegramName) {
         assert repository != null;
-        return repository.findByTelegramName(telegramName,  SuperUser.ID)
-                .chain(this::mapToDTO);
+        return repository.findByTelegramName(telegramName, SuperUser.ID)
+                .chain(listener -> {
+                    if (listener == null) {
+                        return Uni.createFrom().nullItem();
+                    }
+                    // Fetch the listener and their radio stations in parallel
+                    return Uni.combine().all().unis(
+                            mapToDTO(listener), // Map listener to DTO
+                            fetchRadioStations(listener.getRadioStations()) // Fetch radio stations
+                    ).asTuple().map(tuple -> {
+                        ListenerDTO dto = tuple.getItem1();
+                        List<RadioStationDTO> radioStations = tuple.getItem2();
+                        // Set the radio stations in the DTO
+                        dto.setRadioStations(radioStations);
+                        return dto;
+                    });
+                });
+    }
+
+    private Uni<List<RadioStationDTO>> fetchRadioStations(List<UUID> radioStationIds) {
+        if (radioStationIds == null || radioStationIds.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+        // Fetch all radio stations by their IDs
+        List<Uni<RadioStationDTO>> radioStationUnis = radioStationIds.stream()
+                .map(id -> radioStationService.getDTO(id, SuperUser.build(), LanguageCode.ENG))
+                .collect(Collectors.toList());
+        return Uni.join().all(radioStationUnis).andFailFast();
     }
 
     @Override

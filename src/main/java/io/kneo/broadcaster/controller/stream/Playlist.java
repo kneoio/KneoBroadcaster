@@ -41,6 +41,7 @@ public class Playlist {
     }
 
     public int getSegmentCount() {
+
         return segments.size();
     }
 
@@ -50,12 +51,12 @@ public class Playlist {
             return;
         }
 
-        if (data.length > config.getBufferSizeKb() * 1024) {
+      /*  if (data.length > config.getBufferSizeKb() * 1024) {
             LOGGER.warn("Segment size {} exceeds maximum buffer size {}",
                     data.length, config.getBufferSizeKb() * 1024);
             return;
         }
-
+*/
         int sequence = currentSequence.getAndIncrement();
         HlsSegment segment = new HlsSegment(sequence, data, config.getSegmentDuration());
         segments.put(sequence, segment);

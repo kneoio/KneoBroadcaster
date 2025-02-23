@@ -9,8 +9,8 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     public static final String RADIO_STATION = "radio station";
 
     private static final String SOUND_FRAGMENT_TABLE_NAME = "kneobroadcaster__sound_fragments";
-    private static final String SOUND_FRAGMENT_ACCESS_TABLE_NAME = "kneobroadcaster__sound_fragments_readers";
-    private static final String SOUND_FRAGMENT_FILES_TABLE_NAME = "kneobroadcaster__sound_fragments_files";
+    private static final String SOUND_FRAGMENT_ACCESS_TABLE_NAME = "kneobroadcaster__sound_fragment_readers";
+    private static final String SOUND_FRAGMENT_FILES_TABLE_NAME = "kneobroadcaster__sound_fragment_files";
     private static final String LISTENER_TABLE_NAME = "kneobroadcaster__listeners";
     private static final String LISTENER_ACCESS_TABLE_NAME = "kneobroadcaster__listener_readers";
     private static final String RADIO_STATION_TABLE_NAME = "kneobroadcaster__brands";

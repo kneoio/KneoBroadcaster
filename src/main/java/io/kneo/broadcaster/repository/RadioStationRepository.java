@@ -34,7 +34,7 @@ public class RadioStationRepository extends AsyncRepository {
         super(client, mapper, null);
     }
 
-    public Uni<List<RadioStation>> getAll(int limit, int offset) {
+    public Uni<List<RadioStation>> getAll(int limit, int offset, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
         return client.query(sql)
                 .execute()
@@ -54,12 +54,22 @@ public class RadioStationRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<RadioStation> findByBrandName(String name) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(name))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transform(iterator -> {
+                    if (iterator.hasNext()) return from(iterator.next());
+                    throw new DocumentHasNotFoundException(name);
+                });
+    }
+
     public Uni<RadioStation> insert(RadioStation station) {
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (brand, playlist, created, listeners_count) " +
                 "VALUES ($1, $2, $3, $4) RETURNING id";
         Tuple params = Tuple.of(
-                station.getBrand(),
                 mapper.valueToTree(station.getPlaylist()),
                 station.getListenersCount()
         );
@@ -74,7 +84,6 @@ public class RadioStationRepository extends AsyncRepository {
                 " SET brand=$1, playlist=$2, created=$3, listeners_count=$4 " +
                 "WHERE id=$5";
         Tuple params = Tuple.of(
-                station.getBrand(),
                 mapper.valueToTree(station.getPlaylist()),
                 station.getListenersCount(),
                 id
@@ -107,6 +116,7 @@ public class RadioStationRepository extends AsyncRepository {
             localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
             doc.setLocalizedName(localizedName);
         }
+        doc.setPrimaryLang(row.getString("primary_lang"));
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));

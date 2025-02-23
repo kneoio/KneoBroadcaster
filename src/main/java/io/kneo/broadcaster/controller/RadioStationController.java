@@ -1,15 +1,19 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.RadioStationDTO;
+import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
 import io.kneo.core.dto.form.FormPage;
+import io.kneo.core.dto.view.View;
+import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.util.RuntimeUtil;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -41,9 +45,24 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
-        service.getAll(size, (page - 1) * size)
+
+        getContextUser(rc)
+                .chain(user -> Uni.combine().all().unis(
+                        service.getAllCount(user),
+                        service.getAll(size, (page - 1) * size, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<RadioStationDTO> dtoEntries = new View<>(tuple.getItem2(),
+                            tuple.getItem1(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
+                    viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
+                    return viewPage;
+                }))
                 .subscribe().with(
-                        list -> rc.response().setStatusCode(200).end(Json.encodePrettily(list)),
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
                 );
     }

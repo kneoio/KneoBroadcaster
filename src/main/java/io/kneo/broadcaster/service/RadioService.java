@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service;
 
-
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.config.RadioStationPool;
 import io.kneo.broadcaster.controller.stream.Playlist;
@@ -27,30 +26,41 @@ public class RadioService {
     RadioStationPool radiostationPool;
 
     public Uni<Void> addFileUploadToPlaylist(String brand, FileUpload fileUpload) {
-        RadioStation radio = radiostationPool.get(brand);
-        return Uni.createFrom().item(() -> {
-            try {
-                byte[] fileData = Files.readAllBytes(Paths.get(fileUpload.uploadedFileName()));
-                int segmentSize = config.getBufferSizeKb() * 1024;
+        return radiostationPool.get(brand)
+                .onItem().transformToUni(radio -> {
+                    return Uni.createFrom().item(() -> {
+                                try {
+                                    return Files.readAllBytes(Paths.get(fileUpload.uploadedFileName()));
+                                } catch (IOException e) {
+                                    throw new RuntimeException("Failed to read uploaded file", e);
+                                }
+                            })
+                            .onItem().transformToUni(fileData -> {
+                                int segmentSize = config.getBufferSizeKb() * 1024;
 
-                for (int i = 0; i < fileData.length; i += segmentSize) {
-                    int segmentLength = Math.min(segmentSize, fileData.length - i);
-                    byte[] segment = new byte[segmentLength];
-                    System.arraycopy(fileData, i, segment, 0, segmentLength);
-                    radio.getPlaylist().addSegment(segment);
-                }
-                LOGGER.info("Added uploaded file to playlist: {}, size: {}, with segment size: {}",
-                        fileUpload.fileName(), fileUpload.size(), segmentSize);
-                return null;
-            } catch (IOException e) {
-                LOGGER.error("Failed to process uploaded file: {}", fileUpload.fileName(), e);
-                throw new RuntimeException("Failed to process uploaded file", e);
-            }
-        });
+                                // Process the file in chunks and add segments to the playlist
+                                for (int i = 0; i < fileData.length; i += segmentSize) {
+                                    int segmentLength = Math.min(segmentSize, fileData.length - i);
+                                    byte[] segment = new byte[segmentLength];
+                                    System.arraycopy(fileData, i, segment, 0, segmentLength);
+                                    radio.getPlaylist().addSegment(segment);
+                                }
+
+                                LOGGER.info("Added uploaded file to playlist: {}, size: {}, with segment size: {}",
+                                        fileUpload.fileName(), fileUpload.size(), segmentSize);
+                                return Uni.createFrom().voidItem();
+                            });
+                })
+                .onFailure().invoke(failure -> {
+                    LOGGER.error("Failed to process uploaded file: {}", fileUpload.fileName(), failure);
+                });
     }
 
-    public Playlist getPlaylist(String brand) {
-        RadioStation radio = radiostationPool.get(brand);
-        return radio.getPlaylist();
+    public Uni<Playlist> getPlaylist(String brand) {
+        return radiostationPool.get(brand)
+                .onItem().transform(RadioStation::getPlaylist)
+                .onFailure().invoke(failure -> {
+                    LOGGER.error("Failed to get playlist for brand: {}", brand, failure);
+                });
     }
 }

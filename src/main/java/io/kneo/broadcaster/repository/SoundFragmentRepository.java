@@ -62,13 +62,24 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<SoundFragment> findById(UUID uuid, Long userID) {
-        return client.preparedQuery(String.format("SELECT theTable.*, rls.* FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id " +
-                        "WHERE rls.reader = $1 AND theTable.id = $2", entityData.getTableName(), entityData.getRlsName()))
+        return client.preparedQuery(String.format(
+                        "SELECT theTable.*, rls.*, files.file_data " +
+                                "FROM %s theTable " +
+                                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                                "JOIN kneobroadcaster__sound_fragment_files files ON theTable.id = files.entity_id " +
+                                "WHERE rls.reader = $1 AND theTable.id = $2",
+                        entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(userID, uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> {
                     if (iterator.hasNext()) {
-                        return from(iterator.next());
+                        Row row = iterator.next();
+                        SoundFragment fragment = from(row);
+
+                        // Set the file data from the joined table
+                        fragment.setFile(row.getBuffer("file_data").getBytes());
+
+                        return fragment;
                     } else {
                         LOGGER.warn(String.format("No %s found with id: " + uuid, entityData.getTableName()));
                         throw new DocumentHasNotFoundException(uuid);
@@ -77,7 +88,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<FileData> getFileById(UUID fileId, Long userId) {
-        String sql = "SELECT file_data, mime_type FROM kneobroadcaster__sound_fragments_files " +
+        String sql = "SELECT file_data, mime_type FROM kneobroadcaster__sound_fragment_files " +
                 "WHERE entity_id = $1 AND EXISTS (" +
                 "SELECT 1 FROM kneobroadcaster__readers WHERE entity_id = $1 AND reader = $2)";
 
@@ -105,7 +116,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id;",
                 entityData.getTableName()
         );
-        String filesSql = "INSERT INTO kneobroadcaster__sound_fragments_files " +
+        String filesSql = "INSERT INTO kneobroadcaster__sound_fragment_files " +
                 "(entity_id, file_data, mime_type, size, original_name, version) VALUES ($1, $2, $3, $4, $5, $6)";
 
         Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
@@ -243,18 +254,28 @@ public class SoundFragmentRepository extends AsyncRepository {
     private SoundFragment from(Row row) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
-        doc.setSource(SourceType.valueOf(row.getString("source")));
+        //doc.setSource(SourceType.valueOf(row.getString("source")));
+        doc.setSource(SourceType.LOCAL);
        // doc.setPriority(row.getInteger("priority"));
         doc.setStatus(row.getInteger("status"));
        // doc.setPlayed(row.getInteger("played"));
         doc.setFileUri(row.getString("file_uri"));
         doc.setLocalPath(row.getString("local_path"));
-        doc.setType(FragmentType.valueOf(row.getString("type")));
+        //doc.setType(FragmentType.valueOf(row.getString("type")));
+        doc.setType(FragmentType.SONG);
+
         doc.setTitle(row.getString("title"));
         doc.setArtist(row.getString("artist"));
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
+
+        try {
+            doc.setFile(Files.readAllBytes(Paths.get(doc.getLocalPath())));
+        } catch (Exception e) {
+            LOGGER.error("Failed to read file: {}", doc.getLocalPath(), e);
+        }
+
         return doc;
     }
 }

@@ -11,6 +11,7 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.UserRepository;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
@@ -71,6 +72,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
         return repository.getAllCount(user);
+    }
+
+    public Uni<List<SoundFragment>> getAll(final int limit, final int offset) {
+        assert repository != null;
+        return repository.getAll(limit, offset, SuperUser.build());
     }
 
     @Override
@@ -156,7 +162,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         SoundFragment entity = new SoundFragment();
         entity.setLocalPath(file.uploadedFileName());
         entity.setTitle(file.fileName());
-        entity.setSource(SourceType.LOCAL_DISC);
+        entity.setSource(SourceType.LOCAL);
         entity.setType(FragmentType.SONG);
         entity.setStatus(FragmentStatus.NOT_PROCESSED);
 

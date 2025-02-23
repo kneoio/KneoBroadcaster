@@ -67,11 +67,12 @@ public class ListenersRepository extends AsyncRepository {
 
     public Uni<Listener> findByTelegramName(String telegramName, Long userID) {
         return client.preparedQuery(String.format(
-                        "SELECT theTable.*, rls.*, fav_brands.rank, fav_brands.brand_id FROM %s theTable " +
+                        "SELECT * " +
+                                "FROM %s theTable " +
                                 "JOIN %s rls ON theTable.id = rls.entity_id " +
-                                "JOIN kneobroadcaster__listeners_brands fav_brands ON theTable.id = fav_brands.listener_id " +
-                                "JOIN _users u ON u.id = rls.reader " +
-                                "WHERE u.id = $1 AND u.telegram_name = $2 order by fav_brands.rank",
+                                "JOIN kneobroadcaster__listener_brands fav_brands ON theTable.id = fav_brands.listener_id " +
+                                "JOIN _users u ON u.id = theTable.user_id " +
+                                "WHERE reader = $1 AND u.telegram_name = $2 ORDER BY fav_brands.rank",
                         entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(userID, telegramName))
                 .onItem().transform(RowSet::iterator)

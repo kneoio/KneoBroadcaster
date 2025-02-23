@@ -10,6 +10,7 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.util.EnumMap;
+import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
@@ -23,7 +24,6 @@ public class ListenerDTO extends AbstractReferenceDTO {
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
-
-
+    private List<RadioStationDTO> radioStations;
 
 }

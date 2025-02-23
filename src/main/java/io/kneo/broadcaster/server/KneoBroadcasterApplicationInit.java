@@ -1,9 +1,6 @@
 package io.kneo.broadcaster.server;
 
-import io.kneo.broadcaster.controller.ListenerController;
-import io.kneo.broadcaster.controller.RadioController;
-import io.kneo.broadcaster.controller.RadioStationController;
-import io.kneo.broadcaster.controller.SoundFragmentController;
+import io.kneo.broadcaster.controller.*;
 
 import io.kneo.core.server.AbstractApplicationInit;
 import io.quarkus.runtime.StartupEvent;
@@ -19,6 +16,9 @@ import org.slf4j.LoggerFactory;
 @ApplicationScoped
 public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     private static final Logger LOGGER = LoggerFactory.getLogger(KneoBroadcasterApplicationInit.class);
+
+    @Inject
+    DashboardController dashboardController;
 
     @Inject
     SoundFragmentController soundFragmentController;
@@ -49,6 +49,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     public void onStart(@Observes StartupEvent ev) {
         LOGGER.info("The application is starting...{}", EnvConst.APP_ID);
         super.setupRoutes(router);
+        dashboardController.setupRoutes(router);
         soundFragmentController.setupRoutes(router);
         radioController.setupRoutes(router);
         radioStationController.setupRoutes(router);

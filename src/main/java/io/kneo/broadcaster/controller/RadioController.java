@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.service.RadioService;
+import io.kneo.broadcaster.service.SoundFragmentService;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
@@ -11,23 +13,26 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
+
 
 @ApplicationScoped
 public class RadioController {
-    private static final Logger LOGGER = Logger.getLogger(RadioController.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
 
     private final RadioService service;
+    private final SoundFragmentService soundFragmentService;
 
     @Inject
-    public RadioController(RadioService service) {
+    public RadioController(RadioService service, SoundFragmentService soundFragmentService) {
         this.service = service;
+        this.soundFragmentService = soundFragmentService;
     }
 
     private final AtomicInteger listenerCount = new AtomicInteger(0);
-
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -37,20 +42,19 @@ public class RadioController {
 
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand");
-        LOGGER.info("Playlist request received for brand: " + brand);
+        LOGGER.info("Playlist requested for brand: {}, listeners: {} ", brand, listenerCount.get());
         listenerCount.incrementAndGet();
-        LOGGER.info("Listener count: " + listenerCount.get());
         service.getPlaylist(brand)
                 .onItem().transform(playlist -> {
                     if (playlist.getSegmentCount() == 0) {
-                        LOGGER.warning("No segments available in playlist for brand: " + brand);
+                        LOGGER.warn("No segments available in playlist for brand: {} ", brand);
                         throw new WebApplicationException(Response.Status.NOT_FOUND);
                     }
                     return playlist.generatePlaylist();
                 })
                 .subscribe().with(
                         playlistContent -> {
-                            LOGGER.info("Serving playlist for brand: " + brand + " with content:\n" + playlistContent);
+                            LOGGER.info("Serving playlist for brand: {} with content:\n{}", brand, playlistContent);
                             rc.response()
                                     .putHeader("Content-Type", "application/vnd.apple.mpegurl")
                                     .putHeader("Access-Control-Allow-Origin", "*")
@@ -67,7 +71,7 @@ public class RadioController {
                                         .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                                         .end("No segments available");
                             } else {
-                                LOGGER.severe("Error serving playlist for brand: " + brand + " - " + throwable.getMessage());
+                                LOGGER.error("Error serving playlist for brand: {} - {}", brand, throwable.getMessage());
                                 rc.fail(throwable);
                             }
                         }
@@ -77,7 +81,7 @@ public class RadioController {
     private void getSegment(RoutingContext rc) {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand");
-        LOGGER.info("Segment request received for brand: " + brand + ", segment: " + segmentParam);
+        LOGGER.info("-----------------Segment request received for brand: " + brand + ", segment: " + segmentParam);
 
         try {
             int sequence = Integer.parseInt(segmentParam.replaceAll("\\D+", ""));
@@ -85,14 +89,19 @@ public class RadioController {
                     .onItem().transform(playlist -> {
                         HlsSegment segment = playlist.getSegment(sequence);
                         if (segment == null) {
-                            LOGGER.warning("Segment not found for brand: " + brand + ", sequence: " + sequence);
+                            LOGGER.warn("Segment not found for brand: {}, sequence: {}", brand, sequence);
                             throw new WebApplicationException(Response.Status.NOT_FOUND);
                         }
+                        soundFragmentService.updateForBrand(segment.getSoundFragment().getId(), brand, FragmentActionType.MARK_AS_PLAYED)
+                                .subscribe().with(
+                                        v -> LOGGER.info("Successfully updated fragment for brand: {}", v),
+                                        failure -> LOGGER.error("Failed to update fragment for brand")
+                                );
                         return segment.getData();
                     })
                     .subscribe().with(
                             data -> {
-                                LOGGER.info("Serving segment for brand: " + brand + ", sequence: " + sequence);
+                                LOGGER.info("-----------------Serving segment for brand: {}, sequence: {}", brand, sequence);
                                 rc.response()
                                         .putHeader("Content-Type", "video/MP2T")
                                         .putHeader("Access-Control-Allow-Origin", "*")
@@ -101,10 +110,9 @@ public class RadioController {
                                         .end(Buffer.buffer(data));
                             },
                             throwable -> {
-                                listenerCount.decrementAndGet(); // Decrement listener count on error
-                                LOGGER.info("Listener count: " + listenerCount.get());
-                                if (throwable instanceof WebApplicationException) {
-                                    WebApplicationException e = (WebApplicationException) throwable;
+                                listenerCount.decrementAndGet();
+                                LOGGER.info("Listener count: {}", listenerCount.get());
+                                if (throwable instanceof WebApplicationException e) {
                                     String message = e.getResponse().getStatus() == 404 ?
                                             "Segment not found" : "Invalid segment name format";
 
@@ -114,13 +122,13 @@ public class RadioController {
                                             .end(message);
                                 } else {
                                     listenerCount.decrementAndGet();
-                                    LOGGER.severe("Error serving segment for brand: " + brand + ", sequence: " + sequence + " - " + throwable.getMessage());
+                                    LOGGER.error("Error serving segment for brand: {}, sequence: {} - {}", brand, sequence, throwable.getMessage());
                                     rc.fail(throwable);
                                 }
                             }
                     );
         } catch (NumberFormatException e) {
-            LOGGER.severe("Invalid segment name format: " + segmentParam);
+            LOGGER.error("Invalid segment name format: {}", segmentParam);
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)

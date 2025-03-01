@@ -11,6 +11,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
@@ -31,6 +32,12 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
 
     public RadioStationController() {
         super(null);
+    }
+
+    @Inject
+    public RadioStationController(UserService userService, RadioStationService service) {
+        super(userService);
+        this.service = service;
     }
 
     public void setupRoutes(Router router) {

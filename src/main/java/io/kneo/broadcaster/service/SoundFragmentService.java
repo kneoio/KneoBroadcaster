@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundUploadDTO;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.model.cnst.FragmentStatus;
 import io.kneo.broadcaster.model.cnst.FragmentType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -20,6 +21,8 @@ import io.vertx.ext.web.FileUpload;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,14 +30,18 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SoundFragmentService extends AbstractService<SoundFragment, SoundFragmentDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentService.class);
+
     private final SoundFragmentRepository repository;
     private final RadioService radioService;
+    private final RadioStationService radioStationService;
     private final RadioStationPool radiostationPool;
     Validator validator;
 
     protected SoundFragmentService() {
         super(null, null);
         this.repository = null;
+        this.radioStationService = null;
         this.radioService = null;
         this.radiostationPool = null;
     }
@@ -43,6 +50,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public SoundFragmentService(UserRepository userRepository,
                                 UserService userService,
                                 RadioService service,
+                                RadioStationService radioStationService,
                                 RadioStationPool radiostationPool,
                                 Validator validator,
                                 SoundFragmentRepository repository) {
@@ -50,6 +58,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.validator = validator;
         this.repository = repository;
         this.radioService = service;
+        this.radioStationService = radioStationService;
         this.radiostationPool = radiostationPool;
     }
 
@@ -89,6 +98,51 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<FileData> getFile(UUID fileId, IUser user) {
         assert repository != null;
         return repository.getFileById(fileId, user.getId());
+    }
+
+    public Uni<Void> getForBrand(String brandName) {
+        assert repository != null;
+        assert radioStationService != null;
+        LOGGER.debug("Get fragments for brand: {}", brandName);
+        return radioStationService.findByBrandName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+
+                    UUID brandId = radioStation.getId();
+                    return repository.findForBrand(brandName)
+                            .chain(this::mapToDTO);
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to update fragment for brand: {}", brandName, failure);
+                    return Uni.createFrom().failure(failure);
+                }).replaceWithVoid();
+    }
+
+    public Uni<Void> updateForBrand(UUID soundFragmentId, String brandName, FragmentActionType actionType) {
+        assert repository != null;
+        assert radioStationService != null;
+        LOGGER.debug("Action: {} for brand: {}, sound fragment: {}", actionType.name(), brandName, soundFragmentId);
+        return radioStationService.findByBrandName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+
+                    UUID brandId = radioStation.getId();
+                    return repository.updatePlayedByBrand(brandId, soundFragmentId)
+                            .onItem().transformToUni(updateCount -> {
+                                if (updateCount == 0) {
+                                    return Uni.createFrom().failure(new IllegalArgumentException("No matching record found for brand: " + brandName + " and fragment: " + soundFragmentId));
+                                }
+                                return Uni.createFrom().voidItem();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to update fragment for brand: {}", brandName, failure);
+                    return Uni.createFrom().failure(failure);
+                });
     }
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, List<FileUpload> files, IUser user, LanguageCode code) {

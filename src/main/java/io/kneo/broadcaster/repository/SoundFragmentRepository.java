@@ -1,11 +1,14 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.config.MainConfig;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FragmentType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.repository.exceptions.DigitalOceanException;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
+import io.kneo.broadcaster.service.DigitalOceanSpacesService;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -39,9 +42,14 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.S
 public class SoundFragmentRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SOUND_FRAGMENT);
 
+    private final MainConfig config;
+    private DigitalOceanSpacesService digitalOceanSpacesService;
+
     @Inject
-    public SoundFragmentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public SoundFragmentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, MainConfig config, DigitalOceanSpacesService digitalOceanSpacesService) {
         super(client, mapper, rlsRepository);
+        this.config = config;
+        this.digitalOceanSpacesService = digitalOceanSpacesService;
     }
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final IUser user) {
@@ -53,7 +61,8 @@ public class SoundFragmentRepository extends AsyncRepository {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> from(row, false))
+                .onItem().transformToUni(row -> from(row, true)) // Use transformToUni instead of transform
+                .concatenate()
                 .collect().asList();
     }
 
@@ -71,15 +80,43 @@ public class SoundFragmentRepository extends AsyncRepository {
                         entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(userID, uuid))
                 .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
+                .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        SoundFragment fragment = from(row, false);
-                        fragment.setFile(row.getBuffer("file_data").getBytes());
-                        return fragment;
+                        return from(row, false) // Use transformToUni to handle the Uni<SoundFragment>
+                                .onItem().transform(fragment -> {
+                                    fragment.setFile(row.getBuffer("file_data").getBytes());
+                                    return fragment;
+                                });
                     } else {
                         LOGGER.warn(String.format("No %s found with id: " + uuid, entityData.getTableName()));
-                        throw new DocumentHasNotFoundException(uuid);
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
+                    }
+                });
+    }
+
+
+    public Uni<SoundFragment> findForBrand(String brandName) {
+        return client.preparedQuery(String.format(
+                        "SELECT theTable.*, rls.*, files.file_data " +
+                                "FROM %s theTable " +
+                                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                                "JOIN kneobroadcaster__sound_fragment_files files ON theTable.id = files.entity_id " +
+                                "WHERE rls.reader = $1 AND theTable.id = $2",
+                        entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(userID, uuid))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        Row row = iterator.next();
+                        return from(row, false) // Use transformToUni to handle the Uni<SoundFragment>
+                                .onItem().transform(fragment -> {
+                                    fragment.setFile(row.getBuffer("file_data").getBytes());
+                                    return fragment;
+                                });
+                    } else {
+                        LOGGER.warn(String.format("No %s found with id: " + uuid, entityData.getTableName()));
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
                     }
                 });
     }
@@ -104,6 +141,20 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onFailure().recoverWithUni(e -> Uni.createFrom().failure(e));
     }
 
+    public Uni<Integer> updatePlayedByBrand(UUID brandId, UUID soundFragmentId) {
+        String sql = "UPDATE kneobroadcaster__brand_sound_fragments " +
+                "SET played_by_brand_count = played_by_brand_count + 1, " +
+                "last_time_played_by_brand = NOW() " +
+                "WHERE brand_id = $1 AND sound_fragment_id = $2";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, soundFragmentId))
+                .onItem().transform(RowSet::rowCount)
+                .onFailure().recoverWithUni(e -> {
+                    LOGGER.error("Failed to update played_by_brand_count and last_time_played_by_brand", e);
+                    return Uni.createFrom().failure(e);
+                });
+    }
 
     public Uni<SoundFragment> insert(SoundFragment doc, List<FileUpload> files, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
@@ -243,7 +294,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         return delete(uuid, entityData, user);
     }
 
-    private SoundFragment from(Row row, boolean setFile) {
+    private Uni<SoundFragment> from(Row row, boolean setFile) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
@@ -255,14 +306,21 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
+
         if (setFile) {
-            try {
-                //doc.setFile(Files.readAllBytes(Paths.get(doc.getLocalPath())));
-            } catch (Exception e) {
-               // LOGGER.error("Failed to read file: {}", doc.getLocalPath(), e);
-            }
+            return digitalOceanSpacesService.getFile(row.getString("do_key")) // Returns Uni<File>
+                    .onItem().transformToUni(file -> {
+                        try {
+                            byte[] fileBytes = Files.readAllBytes(file.toPath()); // Read the file asynchronously
+                            doc.setFile(fileBytes);
+                            return Uni.createFrom().item(doc);
+                        } catch (IOException e) {
+                            return Uni.createFrom().failure(new DigitalOceanException("Failed to read file: " + e.getMessage(), e));
+                        }
+                    });
         }
 
-        return doc;
+        return Uni.createFrom().item(doc);
     }
+
 }

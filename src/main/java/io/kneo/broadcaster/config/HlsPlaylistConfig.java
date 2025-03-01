@@ -32,4 +32,8 @@ public interface HlsPlaylistConfig {
         // Add 50% overhead for MPEGTS container and safety margin
         return (int)((getBitrate() * getSegmentDuration() * 1.5) / 8);
     }
+    @WithName("basedir")
+    @WithDefault("uploads")
+    String getBaseDir();
+
 }

@@ -1,5 +1,5 @@
 package io.kneo.broadcaster.model.cnst;
 
 public enum SourceType {
-    LOCAL, JAMENDO
+    LOCAL, JAMENDO, DIGITALOCEAN
 }

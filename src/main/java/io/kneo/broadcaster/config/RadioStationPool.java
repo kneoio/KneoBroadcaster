@@ -34,37 +34,36 @@ public class RadioStationPool {
     @Inject
     private HlsPlaylistConfig config;
 
-    public Uni<RadioStation> get(String name) {
+    public Uni<RadioStation> get(String brandName) {
         Playlist playlist = new Playlist(config);
-        RadioStation radioStation = pool.get(name);
+        RadioStation radioStation = pool.get(brandName);
 
         if (radioStation == null || radioStation.getPlaylist().getSegmentCount() == 0) {
-            LOGGER.info("Starting radio station: {}", name);
+            LOGGER.info("Starting radio station: {}", brandName);
             return soundFragmentService.getAll(0, 100)
                     .onItem().transformToUni(fragments -> {
-                        return radioStationService.findByBrandName(name).onItem().transform(station -> {
+                        return radioStationService.findByBrandName(brandName).onItem().transform(station -> {
                             List<SoundFragment> randomFragments = getRandomFragments(fragments, 3);
                             for (SoundFragment fragment : randomFragments) {
-                                playlist.addSegment(fragment.getFile());
+                                playlist.addSegment(fragment, brandName);
                             }
                             if (playlist.getSegmentCount() == 0) {
-                                throw new PlaylistException("Playlist is empty");
+                                throw new PlaylistException("Playlist is still empty after init pool");
                             }
                             station.setPlaylist(playlist);
                             station.setStatus(RadioStationStatus.ON_LINE);
-                            pool.put(name, station);
+                            pool.put(brandName, station);
                             return station;
                         });
                     })
                     .onFailure().invoke(failure -> {
-                        LOGGER.error("Failed to initialize radio station: {}", name, failure);
+                        LOGGER.error("Failed to initialize radio station: {}", brandName, failure);
                     })
                     .onItem().invoke(station -> {
-                        LOGGER.info("Initialized radio station: {}", name);
+                        LOGGER.info("Initialized radio station: {}", brandName);
                     });
         }
         return Uni.createFrom().item(radioStation);
-
     }
 
     public Uni<BroadcastingStats> checkStatus(String name) {
@@ -80,6 +79,7 @@ public class RadioStationPool {
         return Uni.createFrom().item(stats);
     }
 
+    @Deprecated
     private List<SoundFragment> getRandomFragments(List<SoundFragment> fragments, int count) {
         Random random = new Random();
         return random.ints(0, fragments.size())
@@ -88,6 +88,4 @@ public class RadioStationPool {
                 .mapToObj(fragments::get)
                 .toList();
     }
-
-
 }

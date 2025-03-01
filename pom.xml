@@ -47,6 +47,12 @@
             <artifactId>quarkus-reactive-routes</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.20.0</version>
+        </dependency>
+
         <!-- Database -->
         <dependency>
             <groupId>io.quarkus</groupId>

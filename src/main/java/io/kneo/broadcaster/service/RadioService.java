@@ -23,10 +23,10 @@ public class RadioService {
     HlsPlaylistConfig config;
 
     @Inject
-    RadioStationPool radiostationPool;
+    RadioStationPool radioStationPool;
 
     public Uni<Void> addFileUploadToPlaylist(String brand, FileUpload fileUpload) {
-        return radiostationPool.get(brand)
+        return radioStationPool.get(brand)
                 .onItem().transformToUni(radio -> {
                     return Uni.createFrom().item(() -> {
                                 try {
@@ -43,7 +43,7 @@ public class RadioService {
                                     int segmentLength = Math.min(segmentSize, fileData.length - i);
                                     byte[] segment = new byte[segmentLength];
                                     System.arraycopy(fileData, i, segment, 0, segmentLength);
-                                    radio.getPlaylist().addSegment(segment);
+                                    //radio.getPlaylist().addSegment(segment);
                                 }
 
                                 LOGGER.info("Added uploaded file to playlist: {}, size: {}, with segment size: {}",
@@ -57,7 +57,7 @@ public class RadioService {
     }
 
     public Uni<Playlist> getPlaylist(String brand) {
-        return radiostationPool.get(brand)
+        return radioStationPool.get(brand)
                 .onItem().transform(RadioStation::getPlaylist)
                 .onFailure().invoke(failure -> {
                     LOGGER.error("Failed to get playlist for brand: {}", brand, failure);

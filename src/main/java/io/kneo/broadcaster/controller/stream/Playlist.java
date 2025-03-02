@@ -70,7 +70,7 @@ public class Playlist {
                 Files.readAllBytes(fragmentFile.toPath()),
                 config.getSegmentDuration(),
                 brandSoundFragment.getId(),
-                String.format(brandSoundFragment.getSoundFragment().getArtist() + " " + brandSoundFragment.getSoundFragment().getTitle())
+                String.format(brandSoundFragment.getSoundFragment().getArtist() + " - " + brandSoundFragment.getSoundFragment().getTitle())
         );
         segments.put(sequence, segment);
 

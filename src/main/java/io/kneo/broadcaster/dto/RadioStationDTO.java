@@ -19,7 +19,6 @@ public class RadioStationDTO  extends AbstractDTO {
     private Integer archived;
     private int playlistCount;
     private int listenersCount;
-    private String currentPlaying;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
 
 }

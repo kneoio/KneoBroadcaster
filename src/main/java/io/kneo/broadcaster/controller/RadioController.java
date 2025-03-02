@@ -38,6 +38,7 @@ public class RadioController {
         String path = "/:brand/radio";
         router.route(HttpMethod.GET, path + "/stream").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
+        router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -64,7 +65,6 @@ public class RadioController {
                         },
                         throwable -> {
                             listenerCount.decrementAndGet();
-                            LOGGER.info("Listener count: " + listenerCount.get());
                             if (throwable instanceof WebApplicationException) {
                                 rc.response()
                                         .setStatusCode(404)
@@ -81,7 +81,7 @@ public class RadioController {
     private void getSegment(RoutingContext rc) {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand");
-        LOGGER.info("-----------------Segment request received for brand: " + brand + ", segment: " + segmentParam);
+        LOGGER.info("-----------------Segment request received for brand: {}, segment: {}", brand, segmentParam);
 
         try {
             int sequence = Integer.parseInt(segmentParam.replaceAll("\\D+", ""));
@@ -92,7 +92,7 @@ public class RadioController {
                             LOGGER.warn("Segment not found for brand: {}, sequence: {}", brand, sequence);
                             throw new WebApplicationException(Response.Status.NOT_FOUND);
                         }
-                        soundFragmentService.updateForBrand(segment.getSoundFragment().getId(), brand, FragmentActionType.MARK_AS_PLAYED)
+                        soundFragmentService.updateForBrand(segment.getSoundFragmentId(), brand, FragmentActionType.MARK_AS_PLAYED)
                                 .subscribe().with(
                                         v -> LOGGER.info("Successfully updated fragment for brand: {}", v),
                                         failure -> LOGGER.error("Failed to update fragment for brand")
@@ -134,5 +134,9 @@ public class RadioController {
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                     .end("Invalid segment name format");
         }
+    }
+
+    private void getStatus(RoutingContext rc) {
+
     }
 }

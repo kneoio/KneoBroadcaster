@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.DOConfig;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -28,10 +29,10 @@ public class DigitalOceanSpacesService {
 
     private S3Client s3Client;
 
-    // Hardcoded destination folder
     private static final String DESTINATION_FOLDER = "uploads/";
 
-    public void initS3Client() {
+    @PostConstruct
+    public void init() {
         String endpointUrl = "https://" + doConfig.getRegion() + "." + doConfig.getEndpoint();
         this.s3Client = S3Client.builder()
                 .credentialsProvider(StaticCredentialsProvider.create(
@@ -40,37 +41,33 @@ public class DigitalOceanSpacesService {
                 .region(Region.of(doConfig.getRegion()))
                 .endpointOverride(URI.create(endpointUrl))
                 .build();
+        LOGGER.info("S3 client initialized successfully.");
     }
 
-    public Uni<File> getFile(String keyName) {
+    public Uni<Path> getFile(String keyName) {
         return Uni.createFrom().item(() -> {
-            if (s3Client == null) {
-                initS3Client();
-            }
-
-            // Sanitize the key name
-           // String sanitizedKeyName = sanitizeFileName(keyName);
-            Path destinationPath = Paths.get(DESTINATION_FOLDER, keyName);
-            File destinationFile = destinationPath.toFile();
-
-
-            destinationFile.getParentFile().mkdirs();
-
-
-            if (destinationFile.exists()) {
-                return destinationFile;
-            }
-
-            LOGGER.info("request: {}", keyName);
-            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(doConfig.getBucketName())
-                    .key(keyName)
-                    .build();
-
-            s3Client.getObject(getObjectRequest, ResponseTransformer.toFile(destinationFile));
-
-            return destinationFile;
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+                    Path destinationPath = Paths.get(DESTINATION_FOLDER, keyName);
+                    File destinationFile = destinationPath.toFile();
+                    if (!destinationFile.getParentFile().exists()) {
+                        destinationFile.getParentFile().mkdirs();
+                    }
+                    if (destinationFile.exists()) {
+                        LOGGER.info("File already exists: {}", keyName);
+                        return destinationPath;
+                    }
+                    LOGGER.info("Downloading file from S3: {}", keyName);
+                    GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                            .bucket(doConfig.getBucketName())
+                            .key(keyName)
+                            .build();
+                    s3Client.getObject(getObjectRequest, ResponseTransformer.toFile(destinationFile));
+                    return destinationPath;
+                })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onFailure().recoverWithUni(throwable -> {
+                    LOGGER.error("Error retrieving file: {}", keyName, throwable);
+                    return Uni.createFrom().failure(throwable);
+                });
     }
 
     public void closeS3Client() {
@@ -79,7 +76,4 @@ public class DigitalOceanSpacesService {
         }
     }
 
-    private String sanitizeFileName(String fileName) {
-        return fileName.replaceAll("[^a-zA-Z0-9.-]", "_");
-    }
 }

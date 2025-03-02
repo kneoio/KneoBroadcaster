@@ -1,15 +1,14 @@
 package io.kneo.broadcaster.controller.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.BrandSoundFragment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,48 +49,19 @@ public class Playlist {
         return segments.size();
     }
 
-    @Deprecated
-    public void addSegment(SoundFragment fragment) {
-        if (fragment == null || fragment.getFile() == null || fragment.getFile().length == 0) {
+    public void addSegment(BrandSoundFragment brandSoundFragment) throws IOException {
+        if (brandSoundFragment == null ) {
             LOGGER.warn("Attempted to add empty segment");
             return;
         }
+        Path filePath = brandSoundFragment.getSoundFragment().getFilePath();
+        File fragmentFile = filePath.toFile();
 
         int sequence = currentSequence.getAndIncrement();
-        HlsSegment segment = new HlsSegment(sequence, fragment, config.getSegmentDuration());
+        HlsSegment segment = new HlsSegment(sequence, Files.readAllBytes(filePath), config.getSegmentDuration(), brandSoundFragment.getId());
         segments.put(sequence, segment);
 
-        totalBytesProcessed.addAndGet(fragment.getFile().length);
-        segmentsCreated.incrementAndGet();
-
-        cleanupIfNeeded(sequence);
-    }
-
-    public void addSegment(SoundFragment fragment, String brand) {
-        if (fragment == null ) {
-            LOGGER.warn("Attempted to add empty segment");
-            return;
-        }
-
-        if (fragment.getFilePath() != null) {
-            try {
-                Path sourcePath = Paths.get(fragment.getFilePath());
-                Path brandDir = Paths.get(config.getBaseDir(), brand);
-                Files.createDirectories(brandDir);
-                Path targetPath = brandDir.resolve(sourcePath.getFileName());
-                Files.move(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                fragment.setFilePath(targetPath.toString());
-            } catch (IOException e) {
-                LOGGER.error("Failed to move file to brand directory: {}", brand, e);
-                return;
-            }
-        }
-
-        int sequence = currentSequence.getAndIncrement();
-        HlsSegment segment = new HlsSegment(sequence, fragment, config.getSegmentDuration());
-        segments.put(sequence, segment);
-
-        totalBytesProcessed.addAndGet(fragment.getFile().length);
+        totalBytesProcessed.addAndGet(fragmentFile.length());
         segmentsCreated.incrementAndGet();
 
         cleanupIfNeeded(sequence);

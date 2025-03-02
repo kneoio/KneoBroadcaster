@@ -51,19 +51,22 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     public void setupRoutes(Router router) {
-        String path = "/api/:brand/soundfragments";
+        String common = "/api/:brand";
+        String soundFragmentsPart = common + "/soundfragments";
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
                 .setDeleteUploadedFilesOnEnd(false)
                 .setBodyLimit(100 * 1024 * 1024));
-        router.route(path + "*").handler(this::addHeaders);
-        router.route(HttpMethod.GET, path).handler(this::get);
-        router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
-        router.route(HttpMethod.GET, path + "/files/:id").handler(this::getFileById);
-        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
-        router.route(HttpMethod.POST, path + "/upload-with-intro").handler(this::uploadWithIntro);
-        router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
-        router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
+        router.route(soundFragmentsPart + "*").handler(this::addHeaders);
+        router.route(HttpMethod.GET, soundFragmentsPart).handler(this::get);
+        router.route(HttpMethod.GET, soundFragmentsPart + "/:id").handler(this::getById);
+        router.route(HttpMethod.GET, soundFragmentsPart + "/files/:id").handler(this::getFileById);
+        router.route(HttpMethod.POST, soundFragmentsPart + "/files").handler(this::uploadFile);
+        router.route(HttpMethod.POST, soundFragmentsPart + "/upload-with-intro").handler(this::uploadWithIntro);
+        router.route(HttpMethod.POST, soundFragmentsPart + "/:id?").handler(this::upsert);
+        router.route(HttpMethod.DELETE, soundFragmentsPart + "/:id").handler(this::delete);
+        router.route(HttpMethod.GET, common + "/available-soundfragments").handler(this::getForBrandDTO);
+
     }
 
     private void get(RoutingContext rc) {
@@ -141,6 +144,22 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
+    private void getForBrandDTO(RoutingContext rc) {
+        String brandName = rc.pathParam("brand");
+
+        getContextUser(rc)
+                .chain(user -> service.getBrandSoundFragments(brandName))
+                .subscribe().with(
+                        dtos -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(Json.encodePrettily(dtos)),
+                        throwable -> {
+                            LOGGER.error("Failed to fetch fragments for brand: {}", brandName, throwable);
+                            rc.fail(throwable);
+                        }
+                );
+    }
 
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");

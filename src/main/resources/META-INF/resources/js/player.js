@@ -75,11 +75,10 @@ class RadioPlayer {
         setTimeout(() => {
             if (!this.audio.playedDuration || this.audio.playedDuration === 0) {
                 console.warn('No audio detected after manifest parsed');
-                // Try to recover by forcing a key frame
                 this.hls.forceKeyFrameOnDiscontinuity = true;
                 this.hls.startLoad();
             }
-        }, 5000); // 5 second timeout
+        }, 5000);
     }
 
     stop() {
@@ -93,7 +92,6 @@ class RadioPlayer {
     }
 }
 
-// Global functions for easy access
 window.startPlaying = () => {
     console.log('Starting playback...');
     new RadioPlayer().start();

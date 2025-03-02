@@ -2,6 +2,7 @@ package io.kneo.broadcaster.config;
 
 import io.kneo.broadcaster.controller.stream.Playlist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -15,6 +16,7 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
@@ -40,12 +42,17 @@ public class RadioStationPool {
 
         if (radioStation == null || radioStation.getPlaylist().getSegmentCount() == 0) {
             LOGGER.info("Starting radio station: {}", brandName);
-            return soundFragmentService.getAll(0, 100)
+            return soundFragmentService.getForBrand(brandName)
                     .onItem().transformToUni(fragments -> {
                         return radioStationService.findByBrandName(brandName).onItem().transform(station -> {
-                            List<SoundFragment> randomFragments = getRandomFragments(fragments, 3);
-                            for (SoundFragment fragment : randomFragments) {
-                                playlist.addSegment(fragment, brandName);
+                            for (BrandSoundFragment fragment : fragments) {
+                                try {
+                                    if (!(fragment.getSoundFragment().getFilePath() == null)) {
+                                        playlist.addSegment(fragment);
+                                    }
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
                             }
                             if (playlist.getSegmentCount() == 0) {
                                 throw new PlaylistException("Playlist is still empty after init pool");

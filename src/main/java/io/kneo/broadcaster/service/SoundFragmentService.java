@@ -1,8 +1,10 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.RadioStationPool;
+import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundUploadDTO;
+import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FragmentActionType;
@@ -100,24 +102,26 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileById(fileId, user.getId());
     }
 
-    public Uni<Void> getForBrand(String brandName) {
+    public Uni<List<BrandSoundFragment>> getForBrand(String brandName) {
         assert repository != null;
         assert radioStationService != null;
         LOGGER.debug("Get fragments for brand: {}", brandName);
+
         return radioStationService.findByBrandName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
-
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandName)
-                            .chain(this::mapToDTO);
+                    return repository.findForBrand(brandId)
+                            .chain(fragments -> {
+                                return Uni.createFrom().item(fragments);
+                            });
                 })
                 .onFailure().recoverWithUni(failure -> {
                     LOGGER.error("Failed to update fragment for brand: {}", brandName, failure);
                     return Uni.createFrom().failure(failure);
-                }).replaceWithVoid();
+                });
     }
 
     public Uni<Void> updateForBrand(UUID soundFragmentId, String brandName, FragmentActionType actionType) {
@@ -141,6 +145,29 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 })
                 .onFailure().recoverWithUni(failure -> {
                     LOGGER.error("Failed to update fragment for brand: {}", brandName, failure);
+                    return Uni.createFrom().failure(failure);
+                });
+    }
+
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName) {
+        assert repository != null;
+        assert radioStationService != null;
+        return radioStationService.findByBrandName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.findForBrand(brandId)
+                            .chain(fragments -> {
+                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
+                                        .map(this::mapToBrandSoundFragmentDTO)
+                                        .collect(Collectors.toList());
+                                return Uni.join().all(unis).andFailFast();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
                     return Uni.createFrom().failure(failure);
                 });
     }
@@ -222,5 +249,17 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 .chain(doc -> streamDirectly(brand, file)
                         .onItem().transform(v -> doc))
                 .chain(this::mapToDTO);
+    }
+
+    private Uni<BrandSoundFragmentDTO> mapToBrandSoundFragmentDTO(BrandSoundFragment fragment) {
+        return mapToDTO(fragment.getSoundFragment())
+                .onItem().transform(soundFragmentDTO -> {
+                    BrandSoundFragmentDTO dto = new BrandSoundFragmentDTO();
+                    dto.setId(fragment.getId());
+                    dto.setSoundFragmentDTO(soundFragmentDTO);
+                    dto.setPlayedByBrandCount(fragment.getPlayedByBrandCount());
+                    dto.setLastTimePlayedByBrand(fragment.getLastTimePlayedByBrand());
+                    return dto;
+                });
     }
 }

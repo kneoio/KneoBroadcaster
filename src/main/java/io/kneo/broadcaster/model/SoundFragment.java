@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.nio.file.Path;
 import java.util.UUID;
 
 @Setter
@@ -22,8 +23,6 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String artist;
     private String genre;
     private String album;
-    @Deprecated
-    private byte[] file;
-    private String filePath;
+    private Path filePath;
     private Integer archived;
 }

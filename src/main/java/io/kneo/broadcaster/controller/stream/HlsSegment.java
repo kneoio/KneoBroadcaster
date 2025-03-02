@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.controller.stream;
 
-import io.kneo.broadcaster.model.SoundFragment;
 import lombok.Getter;
+
+import java.util.UUID;
+
 @Getter
 public class HlsSegment {
     private final int sequenceNumber;
@@ -10,16 +12,16 @@ public class HlsSegment {
     private final int duration;
     private final int bitrate;
     private final long size;
-    private final SoundFragment soundFragment;
+    private final UUID soundFragmentId;
 
-    public HlsSegment(int sequenceNumber, SoundFragment soundFragment, int duration) {
+    public HlsSegment(int sequenceNumber, byte[] data, int duration, UUID soundFragmentId) {
         this.sequenceNumber = sequenceNumber;
-        this.data = soundFragment.getFile();
+        this.data = data;
         this.timestamp = System.currentTimeMillis();
         this.duration = duration;
         this.size = data.length;
         this.bitrate = (int)(size * 8 / (duration * 1000.0));
-        this.soundFragment = soundFragment;
+        this.soundFragmentId = soundFragmentId;
     }
 
     public boolean isExpired(long maxAgeMs) {

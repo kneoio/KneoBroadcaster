@@ -34,8 +34,15 @@ public class Playlist {
                 .append("#EXT-X-MEDIA-SEQUENCE:").append(segments.firstKey()).append("\n");
 
         segments.values().forEach(segment -> {
-            playlist.append("#EXTINF:").append(segment.getDuration()).append(",\n")
-                    .append("segments/").append(segment.getSequenceNumber()).append(".ts\n");
+            String songName = segment.getSongName();
+            playlist.append("#EXTINF:")
+                    .append(segment.getDuration())
+                    .append(",")
+                    .append(songName)
+                    .append("\n")
+                    .append("segments/")
+                    .append(segment.getSequenceNumber())
+                    .append(".ts\n");
         });
 
         return playlist.toString();
@@ -58,7 +65,13 @@ public class Playlist {
         File fragmentFile = filePath.toFile();
 
         int sequence = currentSequence.getAndIncrement();
-        HlsSegment segment = new HlsSegment(sequence, Files.readAllBytes(filePath), config.getSegmentDuration(), brandSoundFragment.getId());
+        HlsSegment segment = new HlsSegment(
+                sequence,
+                Files.readAllBytes(fragmentFile.toPath()),
+                config.getSegmentDuration(),
+                brandSoundFragment.getId(),
+                String.format(brandSoundFragment.getSoundFragment().getArtist() + " " + brandSoundFragment.getSoundFragment().getTitle())
+        );
         segments.put(sequence, segment);
 
         totalBytesProcessed.addAndGet(fragmentFile.length());

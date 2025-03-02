@@ -20,7 +20,6 @@ import java.util.UUID;
 public class SoundFragmentDTO extends AbstractDTO {
     private SourceType source = SourceType.LOCAL;
     private Integer status;
-    private String fileUri;
     private String localPath;
     private FragmentType type;
     private String title;

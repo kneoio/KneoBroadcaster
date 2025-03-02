@@ -13,8 +13,9 @@ public class HlsSegment {
     private final int bitrate;
     private final long size;
     private final UUID soundFragmentId;
+    private final String songName;
 
-    public HlsSegment(int sequenceNumber, byte[] data, int duration, UUID soundFragmentId) {
+    public HlsSegment(int sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName) {
         this.sequenceNumber = sequenceNumber;
         this.data = data;
         this.timestamp = System.currentTimeMillis();
@@ -22,6 +23,7 @@ public class HlsSegment {
         this.size = data.length;
         this.bitrate = (int)(size * 8 / (duration * 1000.0));
         this.soundFragmentId = soundFragmentId;
+        this.songName = songName;
     }
 
     public boolean isExpired(long maxAgeMs) {

@@ -41,7 +41,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
     }
 
     public void setupRoutes(Router router) {
-        String basePath = "/api/:brand/radiostations";
+        String basePath = "/api/radiostations";
         router.route(basePath + "*").handler(BodyHandler.create());
         router.get(basePath).handler(this::getAll);
         router.get(basePath + "/:id").handler(this::getById);

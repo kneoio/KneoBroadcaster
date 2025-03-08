@@ -36,6 +36,7 @@ public class RadioController {
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
+        router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/stream").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);

@@ -110,7 +110,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
             try {
-                dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream"));
+                dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }

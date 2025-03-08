@@ -51,7 +51,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     public void setupRoutes(Router router) {
-        String common = "/api/:brand";
+        String common = "/api";
         String soundFragmentsPart = common + "/soundfragments";
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
@@ -112,9 +112,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     private void getFileById(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
         String id = rc.pathParam("id");
-        String uploadDir = "uploads/" + brand; // Dynamic directory based on brand
+        String uploadDir = "uploads/"; // Dynamic directory based on brand
         String filePath = uploadDir + "/" + id; // Full path to the file
 
         // Check if the file exists in the local directory

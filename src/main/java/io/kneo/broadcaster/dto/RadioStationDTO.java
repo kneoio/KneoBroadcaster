@@ -15,6 +15,7 @@ import java.net.URL;
 public class RadioStationDTO  extends AbstractDTO {
     private CountryCode country;
     private URL url;
+    private URL actionUrl;
     private String slugName;
     private Integer archived;
     private int playlistCount;

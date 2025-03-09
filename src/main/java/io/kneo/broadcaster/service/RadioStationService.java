@@ -28,16 +28,21 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     private final RadioStationRepository repository;
 
-    @Inject
     BroadcasterConfig broadcasterConfig;
 
-    @Inject
     RadioStationPool radiostationPool;
 
     @Inject
-    public RadioStationService(UserService userService, RadioStationRepository repository) {
+    public RadioStationService(
+            UserService userService,
+            RadioStationRepository repository,
+            RadioStationPool radiostationPool,
+            BroadcasterConfig broadcasterConfig
+    ) {
         super(null, userService);
         this.repository = repository;
+        this.radiostationPool = radiostationPool;
+        this.broadcasterConfig = broadcasterConfig;
     }
 
     public Uni<List<RadioStationDTO>> getAll(final int limit, final int offset, final IUser user)  {
@@ -111,6 +116,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setSlugName(doc.getSlugName());
             try {
                 dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
+                dto.setActionUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/action"));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }

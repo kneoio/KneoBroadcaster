@@ -1,76 +1,68 @@
 package io.kneo.broadcaster.config;
 
-import io.kneo.broadcaster.controller.stream.Playlist;
+import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.exceptions.PlaylistException;
 import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
 
-@Singleton
+@ApplicationScoped
 public class RadioStationPool {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationPool.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger("RadioStationPool.class");
+
+    @Getter
     @Setter
     private HashMap<String, RadioStation> pool = new HashMap<>();
 
     @Inject
     private RadioStationService radioStationService;
 
-    @Inject
-    private SoundFragmentService soundFragmentService;
+    public Uni<RadioStation> get(String brandName) {
+        RadioStation radioStation = pool.get(brandName);
+        return Uni.createFrom().item(radioStation);
+    }
 
     @Inject
     private HlsPlaylistConfig config;
 
-    public Uni<RadioStation> get(String brandName) {
-        Playlist playlist = new Playlist(config);
-        RadioStation radioStation = pool.get(brandName);
+    @Inject
+    private SoundFragmentService soundFragmentService;
 
-        if (radioStation == null || radioStation.getPlaylist().getSegmentCount() == 0) {
-            LOGGER.info("Starting radio station: {}", brandName);
-            return soundFragmentService.getForBrand(brandName)
-                    .onItem().transformToUni(fragments -> {
-                        return radioStationService.findByBrandName(brandName).onItem().transform(station -> {
-                            for (BrandSoundFragment fragment : fragments) {
-                                try {
-                                    if (!(fragment.getSoundFragment().getFilePath() == null)) {
-                                        playlist.addSegment(fragment);
-                                    }
-                                } catch (IOException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                            if (playlist.getSegmentCount() == 0) {
-                                throw new PlaylistException("Playlist is still empty after init pool");
-                            }
-                            station.setPlaylist(playlist);
-                            station.setStatus(RadioStationStatus.ON_LINE);
-                            pool.put(brandName, station);
-                            return station;
-                        });
-                    })
-                    .onFailure().invoke(failure -> {
-                        LOGGER.error("Failed to initialize radio station: {}", brandName, failure);
-                    })
-                    .onItem().invoke(station -> {
-                        LOGGER.info("Initialized radio station: {}", brandName);
-                    });
+    public Uni<RadioStation> initializeStation(String brandName) {
+        LOGGER.info("Starting radio station: {}", brandName);
+
+        HLSPlaylist playlist = new HLSPlaylist(config, soundFragmentService);
+
+        return playlist.initialize(brandName)
+                .onItem().transformToUni(initializedPlaylist -> {
+                    return radioStationService.findByBrandName(brandName)
+                            .onItem().transform(station -> {
+                                station.setPlaylist(initializedPlaylist);
+                                station.setStatus(RadioStationStatus.ON_LINE);
+                                pool.put(brandName, station);
+                                return station;
+                            });
+                });
+    }
+
+    // Method to remove station from pool and cleanup resources
+    public void removeStation(String brandName) {
+        RadioStation station = pool.get(brandName);
+        if (station != null && station.getPlaylist() != null) {
+            station.getPlaylist().shutdown(); // Clean up playlist resources
+            pool.remove(brandName);
+            LOGGER.info("Removed radio station: {}", brandName);
         }
-        return Uni.createFrom().item(radioStation);
     }
 
     public Uni<BroadcastingStats> checkStatus(String name) {
@@ -78,21 +70,11 @@ public class RadioStationPool {
         RadioStation radioStation = pool.get(name);
         if (radioStation != null) {
             stats.setStatus(radioStation.getStatus());
-            Playlist playlist = radioStation.getPlaylist();
+            HLSPlaylist playlist = radioStation.getPlaylist();
             if (playlist != null) {
                 stats.setSegmentsCount(playlist.getSegmentCount());
             }
         }
         return Uni.createFrom().item(stats);
-    }
-
-    @Deprecated
-    private List<SoundFragment> getRandomFragments(List<SoundFragment> fragments, int count) {
-        Random random = new Random();
-        return random.ints(0, fragments.size())
-                .distinct()
-                .limit(count)
-                .mapToObj(fragments::get)
-                .toList();
     }
 }

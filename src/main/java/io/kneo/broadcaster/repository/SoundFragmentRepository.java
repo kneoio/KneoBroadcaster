@@ -95,11 +95,15 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId) {
+    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset) {
         String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "WHERE bsf.brand_id = $1";
+                "WHERE bsf.brand_id = $1 ORDER BY played_by_brand_count";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId))
@@ -117,6 +121,16 @@ public class SoundFragmentRepository extends AsyncRepository {
                 })
                 .concatenate()
                 .collect().asList();
+    }
+
+    public Uni<Integer> getCountForBrand(UUID brandId) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "WHERE bsf.brand_id = $1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
     public Uni<FileData> getFileById(UUID fileId, Long userId) {

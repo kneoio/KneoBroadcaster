@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.SoundUploadDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -62,7 +61,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, soundFragmentsPart + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, soundFragmentsPart + "/files/:id").handler(this::getFileById);
         router.route(HttpMethod.POST, soundFragmentsPart + "/files").handler(this::uploadFile);
-        router.route(HttpMethod.POST, soundFragmentsPart + "/upload-with-intro").handler(this::uploadWithIntro);
         router.route(HttpMethod.POST, soundFragmentsPart + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, soundFragmentsPart + "/:id").handler(this::delete);
         router.route(HttpMethod.GET, common + "/available-soundfragments").handler(this::getForBrandDTO);
@@ -259,50 +257,5 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     }
 
-    private void uploadWithIntro(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        List<FileUpload> files = rc.fileUploads();
 
-        if (files.isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "No file uploaded").encode());
-            return;
-        }
-
-        String jsonData = rc.request().getFormAttribute("data");
-        SoundUploadDTO uploadDTO;
-
-        try {
-            uploadDTO = jsonData != null ?
-                    new JsonObject(jsonData).mapTo(SoundUploadDTO.class) :
-                    new SoundUploadDTO();
-
-            if (jsonData == null) {
-                uploadDTO.setIntroductionText(rc.request().getFormAttribute("introductionText"));
-                uploadDTO.setAutoGenerateIntro(Boolean.parseBoolean(rc.request().getFormAttribute("autoGenerateIntro")));
-                uploadDTO.setPlayImmediately(Boolean.parseBoolean(rc.request().getFormAttribute("playImmediately")));
-            }
-        } catch (Exception e) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(new JsonObject().put("error", "Invalid request data").encode());
-            return;
-        }
-
-        getContextUser(rc)
-                .chain(user -> service.processUploadWithIntro(brand, files.get(0), uploadDTO, user))
-                .subscribe().with(
-                        result -> rc.response()
-                                .setStatusCode(202)
-                                .putHeader("Content-Type", "application/json")
-                                .end(JsonObject.mapFrom(result).encode()),
-                        throwable -> {
-                            LOGGER.error("Error processing upload", throwable);
-                            rc.fail(500);
-                        }
-                );
-    }
 }

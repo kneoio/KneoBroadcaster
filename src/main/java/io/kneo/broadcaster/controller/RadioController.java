@@ -4,8 +4,10 @@ import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.util.PlayListLogParser;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -36,15 +38,49 @@ public class RadioController {
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
+        router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/stream").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
     }
 
+    private void action(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        JsonObject jsonObject = rc.body().asJsonObject();
+
+        String action = jsonObject.getString("action");
+
+        if ("start".equalsIgnoreCase(action)) {
+            LOGGER.info("Starting radio station for brand: {}", brand);
+            service.initializeStation(brand)
+                    .subscribe().with(
+                            station -> {
+                                rc.response()
+                                        .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                        .putHeader("Access-Control-Allow-Origin", "*")
+                                        .setStatusCode(200)
+                                        .end("{\"status\":\"" + station.getStatus() + "\", \"segments\":" +
+                                                station.getPlaylist().getSegmentCount() + "}");
+                            },
+                            throwable -> {
+                                LOGGER.error("Error starting radio station: {}", throwable.getMessage());
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                        .end("Failed to start radio station: " + throwable.getMessage());
+                            }
+                    );
+        } else {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                    .end("Invalid action. Supported actions: 'start'");
+        }
+    }
+
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand");
-        LOGGER.info("Playlist requested for brand: {}, listeners: {} ", brand, listenerCount.get());
         listenerCount.incrementAndGet();
         service.getPlaylist(brand)
                 .onItem().transform(playlist -> {
@@ -56,7 +92,8 @@ public class RadioController {
                 })
                 .subscribe().with(
                         playlistContent -> {
-                            LOGGER.info("Serving playlist for brand: {} with content:\n{}", brand, playlistContent);
+
+                            LOGGER.info("##{} \n{}", brand, PlayListLogParser.parseCompact(playlistContent));
                             rc.response()
                                     .putHeader("Content-Type", "application/vnd.apple.mpegurl")
                                     .putHeader("Access-Control-Allow-Origin", "*")
@@ -85,7 +122,7 @@ public class RadioController {
         LOGGER.info("-----------------Segment request received for brand: {}, segment: {}", brand, segmentParam);
 
         try {
-            int sequence = Integer.parseInt(segmentParam.replaceAll("\\D+", ""));
+            long sequence = Long.parseLong(segmentParam.replaceAll("\\D+", ""));
             service.getPlaylist(brand)
                     .onItem().transform(playlist -> {
                         HlsSegment segment = playlist.getSegment(sequence);
@@ -95,8 +132,8 @@ public class RadioController {
                         }
                         soundFragmentService.updateForBrand(segment.getSoundFragmentId(), brand, FragmentActionType.MARK_AS_PLAYED)
                                 .subscribe().with(
-                                        v -> LOGGER.info("Successfully updated fragment for brand: {}", v),
-                                        failure -> LOGGER.error("Failed to update fragment for brand")
+                                        v -> LOGGER.info("Successfully updated fragment for brand: {}", brand),
+                                        failure -> LOGGER.error("Failed to update fragment for brand: {}",brand)
                                 );
                         return segment.getData();
                     })

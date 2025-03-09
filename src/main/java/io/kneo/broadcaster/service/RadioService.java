@@ -2,18 +2,13 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.config.RadioStationPool;
-import io.kneo.broadcaster.controller.stream.Playlist;
+import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.RadioStation;
 import io.smallrye.mutiny.Uni;
-import io.vertx.ext.web.FileUpload;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 @ApplicationScoped
 public class RadioService {
@@ -25,40 +20,28 @@ public class RadioService {
     @Inject
     RadioStationPool radioStationPool;
 
-    public Uni<Void> addFileUploadToPlaylist(String brand, FileUpload fileUpload) {
-        return radioStationPool.get(brand)
-                .onItem().transformToUni(radio -> {
-                    return Uni.createFrom().item(() -> {
-                                try {
-                                    return Files.readAllBytes(Paths.get(fileUpload.uploadedFileName()));
-                                } catch (IOException e) {
-                                    throw new RuntimeException("Failed to read uploaded file", e);
-                                }
-                            })
-                            .onItem().transformToUni(fileData -> {
-                                int segmentSize = config.getBufferSizeKb() * 1024;
-
-                                // Process the file in chunks and add segments to the playlist
-                                for (int i = 0; i < fileData.length; i += segmentSize) {
-                                    int segmentLength = Math.min(segmentSize, fileData.length - i);
-                                    byte[] segment = new byte[segmentLength];
-                                    System.arraycopy(fileData, i, segment, 0, segmentLength);
-                                    //radio.getPlaylist().addSegment(segment);
-                                }
-
-                                LOGGER.info("Added uploaded file to playlist: {}, size: {}, with segment size: {}",
-                                        fileUpload.fileName(), fileUpload.size(), segmentSize);
-                                return Uni.createFrom().voidItem();
-                            });
-                })
+    public Uni<RadioStation> initializeStation(String brand) {
+        LOGGER.info("Initializing station for brand: {}", brand);
+        return radioStationPool.initializeStation(brand)
                 .onFailure().invoke(failure -> {
-                    LOGGER.error("Failed to process uploaded file: {}", fileUpload.fileName(), failure);
+                    LOGGER.error("Failed to initialize station for brand: {}", brand, failure);
                 });
     }
 
-    public Uni<Playlist> getPlaylist(String brand) {
+    public Uni<HLSPlaylist> getPlaylist(String brand) {
         return radioStationPool.get(brand)
-                .onItem().transform(RadioStation::getPlaylist)
+                .onItem().transform(station -> {
+                    if (station == null || station.getPlaylist() == null || station.getPlaylist().getSegmentCount() == 0) {
+                        LOGGER.info("Station not initialized for brand: {}, initializing now", brand);
+                        throw new IllegalStateException("Station not initialized");
+                    }
+                    return station.getPlaylist();
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.info("Recovering from failure by initializing station for brand: {}", brand);
+                    return initializeStation(brand)
+                            .onItem().transform(RadioStation::getPlaylist);
+                })
                 .onFailure().invoke(failure -> {
                     LOGGER.error("Failed to get playlist for brand: {}", brand, failure);
                 });

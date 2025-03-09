@@ -6,7 +6,7 @@ import java.util.UUID;
 
 @Getter
 public class HlsSegment {
-    private final int sequenceNumber;
+    private final long sequenceNumber;
     private final byte[] data;
     private final long timestamp;
     private final int duration;
@@ -15,7 +15,7 @@ public class HlsSegment {
     private final UUID soundFragmentId;
     private final String songName;
 
-    public HlsSegment(int sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName) {
+    public HlsSegment(long sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName) {
         this.sequenceNumber = sequenceNumber;
         this.data = data;
         this.timestamp = System.currentTimeMillis();

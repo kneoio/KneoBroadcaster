@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.controller.stream.Playlist;
+import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -17,7 +17,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class RadioStation extends SecureDataEntity<UUID> {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-    private Playlist playlist;
+    private HLSPlaylist playlist;
     private int listenersCount;
     private String slugName;
     private String primaryLang;

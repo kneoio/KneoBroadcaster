@@ -142,7 +142,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     private void getForBrandDTO(RoutingContext rc) {
-        String brandName = rc.pathParam("brand");
+        String brandName = rc.queryParam("brand").get(0);
 
         getContextUser(rc)
                 .chain(user -> service.getBrandSoundFragments(brandName))

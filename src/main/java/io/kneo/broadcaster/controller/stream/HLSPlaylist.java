@@ -2,6 +2,7 @@ package io.kneo.broadcaster.controller.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.exceptions.PlaylistException;
@@ -15,14 +16,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public class HLSPlaylist {
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
@@ -32,7 +28,6 @@ public class HLSPlaylist {
     private final AtomicInteger segmentsCreated = new AtomicInteger(0);
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    // Track the last played sequence
     private final AtomicLong lastPlayedSequence = new AtomicLong(-1);
 
     @Getter
@@ -66,7 +61,7 @@ public class HLSPlaylist {
                         for (BrandSoundFragment fragment : fragments) {
                             try {
                                 if (fragment.getSoundFragment().getFilePath() != null) {
-                                    addFragment(fragment);
+                                    addFragment(fragment.getSoundFragment());
                                 }
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
@@ -92,33 +87,41 @@ public class HLSPlaylist {
         LOGGER.info("Starting self-maintenance for playlist: {}", brandName);
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                if (getSegmentCount() < config.getMinSegments()) {
+                if (segments.size() < config.getMinSegments()) {
                     LOGGER.info("Playlist for {} needs more fragments, current: {}",
                             brandName, getSegmentCount());
 
                     soundFragmentService.getForBrand(brandName)
                             .subscribe().with(
                                     fragments -> {
-                                        if (!fragments.isEmpty()) {
+                                        for (BrandSoundFragment f: fragments) {
                                             try {
-                                                addFragment(fragments.get(0));
+                                                addFragment(f.getSoundFragment());
                                             } catch (IOException e) {
                                                 LOGGER.error("Error during playlist self-maintenance: {}", e.getMessage(), e);
                                             }
-                                        } else {
-                                            LOGGER.warn("No fragments available for {}", brandName);
                                         }
                                     },
                                     error -> LOGGER.error("Error fetching fragments: {}", error.getMessage(), error)
                             );
                 } else {
-                    LOGGER.debug("Playlist for {} has sufficient fragments: {}",
-                            brandName, getSegmentCount());
+                    if (segments.size() > config.getMinSegments()) {
+                        int segmentsToDelete = 50;
+                        Long oldestToKeep = segments.navigableKeySet().stream()
+                                .skip(segmentsToDelete)
+                                .findFirst()
+                                .orElse(null);
+
+                        if (oldestToKeep != null) {
+                            segments.headMap(oldestToKeep).clear();
+                            LOGGER.warn("Now after squeezing {}", segments.size());
+                        }
+                    }
                 }
             } catch (Exception e) {
                 LOGGER.error("Error during playlist self-maintenance for {}: {}", brandName, e.getMessage(), e);
             }
-        }, 30, 30, TimeUnit.SECONDS);
+        }, 60, 60, TimeUnit.SECONDS);
     }
 
     // Shutdown method to clean up resources
@@ -141,9 +144,8 @@ public class HLSPlaylist {
                 LOGGER.warn("Attempted to generate playlist with no segments");
                 return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" + config.getSegmentDuration() + "\n#EXT-X-MEDIA-SEQUENCE:0\n";
             }
-            long latestSequence = segments.lastKey();
             int slidingWindowSize = config.getSlidingWindowSize();
-            long oldestSequence = Math.max(0, latestSequence - slidingWindowSize + 1);
+            long oldestSequence = Math.max(0, segments.lastKey() - slidingWindowSize + 1);
 
             StringBuilder playlist = new StringBuilder(slidingWindowSize * 100);
             playlist.append("#EXTM3U\n")
@@ -151,12 +153,13 @@ public class HLSPlaylist {
                     .append("#EXT-X-ALLOW-CACHE:NO\n")
                     .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
                     .append("#EXT-X-MEDIA-SEQUENCE:").append(oldestSequence).append("\n");
-
             List<String> songNames = new ArrayList<>();
+            AtomicLong lastSeq = new AtomicLong();
 
             segments.tailMap(oldestSequence).values().stream()
                     .limit(slidingWindowSize)
                     .forEach(segment -> {
+                        lastSeq.set(segment.getSequenceNumber());
                         String songName = segment.getSongName();
                         songNames.add(songName);
                         playlist.append("#EXTINF:")
@@ -165,17 +168,17 @@ public class HLSPlaylist {
                                 .append(songName)
                                 .append("\n")
                                 .append("segments/")
-                                .append(segment.getSequenceNumber())
+                                .append(lastSeq.get())
                                 .append(".ts\n");
                     });
 
             List<String> uniqueSongNames = songNames.stream()
                     .distinct()
-                    .collect(Collectors.toList());
+                    .toList();
 
             currentSlide = new Slide(
                     oldestSequence,
-                    oldestSequence + slidingWindowSize - 1,
+                    lastSeq.get(),
                     uniqueSongNames
             );
 
@@ -188,7 +191,7 @@ public class HLSPlaylist {
             LOGGER.warn("Attempted to add null segment");
             return;
         }
-        cleanupSegmentsIfNeeded();
+
 
         segments.put(segment.getSequenceNumber(), segment);
         segmentsCreated.incrementAndGet();
@@ -196,8 +199,6 @@ public class HLSPlaylist {
     }
 
     public HlsSegment getSegment(long sequence) {
-        // Update the last played sequence
-        lastPlayedSequence.set(sequence);
         return segments.get(sequence);
     }
 
@@ -205,11 +206,11 @@ public class HLSPlaylist {
         return segments.size();
     }
 
-    public long getCurrentSequence() {
+    public long getCurrentSequenceAndIncrement() {
         return currentSequence.getAndIncrement();
     }
 
-    public long getCurrentSequenceWithoutIncrementing() {
+    public long getCurrentSequence() {
         return currentSequence.get();
     }
 
@@ -221,38 +222,22 @@ public class HLSPlaylist {
         return segments.isEmpty() ? null : segments.lastKey();
     }
 
-    private void addFragment(BrandSoundFragment fragment) throws IOException {
+    private void addFragment(SoundFragment fragment) throws IOException {
         if (fragment == null) {
             LOGGER.warn("Attempted to add empty segment");
             return;
         }
 
         String songMetadata = String.format("%s - %s",
-                fragment.getSoundFragment().getArtist(),
-                fragment.getSoundFragment().getTitle());
+                fragment.getArtist(),
+                fragment.getTitle());
 
         segmentationService.sliceAndAdd(
                 this,
-                fragment.getSoundFragment().getFilePath(),
+                fragment.getFilePath(),
                 songMetadata,
                 fragment.getId()
         );
-    }
-
-    private void cleanupSegmentsIfNeeded() {
-        if (segments.size() > config.getMinSegments()) {
-            long lastPlayed = getLastPlayedSequence();
-            if (lastPlayed == -1) {
-                // No segments have been played yet, so don't delete anything
-                return;
-            }
-
-            // Calculate the oldest segment to keep (leave a buffer of 2 segments)
-            long oldestToKeep = lastPlayed - 2; // Adjust buffer size as needed
-
-            // Clear segments older than oldestToKeep
-            segments.headMap(oldestToKeep).clear();
-        }
     }
 
     private long getLastPlayedSequence() {

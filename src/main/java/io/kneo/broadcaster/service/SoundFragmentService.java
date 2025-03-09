@@ -109,7 +109,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandId, 1, 0)
+                    return repository.findForBrand(brandId, 5, 0)
                             .chain(fragments -> {
                                 return Uni.createFrom().item(fragments);
                             });

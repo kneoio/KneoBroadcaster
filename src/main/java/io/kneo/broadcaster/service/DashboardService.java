@@ -50,7 +50,7 @@ public class DashboardService {
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
             stats.setSegmentCount(playlist.getSegmentCount());
-            stats.setCurrentSequence(playlist.getCurrentSequenceWithoutIncrementing());
+            stats.setCurrentSequence(playlist.getCurrentSequence());
             if (playlist.getSegmentCount() > 0) {
                 stats.setFirstSegmentKey(playlist.getFirstSegmentKey());
                 stats.setLastSegmentKey(playlist.getLastSegmentKey());

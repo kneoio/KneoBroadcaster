@@ -81,7 +81,7 @@ public class AudioSegmentationService {
         for (SegmentInfo segment : segments) {
             try {
                 byte[] data = Files.readAllBytes(Paths.get(segment.path()));
-                long sequence = playlist.getCurrentSequence();
+                long sequence = playlist.getCurrentSequenceAndIncrement();
 
                 HlsSegment hlsSegment = new HlsSegment(
                         sequence,

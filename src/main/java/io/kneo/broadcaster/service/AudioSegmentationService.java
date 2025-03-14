@@ -157,8 +157,7 @@ public class AudioSegmentationService {
                 }
             }
 
-            LOGGER.info("Successfully created {} segments for {} in folder {}",
-                    segments.size(), audioFilePath, songDir);
+            //LOGGER.info("Successfully created {} segments for {} in folder {}", segments.size(), audioFilePath, songDir);
 
         } catch (IOException e) {
             LOGGER.error("Something wrong with FFMpeg: {}, error: {}", audioFilePath, e.getMessage());

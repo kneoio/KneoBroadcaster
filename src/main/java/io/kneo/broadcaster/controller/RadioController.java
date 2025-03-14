@@ -4,7 +4,6 @@ import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.util.PlayListLogParser;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -93,7 +92,7 @@ public class RadioController {
                 .subscribe().with(
                         playlistContent -> {
 
-                            LOGGER.info("##{} \n{}", brand, PlayListLogParser.parseCompact(playlistContent));
+                           // LOGGER.info("##{} \n{}", brand, PlayListLogParser.parseCompact(playlistContent));
                             rc.response()
                                     .putHeader("Content-Type", "application/vnd.apple.mpegurl")
                                     .putHeader("Access-Control-Allow-Origin", "*")
@@ -119,7 +118,7 @@ public class RadioController {
     private void getSegment(RoutingContext rc) {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand");
-        LOGGER.info("-----------------Segment request received for brand: {}, segment: {}", brand, segmentParam);
+     //   LOGGER.info("-----------------Segment request received for brand: {}, segment: {}", brand, segmentParam);
 
         try {
             long sequence = Long.parseLong(segmentParam.replaceAll("\\D+", ""));
@@ -139,7 +138,7 @@ public class RadioController {
                     })
                     .subscribe().with(
                             data -> {
-                                LOGGER.info("-----------------Serving segment for brand: {}, sequence: {}", brand, sequence);
+                              //  LOGGER.info("-----------------Serving segment for brand: {}, sequence: {}", brand, sequence);
                                 rc.response()
                                         .putHeader("Content-Type", "video/MP2T")
                                         .putHeader("Access-Control-Allow-Origin", "*")

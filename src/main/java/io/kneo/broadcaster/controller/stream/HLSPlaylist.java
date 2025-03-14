@@ -1,8 +1,7 @@
 package io.kneo.broadcaster.controller.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.model.BrandSoundFragment;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.*;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.exceptions.PlaylistException;
@@ -27,8 +26,10 @@ public class HLSPlaylist {
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
     private final AtomicInteger segmentsCreated = new AtomicInteger(0);
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
     private final AtomicLong lastPlayedSequence = new AtomicLong(-1);
+
+    // Queue to hold interstitial content to mix with regular content
+    private final ConcurrentLinkedQueue<PlaylistItem> interstitialQueue = new ConcurrentLinkedQueue<>();
 
     @Getter
     @Setter
@@ -51,17 +52,15 @@ public class HLSPlaylist {
         segmentationService = new AudioSegmentationService();
     }
 
-    // Initialize playlist for a specific brand
     public Uni<HLSPlaylist> initialize(String brandName) {
         this.brandName = brandName;
-
         try {
             return soundFragmentService.getForBrand(brandName)
                     .onItem().transform(fragments -> {
                         for (BrandSoundFragment fragment : fragments) {
                             try {
                                 if (fragment.getSoundFragment().getFilePath() != null) {
-                                    addFragment(fragment.getSoundFragment());
+                                    addPlaylistItem(new SongPlaylistItem(fragment.getSoundFragment()));
                                 }
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
@@ -72,7 +71,6 @@ public class HLSPlaylist {
                             throw new PlaylistException("Playlist is still empty after init");
                         }
 
-                        // Start self-maintenance
                         startSelfMaintenance();
 
                         return this;
@@ -82,9 +80,9 @@ public class HLSPlaylist {
         }
     }
 
-    // Schedule self-maintenance to keep segments available
     private void startSelfMaintenance() {
         LOGGER.info("Starting self-maintenance for playlist: {}", brandName);
+        int initialSize = segments.size();
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 if (segments.size() < config.getMinSegments()) {
@@ -94,11 +92,11 @@ public class HLSPlaylist {
                     soundFragmentService.getForBrand(brandName)
                             .subscribe().with(
                                     fragments -> {
-                                        for (BrandSoundFragment f: fragments) {
+                                        for (BrandSoundFragment fragment : fragments) {
                                             try {
-                                                addFragment(f.getSoundFragment());
+                                                addPlaylistItem(new SongPlaylistItem(fragment.getSoundFragment()));
                                             } catch (IOException e) {
-                                                LOGGER.error("Error during playlist self-maintenance: {}", e.getMessage(), e);
+                                                LOGGER.error("Error adding fragment: {}", e.getMessage(), e);
                                             }
                                         }
                                     },
@@ -114,28 +112,36 @@ public class HLSPlaylist {
 
                         if (oldestToKeep != null) {
                             segments.headMap(oldestToKeep).clear();
-                            LOGGER.warn("Now after squeezing {}", segments.size());
+                            LOGGER.warn("It was {}, after squeezing {}",initialSize, segments.size());
                         }
                     }
                 }
             } catch (Exception e) {
-                LOGGER.error("Error during playlist self-maintenance for {}: {}", brandName, e.getMessage(), e);
+                LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
         }, 60, 60, TimeUnit.SECONDS);
     }
 
-    // Shutdown method to clean up resources
-    public void shutdown() {
-        LOGGER.info("Shutting down playlist maintenance for: {}", brandName);
-        scheduler.shutdown();
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
+    private void addPlaylistItem(PlaylistItem item) throws IOException {
+        if (item == null) {
+            LOGGER.warn("Attempted to add empty playlist item");
+            return;
         }
+
+        segmentationService.sliceAndAdd(
+                this,
+                item.getFilePath(),
+                item.getMetadata(),
+                item.getId()
+        );
+    }
+
+    private void addFragment(SoundFragment fragment) throws IOException {
+        if (fragment == null) {
+            LOGGER.warn("Attempted to add null fragment");
+            return;
+        }
+        addPlaylistItem(new SongPlaylistItem(fragment));
     }
 
     public String generatePlaylist() {
@@ -192,7 +198,6 @@ public class HLSPlaylist {
             return;
         }
 
-
         segments.put(segment.getSequenceNumber(), segment);
         segmentsCreated.incrementAndGet();
         totalBytesProcessed.addAndGet(segment.getSize());
@@ -222,25 +227,16 @@ public class HLSPlaylist {
         return segments.isEmpty() ? null : segments.lastKey();
     }
 
-    private void addFragment(SoundFragment fragment) throws IOException {
-        if (fragment == null) {
-            LOGGER.warn("Attempted to add empty segment");
-            return;
+    public void shutdown() {
+        LOGGER.info("Shutting down playlist maintenance for: {}", brandName);
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
         }
-
-        String songMetadata = String.format("%s - %s",
-                fragment.getArtist(),
-                fragment.getTitle());
-
-        segmentationService.sliceAndAdd(
-                this,
-                fragment.getFilePath(),
-                songMetadata,
-                fragment.getId()
-        );
-    }
-
-    private long getLastPlayedSequence() {
-        return lastPlayedSequence.get();
     }
 }

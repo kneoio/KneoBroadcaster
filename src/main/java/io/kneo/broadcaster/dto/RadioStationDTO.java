@@ -21,5 +21,6 @@ public class RadioStationDTO  extends AbstractDTO {
     private int playlistCount;
     private int listenersCount;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
+    private ProfileDTO profile;
 
 }

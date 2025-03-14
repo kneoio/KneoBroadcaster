@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.model.cnst.FragmentType;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
@@ -16,9 +16,8 @@ import java.util.UUID;
 public class SoundFragment extends SecureDataEntity<UUID> {
     private SourceType source;
     private int status;
-    private int priority = 10;
     private int played;
-    private FragmentType type;
+    private PlaylistItemType type;
     private String title;
     private String artist;
     private String genre;

@@ -27,6 +27,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     RadioController radioController;
 
     @Inject
+    QueueController queueController;
+
+    @Inject
     RadioStationController radioStationController;
 
     @Inject
@@ -52,6 +55,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         dashboardController.setupRoutes(router);
         soundFragmentController.setupRoutes(router);
         radioController.setupRoutes(router);
+        queueController.setupRoutes(router);
         radioStationController.setupRoutes(router);
         listenerController.setupRoutes(router);
         logRegisteredRoutes(router);

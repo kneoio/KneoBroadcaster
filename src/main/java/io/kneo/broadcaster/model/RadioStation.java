@@ -24,5 +24,5 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private Integer archived;
     private CountryCode country;
     private RadioStationStatus status;
-
+    private UUID profileId;
 }

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.RadioStationPool;
+import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.RadioStationRepository;
@@ -32,17 +33,21 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     RadioStationPool radiostationPool;
 
+    private final ProfileService profileService;
+
     @Inject
     public RadioStationService(
             UserService userService,
             RadioStationRepository repository,
             RadioStationPool radiostationPool,
-            BroadcasterConfig broadcasterConfig
+            BroadcasterConfig broadcasterConfig,
+            ProfileService profileService
     ) {
         super(null, userService);
         this.repository = repository;
         this.radiostationPool = radiostationPool;
         this.broadcasterConfig = broadcasterConfig;
+        this.profileService = profileService;
     }
 
     public Uni<List<RadioStationDTO>> getAll(final int limit, final int offset, final IUser user)  {
@@ -69,12 +74,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.getAll(limit, offset, SuperUser.build());
     }
 
-    @Override
-    public Uni<RadioStationDTO> getDTO(UUID id, IUser user, LanguageCode language) {
-        assert repository != null;
-        return repository.findById(id).chain(this::mapToDTO);
-    }
-
     public Uni<RadioStation> getById(UUID id, IUser user, LanguageCode language) {
         return repository.findById(id);
     }
@@ -83,10 +82,18 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.findByBrandName(name);
     }
 
+
+
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;
         return repository.delete(UUID.fromString(id));
+    }
+
+    @Override
+    public Uni<RadioStationDTO> getDTO(UUID id, IUser user, LanguageCode language) {
+        assert repository != null;
+        return repository.findById(id).chain(this::mapToDTO);
     }
 
     public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {
@@ -100,10 +107,18 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     }
 
     private Uni<RadioStationDTO> mapToDTO(RadioStation doc) {
+        Uni<ProfileDTO> profileUni;
+        if (doc.getProfileId() != null) {
+            profileUni = profileService.getDTO(doc.getProfileId(), SuperUser.build(), LanguageCode.ENG);
+        } else {
+            profileUni = Uni.createFrom().item((ProfileDTO) null);
+        }
+
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                radiostationPool.checkStatus(doc.getSlugName())
+                radiostationPool.checkStatus(doc.getSlugName()),
+                profileUni
         ).asTuple().map(tuple -> {
             RadioStationDTO dto = new RadioStationDTO();
             dto.setId(doc.getId());
@@ -114,6 +129,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setPlaylistCount(tuple.getItem3().getSegmentsCount());
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
+
+            // Add profile from the service
+            dto.setProfile(tuple.getItem4());
+
             try {
                 dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setActionUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/action"));

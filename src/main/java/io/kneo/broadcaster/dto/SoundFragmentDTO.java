@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.model.cnst.FragmentType;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.dto.AbstractDTO;
 
@@ -21,12 +21,11 @@ public class SoundFragmentDTO extends AbstractDTO {
     private SourceType source = SourceType.LOCAL;
     private Integer status;
     private String localPath;
-    private FragmentType type;
+    private PlaylistItemType type;
     private String title;
     private String artist;
     private String genre;
     private String album;
-    private int priority = 999;
 
     public SoundFragmentDTO(String id) {
         this.id = UUID.fromString(id);

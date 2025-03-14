@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.cnst.FragmentType;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.service.DigitalOceanSpacesService;
@@ -172,8 +172,8 @@ public class SoundFragmentRepository extends AsyncRepository {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         String sql = String.format(
                 "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                        "title, artist, genre, album, priority, played) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, $13, $14) RETURNING id;",
+                        "title, artist, genre, album, played) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, $13) RETURNING id;",
                 entityData.getTableName()
         );
         String filesSql = "INSERT INTO kneobroadcaster__sound_fragment_files " +
@@ -187,7 +187,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .addString(doc.getArtist())
                 .addString(doc.getGenre())
                 .addString(doc.getAlbum())
-                .addInteger(doc.getPriority())
                 .addInteger(doc.getPlayed());
 
         String readersSql = String.format(
@@ -273,7 +272,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
                                         String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                                                 "source=$3, status=$4, type=$5, title=$6, " +
-                                                "artist=$7, genre=$8, album=$9, priority=$10 WHERE id=$11;", entityData.getTableName());
+                                                "artist=$7, genre=$8, album=$9 WHERE id=$10;", entityData.getTableName());
 
                                         Tuple params = Tuple.of(user.getId(), nowTime)
                                                 .addString(doc.getSource().name())
@@ -283,7 +282,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                 .addString(doc.getArtist())
                                                 .addString(doc.getGenre())
                                                 .addString(doc.getAlbum())
-                                                .addInteger(doc.getPriority())
                                                 .addUUID(id);
 
                                         return tx.preparedQuery(updateSql)
@@ -310,9 +308,8 @@ public class SoundFragmentRepository extends AsyncRepository {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
-        doc.setPriority(row.getInteger("priority"));
         doc.setStatus(row.getInteger("status"));
-        doc.setType(FragmentType.valueOf(row.getString("type")));
+        doc.setType(PlaylistItemType.valueOf(row.getString("type")));
         doc.setTitle(row.getString("title"));
         doc.setArtist(row.getString("artist"));
         doc.setGenre(row.getString("genre"));

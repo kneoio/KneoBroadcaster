@@ -120,6 +120,12 @@ public class RadioStationRepository extends AsyncRepository {
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
+
+        UUID profileId = row.getUUID("profile_id");
+        if (profileId != null) {
+            doc.setProfileId(profileId);
+        }
+
         return doc;
     }
 }

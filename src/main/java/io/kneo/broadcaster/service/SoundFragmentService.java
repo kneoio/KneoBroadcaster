@@ -22,6 +22,7 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -98,10 +99,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileById(fileId, user.getId());
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity) {
+    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle) {
         assert repository != null;
         assert radioStationService != null;
-        LOGGER.debug("Get fragments for brand: {}", brandName);
+        LOGGER.debug("Get fragments for brand: {}, quantity: {}, shuffle: {}", brandName, quantity, shuffle);
 
         return radioStationService.findByBrandName(brandName)
                 .onItem().transformToUni(radioStation -> {
@@ -109,13 +110,23 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandId, quantity, 0)
+                    int limit = quantity;
+                    if (shuffle) {
+                        limit = 0;
+                    }
+                    return repository.findForBrand(brandId, limit, 0)
                             .chain(fragments -> {
+                                if (shuffle && fragments != null && !fragments.isEmpty()) {
+                                    Collections.shuffle(fragments);
+                                    if (quantity > 0 && fragments.size() > quantity) {
+                                        fragments = fragments.subList(0, quantity);
+                                    }
+                                }
                                 return Uni.createFrom().item(fragments);
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
-                    LOGGER.error("Failed to update fragment for brand: {}", brandName, failure);
+                    LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
                     return Uni.createFrom().failure(failure);
                 });
     }
@@ -160,6 +171,26 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                         .map(this::mapToBrandSoundFragmentDTO)
                                         .collect(Collectors.toList());
                                 return Uni.join().all(unis).andFailFast();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
+                    return Uni.createFrom().failure(failure);
+                });
+    }
+
+    public Uni<Integer> getBrandSoundFragmentCount(String brandName) {
+        assert repository != null;
+        assert radioStationService != null;
+        return radioStationService.findByBrandName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.getCountForBrand(brandId)
+                            .chain(count -> {
+                                return Uni.createFrom().item(count);
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {

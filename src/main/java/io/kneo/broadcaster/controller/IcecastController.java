@@ -67,7 +67,7 @@ public class IcecastController {
                 .subscribe().with(
                         playlist -> {
                             // Start a continuous loop to feed audio to listeners
-                            streamAudio(brand, playlist.getFirstSegmentKey(), streamData);
+                            //streamAudio(brand, playlist.getFirstSegmentKey(), streamData);
                         },
                         throwable -> {
                             LOGGER.error("Error starting stream for brand: {} - {}", brand, throwable.getMessage());

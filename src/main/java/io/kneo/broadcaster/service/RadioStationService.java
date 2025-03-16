@@ -43,7 +43,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             BroadcasterConfig broadcasterConfig,
             ProfileService profileService
     ) {
-        super(null, userService);
+        super(userService);
         this.repository = repository;
         this.radiostationPool = radiostationPool;
         this.broadcasterConfig = broadcasterConfig;

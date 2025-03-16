@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.dto.dashboard;
 
-import io.kneo.broadcaster.controller.stream.Slide;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import lombok.Data;
 
@@ -8,9 +7,7 @@ import lombok.Data;
 public class StationStats {
     private String brandName;
     private RadioStationStatus status;
-    private int segmentCount;
-    private long currentSequence;
-    private long firstSegmentKey;
+    private int segmentsSize;
     private long lastSegmentKey;
-    private Slide currentSlide;
+    private long lastRequested;
 }

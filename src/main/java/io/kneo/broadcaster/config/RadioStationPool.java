@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.radio.PlaylistScheduler;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -36,10 +37,13 @@ public class RadioStationPool {
     @Inject
     private SoundFragmentService soundFragmentService;
 
+    @Inject
+    private PlaylistScheduler playlistScheduler;
+
     public Uni<RadioStation> initializeStation(String brandName) {
         LOGGER.info("Starting radio station: {}", brandName);
 
-        HLSPlaylist playlist = new HLSPlaylist(config, broadcasterConfig, soundFragmentService, brandName);
+        HLSPlaylist playlist = new HLSPlaylist(config, broadcasterConfig, soundFragmentService, brandName, playlistScheduler);
         playlist.initialize();
 
         return radioStationService.findByBrandName(brandName)

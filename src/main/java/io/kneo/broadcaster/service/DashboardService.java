@@ -49,16 +49,11 @@ public class DashboardService {
         stats.setStatus(station.getStatus());
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
-            stats.setSegmentCount(playlist.getSegmentCount());
-            stats.setCurrentSequence(playlist.getCurrentSequence());
-            if (playlist.getSegmentCount() > 0) {
-                stats.setFirstSegmentKey(playlist.getFirstSegmentKey());
-                stats.setLastSegmentKey(playlist.getLastSegmentKey());
-               // stats.setCurrentSlide(playlist.getCurrentSlide());
-            }
+            stats.setSegmentsSize(playlist.getSegmentCount());
+            stats.setLastSegmentKey(playlist.getLastSegmentKey());
+            stats.setLastRequested(playlist.getLastRequestedSegment());
         } else {
-            stats.setSegmentCount(0);
-            stats.setCurrentSequence(0);
+            stats.setSegmentsSize(0);
         }
 
         return stats;

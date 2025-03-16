@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.config.RadioStationPool;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.RadioStation;
@@ -14,9 +13,6 @@ import org.slf4j.LoggerFactory;
 @ApplicationScoped
 public class RadioService {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioService.class);
-
-    @Inject
-    HlsPlaylistConfig config;
 
     @Inject
     RadioStationPool radioStationPool;

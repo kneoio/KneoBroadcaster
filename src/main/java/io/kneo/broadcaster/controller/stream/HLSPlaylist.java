@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.PlaylistItemSong;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.radio.PlaylistScheduler;
 import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -23,9 +23,9 @@ public class HLSPlaylist {
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
     private final ConcurrentNavigableMap<Long, HlsSegment> segments = new ConcurrentSkipListMap<>();
     private final AtomicLong currentSequence = new AtomicLong(0);
+    private final AtomicLong lastRequestedSegment = new AtomicLong(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private final Set<BrandSoundFragment> recentlyPlayed = ConcurrentHashMap.newKeySet();
 
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<PlaylistItem> interstitialQueue = new ConcurrentLinkedQueue<>();
@@ -40,6 +40,8 @@ public class HLSPlaylist {
     @Inject
     private final SoundFragmentService soundFragmentService;
 
+    private final PlaylistScheduler playlistScheduler;
+
     private final HlsPlaylistConfig config;
 
     @Inject
@@ -47,15 +49,18 @@ public class HLSPlaylist {
             HlsPlaylistConfig config,
             BroadcasterConfig broadcasterConfig,
             SoundFragmentService soundFragmentService,
-            String brandName) {
+            String brandName,
+            PlaylistScheduler playlistScheduler) {
         this.config = config;
         this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = new AudioSegmentationService(broadcasterConfig);
+        this.playlistScheduler = playlistScheduler;
     }
 
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}, sequence: {}", brandName, currentSequence.get());
+        playlistScheduler.registerPlaylist(this);
         queueKeeper();
         janitor();
     }
@@ -100,7 +105,9 @@ public class HLSPlaylist {
     }
 
     public HlsSegment getSegment(long sequence) {
-        return segments.get(sequence);
+        HlsSegment segment = segments.get(sequence);
+        lastRequestedSegment.set(segment.getSequenceNumber());
+        return segment;
     }
 
     public void addSegment(HlsSegment segment) {
@@ -113,7 +120,6 @@ public class HLSPlaylist {
         totalBytesProcessed.addAndGet(segment.getSize());
     }
 
-    // Add this method to HLSPlaylist
     public void addRangeToQueue(PlaylistRange range) {
         mainQueue.offer(range);
     }
@@ -130,12 +136,12 @@ public class HLSPlaylist {
         return currentSequence.get();
     }
 
-    public Long getFirstSegmentKey() {
-        return segments.isEmpty() ? null : segments.firstKey();
-    }
-
     public Long getLastSegmentKey() {
         return segments.isEmpty() ? null : segments.lastKey();
+    }
+
+    public long getLastRequestedSegment() {
+        return lastRequestedSegment.get();
     }
 
     private void queueKeeper() {
@@ -146,12 +152,12 @@ public class HLSPlaylist {
                     LOGGER.info("Playlist for {} needs more fragments, current: {}",
                             brandName, getSegmentCount());
 
-                    soundFragmentService.getForBrand(brandName, 5)
+                    soundFragmentService.getForBrand(brandName, 5, true)
                             .subscribe().with(
                                     fragments -> {
                                         for (BrandSoundFragment fragment : fragments) {
                                             SoundFragment soundFragment = fragment.getSoundFragment();
-                                            if (!recentlyPlayed.contains(fragment)) {
+                                            if (!playlistScheduler.isRecentlyPlayed(brandName, fragment)) {
                                                 PlaylistItem item = new PlaylistItemSong(soundFragment);
                                                 segmentationService.sliceAndAdd(
                                                         this,
@@ -159,7 +165,8 @@ public class HLSPlaylist {
                                                         item.getMetadata(),
                                                         item.getId()
                                                 );
-                                                recentlyPlayed.add(fragment);
+                                                // Track in playlist scheduler instead of local set
+                                                playlistScheduler.trackPlayedFragment(brandName, fragment);
                                             } else {
                                                 LOGGER.warn("Fragment already played: id={}, title={}",
                                                         fragment.getId(),
@@ -173,7 +180,7 @@ public class HLSPlaylist {
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
-        }, 0, 60, TimeUnit.SECONDS);
+        }, 0, 3, TimeUnit.MINUTES);
     }
 
     private void janitor() {
@@ -199,22 +206,21 @@ public class HLSPlaylist {
         }, 3600, 240, TimeUnit.SECONDS);
     }
 
-
     public void shutdown() {
         LOGGER.info("Shutting down playlist maintenance for: {}", brandName);
+        playlistScheduler.unregisterPlaylist(brandName);
         scheduler.shutdown();
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
             }
-            segments.clear();;
+            segments.clear();
             currentSequence.set(0);
             totalBytesProcessed.set(0);
-            recentlyPlayed.clear();
-
         } catch (InterruptedException e) {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }
+
 }

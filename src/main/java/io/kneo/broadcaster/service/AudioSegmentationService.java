@@ -34,7 +34,7 @@ public class AudioSegmentationService {
     BroadcasterConfig broadcasterConfig;
 
     @Setter
-    private int segmentDuration = 20;
+    public static int segmentDuration = 20;
     private final String outputDir;
     private final ScheduledExecutorService scheduler;
     @Setter

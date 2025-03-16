@@ -7,11 +7,16 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.PoolStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.stats.PlaylistStats;
+
+import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
+import io.kneo.broadcaster.service.radio.PlaylistScheduler;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -23,6 +28,9 @@ public class DashboardService {
 
     @Inject
     RadioStationPool radioStationPool;
+
+    @Inject
+    PlaylistScheduler playlistScheduler;
 
     public Uni<PoolStats> getPoolInfo(String brand) {
         HashMap<String, RadioStation> pool = radioStationPool.getPool();
@@ -39,22 +47,51 @@ public class DashboardService {
                         entry -> createStationStats(entry.getKey(), entry.getValue())
                 ));
         stats.setStations(stationStats);
-        return Uni.createFrom().item(stats);
 
+
+        // Add task timeline with progress indicators
+        stats.setTaskTimeline(playlistScheduler.getTaskTimeline());
+
+        return Uni.createFrom().item(stats);
+    }
+
+
+
+    /**
+     * Get task timeline progress for scheduler tasks
+     *
+     * @return Current task timeline data
+     */
+    public Uni<SchedulerTaskTimeline> getTaskTimeline() {
+        return Uni.createFrom().item(playlistScheduler.getTaskTimeline());
     }
 
     private StationStats createStationStats(String brand, RadioStation station) {
         StationStats stats = new StationStats();
         stats.setBrandName(brand);
         stats.setStatus(station.getStatus());
+
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
-            stats.setSegmentsSize(playlist.getSegmentCount());
+
+            // Get comprehensive stats from the playlist
+            PlaylistStats playlistStats = playlist.getStats();
+
+            // Map PlaylistStats to StationStats
+            stats.setSegmentsSize(playlistStats.getSegmentCount());
             stats.setLastSegmentKey(playlist.getLastSegmentKey());
-            stats.setLastRequested(playlist.getLastRequestedSegment());
-            stats.setCurrentFragment(playlist.getLastRequestedFragmentName());
+            stats.setLastRequested(playlistStats.getLastRequestedSegment());
+            stats.setCurrentFragment(playlistStats.getLastRequestedFragmentName());
+
+            // Add new fields from PlaylistStats
+            stats.setTotalBytesProcessed(playlistStats.getTotalBytesProcessed());
+            stats.setBitrate(playlistStats.getBitrate());
+            stats.setQueueSize(playlistStats.getQueueSize());
+            stats.setRecentlyPlayedTitles(playlistStats.getRecentlyPlayedTitles());
+            stats.setLastUpdated(playlistStats.getTimestamp());
         } else {
             stats.setSegmentsSize(0);
+            stats.setRecentlyPlayedTitles(List.of());
         }
 
         return stats;

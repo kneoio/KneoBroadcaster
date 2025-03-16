@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.PlaylistItem;
 import io.kneo.broadcaster.model.PlaylistItemSong;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.radio.PlaylistScheduler;
@@ -15,6 +16,7 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -150,6 +152,20 @@ public class HLSPlaylist {
         return lastRequestedFragmentName.get();
     }
 
+    public PlaylistStats getStats() {
+        // Get recently played titles from the playlist scheduler
+        List<String> recentlyPlayedTitles = playlistScheduler.getRecentlyPlayedTitles(brandName, 10);
+        return PlaylistStats.fromPlaylist(this, recentlyPlayedTitles);
+    }
+
+    public int getQueueSize() {
+        return mainQueue.size();
+    }
+
+    public long getTotalBytesProcessed() {
+        return totalBytesProcessed.get();
+    }
+
     private void queueKeeper() {
         LOGGER.info("Starting maintenance for: {}", brandName);
         scheduler.scheduleAtFixedRate(() -> {
@@ -182,6 +198,9 @@ public class HLSPlaylist {
                                     },
                                     error -> LOGGER.error("Error fetching fragments: {}", error.getMessage(), error)
                             );
+                } else {
+                    LOGGER.warn("Still enough segments: count={}", segments.size());
+
                 }
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);

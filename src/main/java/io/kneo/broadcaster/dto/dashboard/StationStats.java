@@ -10,4 +10,5 @@ public class StationStats {
     private int segmentsSize;
     private long lastSegmentKey;
     private long lastRequested;
+    private String currentFragment;
 }

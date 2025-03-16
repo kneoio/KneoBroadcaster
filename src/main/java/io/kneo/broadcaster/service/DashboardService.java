@@ -52,6 +52,7 @@ public class DashboardService {
             stats.setSegmentsSize(playlist.getSegmentCount());
             stats.setLastSegmentKey(playlist.getLastSegmentKey());
             stats.setLastRequested(playlist.getLastRequestedSegment());
+            stats.setCurrentFragment(playlist.getLastRequestedFragmentName());
         } else {
             stats.setSegmentsSize(0);
         }

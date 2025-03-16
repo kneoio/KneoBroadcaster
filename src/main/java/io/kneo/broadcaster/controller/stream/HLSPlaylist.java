@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class HLSPlaylist {
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
@@ -26,6 +27,7 @@ public class HLSPlaylist {
     private final AtomicLong lastRequestedSegment = new AtomicLong(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final AtomicReference<String> lastRequestedFragmentName = new AtomicReference<>("");
 
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<PlaylistItem> interstitialQueue = new ConcurrentLinkedQueue<>();
@@ -34,10 +36,8 @@ public class HLSPlaylist {
     @Setter
     private String brandName;
 
-    @Inject
     private final AudioSegmentationService segmentationService;
 
-    @Inject
     private final SoundFragmentService soundFragmentService;
 
     private final PlaylistScheduler playlistScheduler;
@@ -107,6 +107,7 @@ public class HLSPlaylist {
     public HlsSegment getSegment(long sequence) {
         HlsSegment segment = segments.get(sequence);
         lastRequestedSegment.set(segment.getSequenceNumber());
+        lastRequestedFragmentName.set(segment.getSongName());
         return segment;
     }
 
@@ -136,12 +137,17 @@ public class HLSPlaylist {
         return currentSequence.get();
     }
 
-    public Long getLastSegmentKey() {
-        return segments.isEmpty() ? null : segments.lastKey();
+    public long getLastSegmentKey() {
+        ConcurrentNavigableMap<Long, HlsSegment> map = segments;
+        return map.isEmpty() ? 0L : map.lastKey();
     }
 
     public long getLastRequestedSegment() {
         return lastRequestedSegment.get();
+    }
+
+    public String getLastRequestedFragmentName() {
+        return lastRequestedFragmentName.get();
     }
 
     private void queueKeeper() {

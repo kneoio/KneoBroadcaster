@@ -16,7 +16,6 @@ import java.util.UUID;
 public class SoundFragment extends SecureDataEntity<UUID> {
     private SourceType source;
     private int status;
-    private int played;
     private PlaylistItemType type;
     private String title;
     private String artist;

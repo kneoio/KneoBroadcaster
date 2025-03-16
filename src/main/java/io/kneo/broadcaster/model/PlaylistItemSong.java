@@ -5,17 +5,15 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import java.nio.file.Path;
 import java.util.UUID;
 
-public class SongPlaylistItem implements PlaylistItem {
-    private final UUID id;
+public class PlaylistItemSong implements PlaylistItem {
     private final Path filePath;
     private final String metadata;
     private final PlaylistItemType type;
     private final int priority;
     private final SoundFragment fragment;
 
-    public SongPlaylistItem(UUID id, Path filePath, String metadata,
+    public PlaylistItemSong(UUID id, Path filePath, String metadata,
                             PlaylistItemType type, int priority) {
-        this.id = id;
         this.filePath = filePath;
         this.metadata = metadata;
         this.type = type;
@@ -23,9 +21,8 @@ public class SongPlaylistItem implements PlaylistItem {
         this.fragment = null;
     }
 
-    public SongPlaylistItem(SoundFragment fragment) {
+    public PlaylistItemSong(SoundFragment fragment) {
         this.fragment = fragment;
-        this.id = fragment.getId();
         this.filePath = fragment.getFilePath();
         this.metadata = String.format("%s - %s", fragment.getArtist(), fragment.getTitle());
         this.type = PlaylistItemType.SONG;
@@ -34,7 +31,7 @@ public class SongPlaylistItem implements PlaylistItem {
 
     @Override
     public UUID getId() {
-        return id;
+        return fragment.getId();
     }
 
     @Override
@@ -57,7 +54,4 @@ public class SongPlaylistItem implements PlaylistItem {
         return type;
     }
 
-    public SoundFragment getFragment() {
-        return fragment;
-    }
 }

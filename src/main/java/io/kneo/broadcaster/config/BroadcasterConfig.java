@@ -8,4 +8,6 @@ public interface BroadcasterConfig {
     @WithName("host")
     String getHost();
 
+    @WithName("ffmpeg.path")
+    String getFfmpegPath();
 }

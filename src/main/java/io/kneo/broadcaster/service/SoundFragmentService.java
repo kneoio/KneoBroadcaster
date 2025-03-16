@@ -98,7 +98,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileById(fileId, user.getId());
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrand(String brandName) {
+    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity) {
         assert repository != null;
         assert radioStationService != null;
         LOGGER.debug("Get fragments for brand: {}", brandName);
@@ -109,7 +109,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandId, 5, 0)
+                    return repository.findForBrand(brandId, quantity, 0)
                             .chain(fragments -> {
                                 return Uni.createFrom().item(fragments);
                             });

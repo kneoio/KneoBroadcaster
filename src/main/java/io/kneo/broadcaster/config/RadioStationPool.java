@@ -18,7 +18,7 @@ import java.util.HashMap;
 
 @ApplicationScoped
 public class RadioStationPool {
-    private static final Logger LOGGER = LoggerFactory.getLogger("RadioStationPool.class");
+    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationPool.class);
 
     @Getter
     @Setter
@@ -27,13 +27,11 @@ public class RadioStationPool {
     @Inject
     private RadioStationService radioStationService;
 
-    public Uni<RadioStation> get(String brandName) {
-        RadioStation radioStation = pool.get(brandName);
-        return Uni.createFrom().item(radioStation);
-    }
-
     @Inject
     private HlsPlaylistConfig config;
+
+    @Inject
+    private BroadcasterConfig broadcasterConfig;
 
     @Inject
     private SoundFragmentService soundFragmentService;
@@ -41,28 +39,28 @@ public class RadioStationPool {
     public Uni<RadioStation> initializeStation(String brandName) {
         LOGGER.info("Starting radio station: {}", brandName);
 
-        HLSPlaylist playlist = new HLSPlaylist(config, soundFragmentService);
+        HLSPlaylist playlist = new HLSPlaylist(config, broadcasterConfig, soundFragmentService, brandName);
+        playlist.initialize();
 
-        return playlist.initialize(brandName)
-                .onItem().transformToUni(initializedPlaylist -> {
-                    return radioStationService.findByBrandName(brandName)
+        return radioStationService.findByBrandName(brandName)
                             .onItem().transform(station -> {
-                                station.setPlaylist(initializedPlaylist);
+                                station.setPlaylist(playlist);
                                 station.setStatus(RadioStationStatus.ON_LINE);
                                 pool.put(brandName, station);
                                 return station;
                             });
-                });
     }
 
-    // Method to remove station from pool and cleanup resources
-    public void removeStation(String brandName) {
-        RadioStation station = pool.get(brandName);
-        if (station != null && station.getPlaylist() != null) {
-            station.getPlaylist().shutdown(); // Clean up playlist resources
-            pool.remove(brandName);
-            LOGGER.info("Removed radio station: {}", brandName);
-        }
+    public Uni<RadioStation> get(String brandName) {
+        RadioStation radioStation = pool.get(brandName);
+        return Uni.createFrom().item(radioStation);
+    }
+
+    public Uni<RadioStation> stop(String brandName) {
+        RadioStation radioStation = pool.get(brandName);
+        radioStation.getPlaylist().shutdown();
+        radioStation.setStatus(RadioStationStatus.OFF_LINE);
+        return Uni.createFrom().item(radioStation);
     }
 
     public Uni<BroadcastingStats> checkStatus(String name) {

@@ -3,6 +3,7 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.QueueItemDTO;
 import io.kneo.broadcaster.model.InterstitialPlaylistItem;
 import io.kneo.broadcaster.service.QueueService;
+import io.kneo.broadcaster.service.RadioService;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -10,6 +11,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,14 +25,18 @@ public class QueueController {
 
     private final QueueService service;
 
+    private final RadioService radioService;
+
     @Inject
-    public QueueController(QueueService service) {
+    public QueueController(QueueService service,  RadioService radioService) {
         this.service = service;
+        this.radioService = radioService;
     }
 
     public void setupRoutes(Router router) {
         String path = "/:brand/queue";
         router.route(HttpMethod.GET, path).handler(this::get);
+        router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.POST, path).handler(this::add);
     }
 
@@ -83,6 +89,60 @@ public class QueueController {
         } catch (Exception e) {
             LOGGER.error("Error adding to queue: {}", e.getMessage());
             rc.fail(400, e);
+        }
+    }
+
+    private void action(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        JsonObject jsonObject = rc.body().asJsonObject();
+
+        String action = jsonObject.getString("action");
+
+        if ("start".equalsIgnoreCase(action)) {
+            LOGGER.info("Starting radio station for brand: {}", brand);
+            radioService.initializeStation(brand)
+                    .subscribe().with(
+                            station -> {
+                                rc.response()
+                                        .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                        .putHeader("Access-Control-Allow-Origin", "*")
+                                        .setStatusCode(200)
+                                        .end("{\"status\":\"" + station.getStatus() + "\", \"segments\":" +
+                                                station.getPlaylist().getSegmentCount() + "}");
+                            },
+                            throwable -> {
+                                LOGGER.error("Error starting radio station: {}", throwable.getMessage());
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                        .end("Failed to start radio station: " + throwable.getMessage());
+                            }
+                    );
+        } else if ("stop".equalsIgnoreCase(action)) {
+                LOGGER.info("Stopping radio station for brand: {}", brand);
+                radioService.stopStation(brand)
+                        .subscribe().with(
+                                station -> {
+                                    rc.response()
+                                            .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                            .putHeader("Access-Control-Allow-Origin", "*")
+                                            .setStatusCode(200)
+                                            .end("{\"status\":\"" + station.getStatus() + "\", \"segments\":" +
+                                                    station.getPlaylist().getSegmentCount() + "}");
+                                },
+                                throwable -> {
+                                    LOGGER.error("Error stopping radio station: {}", throwable.getMessage());
+                                    rc.response()
+                                            .setStatusCode(500)
+                                            .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                            .end("Failed to stop radio station: " + throwable.getMessage());
+                                }
+                        );
+        } else {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                    .end("Invalid action. Supported actions: 'start'");
         }
     }
 

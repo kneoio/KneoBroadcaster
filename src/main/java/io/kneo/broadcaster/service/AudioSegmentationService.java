@@ -1,7 +1,10 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.controller.stream.PlaylistRange;
+import jakarta.inject.Inject;
 import lombok.Setter;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
@@ -16,7 +19,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -25,40 +30,40 @@ public class AudioSegmentationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioSegmentationService.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+    @Inject
+    BroadcasterConfig broadcasterConfig;
+
     @Setter
     private int segmentDuration = 5;
     private final String outputDir;
     private final ScheduledExecutorService scheduler;
     @Setter
-    private int cleanupIntervalMinutes = 5;
+    private int retentionDays = 1;
     @Setter
-    private int retentionDays = 1; // Keep files for 1 day by default
+    private int cleanupIntervalHours = 24;
 
-    @Setter
-    private String ffmpegPath = "C:/Users/justa/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Essentials_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-7.1-essentials_build/bin/ffmpeg.exe";
 
-    public AudioSegmentationService() {
+    @Inject
+    public AudioSegmentationService(BroadcasterConfig broadcasterConfig) {
+        this.broadcasterConfig = broadcasterConfig;
         this.outputDir = Paths.get(System.getProperty("java.io.tmpdir"), "hls-segments").toString();
         new File(outputDir).mkdirs();
         this.scheduler = Executors.newScheduledThreadPool(1);
 
-        // Start scheduled cleanup
         startCleanupScheduler();
 
-        LOGGER.info("Initialized AudioSegmentationService with outputDir: {}, cleanup every {} minutes",
-                outputDir, cleanupIntervalMinutes);
+        LOGGER.info("Initialized AudioSegmentationService with outputDir: {}, cleanup every {} hours, ffmpegPath: {}",
+                outputDir, cleanupIntervalHours, broadcasterConfig.getFfmpegPath());
     }
 
     private void startCleanupScheduler() {
-        // Run cleanup immediately at startup
         scheduler.schedule(this::cleanupOldSegments, 10, TimeUnit.SECONDS);
 
-        // Schedule periodic cleanup
         scheduler.scheduleAtFixedRate(
                 this::cleanupOldSegments,
-                cleanupIntervalMinutes,
-                cleanupIntervalMinutes,
-                TimeUnit.MINUTES);
+                cleanupIntervalHours,
+                cleanupIntervalHours,
+                TimeUnit.HOURS);
     }
 
     public void shutdown() {
@@ -75,9 +80,8 @@ public class AudioSegmentationService {
 
     public void sliceAndAdd(HLSPlaylist playlist, Path audioFilePath,
                             String songMetadata, UUID fragmentId) {
-
         List<SegmentInfo> segments = segmentAudioFile(audioFilePath, songMetadata, fragmentId);
-
+        long latestSegment = playlist.getCurrentSequence();
         for (SegmentInfo segment : segments) {
             try {
                 byte[] data = Files.readAllBytes(Paths.get(segment.path()));
@@ -97,12 +101,14 @@ public class AudioSegmentationService {
                 LOGGER.error("Error adding segment to playlist: {}", segment.path(), e);
             }
         }
+        PlaylistRange range = new PlaylistRange(latestSegment, playlist.getCurrentSequence());
+        playlist.addRangeToQueue(range);
+        LOGGER.info("Added segments from {} to : {}", latestSegment, playlist.getCurrentSequence());
     }
+
 
     private List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {
         List<SegmentInfo> segments = new ArrayList<>();
-
-        // Create date and song based directory structure
         String today = LocalDate.now().format(DATE_FORMATTER);
         String sanitizedSongName = sanitizeFileName(songMetadata);
         Path songDir = Paths.get(outputDir, today, sanitizedSongName);
@@ -119,8 +125,7 @@ public class AudioSegmentationService {
         String segmentListFile = songDir + File.separator + baseName + "_segments.txt";
 
         try {
-            LOGGER.info("Starting segmentation of file: {}", audioFilePath);
-            FFmpeg ffmpeg = new FFmpeg(ffmpegPath);
+            FFmpeg ffmpeg = new FFmpeg(broadcasterConfig.getFfmpegPath());
             FFmpegBuilder builder = new FFmpegBuilder()
                     .setInput(audioFilePath.toString())
                     .addOutput(segmentPattern)
@@ -133,7 +138,6 @@ public class AudioSegmentationService {
                     .addExtraArgs("-segment_list_type", "flat")
                     .done();
 
-            // Execute FFmpeg command
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg);
             executor.createJob(builder).run();
 
@@ -157,8 +161,6 @@ public class AudioSegmentationService {
                 }
             }
 
-            //LOGGER.info("Successfully created {} segments for {} in folder {}", segments.size(), audioFilePath, songDir);
-
         } catch (IOException e) {
             LOGGER.error("Something wrong with FFMpeg: {}, error: {}", audioFilePath, e.getMessage());
         } catch (Exception e) {
@@ -169,24 +171,16 @@ public class AudioSegmentationService {
     }
 
     private String sanitizeFileName(String input) {
-        // Remove invalid filename characters
         return input.replaceAll("[\\\\/:*?\"<>|]", "_")
                 .replaceAll("\\s+", "_")
                 .trim();
     }
 
-    /**
-     * Cleans up segment files older than retention period
-     */
     private void cleanupOldSegments() {
         try {
             LOGGER.info("Starting scheduled cleanup of segment files...");
-
-            // Calculate cutoff date
             LocalDate cutoffDate = LocalDate.now().minusDays(retentionDays);
             String cutoffDateStr = cutoffDate.format(DATE_FORMATTER);
-
-            // List date directories
             File[] dateDirs = new File(outputDir).listFiles(File::isDirectory);
             if (dateDirs == null) {
                 LOGGER.warn("No date directories found in {}", outputDir);
@@ -215,10 +209,6 @@ public class AudioSegmentationService {
         }
     }
 
-    /**
-     * Recursively deletes a directory and its contents
-     * @return number of files deleted
-     */
     private int deleteDirectory(File directory) {
         int count = 0;
         File[] files = directory.listFiles();

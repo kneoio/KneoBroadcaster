@@ -54,7 +54,7 @@ public class DashboardService {
             if (playlist.getSegmentCount() > 0) {
                 stats.setFirstSegmentKey(playlist.getFirstSegmentKey());
                 stats.setLastSegmentKey(playlist.getLastSegmentKey());
-                stats.setCurrentSlide(playlist.getCurrentSlide());
+               // stats.setCurrentSlide(playlist.getCurrentSlide());
             }
         } else {
             stats.setSegmentCount(0);

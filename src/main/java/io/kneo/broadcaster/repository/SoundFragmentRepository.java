@@ -186,8 +186,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getGenre())
-                .addString(doc.getAlbum())
-                .addInteger(doc.getPlayed());
+                .addString(doc.getAlbum());
 
         String readersSql = String.format(
                 "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",

@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.config.RadioStationPool;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -28,19 +29,22 @@ public class RadioService {
                 });
     }
 
+    public Uni<RadioStation> stopStation(String brand) {
+        LOGGER.info("Stop brand: {}", brand);
+        return radioStationPool.initializeStation(brand)
+                .onFailure().invoke(failure -> {
+                    LOGGER.error("Failed to initialize station for brand: {}", brand, failure);
+                });
+    }
+
     public Uni<HLSPlaylist> getPlaylist(String brand) {
         return radioStationPool.get(brand)
                 .onItem().transform(station -> {
                     if (station == null || station.getPlaylist() == null || station.getPlaylist().getSegmentCount() == 0) {
-                        LOGGER.info("Station not initialized for brand: {}, initializing now", brand);
-                        throw new IllegalStateException("Station not initialized");
+                        LOGGER.warn("Station not initialized for brand: {}", brand);
+                        throw new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE);
                     }
                     return station.getPlaylist();
-                })
-                .onFailure().recoverWithUni(failure -> {
-                    LOGGER.info("Recovering from failure by initializing station for brand: {}", brand);
-                    return initializeStation(brand)
-                            .onItem().transform(RadioStation::getPlaylist);
                 })
                 .onFailure().invoke(failure -> {
                     LOGGER.error("Failed to get playlist for brand: {}", brand, failure);

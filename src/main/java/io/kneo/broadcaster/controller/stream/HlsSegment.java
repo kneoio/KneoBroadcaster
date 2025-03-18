@@ -1,33 +1,41 @@
 package io.kneo.broadcaster.controller.stream;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-import java.util.UUID;
-
+/**
+ * Represents an HLS segment in the playlist
+ * Enhanced with timestamp support for wall-clock alignment
+ */
 @Getter
+@Setter
+@NoArgsConstructor
 public class HlsSegment {
-    private final long sequenceNumber;
-    private final byte[] data;
-    private final long timestamp;
-    private final int duration;
-    private final int bitrate;
-    private final long size;
-    private final UUID soundFragmentId;
-    private final String songName;
 
-    public HlsSegment(long sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName) {
-        this.sequenceNumber = sequenceNumber;
-        this.data = data;
-        this.timestamp = System.currentTimeMillis();
-        this.duration = duration;
-        this.size = data.length;
-        this.bitrate = (int)(size * 8 / (duration * 1000.0));
-        this.soundFragmentId = soundFragmentId;
-        this.songName = songName;
-    }
+    // Media sequence number (used in old implementation)
+    private long sequenceNumber;
 
-    public boolean isExpired(long maxAgeMs) {
-        return System.currentTimeMillis() - timestamp > maxAgeMs;
+    // Unix timestamp for segment (aligned with wall clock)
+    private long timestamp;
+
+    // Human-readable name of the song in this segment
+    private String songName;
+
+    // Actual segment data (TS file content)
+    private byte[] data;
+
+    // Duration of this segment in seconds
+    private float duration;
+
+    // Size of this segment in bytes
+    private long size;
+
+    /**
+     * Generate a standardized filename for this segment
+     * Format: station_STATION-ID_TIMESTAMP.ts
+     */
+    public String generateFilename(String stationId) {
+        return String.format("station_%s_%d.ts", stationId, timestamp);
     }
 }
-

@@ -15,12 +15,15 @@ public interface HlsPlaylistConfig {
     @WithDefault("300")
     int getMinSegments();
 
-    @WithName("playlist.sliding.window.size")
-    @WithDefault("20")
-    int getSlidingWindowSize();
-
     @WithName("playlist.segment.duration")
     @WithDefault("5")
     int getSegmentDuration();
 
+    @WithName("playlist.segment.duration")
+    @WithDefault("5")
+    int getSegmentWindow();
+
+    @WithName("playlist.segment.duration")
+    @WithDefault("5")
+    int getSlidingWindowSize();
 }

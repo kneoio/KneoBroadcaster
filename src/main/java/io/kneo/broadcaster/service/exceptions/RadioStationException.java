@@ -9,7 +9,8 @@ public class RadioStationException extends RuntimeException {
     public enum ErrorType {
         STATION_NOT_ACTIVE("Radio station not broadcasting"),
         INITIALIZATION_FAILED("Failed to initialize radio station"),
-        PLAYLIST_EMPTY("Playlist has no segments");
+        PLAYLIST_EMPTY("Playlist has no segments"),
+        STATION_NOT_FOUND("radio station is not exists");
 
         private final String defaultMessage;
 

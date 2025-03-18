@@ -17,21 +17,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicInteger;
-
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class RadioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
-
+    private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)\\.ts$");
     private final RadioService service;
-
+    private final AtomicInteger listenerCount = new AtomicInteger(0);
 
     @Inject
     public RadioController(RadioService service) {
         this.service = service;
     }
-
-    private final AtomicInteger listenerCount = new AtomicInteger(0);
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -44,6 +43,7 @@ public class RadioController {
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand");
         listenerCount.incrementAndGet();
+
         service.getPlaylist(brand)
                 .onItem().transform(HLSPlaylist::generatePlaylist)
                 .subscribe().with(
@@ -75,45 +75,50 @@ public class RadioController {
         String brand = rc.pathParam("brand");
 
         try {
-            long sequence = Long.parseLong(segmentParam.replaceAll("\\D+", ""));
-            service.getPlaylist(brand)
-                    .onItem().transform(playlist -> {
-                        HlsSegment segment = playlist.getSegment(sequence);
-                        if (segment == null) {
-                            LOGGER.warn("Segment not found for brand: {}, sequence: {}", brand, sequence);
-                            throw new WebApplicationException(Response.Status.NOT_FOUND);
-                        }
-                        return segment.getData();
-                    })
-                    .subscribe().with(
-                            data -> {
-                                rc.response()
-                                        .putHeader("Content-Type", "video/MP2T")
-                                        .putHeader("Access-Control-Allow-Origin", "*")
-                                        .putHeader("Cache-Control", "no-cache")
-                                        .setStatusCode(200)
-                                        .end(Buffer.buffer(data));
-                            },
-                            throwable -> {
-                                listenerCount.decrementAndGet();
-                                LOGGER.info("Listener count: {}", listenerCount.get());
-                                if (throwable instanceof WebApplicationException e) {
-                                    String message = e.getResponse().getStatus() == 404 ?
-                                            "Segment not found" : "Invalid segment name format";
+            Matcher matcher = SEGMENT_PATTERN.matcher(segmentParam);
+            if (matcher.find()) {
+                String stationName = matcher.group(1);
+                long timestamp = Long.parseLong(matcher.group(2));
 
-                                    rc.response()
-                                            .setStatusCode(e.getResponse().getStatus())
-                                            .putHeader("Content-Type", MediaType.TEXT_PLAIN)
-                                            .end(message);
-                                } else {
-                                    listenerCount.decrementAndGet();
-                                    LOGGER.error("Error serving segment for brand: {}, sequence: {} - {}", brand, sequence, throwable.getMessage());
-                                    rc.fail(throwable);
-                                }
+                service.getPlaylist(brand)
+                        .onItem().transform(playlist -> {
+                            HlsSegment segment = findSegmentByTimestamp(playlist, timestamp);
+                            if (segment == null) {
+                                throw new WebApplicationException(Response.Status.NOT_FOUND);
                             }
-                    );
+                            return segment.getData();
+                        })
+                        .subscribe().with(
+                                data -> {
+                                    rc.response()
+                                            .putHeader("Content-Type", "video/MP2T")
+                                            .putHeader("Access-Control-Allow-Origin", "*")
+                                            .putHeader("Cache-Control", "no-cache")
+                                            .setStatusCode(200)
+                                            .end(Buffer.buffer(data));
+                                },
+                                throwable -> {
+                                    listenerCount.decrementAndGet();
+                                    if (throwable instanceof WebApplicationException e) {
+                                        rc.response()
+                                                .setStatusCode(e.getResponse().getStatus())
+                                                .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                                .end("Segment not found");
+                                    } else {
+                                        rc.response()
+                                                .setStatusCode(500)
+                                                .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                                .end("Error serving segment");
+                                    }
+                                }
+                        );
+            } else {
+                rc.response()
+                        .setStatusCode(400)
+                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                        .end("Invalid segment name format");
+            }
         } catch (NumberFormatException e) {
-            LOGGER.error("Invalid segment name format: {}", segmentParam);
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
@@ -121,7 +126,53 @@ public class RadioController {
         }
     }
 
+    private HlsSegment findSegmentByTimestamp(HLSPlaylist playlist, long timestamp) {
+        for (int i = 0; i < playlist.getSegmentCount(); i++) {
+            long key = playlist.getLastSegmentKey() - i;
+            if (key < 0) break;
+
+            HlsSegment segment = playlist.getSegment(key);
+            if (segment != null && segment.getTimestamp() == timestamp) {
+                return segment;
+            }
+        }
+        return null;
+    }
+
     private void getStatus(RoutingContext rc) {
-        // Status implementation
+        String brand = rc.pathParam("brand");
+
+        service.getPlaylist(brand)
+                .onItem().transform(playlist -> {
+                    StringBuilder status = new StringBuilder();
+                    status.append("Station: ").append(brand).append("\n");
+                    status.append("Active listeners: ").append(listenerCount.get()).append("\n");
+                    status.append("Segment count: ").append(playlist.getSegmentCount()).append("\n");
+                    status.append("Total bytes: ").append(playlist.getTotalBytesProcessed()).append("\n");
+                    status.append("Last segment key: ").append(playlist.getLastSegmentKey()).append("\n");
+                    return status.toString();
+                })
+                .subscribe().with(
+                        statusContent -> {
+                            rc.response()
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .putHeader("Access-Control-Allow-Origin", "*")
+                                    .setStatusCode(200)
+                                    .end(statusContent);
+                        },
+                        throwable -> {
+                            if (throwable instanceof RadioStationException) {
+                                rc.response()
+                                        .setStatusCode(404)
+                                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                        .end(throwable.getMessage());
+                            } else {
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                        .end("Internal server error");
+                            }
+                        }
+                );
     }
 }

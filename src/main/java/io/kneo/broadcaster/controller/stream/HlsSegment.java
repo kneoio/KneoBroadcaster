@@ -1,41 +1,43 @@
 package io.kneo.broadcaster.controller.stream;
 
 import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-/**
- * Represents an HLS segment in the playlist
- * Enhanced with timestamp support for wall-clock alignment
- */
+import java.util.UUID;
+
 @Getter
-@Setter
-@NoArgsConstructor
 public class HlsSegment {
+    private final long sequenceNumber;
+    private final byte[] data;
+    private final long timestamp;
+    private final int duration;
+    private final int bitrate;
+    private final long size;
+    private final UUID soundFragmentId;
+    private final String songName;
 
-    // Media sequence number (used in old implementation)
-    private long sequenceNumber;
+    public HlsSegment(long sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName) {
+        this.sequenceNumber = sequenceNumber;
+        this.data = data;
+        this.timestamp = System.currentTimeMillis() / 1000; // Unix timestamp in seconds
+        this.duration = duration;
+        this.size = data.length;
+        this.bitrate = (int)(size * 8 / (duration * 1000.0));
+        this.soundFragmentId = soundFragmentId;
+        this.songName = songName;
+    }
 
-    // Unix timestamp for segment (aligned with wall clock)
-    private long timestamp;
+    public HlsSegment(long sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName, long timestamp) {
+        this.sequenceNumber = sequenceNumber;
+        this.data = data;
+        this.timestamp = timestamp;
+        this.duration = duration;
+        this.size = data.length;
+        this.bitrate = (int)(size * 8 / (duration * 1000.0));
+        this.soundFragmentId = soundFragmentId;
+        this.songName = songName;
+    }
 
-    // Human-readable name of the song in this segment
-    private String songName;
-
-    // Actual segment data (TS file content)
-    private byte[] data;
-
-    // Duration of this segment in seconds
-    private float duration;
-
-    // Size of this segment in bytes
-    private long size;
-
-    /**
-     * Generate a standardized filename for this segment
-     * Format: station_STATION-ID_TIMESTAMP.ts
-     */
-    public String generateFilename(String stationId) {
-        return String.format("station_%s_%d.ts", stationId, timestamp);
+    public boolean isExpired(long maxAgeMs) {
+        return System.currentTimeMillis() - (timestamp * 1000) > maxAgeMs;
     }
 }

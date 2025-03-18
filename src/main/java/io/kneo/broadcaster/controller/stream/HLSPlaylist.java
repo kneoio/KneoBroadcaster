@@ -16,6 +16,8 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -63,7 +65,7 @@ public class HLSPlaylist {
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}, sequence: {}", brandName, currentSequence.get());
         playlistScheduler.registerPlaylist(this);
-        queueKeeper();
+     //   queueKeeper();
         janitor();
     }
 
@@ -89,13 +91,22 @@ public class HLSPlaylist {
             rangeSegments.values()
                     .forEach(segment -> {
                         String songName = segment.getSongName();
+                        // Always use timestamp for program date time
+                        long timestamp = segment.getTimestamp() > 0 ? segment.getTimestamp() : System.currentTimeMillis() / 1000;
+                        Instant segmentTime = Instant.ofEpochSecond(timestamp);
+                        playlist.append("#EXT-X-PROGRAM-DATE-TIME:")
+                                .append(DateTimeFormatter.ISO_INSTANT.format(segmentTime))
+                                .append("\n");
+
                         playlist.append("#EXTINF:")
                                 .append(segment.getDuration())
                                 .append(",")
                                 .append(songName)
                                 .append("\n")
                                 .append("segments/")
-                                .append(segment.getSequenceNumber())
+                                .append(brandName)
+                                .append("_")
+                                .append(timestamp)
                                 .append(".ts\n");
                     });
             return playlist.toString();
@@ -108,8 +119,10 @@ public class HLSPlaylist {
 
     public HlsSegment getSegment(long sequence) {
         HlsSegment segment = segments.get(sequence);
-        lastRequestedSegment.set(segment.getSequenceNumber());
-        lastRequestedFragmentName.set(segment.getSongName());
+        if (segment != null) {
+            lastRequestedSegment.set(segment.getSequenceNumber());
+            lastRequestedFragmentName.set(segment.getSongName());
+        }
         return segment;
     }
 
@@ -117,6 +130,18 @@ public class HLSPlaylist {
         if (segment == null) {
             LOGGER.warn("Attempted to add null segment");
             return;
+        }
+
+        // With this:
+        if (segment.getTimestamp() <= 0) {
+            segment = new HlsSegment(
+                    segment.getSequenceNumber(),
+                    segment.getData(),
+                    segment.getDuration(),
+                    segment.getSoundFragmentId(),
+                    segment.getSongName(),
+                    System.currentTimeMillis() / 1000
+            );
         }
 
         segments.put(segment.getSequenceNumber(), segment);
@@ -247,5 +272,4 @@ public class HLSPlaylist {
             Thread.currentThread().interrupt();
         }
     }
-
 }

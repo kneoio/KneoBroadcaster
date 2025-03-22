@@ -18,7 +18,7 @@ public class HlsSegment {
     public HlsSegment(long sequenceNumber, byte[] data, int duration, UUID soundFragmentId, String songName) {
         this.sequenceNumber = sequenceNumber;
         this.data = data;
-        this.timestamp = System.currentTimeMillis() / 1000; // Unix timestamp in seconds
+        this.timestamp = System.currentTimeMillis() / 1000;
         this.duration = duration;
         this.size = data.length;
         this.bitrate = (int)(size * 8 / (duration * 1000.0));

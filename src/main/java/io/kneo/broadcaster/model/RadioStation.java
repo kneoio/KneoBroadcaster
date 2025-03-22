@@ -25,4 +25,8 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private CountryCode country;
     private RadioStationStatus status;
     private UUID profileId;
+
+    public void setWarmedUp(boolean b) {
+        status = RadioStationStatus.ON_LINE;
+    }
 }

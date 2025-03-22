@@ -92,7 +92,8 @@ public class AudioSegmentationService {
                         data,
                         segment.duration(),
                         segment.fragmentId(),
-                        segment.metadata()
+                        segment.metadata(),
+                        System.currentTimeMillis() / 1000 + segment.sequenceIndex()
                 );
 
                 playlist.addSegment(hlsSegment);

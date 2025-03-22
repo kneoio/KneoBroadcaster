@@ -7,11 +7,7 @@ import lombok.Getter;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Immutable snapshot of HLS playlist metrics for dashboard display
- */
 @Getter
 @Builder
 public class PlaylistStats {
@@ -19,18 +15,17 @@ public class PlaylistStats {
     private final long currentSequence;
     private final long lastRequestedSegment;
     private final String lastRequestedFragmentName;
+    private final Instant lastRequestedTimestamp;
     private final int segmentCount;
     private final long totalBytesProcessed;
-    private final double bitrate; // in kbps
-    private final Instant timestamp;
+    private final double bitrate;
+    private final Instant nowTimestamp;
     private final int queueSize;
     private final List<String> recentlyPlayedTitles;
+    private final int playlistAttrition;
 
-    /**
-     * Creates a stats snapshot from the current playlist state
-     */
+
     public static PlaylistStats fromPlaylist(HLSPlaylist playlist, List<String> recentlyPlayedTitles) {
-        // Calculate approximate bitrate based on last segment if available
         double estimatedBitrate = 0.0;
         if (playlist.getSegmentCount() > 0 && playlist.getLastRequestedSegment() > 0) {
             HlsSegment lastSegment = playlist.getSegment(playlist.getLastRequestedSegment());
@@ -39,40 +34,23 @@ public class PlaylistStats {
             }
         }
 
+        // Convert the long timestamp to Instant
+        Instant lastTimestamp = playlist.getSegmentTimeStamp() > 0
+                ? Instant.ofEpochSecond(playlist.getSegmentTimeStamp())
+                : Instant.now();
+
         return PlaylistStats.builder()
                 .brandName(playlist.getBrandName())
                 .currentSequence(playlist.getCurrentSequence())
                 .lastRequestedSegment(playlist.getLastRequestedSegment())
                 .lastRequestedFragmentName(playlist.getLastRequestedFragmentName())
+                .lastRequestedTimestamp(lastTimestamp)
                 .segmentCount(playlist.getSegmentCount())
-                .totalBytesProcessed(getTotalBytes(playlist))
+                .totalBytesProcessed(playlist.getTotalBytesProcessed())
                 .bitrate(estimatedBitrate)
-                .timestamp(Instant.now())
-                .queueSize(getQueueSize(playlist))
+                .nowTimestamp(Instant.now())
+                .queueSize(playlist.getQueueSize())
                 .recentlyPlayedTitles(recentlyPlayedTitles)
                 .build();
-    }
-
-    private static long getTotalBytes(HLSPlaylist playlist) {
-        try {
-            // Use reflection to safely access totalBytesProcessed
-            java.lang.reflect.Field field = HLSPlaylist.class.getDeclaredField("totalBytesProcessed");
-            field.setAccessible(true);
-            AtomicLong totalBytes = (AtomicLong) field.get(playlist);
-            return totalBytes.get();
-        } catch (Exception e) {
-            return 0L;
-        }
-    }
-
-    private static int getQueueSize(HLSPlaylist playlist) {
-        try {
-            // Use reflection to safely access mainQueue size
-            java.lang.reflect.Field field = HLSPlaylist.class.getDeclaredField("mainQueue");
-            field.setAccessible(true);
-            return ((java.util.Queue<?>) field.get(playlist)).size();
-        } catch (Exception e) {
-            return 0;
-        }
     }
 }

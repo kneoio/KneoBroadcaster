@@ -147,7 +147,6 @@ public class RadioController {
                     StringBuilder status = new StringBuilder();
                     status.append("Station: ").append(brand).append("\n");
                     status.append("Active listeners: ").append(listenerCount.get()).append("\n");
-                    status.append("Segment count: ").append(playlist.getSegmentCount()).append("\n");
                     status.append("Total bytes: ").append(playlist.getTotalBytesProcessed()).append("\n");
                     status.append("Last segment key: ").append(playlist.getLastSegmentKey()).append("\n");
                     return status.toString();

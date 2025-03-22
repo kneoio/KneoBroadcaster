@@ -10,7 +10,7 @@ import java.util.UUID;
 public class BrandSoundFragment {
     private UUID id;
     private int playedByBrandCount;
-    private LocalDateTime lastTimePlayedByBrand;
+    private LocalDateTime playedTime;
     private SoundFragment soundFragment;
 
     @Override

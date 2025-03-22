@@ -73,7 +73,7 @@ public class DashboardController {
         values.add(EnvConst.VERSION);
         viewPage.addPayload(EnvConst.APP_ID, values);
 
-        dashboardService.getPoolInfo(null)
+        dashboardService.getPoolInfo()
                 .subscribe().with(
                         poolStats -> {
                             viewPage.addPayload("Stats", poolStats);
@@ -95,7 +95,7 @@ public class DashboardController {
         viewPage.addPayload(EnvConst.APP_ID, values);
 
         assert dashboardService != null;
-        dashboardService.getPoolInfo(null)
+        dashboardService.getPoolInfo()
                 .subscribe().with(
                         poolStats -> {
                             viewPage.addPayload("Stats", poolStats);

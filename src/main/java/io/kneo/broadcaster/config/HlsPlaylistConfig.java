@@ -12,7 +12,7 @@ public interface HlsPlaylistConfig {
     String  getFFMpegPath();
 
     @WithName("playlist.min.segments")
-    @WithDefault("300")
+    @WithDefault("3000")
     int getMinSegments();
 
     @WithName("playlist.segment.duration")

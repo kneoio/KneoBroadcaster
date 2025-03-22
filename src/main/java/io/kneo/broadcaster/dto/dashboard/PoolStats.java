@@ -1,19 +1,27 @@
 package io.kneo.broadcaster.dto.dashboard;
 
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
-@Data
+@Getter
+@Setter
 public class PoolStats {
     private int totalStations;
     private int onlineStations;
+    private int warmingStations;
+    private int offlineStations;
     private int minimumSegments;
     private int slidingWindowSize;
     private Map<String, StationStats> stations;
 
+    private List<SchedulerTaskTimeline> timelines = new ArrayList<>();
 
-    // Task progress timeline
-    private SchedulerTaskTimeline taskTimeline;
+    public void addPeriodicTask(SchedulerTaskTimeline line){
+        timelines.add(line);
+    }
 }

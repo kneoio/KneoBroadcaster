@@ -114,7 +114,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                         brandSoundFragment.setId(row.getUUID("id"));
                         brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
-                        brandSoundFragment.setLastTimePlayedByBrand(row.getLocalDateTime("last_time_played_by_brand"));
+                        brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
                         brandSoundFragment.setSoundFragment(soundFragment);
                         return brandSoundFragment;
                     });

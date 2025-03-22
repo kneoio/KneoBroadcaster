@@ -262,7 +262,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     dto.setId(fragment.getId());
                     dto.setSoundFragmentDTO(soundFragmentDTO);
                     dto.setPlayedByBrandCount(fragment.getPlayedByBrandCount());
-                    dto.setLastTimePlayedByBrand(fragment.getLastTimePlayedByBrand());
+                    dto.setLastTimePlayedByBrand(fragment.getPlayedTime());
                     return dto;
                 });
     }

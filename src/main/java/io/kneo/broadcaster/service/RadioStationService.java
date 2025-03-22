@@ -129,8 +129,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setPlaylistCount(tuple.getItem3().getSegmentsCount());
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
-
-            // Add profile from the service
             dto.setProfile(tuple.getItem4());
 
             try {

@@ -2,15 +2,11 @@ package io.kneo.broadcaster.controller.stream;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.model.BrandSoundFragment;
-import io.kneo.broadcaster.model.PlaylistItem;
-import io.kneo.broadcaster.model.PlaylistItemSong;
-import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.radio.PlaylistScheduler;
-import jakarta.inject.Inject;
+import io.kneo.broadcaster.service.radio.PlaylistKeeper;
+import io.kneo.broadcaster.service.radio.PlaylistMaintenanceService;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
@@ -18,9 +14,12 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -30,43 +29,58 @@ public class HLSPlaylist {
     private final AtomicLong currentSequence = new AtomicLong(0);
     private final AtomicLong lastRequestedSegment = new AtomicLong(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final AtomicReference<String> lastRequestedFragmentName = new AtomicReference<>("");
+    private final AtomicLong segmentTimeStamp = new AtomicLong(0);
 
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<PlaylistItem> interstitialQueue = new ConcurrentLinkedQueue<>();
 
     @Getter
     @Setter
     private String brandName;
 
+    @Getter
     private final AudioSegmentationService segmentationService;
 
+    @Getter
     private final SoundFragmentService soundFragmentService;
 
-    private final PlaylistScheduler playlistScheduler;
+    @Getter
+    private final PlaylistKeeper playlistKeeper;
 
+    @Getter
     private final HlsPlaylistConfig config;
 
-    @Inject
+    @Getter
+    private final PlaylistMaintenanceService maintenanceService;
+
+    public HLSPlaylist(
+            HlsPlaylistConfig config,
+            BroadcasterConfig broadcasterConfig,
+            SoundFragmentService soundFragmentService,
+            String brandName) {
+        this(config, broadcasterConfig, soundFragmentService, brandName, null, null);
+    }
+
     public HLSPlaylist(
             HlsPlaylistConfig config,
             BroadcasterConfig broadcasterConfig,
             SoundFragmentService soundFragmentService,
             String brandName,
-            PlaylistScheduler playlistScheduler) {
+            PlaylistKeeper playlistScheduler,
+            PlaylistMaintenanceService maintenanceService) {
         this.config = config;
         this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = new AudioSegmentationService(broadcasterConfig);
-        this.playlistScheduler = playlistScheduler;
+        this.playlistKeeper = playlistScheduler;
+        this.maintenanceService = maintenanceService;
+        LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
     }
 
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}, sequence: {}", brandName, currentSequence.get());
-        playlistScheduler.registerPlaylist(this);
-     //   queueKeeper();
-        janitor();
+        playlistKeeper.registerPlaylist(this);
+        maintenanceService.initializePlaylistMaintenance(this);
     }
 
     public String generatePlaylist() {
@@ -83,6 +97,7 @@ public class HLSPlaylist {
             playlist.append("#EXTM3U\n")
                     .append("#EXT-X-VERSION:3\n")
                     .append("#EXT-X-ALLOW-CACHE:NO\n")
+                    .append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
                     .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
                     .append("#EXT-X-MEDIA-SEQUENCE:").append(range.start()).append("\n");
 
@@ -119,10 +134,9 @@ public class HLSPlaylist {
 
     public HlsSegment getSegment(long sequence) {
         HlsSegment segment = segments.get(sequence);
-        if (segment != null) {
-            lastRequestedSegment.set(segment.getSequenceNumber());
-            lastRequestedFragmentName.set(segment.getSongName());
-        }
+        lastRequestedSegment.set(segment.getSequenceNumber());
+        lastRequestedFragmentName.set(segment.getSongName());
+        segmentTimeStamp.set(segment.getTimestamp());
         return segment;
     }
 
@@ -131,8 +145,6 @@ public class HLSPlaylist {
             LOGGER.warn("Attempted to add null segment");
             return;
         }
-
-        // With this:
         if (segment.getTimestamp() <= 0) {
             segment = new HlsSegment(
                     segment.getSequenceNumber(),
@@ -177,10 +189,14 @@ public class HLSPlaylist {
         return lastRequestedFragmentName.get();
     }
 
+    public long getSegmentTimeStamp() {
+        return segmentTimeStamp.get();
+    }
+
     public PlaylistStats getStats() {
-        // Get recently played titles from the playlist scheduler
-        List<String> recentlyPlayedTitles = playlistScheduler.getRecentlyPlayedTitles(brandName, 10);
-        return PlaylistStats.fromPlaylist(this, recentlyPlayedTitles);
+        assert playlistKeeper != null;
+        return PlaylistStats.fromPlaylist(this,
+                playlistKeeper.getRecentlyPlayedTitles(brandName, 10));
     }
 
     public int getQueueSize() {
@@ -191,85 +207,21 @@ public class HLSPlaylist {
         return totalBytesProcessed.get();
     }
 
-    private void queueKeeper() {
-        LOGGER.info("Starting maintenance for: {}", brandName);
-        scheduler.scheduleAtFixedRate(() -> {
-            try {
-                if (segments.size() < config.getMinSegments()) {
-                    LOGGER.info("Playlist for {} needs more fragments, current: {}",
-                            brandName, getSegmentCount());
-
-                    soundFragmentService.getForBrand(brandName, 5, true)
-                            .subscribe().with(
-                                    fragments -> {
-                                        for (BrandSoundFragment fragment : fragments) {
-                                            SoundFragment soundFragment = fragment.getSoundFragment();
-                                            if (!playlistScheduler.isRecentlyPlayed(brandName, fragment)) {
-                                                PlaylistItem item = new PlaylistItemSong(soundFragment);
-                                                segmentationService.sliceAndAdd(
-                                                        this,
-                                                        item.getFilePath(),
-                                                        item.getMetadata(),
-                                                        item.getId()
-                                                );
-                                                // Track in playlist scheduler instead of local set
-                                                playlistScheduler.trackPlayedFragment(brandName, fragment);
-                                            } else {
-                                                LOGGER.warn("Fragment already played: id={}, title={}",
-                                                        fragment.getId(),
-                                                        soundFragment.getTitle());
-                                            }
-                                        }
-                                    },
-                                    error -> LOGGER.error("Error fetching fragments: {}", error.getMessage(), error)
-                            );
-                } else {
-                    LOGGER.warn("Still enough segments: count={}", segments.size());
-
-                }
-            } catch (Exception e) {
-                LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
-            }
-        }, 0, 3, TimeUnit.MINUTES);
+    public Set<Long> getSegmentKeys() {
+        return new HashSet<>(segments.keySet());
     }
 
-    private void janitor() {
-        LOGGER.info("Starting janitor for playlist: {}", brandName);
-        int initialSize = segments.size();
-        scheduler.scheduleAtFixedRate(() -> {
-            try {
-                if (segments.size() > config.getMinSegments()) {
-                    int segmentsToDelete = 50;
-                    Long oldestToKeep = segments.navigableKeySet().stream()
-                            .skip(segmentsToDelete)
-                            .findFirst()
-                            .orElse(null);
-
-                    if (oldestToKeep != null) {
-                        segments.headMap(oldestToKeep).clear();
-                        LOGGER.warn("It was {}, after squeezing {}", initialSize, segments.size());
-                    }
-                }
-            } catch (Exception e) {
-                LOGGER.error("Error during cleaning: {}", e.getMessage(), e);
-            }
-        }, 3600, 240, TimeUnit.SECONDS);
+    public void removeSegmentsBefore(Long oldestToKeep) {
+        segments.headMap(oldestToKeep).clear();
     }
 
     public void shutdown() {
-        LOGGER.info("Shutting down playlist maintenance for: {}", brandName);
-        playlistScheduler.unregisterPlaylist(brandName);
-        scheduler.shutdown();
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-            segments.clear();
-            currentSequence.set(0);
-            totalBytesProcessed.set(0);
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
+        LOGGER.info("Shutting down playlist for: {}", brandName);
+        if (maintenanceService != null) {
+            maintenanceService.shutdownPlaylistMaintenance(brandName);
         }
+        segments.clear();
+        currentSequence.set(0);
+        totalBytesProcessed.set(0);
     }
 }

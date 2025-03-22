@@ -13,9 +13,9 @@ public class StationStats {
     private int segmentsSize;
     private long lastSegmentKey;
     private long lastRequested;
+    private Instant lastSegmentTimestamp;
     private String currentFragment;
 
-    // New fields from PlaylistStats
     private long totalBytesProcessed;
     private double bitrate; // in kbps
     private int queueSize;

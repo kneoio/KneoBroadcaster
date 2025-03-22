@@ -8,9 +8,9 @@ import io.kneo.broadcaster.dto.dashboard.PoolStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistStats;
-
-import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
-import io.kneo.broadcaster.service.radio.PlaylistScheduler;
+import io.kneo.broadcaster.service.radio.SegmentsCleaner;
+import io.kneo.broadcaster.service.radio.PlaylistKeeper;
+import io.kneo.broadcaster.service.radio.PlaylistMaintenanceService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -30,9 +30,15 @@ public class DashboardService {
     RadioStationPool radioStationPool;
 
     @Inject
-    PlaylistScheduler playlistScheduler;
+    PlaylistKeeper playlistScheduler;
 
-    public Uni<PoolStats> getPoolInfo(String brand) {
+    @Inject
+    PlaylistMaintenanceService playlistMaintenanceService;
+
+    @Inject
+    SegmentsCleaner playlistCleanupService;
+
+    public Uni<PoolStats> getPoolInfo() {
         HashMap<String, RadioStation> pool = radioStationPool.getPool();
         PoolStats stats = new PoolStats();
         stats.setTotalStations(100000);
@@ -41,29 +47,20 @@ public class DashboardService {
         stats.setOnlineStations((int) pool.values().stream()
                 .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE)
                 .count());
+        stats.setWarmingStations((int) pool.values().stream()
+                .filter(station -> station.getStatus() == RadioStationStatus.WARMING_UP)
+                .count());
         Map<String, StationStats> stationStats = pool.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         entry -> createStationStats(entry.getKey(), entry.getValue())
                 ));
         stats.setStations(stationStats);
-
-
-        // Add task timeline with progress indicators
-        stats.setTaskTimeline(playlistScheduler.getTaskTimeline());
+        stats.addPeriodicTask(playlistScheduler.getTaskTimeline());
+        stats.addPeriodicTask(playlistCleanupService.getTaskTimeline());
+        stats.addPeriodicTask(playlistMaintenanceService.getTaskTimeline());
 
         return Uni.createFrom().item(stats);
-    }
-
-
-
-    /**
-     * Get task timeline progress for scheduler tasks
-     *
-     * @return Current task timeline data
-     */
-    public Uni<SchedulerTaskTimeline> getTaskTimeline() {
-        return Uni.createFrom().item(playlistScheduler.getTaskTimeline());
     }
 
     private StationStats createStationStats(String brand, RadioStation station) {
@@ -73,22 +70,17 @@ public class DashboardService {
 
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
-
-            // Get comprehensive stats from the playlist
             PlaylistStats playlistStats = playlist.getStats();
-
-            // Map PlaylistStats to StationStats
             stats.setSegmentsSize(playlistStats.getSegmentCount());
             stats.setLastSegmentKey(playlist.getLastSegmentKey());
             stats.setLastRequested(playlistStats.getLastRequestedSegment());
+            stats.setLastSegmentTimestamp(playlistStats.getLastRequestedTimestamp());
             stats.setCurrentFragment(playlistStats.getLastRequestedFragmentName());
-
-            // Add new fields from PlaylistStats
             stats.setTotalBytesProcessed(playlistStats.getTotalBytesProcessed());
             stats.setBitrate(playlistStats.getBitrate());
             stats.setQueueSize(playlistStats.getQueueSize());
             stats.setRecentlyPlayedTitles(playlistStats.getRecentlyPlayedTitles());
-            stats.setLastUpdated(playlistStats.getTimestamp());
+            stats.setLastUpdated(playlistStats.getNowTimestamp());
         } else {
             stats.setSegmentsSize(0);
             stats.setRecentlyPlayedTitles(List.of());

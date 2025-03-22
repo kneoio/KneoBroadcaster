@@ -6,7 +6,8 @@ import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.radio.PlaylistScheduler;
+import io.kneo.broadcaster.service.radio.PlaylistKeeper;
+import io.kneo.broadcaster.service.radio.PlaylistMaintenanceService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 
 @ApplicationScoped
 public class RadioStationPool {
@@ -38,21 +40,43 @@ public class RadioStationPool {
     private SoundFragmentService soundFragmentService;
 
     @Inject
-    private PlaylistScheduler playlistScheduler;
+    private PlaylistKeeper playlistKeeper;
+
+    @Inject
+    private PlaylistMaintenanceService maintenanceService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
-        LOGGER.info("Starting radio station: {}", brandName);
-
-        HLSPlaylist playlist = new HLSPlaylist(config, broadcasterConfig, soundFragmentService, brandName, playlistScheduler);
+        HLSPlaylist playlist = new HLSPlaylist(
+                config,
+                broadcasterConfig,
+                soundFragmentService,
+                brandName,
+                playlistKeeper,
+                maintenanceService
+        );
         playlist.initialize();
 
         return radioStationService.findByBrandName(brandName)
-                            .onItem().transform(station -> {
-                                station.setPlaylist(playlist);
+                .onItem().invoke(station -> {
+                    station.setPlaylist(playlist);
+                    station.setStatus(RadioStationStatus.WARMING_UP);
+                    pool.put(brandName, station);
+                })
+                .onItem().transformToUni(station -> {
+                    return Uni.createFrom().emitter(emitter -> {
+                        CompletableFuture.runAsync(() -> {
+                            try {
+                                while (playlist.getSegmentCount() < 100) {
+                                    Thread.sleep(300);
+                                }
                                 station.setStatus(RadioStationStatus.ON_LINE);
-                                pool.put(brandName, station);
-                                return station;
-                            });
+                                emitter.complete(station);
+                            } catch (Exception e) {
+                                emitter.fail(e);
+                            }
+                        });
+                    });
+                });
     }
 
     public Uni<RadioStation> get(String brandName) {

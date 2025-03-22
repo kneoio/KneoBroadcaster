@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
-import io.kneo.broadcaster.controller.stream.PlaylistRange;
+import io.kneo.broadcaster.model.SoundFragment;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
 import net.bramp.ffmpeg.FFmpeg;
@@ -22,10 +22,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+@ApplicationScoped
 public class AudioSegmentationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioSegmentationService.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -66,29 +68,20 @@ public class AudioSegmentationService {
                 TimeUnit.HOURS);
     }
 
-    public void shutdown() {
-        scheduler.shutdown();
-        try {
-            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-    }
 
-    public void sliceAndAdd(HLSPlaylist playlist, Path audioFilePath,
-                            String songMetadata, UUID fragmentId) {
-        List<SegmentInfo> segments = segmentAudioFile(audioFilePath, songMetadata, fragmentId);
-        long latestSegment = playlist.getCurrentSequence();
+    public ConcurrentLinkedQueue<HlsSegment> slice(SoundFragment soundFragment) {
+        ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = new ConcurrentLinkedQueue<>();
+        List<SegmentInfo> segments = segmentAudioFile(soundFragment.getFilePath(), soundFragment.getMetadata(), soundFragment.getId());
+
         for (SegmentInfo segment : segments) {
             try {
                 byte[] data = Files.readAllBytes(Paths.get(segment.path()));
-                long sequence = playlist.getCurrentSequenceAndIncrement();
+
+                // Create a unique segment URI based on the fragment ID and sequence
+                String uniquePrefix = soundFragment.getId().toString().substring(0, 8); // Use first part of UUID
+                String segmentUri = "segments/" + uniquePrefix + "_" + (System.currentTimeMillis() / 1000 + segment.sequenceIndex()) + ".ts";
 
                 HlsSegment hlsSegment = new HlsSegment(
-                        sequence,
                         data,
                         segment.duration(),
                         segment.fragmentId(),
@@ -96,19 +89,16 @@ public class AudioSegmentationService {
                         System.currentTimeMillis() / 1000 + segment.sequenceIndex()
                 );
 
-                playlist.addSegment(hlsSegment);
+                oneFragmentSegments.add(hlsSegment);
 
             } catch (Exception e) {
                 LOGGER.error("Error adding segment to playlist: {}", segment.path(), e);
             }
         }
-        PlaylistRange range = new PlaylistRange(latestSegment, playlist.getCurrentSequence());
-        playlist.addRangeToQueue(range);
-        LOGGER.info("Added segments from {} to : {}", latestSegment, playlist.getCurrentSequence());
+        return oneFragmentSegments;
     }
 
-
-    private List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {
+    public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {
         List<SegmentInfo> segments = new ArrayList<>();
         String today = LocalDate.now().format(DATE_FORMATTER);
         String sanitizedSongName = sanitizeFileName(songMetadata);
@@ -169,6 +159,19 @@ public class AudioSegmentationService {
         }
 
         return segments;
+    }
+
+
+    public void shutdown() {
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private String sanitizeFileName(String input) {

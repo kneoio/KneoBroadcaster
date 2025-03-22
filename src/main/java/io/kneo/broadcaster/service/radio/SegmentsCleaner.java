@@ -9,27 +9,61 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Service responsible for cleaning up old segments from playlists
- */
+import javax.annotation.PostConstruct;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 @ApplicationScoped
 public class SegmentsCleaner {
     private static final Logger LOGGER = LoggerFactory.getLogger(SegmentsCleaner.class);
     public static final String SCHEDULED_TASK_ID = "segments-cleanup";
     public static final long INTERVAL_SECONDS = 243;
-
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     @Inject
     private HlsPlaylistConfig hlsConfig;
 
     @Getter
     private final SchedulerTaskTimeline taskTimeline = new SchedulerTaskTimeline();
 
-    public void initializeTaskTimeline() {
+    private final Map<String, HLSPlaylist> registeredPlaylists = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    public void init() {
         taskTimeline.registerTask(
                 SCHEDULED_TASK_ID,
-                "Playlist Cleanup",
+                "Segment Cleanup",
                 INTERVAL_SECONDS
         );
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                taskTimeline.updateProgress();
+                cleanupAllPlaylists();
+            } catch (Exception e) {
+                LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
+            }
+        }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    public void registerPlaylist(HLSPlaylist playlist) {
+        if (playlist == null) return;
+
+        String playlistId = playlist.getBrandName();
+        registeredPlaylists.put(playlistId, playlist);
+        LOGGER.info("Registered playlist for cleanup: {}", playlistId);
+    }
+
+    public void unregisterPlaylist(String playlistId) {
+        if (registeredPlaylists.remove(playlistId) != null) {
+            LOGGER.info("Unregistered playlist from cleanup: {}", playlistId);
+        }
+    }
+
+    private void cleanupAllPlaylists() {
+        LOGGER.info("Starting cleanup of {} registered playlists", registeredPlaylists.size());
+        registeredPlaylists.values().forEach(this::cleanupPlaylist);
     }
 
     public void cleanupPlaylist(HLSPlaylist playlist) {
@@ -54,8 +88,7 @@ public class SegmentsCleaner {
                 }
             }
         } catch (Exception e) {
-            LOGGER.error("Error during cleanup for brand {}: {}",
-                    playlist.getBrandName(), e.getMessage(), e);
+            LOGGER.error("Error during segment cleanup for brand {}: {}", playlist.getBrandName(), e.getMessage(), e);
         }
     }
 }

@@ -1,17 +1,22 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.controller.stream.HlsSegment;
 import lombok.Getter;
 import lombok.Setter;
+
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
-@Setter @Getter
+@Setter
+@Getter
 public class BrandSoundFragment {
     private UUID id;
     private int playedByBrandCount;
     private LocalDateTime playedTime;
     private SoundFragment soundFragment;
+    private ConcurrentLinkedQueue<HlsSegment> segments;
 
     @Override
     public boolean equals(Object o) {
@@ -25,4 +30,5 @@ public class BrandSoundFragment {
     public int hashCode() {
         return Objects.hash(id);
     }
+
 }

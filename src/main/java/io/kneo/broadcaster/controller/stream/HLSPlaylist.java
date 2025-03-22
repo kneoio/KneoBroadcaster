@@ -1,25 +1,22 @@
 package io.kneo.broadcaster.controller.stream;
 
-import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
+import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.CurrentFragmentInfo;
 import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.radio.PlaylistKeeper;
-import io.kneo.broadcaster.service.radio.PlaylistMaintenanceService;
+import io.kneo.broadcaster.service.radio.PlaylistManager;
+import io.kneo.broadcaster.service.stream.TimerService;
+import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,57 +28,87 @@ public class HLSPlaylist {
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
     private final AtomicReference<String> lastRequestedFragmentName = new AtomicReference<>("");
     private final AtomicLong segmentTimeStamp = new AtomicLong(0);
+    private final AtomicReference<CurrentFragmentInfo> currentFragmentInfo = new AtomicReference<>();
 
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
+    private final Map<String, ScheduledFuture<?>> cleanupTasks = new ConcurrentHashMap<>();
+    private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
+    private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
     @Getter
     @Setter
     private String brandName;
 
     @Getter
-    private final AudioSegmentationService segmentationService;
-
-    @Getter
     private final SoundFragmentService soundFragmentService;
 
     @Getter
-    private final PlaylistKeeper playlistKeeper;
+    private PlaylistManager playlistManager;
+
+    @Getter
+    private final AudioSegmentationService segmentationService;
 
     @Getter
     private final HlsPlaylistConfig config;
 
     @Getter
-    private final PlaylistMaintenanceService maintenanceService;
+    private TimerService timerService;
 
     public HLSPlaylist(
+            TimerService timerService,
             HlsPlaylistConfig config,
-            BroadcasterConfig broadcasterConfig,
             SoundFragmentService soundFragmentService,
+            AudioSegmentationService segmentationService,
             String brandName) {
-        this(config, broadcasterConfig, soundFragmentService, brandName, null, null);
-    }
-
-    public HLSPlaylist(
-            HlsPlaylistConfig config,
-            BroadcasterConfig broadcasterConfig,
-            SoundFragmentService soundFragmentService,
-            String brandName,
-            PlaylistKeeper playlistScheduler,
-            PlaylistMaintenanceService maintenanceService) {
+        this.timerService = timerService;
         this.config = config;
         this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
-        this.segmentationService = new AudioSegmentationService(broadcasterConfig);
-        this.playlistKeeper = playlistScheduler;
-        this.maintenanceService = maintenanceService;
+        this.segmentationService = segmentationService;
         LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
     }
 
     public void initialize() {
-        LOGGER.info("New broadcast initialized for {}, sequence: {}", brandName, currentSequence.get());
-        playlistKeeper.registerPlaylist(this);
-        maintenanceService.initializePlaylistMaintenance(this);
+        LOGGER.info("New broadcast initialized for {}", brandName);
+        this.playlistManager = new PlaylistManager(soundFragmentService, segmentationService, brandName);
+        this.playlistManager.start();
+        startMaintenanceService();
     }
+
+    private void startMaintenanceService() {
+        LOGGER.info("Initializing maintenance for playlist: {}", brandName);
+        Cancellable subscription = timerService.getTicker().subscribe().with(
+                timestamp -> processTimerTick(brandName, timestamp),
+                error -> LOGGER.error("Timer subscription error for brand {}: {}", brandName, error.getMessage())
+        );
+        timerSubscriptions.put(brandName, subscription);
+    }
+
+    private void processTimerTick(String brandName, long timestamp) {
+        AtomicBoolean isProcessing = processingFlags.computeIfAbsent(brandName, k -> new AtomicBoolean(false));
+        if (isProcessing.get() || !isProcessing.compareAndSet(false, true)) {
+            return;
+        }
+
+        try {
+            if (segments.size() < config.getMinSegments()) {
+                LinkedList<BrandSoundFragment> fragments = playlistManager.getReadyToPlayList();
+                ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
+                fragments.forEach(fragment -> {
+                    fragment.getSegments().forEach(segment -> {
+                        long sequenceNumber = currentSequence.getAndIncrement();
+                        newSegments.put(sequenceNumber, segment);
+                    });
+                });
+                addSegments(newSegments);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error processing timer tick for brand {}: {}", brandName, e.getMessage(), e);
+        } finally {
+            isProcessing.set(false);
+        }
+    }
+
 
     public String generatePlaylist() {
         if (segments.isEmpty()) {
@@ -97,33 +124,55 @@ public class HLSPlaylist {
             playlist.append("#EXTM3U\n")
                     .append("#EXT-X-VERSION:3\n")
                     .append("#EXT-X-ALLOW-CACHE:NO\n")
+                    .append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
                     .append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
                     .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
                     .append("#EXT-X-MEDIA-SEQUENCE:").append(range.start()).append("\n");
 
             Map<Long, HlsSegment> rangeSegments = segments.subMap(range.start(), true, range.end(), true);
 
-            rangeSegments.values()
-                    .forEach(segment -> {
-                        String songName = segment.getSongName();
-                        // Always use timestamp for program date time
-                        long timestamp = segment.getTimestamp() > 0 ? segment.getTimestamp() : System.currentTimeMillis() / 1000;
-                        Instant segmentTime = Instant.ofEpochSecond(timestamp);
-                        playlist.append("#EXT-X-PROGRAM-DATE-TIME:")
-                                .append(DateTimeFormatter.ISO_INSTANT.format(segmentTime))
-                                .append("\n");
+            Map<UUID, List<Map.Entry<Long, HlsSegment>>> segmentsByTrack = new HashMap<>();
+            // Group segments by fragment ID
+            for (Map.Entry<Long, HlsSegment> entry : rangeSegments.entrySet()) {
+                UUID fragmentId = entry.getValue().getSoundFragmentId();
+                if (!segmentsByTrack.containsKey(fragmentId)) {
+                    segmentsByTrack.put(fragmentId, new ArrayList<>());
+                }
+                segmentsByTrack.get(fragmentId).add(entry);
+            }
 
-                        playlist.append("#EXTINF:")
-                                .append(segment.getDuration())
-                                .append(",")
-                                .append(songName)
-                                .append("\n")
-                                .append("segments/")
-                                .append(brandName)
-                                .append("_")
-                                .append(timestamp)
-                                .append(".ts\n");
-                    });
+            // For each track, add all its segments in sequence
+            boolean firstTrack = true;
+            for (UUID fragmentId : segmentsByTrack.keySet()) {
+                List<Map.Entry<Long, HlsSegment>> trackSegments = segmentsByTrack.get(fragmentId);
+
+                // Sort segments by timestamp to ensure proper sequence
+                trackSegments.sort(Comparator.comparing(e -> e.getValue().getTimestamp()));
+
+                // Add discontinuity marker between tracks, but not before the first track
+                if (!firstTrack) {
+                    playlist.append("#EXT-X-DISCONTINUITY\n");
+                }
+                firstTrack = false;
+
+                for (Map.Entry<Long, HlsSegment> entry : trackSegments) {
+                    HlsSegment segment = entry.getValue();
+
+                    playlist.append("#EXTINF:")
+                            .append(segment.getDuration())
+                            .append(",")
+                            .append(segment.getSongName())
+                            .append("\n")
+                            .append("segments/")
+                            .append(brandName)
+                            .append("_")
+                            .append(segment.getSoundFragmentId().toString(), 0, 8)
+                            .append("_")
+                            .append(segment.getTimestamp())
+                            .append(".ts\n");
+                }
+            }
+
             return playlist.toString();
         } else {
             return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" +
@@ -134,42 +183,38 @@ public class HLSPlaylist {
 
     public HlsSegment getSegment(long sequence) {
         HlsSegment segment = segments.get(sequence);
-        lastRequestedSegment.set(segment.getSequenceNumber());
-        lastRequestedFragmentName.set(segment.getSongName());
-        segmentTimeStamp.set(segment.getTimestamp());
+      /*  if (segment != null) {
+            CurrentFragmentInfo currentInfo = currentFragmentInfo.get();
+            if (currentInfo == null || !segment.getSoundFragmentId().equals(currentInfo.getFragmentId())) {
+                playlistManager.moveFragmentToPlayed(segment.getSoundFragmentId());
+                CurrentFragmentInfo newInfo = new CurrentFragmentInfo(
+                        segment.getSoundFragmentId(),
+                        segment.getSongName(),
+                        segment.getTimestamp()
+                );
+                currentFragmentInfo.set(newInfo);
+            }
+            lastRequestedSegment.set(sequence);
+            segmentTimeStamp.set(segment.getTimestamp());
+        }*/
         return segment;
     }
 
-    public void addSegment(HlsSegment segment) {
-        if (segment == null) {
-            LOGGER.warn("Attempted to add null segment");
+
+    private void addSegments(ConcurrentNavigableMap<Long, HlsSegment> newSegments) {
+        if (newSegments.isEmpty()) {
             return;
         }
-        if (segment.getTimestamp() <= 0) {
-            segment = new HlsSegment(
-                    segment.getSequenceNumber(),
-                    segment.getData(),
-                    segment.getDuration(),
-                    segment.getSoundFragmentId(),
-                    segment.getSongName(),
-                    System.currentTimeMillis() / 1000
-            );
-        }
-
-        segments.put(segment.getSequenceNumber(), segment);
-        totalBytesProcessed.addAndGet(segment.getSize());
-    }
-
-    public void addRangeToQueue(PlaylistRange range) {
-        mainQueue.offer(range);
+        segments.putAll(newSegments);
+        long start = newSegments.firstKey();
+        long end = newSegments.lastKey();
+        PlaylistRange range = new PlaylistRange(start, end);
+        mainQueue.add(range);
+        LOGGER.info("Added segments with range: {} - {}", start, end);
     }
 
     public int getSegmentCount() {
         return segments.size();
-    }
-
-    public long getCurrentSequenceAndIncrement() {
-        return currentSequence.getAndIncrement();
     }
 
     public long getCurrentSequence() {
@@ -194,9 +239,7 @@ public class HLSPlaylist {
     }
 
     public PlaylistStats getStats() {
-        assert playlistKeeper != null;
-        return PlaylistStats.fromPlaylist(this,
-                playlistKeeper.getRecentlyPlayedTitles(brandName, 10));
+        return PlaylistStats.fromPlaylist(this, List.of("nada"));
     }
 
     public int getQueueSize() {
@@ -217,9 +260,6 @@ public class HLSPlaylist {
 
     public void shutdown() {
         LOGGER.info("Shutting down playlist for: {}", brandName);
-        if (maintenanceService != null) {
-            maintenanceService.shutdownPlaylistMaintenance(brandName);
-        }
         segments.clear();
         currentSequence.set(0);
         totalBytesProcessed.set(0);

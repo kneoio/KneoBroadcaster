@@ -20,12 +20,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class PlaylistKeeper {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistKeeper.class);
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final Map<String, Set<BrandSoundFragment>> recentlyPlayedMap = new ConcurrentHashMap<>();
-
-    // Two LinkedList instances that implement Queue interface
-    private final LinkedList<BrandSoundFragment> playedFragmentsList = new LinkedList<>();
-    private final LinkedList<BrandSoundFragment> readyToPlayList = new LinkedList<>();
 
     @Getter
     private final SchedulerTaskTimeline taskTimeline = new SchedulerTaskTimeline();
@@ -42,6 +37,7 @@ public class PlaylistKeeper {
                 INTERVAL_SECONDS
         );
 
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 taskTimeline.updateProgress();
@@ -57,10 +53,6 @@ public class PlaylistKeeper {
                                         if (percentagePlayed > 10) {
                                             LOGGER.info("Resetting list for brand: {}", brandName);
                                             played.clear();
-                                            // Also clear the played fragments list
-                                            synchronized (playedFragmentsList) {
-                                                playedFragmentsList.clear();
-                                            }
                                         }
                                     },
                                     error -> LOGGER.error("Error counting fragments: {}", error.getMessage())
@@ -94,57 +86,6 @@ public class PlaylistKeeper {
         if (played != null) {
             played.add(fragment);
         }
-
-        // Add to the played fragments list
-        synchronized (playedFragmentsList) {
-            playedFragmentsList.add(fragment);
-        }
-
-        // Remove from ready-to-play list if present
-        synchronized (readyToPlayList) {
-            readyToPlayList.remove(fragment);
-        }
-    }
-
-    public void addToReadyQueue(BrandSoundFragment fragment) {
-        synchronized (readyToPlayList) {
-            if (!readyToPlayList.contains(fragment)) {
-                readyToPlayList.add(fragment);
-            }
-        }
-    }
-
-    public BrandSoundFragment getNextReadyFragment() {
-        synchronized (readyToPlayList) {
-            if (!readyToPlayList.isEmpty()) {
-                return readyToPlayList.poll();
-            }
-        }
-        return null;
-    }
-
-    public List<BrandSoundFragment> getPlayedFragments(int limit) {
-        synchronized (playedFragmentsList) {
-            if (playedFragmentsList.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            return playedFragmentsList.stream()
-                    .limit(limit)
-                    .collect(Collectors.toList());
-        }
-    }
-
-    public List<BrandSoundFragment> getReadyToPlayFragments(int limit) {
-        synchronized (readyToPlayList) {
-            if (readyToPlayList.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            return readyToPlayList.stream()
-                    .limit(limit)
-                    .collect(Collectors.toList());
-        }
     }
 
     public List<String> getRecentlyPlayedTitles(String brandName, int limit) {
@@ -158,22 +99,4 @@ public class PlaylistKeeper {
                 .collect(Collectors.toList());
     }
 
-    public void shutdown() {
-        scheduler.shutdown();
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-        recentlyPlayedMap.clear();
-        synchronized (playedFragmentsList) {
-            playedFragmentsList.clear();
-        }
-        synchronized (readyToPlayList) {
-            readyToPlayList.clear();
-        }
-    }
 }

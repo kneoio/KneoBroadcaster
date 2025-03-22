@@ -12,7 +12,6 @@ import java.time.ZonedDateTime;
 @NoArgsConstructor
 public class BroadcastingStats {
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
-    private int segmentsCount;
     private int fragmentsInQueue;
     private ZonedDateTime started;
     private int listeners;

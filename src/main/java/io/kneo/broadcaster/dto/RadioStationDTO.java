@@ -19,7 +19,6 @@ public class RadioStationDTO  extends AbstractDTO {
     private URL actionUrl;
     private String slugName;
     private Integer archived;
-    private int playlistCount;
     private int listenersCount;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
     private ProfileDTO profile;

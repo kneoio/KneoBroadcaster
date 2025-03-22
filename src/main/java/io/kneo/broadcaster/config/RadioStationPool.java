@@ -4,10 +4,13 @@ import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.radio.PlaylistKeeper;
-import io.kneo.broadcaster.service.radio.PlaylistMaintenanceService;
+import io.kneo.broadcaster.service.radio.SegmentsCleaner;
+import io.kneo.broadcaster.service.stream.GlobalTickerService;
+import io.kneo.broadcaster.service.stream.TimerService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -43,22 +46,31 @@ public class RadioStationPool {
     private PlaylistKeeper playlistKeeper;
 
     @Inject
-    private PlaylistMaintenanceService maintenanceService;
+    private SegmentsCleaner segmentsCleaner;
+
+    @Inject
+    private GlobalTickerService tickerService;
+
+    @Inject
+    private TimerService timerService;
+
+    @Inject
+    AudioSegmentationService segmentationService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
         HLSPlaylist playlist = new HLSPlaylist(
+                timerService,
                 config,
-                broadcasterConfig,
                 soundFragmentService,
-                brandName,
-                playlistKeeper,
-                maintenanceService
+                segmentationService,
+                brandName
         );
         playlist.initialize();
 
         return radioStationService.findByBrandName(brandName)
                 .onItem().invoke(station -> {
                     station.setPlaylist(playlist);
+                    segmentsCleaner.registerPlaylist(playlist);
                     station.setStatus(RadioStationStatus.WARMING_UP);
                     pool.put(brandName, station);
                 })
@@ -86,7 +98,9 @@ public class RadioStationPool {
 
     public Uni<RadioStation> stop(String brandName) {
         RadioStation radioStation = pool.get(brandName);
-        radioStation.getPlaylist().shutdown();
+        HLSPlaylist playlist = radioStation.getPlaylist();
+        segmentsCleaner.unregisterPlaylist(playlist.getBrandName());
+        playlist.shutdown();
         radioStation.setStatus(RadioStationStatus.OFF_LINE);
         return Uni.createFrom().item(radioStation);
     }
@@ -96,10 +110,6 @@ public class RadioStationPool {
         RadioStation radioStation = pool.get(name);
         if (radioStation != null) {
             stats.setStatus(radioStation.getStatus());
-            HLSPlaylist playlist = radioStation.getPlaylist();
-            if (playlist != null) {
-                stats.setSegmentsCount(playlist.getSegmentCount());
-            }
         }
         return Uni.createFrom().item(stats);
     }

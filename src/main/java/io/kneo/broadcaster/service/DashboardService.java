@@ -10,7 +10,6 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.radio.SegmentsCleaner;
 import io.kneo.broadcaster.service.radio.PlaylistKeeper;
-import io.kneo.broadcaster.service.radio.PlaylistMaintenanceService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -31,9 +30,6 @@ public class DashboardService {
 
     @Inject
     PlaylistKeeper playlistScheduler;
-
-    @Inject
-    PlaylistMaintenanceService playlistMaintenanceService;
 
     @Inject
     SegmentsCleaner playlistCleanupService;
@@ -58,7 +54,6 @@ public class DashboardService {
         stats.setStations(stationStats);
         stats.addPeriodicTask(playlistScheduler.getTaskTimeline());
         stats.addPeriodicTask(playlistCleanupService.getTaskTimeline());
-        stats.addPeriodicTask(playlistMaintenanceService.getTaskTimeline());
 
         return Uni.createFrom().item(stats);
     }

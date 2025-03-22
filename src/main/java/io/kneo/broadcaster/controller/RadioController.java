@@ -133,7 +133,7 @@ public class RadioController {
 
             HlsSegment segment = playlist.getSegment(key);
             if (segment != null && segment.getTimestamp() == timestamp) {
-                return segment;
+                 return segment;
             }
         }
         return null;

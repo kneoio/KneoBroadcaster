@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.dto.dashboard;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import lombok.Data;
 
 import java.time.Instant;
-import java.util.List;
 
 @Data
 public class StationStats {
@@ -14,11 +14,10 @@ public class StationStats {
     private long lastSegmentKey;
     private long lastRequested;
     private Instant lastSegmentTimestamp;
-    private String currentFragment;
+    private PlaylistManagerStats playlistManagerStats;
 
     private long totalBytesProcessed;
-    private double bitrate; // in kbps
+    private double bitrate;
     private int queueSize;
-    private List<String> recentlyPlayedTitles;
     private Instant lastUpdated;
 }

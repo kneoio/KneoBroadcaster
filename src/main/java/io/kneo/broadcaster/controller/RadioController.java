@@ -16,6 +16,7 @@ import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,7 +24,8 @@ import java.util.regex.Pattern;
 @ApplicationScoped
 public class RadioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
-    private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)\\.ts$");
+    // Updated pattern to match three parts: brand_fragmentId_timestamp
+    private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([^_]+)_([0-9]+)\\.ts$");
     private final RadioService service;
     private final AtomicInteger listenerCount = new AtomicInteger(0);
 
@@ -43,6 +45,8 @@ public class RadioController {
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand");
         listenerCount.incrementAndGet();
+
+        LOGGER.debug("Player request PLAYLIST");
 
         service.getPlaylist(brand)
                 .onItem().transform(HLSPlaylist::generatePlaylist)
@@ -74,16 +78,22 @@ public class RadioController {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand");
 
+        LOGGER.debug("Player request segment: {}", segmentParam);
+
         try {
             Matcher matcher = SEGMENT_PATTERN.matcher(segmentParam);
             if (matcher.find()) {
                 String stationName = matcher.group(1);
-                long timestamp = Long.parseLong(matcher.group(2));
+                String fragmentIdStr = matcher.group(2);
+                long timestamp = Long.parseLong(matcher.group(3));
 
                 service.getPlaylist(brand)
                         .onItem().transform(playlist -> {
-                            HlsSegment segment = findSegmentByTimestamp(playlist, timestamp);
+                            // Use both fragment ID and timestamp to find correct segment
+                            HlsSegment segment = findSegmentByFragmentAndTimestamp(playlist, fragmentIdStr, timestamp);
                             if (segment == null) {
+                                LOGGER.warn("Segment not found: {} with fragment ID: {} and timestamp: {}",
+                                        segmentParam, fragmentIdStr, timestamp);
                                 throw new WebApplicationException(Response.Status.NOT_FOUND);
                             }
                             return segment.getData();
@@ -98,13 +108,13 @@ public class RadioController {
                                             .end(Buffer.buffer(data));
                                 },
                                 throwable -> {
-                                    listenerCount.decrementAndGet();
                                     if (throwable instanceof WebApplicationException e) {
                                         rc.response()
                                                 .setStatusCode(e.getResponse().getStatus())
                                                 .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                                                 .end("Segment not found");
                                     } else {
+                                        LOGGER.error("Error serving segment: {} - {}", segmentParam, throwable.getMessage());
                                         rc.response()
                                                 .setStatusCode(500)
                                                 .putHeader("Content-Type", MediaType.TEXT_PLAIN)
@@ -113,12 +123,14 @@ public class RadioController {
                                 }
                         );
             } else {
+                LOGGER.warn("Invalid segment name format: {}", segmentParam);
                 rc.response()
                         .setStatusCode(400)
                         .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                         .end("Invalid segment name format");
             }
         } catch (NumberFormatException e) {
+            LOGGER.warn("Invalid timestamp in segment: {}", segmentParam);
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
@@ -126,16 +138,27 @@ public class RadioController {
         }
     }
 
-    private HlsSegment findSegmentByTimestamp(HLSPlaylist playlist, long timestamp) {
-        for (int i = 0; i < playlist.getSegmentCount(); i++) {
-            long key = playlist.getLastSegmentKey() - i;
-            if (key < 0) break;
+    private HlsSegment findSegmentByFragmentAndTimestamp(HLSPlaylist playlist, String fragmentIdStr, long timestamp) {
+        // Get all segments from the playlist
+        Set<Long> segmentKeys = playlist.getSegmentKeys();
 
+        // Iterate through all available segments
+        for (Long key : segmentKeys) {
             HlsSegment segment = playlist.getSegment(key);
-            if (segment != null && segment.getTimestamp() == timestamp) {
-                 return segment;
+
+            // Check if this segment matches both fragment ID and timestamp
+            if (segment != null &&
+                    segment.getTimestamp() == timestamp &&
+                    segment.getSoundFragmentId().toString().substring(0, 8).equals(fragmentIdStr)) {
+
+                LOGGER.debug("Found matching segment: key={}, fragmentId={}, timestamp={}",
+                        key, fragmentIdStr, timestamp);
+                return segment;
             }
         }
+
+        LOGGER.warn("No matching segment found for fragmentId={}, timestamp={}",
+                fragmentIdStr, timestamp);
         return null;
     }
 

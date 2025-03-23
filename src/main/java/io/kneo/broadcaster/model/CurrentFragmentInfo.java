@@ -1,20 +1,29 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.controller.stream.HlsSegment;
+import lombok.Builder;
 import lombok.Getter;
 
 import java.util.Objects;
 import java.util.UUID;
 
 @Getter
+@Builder
 public class CurrentFragmentInfo {
+    private final long sequence;
     private final UUID fragmentId;
     private final String fragmentName;
     private final long timestamp;
+    private final int bitrate;
 
-    public CurrentFragmentInfo(UUID fragmentId, String fragmentName, long timestamp) {
-        this.fragmentId = fragmentId;
-        this.fragmentName = fragmentName;
-        this.timestamp = timestamp;
+    public static CurrentFragmentInfo from(long sequence, HlsSegment segment) {
+        return CurrentFragmentInfo.builder()
+                .sequence(sequence)
+                .fragmentId(segment.getSoundFragmentId())
+                .fragmentName(segment.getSongName())
+                .timestamp(segment.getTimestamp())
+                .bitrate(segment.getBitrate())
+                .build();
     }
 
     @Override

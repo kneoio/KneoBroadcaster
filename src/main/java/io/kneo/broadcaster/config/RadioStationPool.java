@@ -7,9 +7,7 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.radio.PlaylistKeeper;
 import io.kneo.broadcaster.service.radio.SegmentsCleaner;
-import io.kneo.broadcaster.service.stream.GlobalTickerService;
 import io.kneo.broadcaster.service.stream.TimerService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -37,19 +35,10 @@ public class RadioStationPool {
     private HlsPlaylistConfig config;
 
     @Inject
-    private BroadcasterConfig broadcasterConfig;
-
-    @Inject
     private SoundFragmentService soundFragmentService;
 
     @Inject
-    private PlaylistKeeper playlistKeeper;
-
-    @Inject
     private SegmentsCleaner segmentsCleaner;
-
-    @Inject
-    private GlobalTickerService tickerService;
 
     @Inject
     private TimerService timerService;
@@ -73,22 +62,21 @@ public class RadioStationPool {
                     segmentsCleaner.registerPlaylist(playlist);
                     station.setStatus(RadioStationStatus.WARMING_UP);
                     pool.put(brandName, station);
-                })
-                .onItem().transformToUni(station -> {
-                    return Uni.createFrom().emitter(emitter -> {
-                        CompletableFuture.runAsync(() -> {
-                            try {
-                                while (playlist.getSegmentCount() < 100) {
-                                    Thread.sleep(300);
-                                }
-                                station.setStatus(RadioStationStatus.ON_LINE);
-                                emitter.complete(station);
-                            } catch (Exception e) {
-                                emitter.fail(e);
+
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            while (playlist.getSegmentCount() < 100) {
+                                Thread.sleep(300);
                             }
-                        });
+                            station.setStatus(RadioStationStatus.ON_LINE);
+                            LOGGER.info("Radio station {} is now ON_LINE", brandName);
+                        } catch (InterruptedException e) {
+                            LOGGER.error("Error while monitoring playlist for station {}", brandName, e);
+                            station.setStatus(RadioStationStatus.OFF_LINE);
+                        }
                     });
-                });
+                })
+                .onItem().transformToUni(station -> Uni.createFrom().item(station));
     }
 
     public Uni<RadioStation> get(String brandName) {

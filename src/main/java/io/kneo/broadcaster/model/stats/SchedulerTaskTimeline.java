@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.model.stats;
 
 import lombok.Data;
-
 import java.time.Instant;
 
 @Data
@@ -17,8 +16,8 @@ public class SchedulerTaskTimeline {
         private int executionCount = 0;
         private Instant lastExecutionTime;
         private Instant nextExecutionTime;
-        private double currentProgress;
-        private double timeRemaining;
+        private int currentProgress;
+        private long timeRemaining;
 
         public Task(String id, String name, long intervalSeconds) {
             this.id = id;
@@ -27,14 +26,16 @@ public class SchedulerTaskTimeline {
             this.lastExecutionTime = startTime;
             this.intervalSeconds = intervalSeconds;
             this.nextExecutionTime = startTime.plusSeconds(intervalSeconds);
+            this.currentProgress = 0;
+            this.timeRemaining = intervalSeconds;
         }
 
         public void recordExecution() {
             executionCount++;
             lastExecutionTime = Instant.now();
             nextExecutionTime = lastExecutionTime.plusSeconds(intervalSeconds);
-            // Reset progress to 0 when a new execution happens
             currentProgress = 0;
+            timeRemaining = intervalSeconds;
         }
     }
 
@@ -43,35 +44,29 @@ public class SchedulerTaskTimeline {
     }
 
     public void updateProgress() {
-        if (task != null) {
-            Instant now = Instant.now();
+        if (task == null) {
+            return;
+        }
 
-            // Calculate time remaining in seconds
-            long totalTimeInSeconds = task.getIntervalSeconds();
-            long elapsedTime = now.getEpochSecond() - task.getLastExecutionTime().getEpochSecond();
-            long remainingTime = totalTimeInSeconds - elapsedTime;
+        Instant now = Instant.now();
+        long elapsedTime = now.getEpochSecond() - task.getLastExecutionTime().getEpochSecond();
+        long remainingTime = task.getIntervalSeconds() - elapsedTime;
 
-            // Ensure we don't go negative
-            task.setTimeRemaining(Math.max(0, remainingTime));
+        task.setTimeRemaining(Math.max(0, remainingTime));
+        int progress = (int) (((double) (task.getIntervalSeconds() - remainingTime) / task.getIntervalSeconds()) * 100);
+        task.setCurrentProgress(Math.min(100, Math.max(0, progress)));
 
-            // Calculate progress percentage (0-100)
-            double progress = ((double)(totalTimeInSeconds - remainingTime) / totalTimeInSeconds) * 100;
-            task.setCurrentProgress(Math.min(100, Math.max(0, progress)));
-
-            // Check if progress has reached 100 and it's time for execution
-            if (task.getCurrentProgress() >= 100) {
-                // Auto-execute the task and reset
-                task.recordExecution();
-            }
+        if (task.getCurrentProgress() >= 100) {
+            task.recordExecution();
         }
     }
 
-    // Optional: Add a manual reset method if needed
     public void resetProgress() {
         if (task != null) {
             task.setCurrentProgress(0);
             task.setLastExecutionTime(Instant.now());
             task.setNextExecutionTime(task.getLastExecutionTime().plusSeconds(task.getIntervalSeconds()));
+            task.setTimeRemaining(task.getIntervalSeconds());
         }
     }
 }

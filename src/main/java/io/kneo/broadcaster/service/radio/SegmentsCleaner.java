@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 public class SegmentsCleaner {
     private static final Logger LOGGER = LoggerFactory.getLogger(SegmentsCleaner.class);
     public static final String SCHEDULED_TASK_ID = "segments-cleanup";
-    public static final long INTERVAL_SECONDS = 243;
+    public static final long INTERVAL_SECONDS = 2430;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     @Inject
     private HlsPlaylistConfig hlsConfig;

@@ -24,14 +24,11 @@ public class HLSPlaylist {
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
     private final ConcurrentNavigableMap<Long, HlsSegment> segments = new ConcurrentSkipListMap<>();
     private final AtomicLong currentSequence = new AtomicLong(0);
-    private final AtomicLong lastRequestedSegment = new AtomicLong(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
-    private final AtomicReference<String> lastRequestedFragmentName = new AtomicReference<>("");
     private final AtomicLong segmentTimeStamp = new AtomicLong(0);
     private final AtomicReference<CurrentFragmentInfo> currentFragmentInfo = new AtomicReference<>();
 
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
-    private final Map<String, ScheduledFuture<?>> cleanupTasks = new ConcurrentHashMap<>();
     private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
@@ -92,14 +89,14 @@ public class HLSPlaylist {
 
         try {
             if (segments.size() < config.getMinSegments()) {
-                LinkedList<BrandSoundFragment> fragments = playlistManager.getReadyToPlayList();
+                BrandSoundFragment fragment = playlistManager.getNextFragment();
                 ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
-                fragments.forEach(fragment -> {
-                    fragment.getSegments().forEach(segment -> {
-                        long sequenceNumber = currentSequence.getAndIncrement();
-                        newSegments.put(sequenceNumber, segment);
-                    });
+
+                fragment.getSegments().forEach(segment -> {
+                    long sequenceNumber = currentSequence.getAndIncrement();
+                    newSegments.put(sequenceNumber, segment);
                 });
+
                 addSegments(newSegments);
             }
         } catch (Exception e) {
@@ -183,20 +180,7 @@ public class HLSPlaylist {
 
     public HlsSegment getSegment(long sequence) {
         HlsSegment segment = segments.get(sequence);
-      /*  if (segment != null) {
-            CurrentFragmentInfo currentInfo = currentFragmentInfo.get();
-            if (currentInfo == null || !segment.getSoundFragmentId().equals(currentInfo.getFragmentId())) {
-                playlistManager.moveFragmentToPlayed(segment.getSoundFragmentId());
-                CurrentFragmentInfo newInfo = new CurrentFragmentInfo(
-                        segment.getSoundFragmentId(),
-                        segment.getSongName(),
-                        segment.getTimestamp()
-                );
-                currentFragmentInfo.set(newInfo);
-            }
-            lastRequestedSegment.set(sequence);
-            segmentTimeStamp.set(segment.getTimestamp());
-        }*/
+        currentFragmentInfo.set(CurrentFragmentInfo.from(sequence, segment));
         return segment;
     }
 
@@ -217,29 +201,13 @@ public class HLSPlaylist {
         return segments.size();
     }
 
-    public long getCurrentSequence() {
-        return currentSequence.get();
-    }
-
     public long getLastSegmentKey() {
         ConcurrentNavigableMap<Long, HlsSegment> map = segments;
         return map.isEmpty() ? 0L : map.lastKey();
     }
 
-    public long getLastRequestedSegment() {
-        return lastRequestedSegment.get();
-    }
-
-    public String getLastRequestedFragmentName() {
-        return lastRequestedFragmentName.get();
-    }
-
-    public long getSegmentTimeStamp() {
-        return segmentTimeStamp.get();
-    }
-
     public PlaylistStats getStats() {
-        return PlaylistStats.fromPlaylist(this, List.of("nada"));
+        return PlaylistStats.fromPlaylist(this, currentFragmentInfo.get());
     }
 
     public int getQueueSize() {

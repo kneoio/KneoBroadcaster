@@ -7,15 +7,15 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.PoolStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.PlaylistStats;
+import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.kneo.broadcaster.service.radio.SegmentsCleaner;
-import io.kneo.broadcaster.service.radio.PlaylistKeeper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -64,21 +64,22 @@ public class DashboardService {
         stats.setStatus(station.getStatus());
 
         if (station.getPlaylist() != null) {
+
             HLSPlaylist playlist = station.getPlaylist();
+            PlaylistManager manager = playlist.getPlaylistManager();
+            PlaylistManagerStats playlistManagerStats = manager.getStats();
+            stats.setPlaylistManagerStats(playlistManagerStats);
             PlaylistStats playlistStats = playlist.getStats();
             stats.setSegmentsSize(playlistStats.getSegmentCount());
             stats.setLastSegmentKey(playlist.getLastSegmentKey());
             stats.setLastRequested(playlistStats.getLastRequestedSegment());
             stats.setLastSegmentTimestamp(playlistStats.getLastRequestedTimestamp());
-            stats.setCurrentFragment(playlistStats.getLastRequestedFragmentName());
             stats.setTotalBytesProcessed(playlistStats.getTotalBytesProcessed());
             stats.setBitrate(playlistStats.getBitrate());
             stats.setQueueSize(playlistStats.getQueueSize());
-            stats.setRecentlyPlayedTitles(playlistStats.getRecentlyPlayedTitles());
             stats.setLastUpdated(playlistStats.getNowTimestamp());
         } else {
             stats.setSegmentsSize(0);
-            stats.setRecentlyPlayedTitles(List.of());
         }
 
         return stats;

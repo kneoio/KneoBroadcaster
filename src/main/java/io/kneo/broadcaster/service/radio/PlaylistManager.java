@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service.radio;
 
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final String SCHEDULED_TASK_ID = "playlist-manager-task";
-    private static final int INTERVAL_SECONDS = 60;
+    private static final int INTERVAL_SECONDS = 240;
 
     @Getter
     private final LinkedList<BrandSoundFragment> playedFragmentsList = new LinkedList<>();
@@ -142,29 +143,33 @@ public class PlaylistManager {
         return true;
     }
 
-    public void moveFragmentToPlayed(UUID fragmentId) {
-        // Use removeIf to find and move the fragment
-        boolean removed = readyToPlayList.removeIf(fragment ->
-                fragment.getSoundFragment().getId().equals(fragmentId)
-        );
+    public synchronized BrandSoundFragment getNextFragment() {
+        if (!readyToPlayList.isEmpty()) {
+            BrandSoundFragment nextFragment = readyToPlayList.poll();
+            currentlyPlaying = nextFragment;
+            moveFragmentToPlayed(nextFragment);
+            return nextFragment;
+        }
+        return null;
+    }
 
-        if (removed) {
-            // Find the fragment that was removed
-            BrandSoundFragment fragmentToMove = readyToPlayList.stream()
-                    .filter(fragment -> fragment.getSoundFragment().getId().equals(fragmentId))
-                    .findFirst()
-                    .orElse(null);
+    public PlaylistManagerStats getStats(){
+        return PlaylistManagerStats.from(this);
+    }
 
-            if (fragmentToMove != null) {
-                playedFragmentsList.add(fragmentToMove); // Add to playedFragmentsList
-                LOGGER.info("Fragment with UUID {} moved from readyToPlayList to playedFragmentsList for brand {}", fragmentId, brand);
-                return;
+    private synchronized void moveFragmentToPlayed(BrandSoundFragment fragmentToMove) {
+
+        if (fragmentToMove != null) {
+            readyToPlayList.remove(fragmentToMove);
+            playedFragmentsList.add(fragmentToMove);
+
+            if (playedFragmentsList.size() > 10) {
+                playedFragmentsList.poll();
             }
         }
-
-        // If the fragment was not found, log a warning and return false
-        LOGGER.warn("Fragment with UUID {} not found in readyToPlayList for brand {}", fragmentId, brand);
     }
+
+
 
     public void shutdown() {
         LOGGER.info("Shutting down PlaylistManager for brand: {}", brand);

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Getter
 @Builder
@@ -20,20 +21,19 @@ public class PlaylistStats {
     private final Instant nowTimestamp;
     private final int queueSize;
 
-
     public static PlaylistStats fromPlaylist(HLSPlaylist playlist, CurrentFragmentInfo fragmentInfo) {
+        Optional<CurrentFragmentInfo> optionalFragmentInfo = Optional.ofNullable(fragmentInfo);
 
         return PlaylistStats.builder()
                 .brandName(playlist.getBrandName())
-                .lastRequestedSegment(fragmentInfo.getSequence())
-                .lastRequestedFragmentName(fragmentInfo.getFragmentName())
-                .lastRequestedTimestamp(Instant.ofEpochSecond(fragmentInfo.getTimestamp()))
+                .lastRequestedSegment(optionalFragmentInfo.map(CurrentFragmentInfo::getSequence).orElse(0L))
+                .lastRequestedFragmentName(optionalFragmentInfo.map(CurrentFragmentInfo::getFragmentName).orElse(""))
+                .lastRequestedTimestamp(optionalFragmentInfo.map(info -> Instant.ofEpochSecond(info.getTimestamp())).orElse(Instant.now()))
                 .segmentCount(playlist.getSegmentCount())
                 .totalBytesProcessed(playlist.getTotalBytesProcessed())
-                .bitrate(fragmentInfo.getBitrate())
+                .bitrate(optionalFragmentInfo.map(CurrentFragmentInfo::getBitrate).orElse(0))
                 .nowTimestamp(Instant.now())
                 .queueSize(playlist.getQueueSize())
                 .build();
-
     }
 }

@@ -10,7 +10,6 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
-import io.kneo.broadcaster.service.radio.SegmentsCleaner;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -28,22 +27,19 @@ public class DashboardService {
     @Inject
     RadioStationPool radioStationPool;
 
-    @Inject
-    PlaylistKeeper playlistScheduler;
-
-    @Inject
-    SegmentsCleaner playlistCleanupService;
+    //@Inject
+    //PlaylistManager playlistManager;
 
     public Uni<PoolStats> getPoolInfo() {
         HashMap<String, RadioStation> pool = radioStationPool.getPool();
-        PoolStats stats = new PoolStats();
-        stats.setTotalStations(100000);
-        stats.setMinimumSegments(config.getMinSegments());
-        stats.setSlidingWindowSize(config.getSlidingWindowSize());
-        stats.setOnlineStations((int) pool.values().stream()
+        PoolStats poolStats = new PoolStats();
+        poolStats.setTotalStations(100000);
+        poolStats.setMinimumSegments(config.getMinSegments());
+        poolStats.setSlidingWindowSize(config.getMaxSegments());
+        poolStats.setOnlineStations((int) pool.values().stream()
                 .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE)
                 .count());
-        stats.setWarmingStations((int) pool.values().stream()
+        poolStats.setWarmingStations((int) pool.values().stream()
                 .filter(station -> station.getStatus() == RadioStationStatus.WARMING_UP)
                 .count());
         Map<String, StationStats> stationStats = pool.entrySet().stream()
@@ -51,37 +47,36 @@ public class DashboardService {
                         Map.Entry::getKey,
                         entry -> createStationStats(entry.getKey(), entry.getValue())
                 ));
-        stats.setStations(stationStats);
-        stats.addPeriodicTask(playlistScheduler.getTaskTimeline());
-        stats.addPeriodicTask(playlistCleanupService.getTaskTimeline());
+        poolStats.setStations(stationStats);
+     //   stats.addPeriodicTask(playlistManager.getTaskTimeline());
 
-        return Uni.createFrom().item(stats);
+        return Uni.createFrom().item(poolStats);
     }
 
     private StationStats createStationStats(String brand, RadioStation station) {
-        StationStats stats = new StationStats();
-        stats.setBrandName(brand);
-        stats.setStatus(station.getStatus());
+        StationStats stationStats = new StationStats();
+        stationStats.setBrandName(brand);
+        stationStats.setStatus(station.getStatus());
 
         if (station.getPlaylist() != null) {
-
             HLSPlaylist playlist = station.getPlaylist();
             PlaylistManager manager = playlist.getPlaylistManager();
+            stationStats.addPeriodicTask(manager.getTaskTimeline());
             PlaylistManagerStats playlistManagerStats = manager.getStats();
-            stats.setPlaylistManagerStats(playlistManagerStats);
+            stationStats.setPlaylistManagerStats(playlistManagerStats);
             PlaylistStats playlistStats = playlist.getStats();
-            stats.setSegmentsSize(playlistStats.getSegmentCount());
-            stats.setLastSegmentKey(playlist.getLastSegmentKey());
-            stats.setLastRequested(playlistStats.getLastRequestedSegment());
-            stats.setLastSegmentTimestamp(playlistStats.getLastRequestedTimestamp());
-            stats.setTotalBytesProcessed(playlistStats.getTotalBytesProcessed());
-            stats.setBitrate(playlistStats.getBitrate());
-            stats.setQueueSize(playlistStats.getQueueSize());
-            stats.setLastUpdated(playlistStats.getNowTimestamp());
+            stationStats.setSegmentsSize(playlistStats.getSegmentCount());
+            stationStats.setLastSegmentKey(playlist.getLastSegmentKey());
+            stationStats.setLastRequested(playlistStats.getLastRequestedSegment());
+            stationStats.setLastSegmentTimestamp(playlistStats.getLastRequestedTimestamp());
+            stationStats.setTotalBytesProcessed(playlistStats.getTotalBytesProcessed());
+            stationStats.setBitrate(playlistStats.getBitrate());
+            stationStats.setQueueSize(playlistStats.getQueueSize());
+            stationStats.setLastUpdated(playlistStats.getNowTimestamp());
         } else {
-            stats.setSegmentsSize(0);
+            stationStats.setSegmentsSize(0);
         }
 
-        return stats;
+        return stationStats;
     }
 }

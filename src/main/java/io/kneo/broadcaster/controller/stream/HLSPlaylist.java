@@ -7,6 +7,7 @@ import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
+import io.kneo.broadcaster.service.radio.SegmentCleaner;
 import io.kneo.broadcaster.service.stream.TimerService;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
@@ -25,7 +26,6 @@ public class HLSPlaylist {
     private final ConcurrentNavigableMap<Long, HlsSegment> segments = new ConcurrentSkipListMap<>();
     private final AtomicLong currentSequence = new AtomicLong(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
-    private final AtomicLong segmentTimeStamp = new AtomicLong(0);
     private final AtomicReference<CurrentFragmentInfo> currentFragmentInfo = new AtomicReference<>();
 
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
@@ -41,6 +41,9 @@ public class HLSPlaylist {
 
     @Getter
     private PlaylistManager playlistManager;
+
+    @Getter
+    private SegmentCleaner segmentCleaner;
 
     @Getter
     private final AudioSegmentationService segmentationService;
@@ -67,8 +70,10 @@ public class HLSPlaylist {
 
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}", brandName);
-        this.playlistManager = new PlaylistManager(soundFragmentService, segmentationService, brandName);
-        this.playlistManager.start();
+        playlistManager = new PlaylistManager(soundFragmentService, segmentationService, brandName);
+        playlistManager.start();
+        segmentCleaner  = new SegmentCleaner();
+        segmentCleaner.start();
         startMaintenanceService();
     }
 
@@ -228,6 +233,13 @@ public class HLSPlaylist {
 
     public void shutdown() {
         LOGGER.info("Shutting down playlist for: {}", brandName);
+        timerSubscriptions.forEach((brand, subscription) -> {
+            if (subscription != null) {
+                subscription.cancel();
+                LOGGER.info("Cancelled timer subscription for brand: {}", brand);
+            }
+        });
+        timerSubscriptions.clear();
         segments.clear();
         currentSequence.set(0);
         totalBytesProcessed.set(0);

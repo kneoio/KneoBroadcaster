@@ -17,8 +17,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
-public class SegmentsCleaner {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SegmentsCleaner.class);
+public class SegmentCleaner {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SegmentCleaner.class);
     public static final String SCHEDULED_TASK_ID = "segments-cleanup";
     public static final long INTERVAL_SECONDS = 2430;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -31,7 +31,7 @@ public class SegmentsCleaner {
     private final Map<String, HLSPlaylist> registeredPlaylists = new ConcurrentHashMap<>();
 
     @PostConstruct
-    public void init() {
+    public void start() {
         taskTimeline.registerTask(
                 SCHEDULED_TASK_ID,
                 "Segment Cleanup",
@@ -72,8 +72,8 @@ public class SegmentsCleaner {
         taskTimeline.updateProgress();
 
         try {
-            if (playlist.getSegmentCount() > hlsConfig.getMinSegments()) {
-                int segmentsToDelete = 50;
+            if (playlist.getSegmentCount() >= hlsConfig.getMaxSegments()) {
+                int segmentsToDelete = hlsConfig.getMaxSegments() / 3;
                 int currentSize = playlist.getSegmentCount();
 
                 Long oldestToKeep = playlist.getSegmentKeys().stream()

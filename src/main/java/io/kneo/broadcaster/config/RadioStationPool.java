@@ -7,7 +7,7 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.radio.SegmentsCleaner;
+import io.kneo.broadcaster.service.radio.SegmentCleaner;
 import io.kneo.broadcaster.service.stream.TimerService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -38,7 +38,7 @@ public class RadioStationPool {
     private SoundFragmentService soundFragmentService;
 
     @Inject
-    private SegmentsCleaner segmentsCleaner;
+    private SegmentCleaner segmentsCleaner;
 
     @Inject
     private TimerService timerService;
@@ -71,8 +71,8 @@ public class RadioStationPool {
                             station.setStatus(RadioStationStatus.ON_LINE);
                             LOGGER.info("Radio station {} is now ON_LINE", brandName);
                         } catch (InterruptedException e) {
-                            LOGGER.error("Error while monitoring playlist for station {}", brandName, e);
-                            station.setStatus(RadioStationStatus.OFF_LINE);
+                            LOGGER.error("Error while warming up playlist for station {}", brandName, e);
+                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
                         }
                     });
                 })

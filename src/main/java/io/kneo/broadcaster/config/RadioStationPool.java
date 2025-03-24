@@ -7,7 +7,6 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.radio.SegmentCleaner;
 import io.kneo.broadcaster.service.stream.TimerService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -38,9 +37,6 @@ public class RadioStationPool {
     private SoundFragmentService soundFragmentService;
 
     @Inject
-    private SegmentCleaner segmentsCleaner;
-
-    @Inject
     private TimerService timerService;
 
     @Inject
@@ -59,7 +55,6 @@ public class RadioStationPool {
         return radioStationService.findByBrandName(brandName)
                 .onItem().invoke(station -> {
                     station.setPlaylist(playlist);
-                    segmentsCleaner.registerPlaylist(playlist);
                     station.setStatus(RadioStationStatus.WARMING_UP);
                     pool.put(brandName, station);
 
@@ -87,7 +82,6 @@ public class RadioStationPool {
     public Uni<RadioStation> stop(String brandName) {
         RadioStation radioStation = pool.get(brandName);
         HLSPlaylist playlist = radioStation.getPlaylist();
-        segmentsCleaner.unregisterPlaylist(playlist.getBrandName());
         playlist.shutdown();
         radioStation.setStatus(RadioStationStatus.OFF_LINE);
         return Uni.createFrom().item(radioStation);

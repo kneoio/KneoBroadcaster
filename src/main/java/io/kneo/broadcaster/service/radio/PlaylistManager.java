@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.radio;
 
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
@@ -29,6 +30,8 @@ public class PlaylistManager {
     @Getter
     private final String brand;
 
+    private final HlsPlaylistConfig config;
+
     @Getter
     private final SchedulerTaskTimeline taskTimeline = new SchedulerTaskTimeline();
 
@@ -46,8 +49,9 @@ public class PlaylistManager {
     @Setter
     private BrandSoundFragment currentlyPlaying;
 
-    public PlaylistManager(SoundFragmentService soundFragmentService, AudioSegmentationService segmentationService, String brand) {
+    public PlaylistManager(HlsPlaylistConfig config, SoundFragmentService soundFragmentService, AudioSegmentationService segmentationService, String brand) {
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
+        this.config = config;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
         this.brand = brand;
@@ -123,6 +127,11 @@ public class PlaylistManager {
     }
 
     public boolean isNewFragment(BrandSoundFragment fragment) {
+
+        if (readyToPlayList.size() > config.getMaxReservedFragments()) {
+            return false;
+        }
+
         for (BrandSoundFragment played : playedFragmentsList) {
             if (played.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
                 return false;

@@ -7,7 +7,6 @@ import io.kneo.broadcaster.model.stats.PlaylistStats;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
-import io.kneo.broadcaster.service.radio.SegmentCleaner;
 import io.kneo.broadcaster.service.stream.TimerService;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
@@ -43,9 +42,6 @@ public class HLSPlaylist {
     private PlaylistManager playlistManager;
 
     @Getter
-    private SegmentCleaner segmentCleaner;
-
-    @Getter
     private final AudioSegmentationService segmentationService;
 
     @Getter
@@ -70,10 +66,8 @@ public class HLSPlaylist {
 
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}", brandName);
-        playlistManager = new PlaylistManager(soundFragmentService, segmentationService, brandName);
+        playlistManager = new PlaylistManager(config, soundFragmentService, segmentationService, brandName);
         playlistManager.start();
-        segmentCleaner  = new SegmentCleaner();
-        segmentCleaner.start();
         startMaintenanceService();
     }
 
@@ -103,6 +97,23 @@ public class HLSPlaylist {
                 });
 
                 addSegments(newSegments);
+            } else if (segments.size() > config.getMaxSegments()) {
+                int currentSize = segments.size();
+                try {
+
+                    int segmentsToDelete = config.getMinSegments() / 2;
+                    Long oldestToKeep = getSegmentKeys().stream()
+                            .skip(segmentsToDelete)
+                            .findFirst()
+                            .orElse(null);
+                    if (oldestToKeep != null) {
+                        removeSegmentsBefore(oldestToKeep);
+                        LOGGER.info("Cleaned segments for brand {}: before={}, after={}",
+                                brandName, currentSize, segments.size());
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Error during segment cleanup for brand {}: {}", brandName, e.getMessage(), e);
+                }
             }
         } catch (Exception e) {
             LOGGER.error("Error processing timer tick for brand {}: {}", brandName, e.getMessage(), e);
@@ -134,7 +145,6 @@ public class HLSPlaylist {
             Map<Long, HlsSegment> rangeSegments = segments.subMap(range.start(), true, range.end(), true);
 
             Map<UUID, List<Map.Entry<Long, HlsSegment>>> segmentsByTrack = new HashMap<>();
-            // Group segments by fragment ID
             for (Map.Entry<Long, HlsSegment> entry : rangeSegments.entrySet()) {
                 UUID fragmentId = entry.getValue().getSoundFragmentId();
                 if (!segmentsByTrack.containsKey(fragmentId)) {

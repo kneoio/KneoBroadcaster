@@ -18,17 +18,17 @@ public class PlaylistManagerStats {
         if (playlistManager.getCurrentlyPlaying() == null){
             return "NOT PLAYING";
         } else {
-            return playlistManager.getCurrentlyPlaying().getSoundFragment().getMetadata();
+            return playlistManager.getCurrentlyPlaying();
         }
     }
 
     public static PlaylistManagerStats from(PlaylistManager playlistManager) {
         return PlaylistManagerStats.builder()
                 .brand(playlistManager.getBrand())
-                .readyToPlayList(playlistManager.getReadyToPlayList().stream()
+                .readyToPlayList(playlistManager.getReadyFragmentsToSlice().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())
                 .currentlyPlaying(getCurrentPlaying(playlistManager))
-                .playedFragmentsList(playlistManager.getPlayedFragmentsList().stream()
+                .playedFragmentsList(playlistManager.getSlicedFragmentsList().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())
                 .build();
     }

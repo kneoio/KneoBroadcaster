@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -50,20 +51,19 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     public void setupRoutes(Router router) {
-        String common = "/api";
-        String soundFragmentsPart = common + "/soundfragments";
+        String path = "/api/:brand/soundfragments";
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
                 .setDeleteUploadedFilesOnEnd(false)
                 .setBodyLimit(100 * 1024 * 1024));
-        router.route(soundFragmentsPart + "*").handler(this::addHeaders);
-        router.route(HttpMethod.GET, soundFragmentsPart).handler(this::get);
-        router.route(HttpMethod.GET, soundFragmentsPart + "/:id").handler(this::getById);
-        router.route(HttpMethod.GET, soundFragmentsPart + "/files/:id").handler(this::getFileById);
-        router.route(HttpMethod.POST, soundFragmentsPart + "/files").handler(this::uploadFile);
-        router.route(HttpMethod.POST, soundFragmentsPart + "/:id?").handler(this::upsert);
-        router.route(HttpMethod.DELETE, soundFragmentsPart + "/:id").handler(this::delete);
-        router.route(HttpMethod.GET, common + "/available-soundfragments").handler(this::getForBrandDTO);
+        router.route(path + "*").handler(this::addHeaders);
+        router.route(HttpMethod.GET, path).handler(this::get);
+        router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
+        router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
+        router.route(HttpMethod.GET, path + "/files/:id").handler(this::getFileById);
+        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
+        router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
+        router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
 
     }
 
@@ -111,22 +111,19 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void getFileById(RoutingContext rc) {
         String id = rc.pathParam("id");
-        String uploadDir = "uploads/"; // Dynamic directory based on brand
-        String filePath = uploadDir + "/" + id; // Full path to the file
-
-        // Check if the file exists in the local directory
+        String uploadDir = "uploads/";
+        String filePath = uploadDir + "/" + id;
         File file = new File(filePath);
 
         if (file.exists() && file.isFile()) {
-            // If the file exists, serve it directly
             try {
-                byte[] fileData = Files.readAllBytes(file.toPath()); // Read file data as byte array
+                byte[] fileData = Files.readAllBytes(file.toPath());
                 rc.response()
                         .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
-                        .putHeader("Content-Type", getMimeType(file)) // Dynamically set the MIME type based on file extension
+                        .putHeader("Content-Type", getMimeType(file))
                         .putHeader("Content-Length", String.valueOf(file.length()))
                         .setStatusCode(200)
-                        .end(Buffer.buffer(fileData)); // Send the file content
+                        .end(Buffer.buffer(fileData));
             } catch (IOException e) {
                 rc.response()
                         .setStatusCode(500)
@@ -141,16 +138,27 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
-    private void getForBrandDTO(RoutingContext rc) {
-        String brandName = rc.queryParam("brand").get(0);
+    private void getForBrand(RoutingContext rc) {
+        String brandName = rc.pathParam("brand");
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         getContextUser(rc)
-                .chain(user -> service.getBrandSoundFragments(brandName))
+                .chain(user -> service.getBrandSoundFragments(brandName, 300)
+                        .map(fragments -> {
+                            int totalCount = fragments.size();
+                            ViewPage viewPage = new ViewPage();
+                            View<BrandSoundFragmentDTO> dtoEntries = new View<>(fragments,
+                                    totalCount, page,
+                                    RuntimeUtil.countMaxPage(totalCount, size),
+                                    size);
+                            viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                            ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
+                            viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
+                            return viewPage;
+                        }))
                 .subscribe().with(
-                        dtos -> rc.response()
-                                .setStatusCode(200)
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encodePrettily(dtos)),
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         throwable -> {
                             LOGGER.error("Failed to fetch fragments for brand: {}", brandName, throwable);
                             rc.fail(throwable);

@@ -73,10 +73,9 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     public Uni<SoundFragment> findById(UUID uuid, Long userID) {
         return client.preparedQuery(String.format(
-                        "SELECT theTable.*, rls.*, files.file_data " +
+                        "SELECT theTable.*, rls.* " +
                                 "FROM %s theTable " +
                                 "JOIN %s rls ON theTable.id = rls.entity_id " +
-                                "JOIN kneobroadcaster__sound_fragment_files files ON theTable.id = files.entity_id " +
                                 "WHERE rls.reader = $1 AND theTable.id = $2",
                         entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(userID, uuid))

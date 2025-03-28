@@ -81,44 +81,52 @@ public class HLSPlaylist {
     }
 
     private void processTimerTick(String brandName, long timestamp) {
-        AtomicBoolean isProcessing = processingFlags.computeIfAbsent(brandName, k -> new AtomicBoolean(false));
-        if (isProcessing.get() || !isProcessing.compareAndSet(false, true)) {
+        // Skip if already processing
+        if (!processingFlags.computeIfAbsent(brandName, k -> new AtomicBoolean(false))
+                .compareAndSet(false, true)) {
             return;
         }
 
         try {
-            if (segments.size() < config.getMinSegments()) {
+            final int currentSize = segments.size();
+            final int minSegments = config.getMinSegments();
+            final int maxSegments = config.getMaxSegments();
+
+            // 1. Fetch new segments if below minimum threshold
+            if (currentSize < minSegments) {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
-                ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
+                if (fragment != null) {
+                    ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
+                    fragment.getSegments().forEach(segment -> {
+                        newSegments.put(currentSequence.getAndIncrement(), segment);
+                    });
+                    addSegments(newSegments);
+                }
+            }
+            // 2. Gradual cleanup if exceeding max threshold
+            else if (currentSize > maxSegments) {
+                // Calculate how many to delete (capped at 10% of current size)
+                int segmentsToDelete = Math.min(
+                        currentSize - minSegments,
+                        Math.max(5, currentSize / 10)  // Delete at least 5, but no more than 10%
+                );
 
-                fragment.getSegments().forEach(segment -> {
-                    long sequenceNumber = currentSequence.getAndIncrement();
-                    newSegments.put(sequenceNumber, segment);
-                });
+                // Get the key at the deletion boundary
+                Long oldestToKeep = segments.keySet().stream()
+                        .skip(segmentsToDelete)
+                        .findFirst()
+                        .orElse(null);
 
-                addSegments(newSegments);
-            } else if (segments.size() > config.getMaxSegments()) {
-                int currentSize = segments.size();
-                try {
-
-                    int segmentsToDelete = config.getMinSegments() / 2;
-                    Long oldestToKeep = getSegmentKeys().stream()
-                            .skip(segmentsToDelete)
-                            .findFirst()
-                            .orElse(null);
-                    if (oldestToKeep != null) {
-                        removeSegmentsBefore(oldestToKeep);
-                        LOGGER.info("Cleaned segments for brand {}: before={}, after={}",
-                                brandName, currentSize, segments.size());
-                    }
-                } catch (Exception e) {
-                    LOGGER.error("Error during segment cleanup for brand {}: {}", brandName, e.getMessage(), e);
+                if (oldestToKeep != null) {
+                    segments.headMap(oldestToKeep, false).clear();
+                    LOGGER.debug("Cleaned {} segments (kept {} to {})",
+                            segmentsToDelete, oldestToKeep, segments.lastKey());
                 }
             }
         } catch (Exception e) {
-            LOGGER.error("Error processing timer tick for brand {}: {}", brandName, e.getMessage(), e);
+            LOGGER.error("Processing error for {}: {}", brandName, e.getMessage(), e);
         } finally {
-            isProcessing.set(false);
+            processingFlags.get(brandName).set(false);
         }
     }
 
@@ -140,6 +148,7 @@ public class HLSPlaylist {
                     .append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
                     .append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
                     .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
+                    .append("#EXT-X-STREAM-INF:BANDWIDTH=64000\n")
                     .append("#EXT-X-MEDIA-SEQUENCE:").append(range.start()).append("\n");
 
             Map<Long, HlsSegment> rangeSegments = segments.subMap(range.start(), true, range.end(), true);
@@ -195,6 +204,7 @@ public class HLSPlaylist {
 
     public HlsSegment getSegment(long sequence) {
         HlsSegment segment = segments.get(sequence);
+        playlistManager.setCurrentlyPlaying(segment.getSongName());
         currentFragmentInfo.set(CurrentFragmentInfo.from(sequence, segment));
         return segment;
     }

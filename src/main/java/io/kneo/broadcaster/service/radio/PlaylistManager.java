@@ -22,10 +22,10 @@ public class PlaylistManager {
     private static final int INTERVAL_SECONDS = 240;
 
     @Getter
-    private final LinkedList<BrandSoundFragment> playedFragmentsList = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> slicedFragmentsList = new LinkedList<>();
 
     @Getter
-    private final LinkedList<BrandSoundFragment> readyToPlayList = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> readyFragmentsToSlice = new LinkedList<>();
 
     @Getter
     private final String brand;
@@ -47,7 +47,7 @@ public class PlaylistManager {
 
     @Getter
     @Setter
-    private BrandSoundFragment currentlyPlaying;
+    private String currentlyPlaying;
 
     public PlaylistManager(HlsPlaylistConfig config, SoundFragmentService soundFragmentService, AudioSegmentationService segmentationService, String brand) {
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
@@ -62,26 +62,36 @@ public class PlaylistManager {
         );
     }
 
+    public synchronized boolean addToQueue(BrandSoundFragment fragment) {
+        if (!isNewFragment(fragment)) {
+            LOGGER.info("Fragment {} already exists in queue for brand {}",
+                    fragment.getSoundFragment().getId(), brand);
+            return false;
+        }
+        readyFragmentsToSlice.add(fragment);
+        return true;
+    }
+
     public void start() {
         LOGGER.info("Starting PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 taskTimeline.updateProgress();
-                processFragments();
+                sliceFragments();
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
         }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
-    private void processFragments() {
+    private void sliceFragments() {
         AtomicBoolean isProcessing = processingFlags.computeIfAbsent(brand, k -> new AtomicBoolean(false));
         if (isProcessing.get() || !isProcessing.compareAndSet(false, true)) {
             return;
         }
 
         try {
-            if (readyToPlayList.size() < 10) {
+            if (readyFragmentsToSlice.size() < 10) {
                 requestMoreFragments();
             }
             isProcessing.set(false);
@@ -92,70 +102,46 @@ public class PlaylistManager {
     }
 
     private void requestMoreFragments() {
-        int fragmentsToRequest = determineFragmentsToRequest(segments.size());
+        int fragmentsToRequest = determineFragmentsToRequest(segments.size(), readyFragmentsToSlice.size());
         LOGGER.info("Adding {} fragments for brand {} ", fragmentsToRequest, brand);
-
-        soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
-                .subscribe().with(
-                        fragments -> {
-                            if (!fragments.isEmpty()) {
-                                addFragmentsToReadyList(fragments);
+        if (fragmentsToRequest > 0) {
+            soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
+                    .subscribe().with(
+                            fragments -> {
+                                if (!fragments.isEmpty()) {
+                                    addFragmentsToReadyList(fragments);
+                                }
+                                processingFlags.get(brand).set(false);
+                            },
+                            error -> {
+                                LOGGER.error("Error fetching fragments for brand {}: {}",
+                                        brand, error.getMessage(), error);
+                                processingFlags.get(brand).set(false);
                             }
-                            processingFlags.get(brand).set(false);
-                        },
-                        error -> {
-                            LOGGER.error("Error fetching fragments for brand {}: {}",
-                                    brand, error.getMessage(), error);
-                            processingFlags.get(brand).set(false);
-                        }
-                );
+                    );
+        }
     }
 
-    private static int determineFragmentsToRequest(int size) {
-        if (size < 1) return 5;
-        return 10;
+    private static int determineFragmentsToRequest(int segmentsSize, int stockSize) {
+        if (stockSize > 10) return 0;
+        if (segmentsSize < 1) return 5;
+        return 1;
     }
 
     private void addFragmentsToReadyList(List<BrandSoundFragment> fragments) {
         for (BrandSoundFragment brandSoundFragment : fragments) {
             if (isNewFragment(brandSoundFragment)) {
                 brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
-                readyToPlayList.add(brandSoundFragment);
+                readyFragmentsToSlice.add(brandSoundFragment);
             }
         }
         LOGGER.info("Added {} fragments to ready list for brand {}", fragments.size(), brand);
     }
 
-    public boolean isNewFragment(BrandSoundFragment fragment) {
-
-        if (readyToPlayList.size() > config.getMaxReservedFragments()) {
-            return false;
-        }
-
-        for (BrandSoundFragment played : playedFragmentsList) {
-            if (played.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
-                return false;
-            }
-        }
-
-        for (BrandSoundFragment ready : readyToPlayList) {
-            if (ready.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
-                return false;
-            }
-        }
-
-        if (currentlyPlaying != null &&
-                currentlyPlaying.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
-            return false;
-        }
-
-        return true;
-    }
 
     public synchronized BrandSoundFragment getNextFragment() {
-        if (!readyToPlayList.isEmpty()) {
-            BrandSoundFragment nextFragment = readyToPlayList.poll();
-            currentlyPlaying = nextFragment;
+        if (!readyFragmentsToSlice.isEmpty()) {
+            BrandSoundFragment nextFragment = readyFragmentsToSlice.poll();
             moveFragmentToPlayed(nextFragment);
             return nextFragment;
         }
@@ -169,16 +155,14 @@ public class PlaylistManager {
     private synchronized void moveFragmentToPlayed(BrandSoundFragment fragmentToMove) {
 
         if (fragmentToMove != null) {
-            readyToPlayList.remove(fragmentToMove);
-            playedFragmentsList.add(fragmentToMove);
+            readyFragmentsToSlice.remove(fragmentToMove);
+            slicedFragmentsList.add(fragmentToMove);
 
-            if (playedFragmentsList.size() > 10) {
-                playedFragmentsList.poll();
+            if (slicedFragmentsList.size() > 10) {
+                slicedFragmentsList.poll();
             }
         }
     }
-
-
 
     public void shutdown() {
         LOGGER.info("Shutting down PlaylistManager for brand: {}", brand);
@@ -194,5 +178,22 @@ public class PlaylistManager {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean isNewFragment(BrandSoundFragment fragment) {
+
+        for (BrandSoundFragment played : slicedFragmentsList) {
+            if (played.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
+                return false;
+            }
+        }
+
+        for (BrandSoundFragment ready : readyFragmentsToSlice) {
+            if (ready.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

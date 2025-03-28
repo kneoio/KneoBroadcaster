@@ -32,11 +32,6 @@ public class RadioStationException extends RuntimeException {
         this.errorType = errorType;
     }
 
-    public RadioStationException(ErrorType errorType, Throwable failure) {
-        super(errorType.getDefaultMessage(), failure);
-        this.errorType = errorType;
-    }
-
     public String getDeveloperMessage() {
         return getMessage();
     }

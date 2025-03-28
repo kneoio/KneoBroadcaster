@@ -12,15 +12,15 @@ public interface HlsPlaylistConfig {
     String  getFFMpegPath();
 
     @WithName("playlist.min.segments")
-    @WithDefault("60")
+    @WithDefault("100")
     int getMinSegments();
 
     @WithName("playlist.segment.duration")
-    @WithDefault("28")
+    @WithDefault("6")
     int getSegmentDuration();
 
     @WithName("playlist.segment.max")
-    @WithDefault("200")
+    @WithDefault("100")
     int getMaxSegments();
 
     @WithName("playmanager.reserved.fragments.max")

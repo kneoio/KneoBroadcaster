@@ -62,16 +62,6 @@ public class PlaylistManager {
         );
     }
 
-    public synchronized boolean addToQueue(BrandSoundFragment fragment) {
-        if (!isNewFragment(fragment)) {
-            LOGGER.info("Fragment {} already exists in queue for brand {}",
-                    fragment.getSoundFragment().getId(), brand);
-            return false;
-        }
-        readyFragmentsToSlice.add(fragment);
-        return true;
-    }
-
     public void start() {
         LOGGER.info("Starting PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
@@ -82,6 +72,16 @@ public class PlaylistManager {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
         }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    public boolean addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
+        if (isNewFragment(brandSoundFragment)) {
+            brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
+            readyFragmentsToSlice.add(brandSoundFragment);
+            return true;
+        } else {
+            LOGGER.error("The fragment already in the queue: {}", brandSoundFragment.getSoundFragment().getId());
+        }
     }
 
     private void sliceFragments() {
@@ -109,7 +109,7 @@ public class PlaylistManager {
                     .subscribe().with(
                             fragments -> {
                                 if (!fragments.isEmpty()) {
-                                    addFragmentsToReadyList(fragments);
+                                    addFragmentsToSlice(fragments);
                                 }
                                 processingFlags.get(brand).set(false);
                             },
@@ -122,13 +122,13 @@ public class PlaylistManager {
         }
     }
 
-    private static int determineFragmentsToRequest(int segmentsSize, int stockSize) {
+    private int determineFragmentsToRequest(int segmentsSize, int stockSize) {
         if (stockSize > 10) return 0;
-        if (segmentsSize < 1) return 5;
-        return 1;
+        if (segmentsSize < 1) return 3;
+        return 0;
     }
 
-    private void addFragmentsToReadyList(List<BrandSoundFragment> fragments) {
+    private void addFragmentsToSlice(List<BrandSoundFragment> fragments) {
         for (BrandSoundFragment brandSoundFragment : fragments) {
             if (isNewFragment(brandSoundFragment)) {
                 brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
@@ -148,7 +148,7 @@ public class PlaylistManager {
         return null;
     }
 
-    public PlaylistManagerStats getStats(){
+    public PlaylistManagerStats getStats() {
         return PlaylistManagerStats.from(this);
     }
 

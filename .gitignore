@@ -9,6 +9,8 @@
 *.db
 /file-uploads
 /uploads
+/merged
+/controller-uploads
 
 
 /**/*.properties

@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service.manipulation;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import org.slf4j.Logger;
@@ -11,111 +10,107 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
 public class AudioMergerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioMergerService.class);
 
-    private final BroadcasterConfig broadcasterConfig;
     private final String outputDir;
+    private final FFmpegProvider ffmpeg;
 
     @Inject
-    public AudioMergerService(BroadcasterConfig broadcasterConfig) {
-        this.broadcasterConfig = broadcasterConfig;
-        // Use the configured path for merged files instead of a temporary directory
+    public AudioMergerService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg) {
+        this.ffmpeg = ffmpeg;
         this.outputDir = broadcasterConfig.getPathForMerged();
+        initializeOutputDirectory();
+    }
+
+    private void initializeOutputDirectory() {
         new File(outputDir).mkdirs();
+        cleanupTempFiles();
+    }
+
+    private void cleanupTempFiles() {
+        try {
+            File directory = new File(outputDir);
+            File[] files = directory.listFiles((dir, name) -> name.startsWith("silence_"));
+            if (files != null) {
+                for (File file : files) {
+                    Files.deleteIfExists(file.toPath());
+                    LOGGER.debug("Deleted temporary file: {}", file.getName());
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Error cleaning up temporary files", e);
+        }
     }
 
     public Path mergeAudioFiles(Path firstFilePath, Path secondFilePath, int silenceDurationSeconds) {
         String mergedFileName = UUID.randomUUID() + ".mp3";
         Path outputFilePath = Paths.get(outputDir, mergedFileName);
+        Path silenceFilePath = null;
 
         try {
-            FFmpeg ffmpeg = new FFmpeg(broadcasterConfig.getFfmpegPath());
-            FFmpegBuilder builder;
+            FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
 
             if (silenceDurationSeconds > 0) {
                 String silenceFileName = "silence_" + UUID.randomUUID() + ".mp3";
-                Path silenceFilePath = Paths.get(outputDir, silenceFileName);
+                silenceFilePath = Paths.get(outputDir, silenceFileName);
 
-                FFmpegBuilder silenceBuilder = new FFmpegBuilder()
-                        .addExtraArgs("-f", "lavfi")
-                        .setInput("anullsrc=r=44100:cl=stereo:d=" + silenceDurationSeconds)
-                        .addOutput(silenceFilePath.toString())
-                        .setAudioCodec("libmp3lame")
-                        .setAudioBitRate(128000)
-                        .done();
+                // Generate silence with proper TimeUnit
+                executor.createJob(
+                        new FFmpegBuilder()
+                                .setInput("anullsrc=r=44100:cl=stereo")
+                                .addOutput(silenceFilePath.toString())
+                                .setDuration(silenceDurationSeconds, TimeUnit.SECONDS) // Fixed duration with TimeUnit
+                                .done()
+                ).run();
 
-                FFmpegExecutor executor = new FFmpegExecutor(ffmpeg);
-                executor.createJob(silenceBuilder).run();
-                String concatFilePath = Paths.get(outputDir, "concat_" + UUID.randomUUID() + ".mp3").toString();
-                Path path = Paths.get(concatFilePath);
-                try {
-                    java.nio.file.Files.writeString(path,
-                            "file '" + firstFilePath + "'\n" +
-                                    "file '" + silenceFilePath + "'\n" +
-                                    "file '" + silenceFilePath + "'\n");
-                } catch (IOException e) {
-                    LOGGER.error("Failed to create concat file", e);
-                    return null;
-                }
-
-                builder = new FFmpegBuilder()
-                        .setInput(concatFilePath)
-                        .addExtraArgs("-f", "concat")
-                        .addExtraArgs("-safe", "0")
-                        .addOutput(outputFilePath.toString())
-                        .setAudioCodec("libmp3lame")
-                        .setAudioBitRate(128000)
-                        .done();
-
-                executor.createJob(builder).run();
-
-                try {
-                    java.nio.file.Files.deleteIfExists(silenceFilePath);
-                    java.nio.file.Files.deleteIfExists(path);
-                } catch (IOException e) {
-                    LOGGER.warn("Could not delete temporary files", e);
-                }
+                // Merge with silence
+                executor.createJob(
+                        new FFmpegBuilder()
+                                .setInput(firstFilePath.toString())
+                                .addInput(silenceFilePath.toString())
+                                .addInput(secondFilePath.toString())
+                                .addOutput(outputFilePath.toString())
+                                .addExtraArgs("-filter_complex", "concat=n=3:v=0:a=1")
+                                .done()
+                ).run();
             } else {
-                String concatFilePath = Paths.get(outputDir, "concat_" + UUID.randomUUID() + ".mp3").toString();
-                Path path = Paths.get(concatFilePath);
-                try {
-                    java.nio.file.Files.writeString(path,
-                            "file '" + firstFilePath + "'\n" +
-                                    "file '" + secondFilePath + "'\n");
-                } catch (IOException e) {
-                    LOGGER.error("Failed to create concat file", e);
-                    return null;
-                }
-
-                builder = new FFmpegBuilder()
-                        .setInput(concatFilePath)
-                        .addExtraArgs("-f", "concat")
-                        .addExtraArgs("-safe", "0")
-                        .addOutput(outputFilePath.toString())
-                        .setAudioCodec("libmp3lame")
-                        .setAudioBitRate(128000)
-                        .done();
-
-                FFmpegExecutor executor = new FFmpegExecutor(ffmpeg);
-                executor.createJob(builder).run();
-
-                try {
-                    java.nio.file.Files.deleteIfExists(path);
-                } catch (IOException e) {
-                    LOGGER.warn("Could not delete concat file", e);
-                }
+                // Simple merge without silence
+                executor.createJob(
+                        new FFmpegBuilder()
+                                .setInput(firstFilePath.toString())
+                                .addInput(secondFilePath.toString())
+                                .addOutput(outputFilePath.toString())
+                                .addExtraArgs("-filter_complex", "concat=n=2:v=0:a=1")
+                                .done()
+                ).run();
             }
+
+            // Clean up
+            cleanupFile(silenceFilePath);
 
             return outputFilePath;
         } catch (Exception e) {
-            LOGGER.error("Error merging audio files: {} and {}", firstFilePath, secondFilePath, e);
+            LOGGER.error("Error merging files", e);
+            cleanupFile(silenceFilePath);
             return null;
+        }
+    }
+
+    private void cleanupFile(Path filePath) {
+        if (filePath != null) {
+            try {
+                Files.deleteIfExists(filePath);
+            } catch (IOException ex) {
+                LOGGER.warn("Failed to delete temporary file: {}", filePath, ex);
+            }
         }
     }
 }

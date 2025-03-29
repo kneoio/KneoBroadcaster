@@ -17,6 +17,10 @@ public interface BroadcasterConfig {
     @WithDefault("merged")
     String getPathForMerged();
 
+    @WithName("segmented.files.path")
+    @WithDefault("segmented")
+    String getSegmentationOutputDir();
+
     @WithName("ffmpeg.path")
     String getFfmpegPath();
 }

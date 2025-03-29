@@ -3,10 +3,10 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
-import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import org.slf4j.Logger;
@@ -29,6 +29,8 @@ public class AudioSegmentationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioSegmentationService.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+    FFmpegProvider ffmpeg;
+
     @Inject
     BroadcasterConfig broadcasterConfig;
 
@@ -37,10 +39,56 @@ public class AudioSegmentationService {
     private final String outputDir;
 
     @Inject
-    public AudioSegmentationService(BroadcasterConfig broadcasterConfig) {
+    public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg) {
         this.broadcasterConfig = broadcasterConfig;
-        this.outputDir = Paths.get(System.getProperty("java.io.tmpdir"), "hls-segments").toString();
+        this.ffmpeg = ffmpeg;
+        this.outputDir = broadcasterConfig.getSegmentationOutputDir() != null
+                ? broadcasterConfig.getSegmentationOutputDir()
+                : Paths.get(System.getProperty("java.io.tmpdir"), "hls-segments").toString();
+
+        initializeOutputDirectory();
+    }
+
+    private void initializeOutputDirectory() {
         new File(outputDir).mkdirs();
+        cleanupDirectory();
+    }
+
+    private void cleanupDirectory() {
+        try {
+            LOGGER.info("Cleaning up segments directory: {}", outputDir);
+            File directory = new File(outputDir);
+            cleanRecursively(directory, true);
+        } catch (Exception e) {
+            LOGGER.error("Error cleaning segments directory", e);
+        }
+    }
+
+    private void cleanRecursively(File directory, boolean isRoot) {
+        if (directory == null || !directory.exists() || !directory.isDirectory()) {
+            return;
+        }
+
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    cleanRecursively(file, false);
+                    // Delete empty directories except the root
+                    if (file.listFiles() == null || file.listFiles().length == 0) {
+                        file.delete();
+                    }
+                } else {
+                    if (file.getName().endsWith(".ts") || file.getName().endsWith(".txt")) {
+                        if (file.delete()) {
+                            LOGGER.debug("Deleted temporary file: {}", file.getAbsolutePath());
+                        } else {
+                            LOGGER.warn("Failed to delete temporary file: {}", file.getAbsolutePath());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public ConcurrentLinkedQueue<HlsSegment> slice(SoundFragment soundFragment) {
@@ -85,7 +133,6 @@ public class AudioSegmentationService {
         String segmentListFile = songDir + File.separator + baseName + "_segments.txt";
 
         try {
-            FFmpeg ffmpeg = new FFmpeg(broadcasterConfig.getFfmpegPath());
             FFmpegBuilder builder = new FFmpegBuilder()
                     .setInput(audioFilePath.toString())
                     .addOutput(segmentPattern)
@@ -98,7 +145,7 @@ public class AudioSegmentationService {
                     .addExtraArgs("-segment_list_type", "flat")
                     .done();
 
-            FFmpegExecutor executor = new FFmpegExecutor(ffmpeg);
+            FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
             List<String> segmentFiles = Files.readAllLines(Paths.get(segmentListFile));
             for (int i = 0; i < segmentFiles.size(); i++) {
@@ -130,6 +177,4 @@ public class AudioSegmentationService {
                 .replaceAll("\\s+", "_")
                 .trim();
     }
-
-
 }

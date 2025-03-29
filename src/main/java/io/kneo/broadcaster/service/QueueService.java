@@ -76,52 +76,32 @@ public class QueueService {
                 });
     }
 
-    public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId) {
-        return repository.findById(soundFragmentId, SuperUser.ID)
-                .chain(soundFragment -> getPlaylist(brandName)
-                        .onItem().transformToUni(playlist -> {
-                            if (playlist != null && playlist.getPlaylistManager() != null) {
-                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                brandSoundFragment.setSoundFragment(soundFragment);
-                                boolean result = playlist.getPlaylistManager().addToQueue(brandSoundFragment);
-                                LOGGER.info("Added song to queue for brand {}: {}", brandName, soundFragment.getTitle());
-                                return Uni.createFrom().item(result);
-                            } else {
-                                LOGGER.warn("The fragment not found and not been added for brand: {}", brandName);
-                                return Uni.createFrom().item(false);
-                            }
-                        })
-                )
-                .onFailure().recoverWithItem(failure -> {
-                    LOGGER.error("Error adding to queue for brand {}: {}", brandName, failure.getMessage(), failure);
-                    return false;
-                });
-    }
-
-
-
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, String filePath) {
         return repository.findById(soundFragmentId, SuperUser.ID)
                 .chain(soundFragment -> {
                     if (filePath != null && !filePath.isEmpty()) {
                         try {
                             Path mergedPath = audioMergerService.mergeAudioFiles(
-                                    soundFragment.getFilePath(),
-                                    Path.of(filePath), 0
+                                    Path.of(filePath),
+                                    soundFragment.getFilePath(), 0
                             );
+                            soundFragment.setTitle(String.format(" ## %s", soundFragment.getTitle()));
                             soundFragment.setFilePath(mergedPath);
                         } catch (Exception e) {
                             LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
                             return Uni.createFrom().failure(e);
                         }
+                    } else {
+                        repository.findById(soundFragmentId, SuperUser.ID);
                     }
 
                     return getPlaylist(brandName)
                             .onItem().transformToUni(playlist -> {
                                 if (playlist != null && playlist.getPlaylistManager() != null) {
                                     BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                    brandSoundFragment.setId(soundFragment.getId());  //TODO Should we ?
                                     brandSoundFragment.setSoundFragment(soundFragment);
-                                    boolean result = playlist.getPlaylistManager().addToQueue(brandSoundFragment);
+                                    boolean result = playlist.getPlaylistManager().addFragmentToSlice(brandSoundFragment);
                                     LOGGER.info("Added merged song to queue for brand {}: {}", brandName, soundFragment.getTitle());
                                     return Uni.createFrom().item(result);
                                 } else {
@@ -139,7 +119,7 @@ public class QueueService {
     private Uni<HLSPlaylist> getPlaylist(String brand) {
         return radioStationPool.get(brand)
                 .onItem().transform(v -> {
-                    if (v == null || v.getPlaylist() == null || v.getPlaylist().getSegmentCount() == 0) {
+                    if (v == null || v.getPlaylist() == null) {
                         LOGGER.warn("Station not initialized for brand: {}", brand);
                         throw new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE,
                                 String.format("Station not initialized for brand: %s", brand));

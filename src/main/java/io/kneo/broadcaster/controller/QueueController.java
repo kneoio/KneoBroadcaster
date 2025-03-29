@@ -17,7 +17,6 @@ import jakarta.ws.rs.core.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -40,7 +39,7 @@ public class QueueController {
     }
 
     public void setupRoutes(Router router) {
-        String path = "/:brand/queue";
+        String path = "/api/:brand/queue";
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/current").handler(this::getCurrentSong);
         router.route(HttpMethod.PUT, path + "/action").handler(this::action);
@@ -91,84 +90,45 @@ public class QueueController {
         String brand = rc.pathParam("brand");
         String songIdAsString = rc.pathParam("songId");
 
-        if (rc.request().isExpectMultipart()) {
-            List<FileUpload> files = rc.fileUploads();
-            if (files.isEmpty()) {
-                rc.response()
-                        .setStatusCode(400)
-                        .putHeader("Content-Type", "application/json")
-                        .end(Json.encode(new JsonObject().put("success", false).put("message", "No file uploaded")));
-                return;
-            }
+        final String filePath = determineFilePath(rc, brand);
 
-            FileUpload file = files.get(0);
-            if (!file.fileName().toLowerCase().endsWith(".mp3")) {
-                rc.response()
-                        .setStatusCode(400)
-                        .putHeader("Content-Type", "application/json")
-                        .end(Json.encode(new JsonObject().put("success", false).put("message", "Only MP3 files are supported")));
-                return;
-            }
+        service.addToQueue(brand, UUID.fromString(songIdAsString), filePath)
+                .subscribe().with(
+                        success -> rc.response()
+                                .setStatusCode(filePath != null ? 201 : 200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(Json.encode(new JsonObject()
+                                        .put("success", true)
+                                        .put("fileUploaded", filePath != null))),
+                        error -> rc.fail(500, error)
+                );
+    }
 
-            String fileName = UUID.randomUUID() + "_" + file.fileName();
-            String uploadDir = config.getPathUploads() + "/" + brand;
-            String filePath = uploadDir + "/" + fileName;
-
-            try {
-                File dir = new File(uploadDir);
-                if (!dir.exists()) dir.mkdirs();
-
-                Files.copy(Paths.get(file.uploadedFileName()), Paths.get(filePath));
-
-                service.addToQueue(brand, UUID.fromString(songIdAsString), filePath)
-                        .subscribe().with(
-                                success -> {
-                                    rc.response()
-                                            .setStatusCode(201)
-                                            .putHeader("Content-Type", "application/json")
-                                            .end(Json.encode(new JsonObject()
-                                                    .put("success", true)
-                                                    .put("fileName", file.fileName())));
-                                },
-                                error -> {
-                                    rc.response()
-                                            .setStatusCode(500)
-                                            .putHeader("Content-Type", "application/json")
-                                            .end(Json.encode(new JsonObject()
-                                                    .put("success", false)
-                                                    .put("message", "Error adding file to queue")));
-                                }
-                        );
-            } catch (IOException e) {
-                rc.response()
-                        .setStatusCode(500)
-                        .putHeader("Content-Type", "application/json")
-                        .end(Json.encode(new JsonObject().put("success", false).put("message", "Error saving file")));
-            }
-            return;
+    private String determineFilePath(RoutingContext rc, String brand) {
+        if (!rc.request().isExpectMultipart()) {
+            return null;
         }
 
-        // Handle UUID from path
-        try {
-            UUID songId = UUID.fromString(rc.pathParam("songId"));
+        List<FileUpload> files = rc.fileUploads();
+        if (files.isEmpty()) {
+            return null;
+        }
 
-            service.addToQueue(brand, songId)
-                    .subscribe().with(
-                            success -> {
-                                rc.response()
-                                        .setStatusCode(success ? 201 : 400)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(Json.encode(new JsonObject()
-                                                .put("success", success)
-                                                .put("message", success ? null : "Failed to add song to queue")));
-                            },
-                            error -> rc.fail(500, error)
-                    );
-        } catch (IllegalArgumentException e) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end(Json.encode(new JsonObject().put("success", false).put("message", "Invalid song ID")));
+        FileUpload file = files.get(0);
+        if (!file.fileName().toLowerCase().endsWith(".mp3")) {
+            return null;
+        }
+
+        String fileName = UUID.randomUUID() + "_" + file.fileName();
+        String uploadDir = config.getPathUploads() + "/" + brand;
+        String filePath = uploadDir + "/" + fileName;
+
+        try {
+            Files.createDirectories(Paths.get(uploadDir));
+            Files.copy(Paths.get(file.uploadedFileName()), Paths.get(filePath));
+            return filePath;
+        } catch (IOException e) {
+            return null;
         }
     }
 

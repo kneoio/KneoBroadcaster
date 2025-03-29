@@ -32,6 +32,9 @@ public class HLSPlaylist {
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
     @Getter
+    private final ConcurrentLinkedQueue<SegmentSizeSnapshot> segmentSizeHistory = new ConcurrentLinkedQueue<>();
+
+    @Getter
     @Setter
     private String brandName;
 
@@ -92,6 +95,12 @@ public class HLSPlaylist {
             final int minSegments = config.getMinSegments();
             final int maxSegments = config.getMaxSegments();
 
+            // Track segment size
+            recordSegmentSize(currentSize, timestamp);
+
+            // Clean up old segment size history
+            cleanupSegmentSizeHistory();
+
             // 1. Fetch new segments if below minimum threshold
             if (currentSize < minSegments) {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
@@ -130,6 +139,20 @@ public class HLSPlaylist {
         }
     }
 
+    private void recordSegmentSize(int size, long timestamp) {
+        long roundedTimestamp = (timestamp / 1000) * 1000;
+        segmentSizeHistory.add(new SegmentSizeSnapshot(roundedTimestamp, size));
+    }
+
+    private void cleanupSegmentSizeHistory() {
+        long currentTime = System.currentTimeMillis();
+        int segmentSizeRetentionMinutes = 5;
+        long cutoffTime = currentTime - (segmentSizeRetentionMinutes * 60 * 1000);
+
+        while (!segmentSizeHistory.isEmpty() && segmentSizeHistory.peek().timestamp() < cutoffTime) {
+            segmentSizeHistory.poll();
+        }
+    }
 
     public String generatePlaylist() {
         if (segments.isEmpty()) {
@@ -263,5 +286,13 @@ public class HLSPlaylist {
         segments.clear();
         currentSequence.set(0);
         totalBytesProcessed.set(0);
+        segmentSizeHistory.clear();
+    }
+
+    public record SegmentSizeSnapshot(long timestamp, int size) {
+        @Override
+        public String toString() {
+            return String.format("[%tc: %d segments]", new Date(timestamp), size);
+        }
     }
 }

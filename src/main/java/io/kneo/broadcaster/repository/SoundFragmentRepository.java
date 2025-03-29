@@ -83,7 +83,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, false)
+                        return from(row, true)
                                 .onItem().transform(fragment -> {
                                     return fragment;
                                 });

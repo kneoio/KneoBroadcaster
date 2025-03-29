@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.QueueItemDTO;
 import io.kneo.broadcaster.model.InterstitialPlaylistItem;
 import io.kneo.broadcaster.service.QueueService;
@@ -28,13 +29,14 @@ public class QueueController {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueController.class);
 
     private final QueueService service;
-
     private final RadioService radioService;
+    private final BroadcasterConfig config;
 
     @Inject
-    public QueueController(QueueService service,  RadioService radioService) {
+    public QueueController(QueueService service, RadioService radioService, BroadcasterConfig config) {
         this.service = service;
         this.radioService = radioService;
+        this.config = config;
     }
 
     public void setupRoutes(Router router) {
@@ -89,10 +91,8 @@ public class QueueController {
         String brand = rc.pathParam("brand");
         String songIdAsString = rc.pathParam("songId");
 
-        // Handle file upload
         if (rc.request().isExpectMultipart()) {
             List<FileUpload> files = rc.fileUploads();
-
             if (files.isEmpty()) {
                 rc.response()
                         .setStatusCode(400)
@@ -111,7 +111,7 @@ public class QueueController {
             }
 
             String fileName = UUID.randomUUID() + "_" + file.fileName();
-            String uploadDir = "uploads/" + brand;
+            String uploadDir = config.getPathUploads() + "/" + brand;
             String filePath = uploadDir + "/" + fileName;
 
             try {
@@ -198,24 +198,24 @@ public class QueueController {
                             }
                     );
         } else if ("stop".equalsIgnoreCase(action)) {
-                LOGGER.info("Stopping radio station for brand: {}", brand);
-                radioService.stopStation(brand)
-                        .subscribe().with(
-                                station -> {
-                                    rc.response()
-                                            .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                            .putHeader("Access-Control-Allow-Origin", "*")
-                                            .setStatusCode(200)
-                                            .end("{\"status\":\"" + station.getStatus() + "}");
-                                },
-                                throwable -> {
-                                    LOGGER.error("Error stopping radio station: {}", throwable.getMessage());
-                                    rc.response()
-                                            .setStatusCode(500)
-                                            .putHeader("Content-Type", MediaType.TEXT_PLAIN)
-                                            .end("Failed to stop radio station: " + throwable.getMessage());
-                                }
-                        );
+            LOGGER.info("Stopping radio station for brand: {}", brand);
+            radioService.stopStation(brand)
+                    .subscribe().with(
+                            station -> {
+                                rc.response()
+                                        .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                        .putHeader("Access-Control-Allow-Origin", "*")
+                                        .setStatusCode(200)
+                                        .end("{\"status\":\"" + station.getStatus() + "}");
+                            },
+                            throwable -> {
+                                LOGGER.error("Error stopping radio station: {}", throwable.getMessage());
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                        .end("Failed to stop radio station: " + throwable.getMessage());
+                            }
+                    );
         } else {
             rc.response()
                     .setStatusCode(400)

@@ -29,6 +29,7 @@ public class DigitalOceanSpacesService {
 
     private S3Client s3Client;
 
+    //TODO it needs to mention DO in the folder name
     private static final String DESTINATION_FOLDER = "uploads/";
 
     @PostConstruct

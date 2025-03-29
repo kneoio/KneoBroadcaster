@@ -19,15 +19,14 @@ import java.util.UUID;
 public class AudioMergerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioMergerService.class);
 
-    @Inject
-    BroadcasterConfig broadcasterConfig;
-
+    private final BroadcasterConfig broadcasterConfig;
     private final String outputDir;
 
     @Inject
     public AudioMergerService(BroadcasterConfig broadcasterConfig) {
         this.broadcasterConfig = broadcasterConfig;
-        this.outputDir = Paths.get(System.getProperty("java.io.tmpdir"), "merged-audio").toString();
+        // Use the configured path for merged files instead of a temporary directory
+        this.outputDir = broadcasterConfig.getPathForMerged();
         new File(outputDir).mkdirs();
     }
 
@@ -40,7 +39,7 @@ public class AudioMergerService {
             FFmpegBuilder builder;
 
             if (silenceDurationSeconds > 0) {
-                String silenceFileName = "silence_" + UUID.randomUUID().toString() + ".mp3";
+                String silenceFileName = "silence_" + UUID.randomUUID() + ".mp3";
                 Path silenceFilePath = Paths.get(outputDir, silenceFileName);
 
                 FFmpegBuilder silenceBuilder = new FFmpegBuilder()
@@ -53,13 +52,13 @@ public class AudioMergerService {
 
                 FFmpegExecutor executor = new FFmpegExecutor(ffmpeg);
                 executor.createJob(silenceBuilder).run();
-                String concatFilePath = Paths.get(outputDir, "concat_" + UUID.randomUUID() + ".txt").toString();
+                String concatFilePath = Paths.get(outputDir, "concat_" + UUID.randomUUID() + ".mp3").toString();
                 Path path = Paths.get(concatFilePath);
                 try {
                     java.nio.file.Files.writeString(path,
                             "file '" + firstFilePath + "'\n" +
                                     "file '" + silenceFilePath + "'\n" +
-                                    "file '" + secondFilePath + "'\n");
+                                    "file '" + silenceFilePath + "'\n");
                 } catch (IOException e) {
                     LOGGER.error("Failed to create concat file", e);
                     return null;
@@ -83,7 +82,7 @@ public class AudioMergerService {
                     LOGGER.warn("Could not delete temporary files", e);
                 }
             } else {
-                String concatFilePath = Paths.get(outputDir, "concat_" + UUID.randomUUID() + ".txt").toString();
+                String concatFilePath = Paths.get(outputDir, "concat_" + UUID.randomUUID() + ".mp3").toString();
                 Path path = Paths.get(concatFilePath);
                 try {
                     java.nio.file.Files.writeString(path,

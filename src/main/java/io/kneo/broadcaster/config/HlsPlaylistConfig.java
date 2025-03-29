@@ -7,10 +7,6 @@ import io.smallrye.config.WithName;
 @ConfigMapping(prefix = "radio.hls")
 public interface HlsPlaylistConfig {
 
-    @WithName("radio.ffmpeg.path")
-    @WithDefault("/usr/bin/ffmpeg")
-    String  getFFMpegPath();
-
     @WithName("playlist.min.segments")
     @WithDefault("100")
     int getMinSegments();

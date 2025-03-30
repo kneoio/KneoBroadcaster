@@ -26,30 +26,30 @@ public class HLSPlaylist {
     private final AtomicLong currentSequence = new AtomicLong(0);
     private final AtomicLong totalBytesProcessed = new AtomicLong(0);
     private final AtomicReference<CurrentFragmentInfo> currentFragmentInfo = new AtomicReference<>();
-
     private final ConcurrentLinkedQueue<PlaylistRange> mainQueue = new ConcurrentLinkedQueue<>();
     private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
+    private final int minSegments;
+    private final int maxSegments;
+
     @Getter
-    private final ConcurrentLinkedQueue<SegmentSizeSnapshot> segmentSizeHistory = new ConcurrentLinkedQueue<>();
+    private final List<Integer> segmentSizeHistory = new CopyOnWriteArrayList<>();
+    private final int HISTORY_MAX_SIZE = 60; // Stores last 60 counts (5 minutes at 5-second intervals)
+    private final AtomicLong lastRecordTime = new AtomicLong(0);
+    private static final long RECORD_INTERVAL = 5000; // 5 seconds in milliseconds
 
     @Getter
     @Setter
     private String brandName;
-
     @Getter
     private final SoundFragmentService soundFragmentService;
-
     @Getter
     private PlaylistManager playlistManager;
-
     @Getter
     private final AudioSegmentationService segmentationService;
-
     @Getter
     private final HlsPlaylistConfig config;
-
     @Getter
     private TimerService timerService;
 
@@ -64,12 +64,14 @@ public class HLSPlaylist {
         this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
+        this.minSegments = config.getMinSegments();
+        this.maxSegments = config.getMaxSegments();
         LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
     }
 
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}", brandName);
-        playlistManager = new PlaylistManager(config, soundFragmentService, segmentationService, brandName);
+        playlistManager = new PlaylistManager(this);
         playlistManager.start();
         startMaintenanceService();
     }
@@ -84,7 +86,6 @@ public class HLSPlaylist {
     }
 
     private void processTimerTick(String brandName, long timestamp) {
-        // Skip if already processing
         if (!processingFlags.computeIfAbsent(brandName, k -> new AtomicBoolean(false))
                 .compareAndSet(false, true)) {
             return;
@@ -92,17 +93,14 @@ public class HLSPlaylist {
 
         try {
             final int currentSize = segments.size();
-            final int minSegments = config.getMinSegments();
-            final int maxSegments = config.getMaxSegments();
+            long now = System.currentTimeMillis();
+            if (now - lastRecordTime.get() >= RECORD_INTERVAL) {
+                recordSegmentSize(currentSize);
+                lastRecordTime.set(now);
+                logSegmentStats();
+            }
 
-            // Track segment size
-            recordSegmentSize(currentSize, timestamp);
-
-            // Clean up old segment size history
-            cleanupSegmentSizeHistory();
-
-            // 1. Fetch new segments if below minimum threshold
-            if (currentSize < minSegments) {
+            if (currentSize < maxSegments) {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null) {
                     ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
@@ -110,26 +108,26 @@ public class HLSPlaylist {
                         newSegments.put(currentSequence.getAndIncrement(), segment);
                     });
                     addSegments(newSegments);
+                    logSegmentStats();
                 }
-            }
-            // 2. Gradual cleanup if exceeding max threshold
-            else if (currentSize > maxSegments) {
-                // Calculate how many to delete (capped at 10% of current size)
-                int segmentsToDelete = Math.min(
-                        currentSize - minSegments,
-                        Math.max(5, currentSize / 10)  // Delete at least 5, but no more than 10%
-                );
+            } else if (currentSize > minSegments) {
+                // Calculate 80% of current segments to remove
+                int segmentsToRemove = (int) (currentSize * 0.8);
+                // Ensure we don't go below minSegments
+                segmentsToRemove = Math.min(segmentsToRemove, currentSize - minSegments);
 
-                // Get the key at the deletion boundary
-                Long oldestToKeep = segments.keySet().stream()
-                        .skip(segmentsToDelete)
-                        .findFirst()
-                        .orElse(null);
+                if (segmentsToRemove > 0) {
+                    Long oldestToKeep = segments.keySet().stream()
+                            .skip(segmentsToRemove)
+                            .findFirst()
+                            .orElse(null);
 
-                if (oldestToKeep != null) {
-                    segments.headMap(oldestToKeep, false).clear();
-                    LOGGER.debug("Cleaned {} segments (kept {} to {})",
-                            segmentsToDelete, oldestToKeep, segments.lastKey());
+                    if (oldestToKeep != null) {
+                        removeSegmentsBefore(oldestToKeep);
+                        LOGGER.debug("Removed {} segments (80% of current) to maintain size between {} and {}. Kept segments after {}",
+                                segmentsToRemove, minSegments, maxSegments, oldestToKeep);
+                        logSegmentStats();
+                    }
                 }
             }
         } catch (Exception e) {
@@ -139,24 +137,24 @@ public class HLSPlaylist {
         }
     }
 
-    private void recordSegmentSize(int size, long timestamp) {
-        long roundedTimestamp = (timestamp / 1000) * 1000;
-        segmentSizeHistory.add(new SegmentSizeSnapshot(roundedTimestamp, size));
+    private void recordSegmentSize(int size) {
+        if (segmentSizeHistory.size() >= HISTORY_MAX_SIZE) {
+            segmentSizeHistory.remove(0);
+        }
+        segmentSizeHistory.add(size);
     }
 
-    private void cleanupSegmentSizeHistory() {
-        long currentTime = System.currentTimeMillis();
-        int segmentSizeRetentionMinutes = 5;
-        long cutoffTime = currentTime - (segmentSizeRetentionMinutes * 60 * 1000);
-
-        while (!segmentSizeHistory.isEmpty() && segmentSizeHistory.peek().timestamp() < cutoffTime) {
-            segmentSizeHistory.poll();
+    private void logSegmentStats() {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Segment stats - Current: {}, Min: {}, Max: {}",
+                    segments.size(),
+                    config.getMinSegments(),
+                    config.getMaxSegments());
         }
     }
 
     public String generatePlaylist() {
         if (segments.isEmpty()) {
-            LOGGER.warn("Attempted to generate playlist with no segments");
             return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" +
                     config.getSegmentDuration() + "\n#EXT-X-MEDIA-SEQUENCE:" + currentSequence.get() +
                     "\n#EXT-X-DISCONTINUITY-SEQUENCE:" + (currentSequence.get() / 1000) + "\n";
@@ -175,25 +173,18 @@ public class HLSPlaylist {
                     .append("#EXT-X-MEDIA-SEQUENCE:").append(range.start()).append("\n");
 
             Map<Long, HlsSegment> rangeSegments = segments.subMap(range.start(), true, range.end(), true);
-
             Map<UUID, List<Map.Entry<Long, HlsSegment>>> segmentsByTrack = new HashMap<>();
+
             for (Map.Entry<Long, HlsSegment> entry : rangeSegments.entrySet()) {
                 UUID fragmentId = entry.getValue().getSoundFragmentId();
-                if (!segmentsByTrack.containsKey(fragmentId)) {
-                    segmentsByTrack.put(fragmentId, new ArrayList<>());
-                }
-                segmentsByTrack.get(fragmentId).add(entry);
+                segmentsByTrack.computeIfAbsent(fragmentId, k -> new ArrayList<>()).add(entry);
             }
 
-            // For each track, add all its segments in sequence
             boolean firstTrack = true;
             for (UUID fragmentId : segmentsByTrack.keySet()) {
                 List<Map.Entry<Long, HlsSegment>> trackSegments = segmentsByTrack.get(fragmentId);
-
-                // Sort segments by timestamp to ensure proper sequence
                 trackSegments.sort(Comparator.comparing(e -> e.getValue().getTimestamp()));
 
-                // Add discontinuity marker between tracks, but not before the first track
                 if (!firstTrack) {
                     playlist.append("#EXT-X-DISCONTINUITY\n");
                 }
@@ -201,7 +192,6 @@ public class HLSPlaylist {
 
                 for (Map.Entry<Long, HlsSegment> entry : trackSegments) {
                     HlsSegment segment = entry.getValue();
-
                     playlist.append("#EXTINF:")
                             .append(segment.getDuration())
                             .append(",")
@@ -216,7 +206,6 @@ public class HLSPlaylist {
                             .append(".ts\n");
                 }
             }
-
             return playlist.toString();
         } else {
             return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" +
@@ -232,17 +221,10 @@ public class HLSPlaylist {
         return segment;
     }
 
-
     private void addSegments(ConcurrentNavigableMap<Long, HlsSegment> newSegments) {
-        if (newSegments.isEmpty()) {
-            return;
-        }
+        if (newSegments.isEmpty()) return;
         segments.putAll(newSegments);
-        long start = newSegments.firstKey();
-        long end = newSegments.lastKey();
-        PlaylistRange range = new PlaylistRange(start, end);
-        mainQueue.add(range);
-        LOGGER.info("Added segments with range: {} - {}", start, end);
+        mainQueue.add(new PlaylistRange(newSegments.firstKey(), newSegments.lastKey()));
     }
 
     public int getSegmentCount() {
@@ -250,8 +232,7 @@ public class HLSPlaylist {
     }
 
     public long getLastSegmentKey() {
-        ConcurrentNavigableMap<Long, HlsSegment> map = segments;
-        return map.isEmpty() ? 0L : map.lastKey();
+        return segments.isEmpty() ? 0L : segments.lastKey();
     }
 
     public PlaylistStats getStats() {
@@ -277,22 +258,12 @@ public class HLSPlaylist {
     public void shutdown() {
         LOGGER.info("Shutting down playlist for: {}", brandName);
         timerSubscriptions.forEach((brand, subscription) -> {
-            if (subscription != null) {
-                subscription.cancel();
-                LOGGER.info("Cancelled timer subscription for brand: {}", brand);
-            }
+            if (subscription != null) subscription.cancel();
         });
         timerSubscriptions.clear();
         segments.clear();
         currentSequence.set(0);
         totalBytesProcessed.set(0);
         segmentSizeHistory.clear();
-    }
-
-    public record SegmentSizeSnapshot(long timestamp, int size) {
-        @Override
-        public String toString() {
-            return String.format("[%tc: %d segments]", new Date(timestamp), size);
-        }
     }
 }

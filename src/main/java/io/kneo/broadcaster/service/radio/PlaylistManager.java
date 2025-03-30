@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.radio;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
@@ -12,8 +12,13 @@ import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PlaylistManager {
@@ -40,21 +45,21 @@ public class PlaylistManager {
     private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
-    private final ConcurrentNavigableMap<Long, HlsSegment> segments = new ConcurrentSkipListMap<>();
-
-
     private final AudioSegmentationService segmentationService;
+
+    private HLSPlaylist playlist;
 
     @Getter
     @Setter
     private String currentlyPlaying;
 
-    public PlaylistManager(HlsPlaylistConfig config, SoundFragmentService soundFragmentService, AudioSegmentationService segmentationService, String brand) {
+    public PlaylistManager(HLSPlaylist playlist) {
+        this.playlist = playlist;
+        this.config = playlist.getConfig();
+        this.soundFragmentService = playlist.getSoundFragmentService();
+        this.segmentationService = playlist.getSegmentationService();
+        this.brand = playlist.getBrandName();
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
-        this.config = config;
-        this.soundFragmentService = soundFragmentService;
-        this.segmentationService = segmentationService;
-        this.brand = brand;
         taskTimeline.registerTask(
                 SCHEDULED_TASK_ID,
                 "Playlist Manager",
@@ -81,6 +86,7 @@ public class PlaylistManager {
             return true;
         } else {
             LOGGER.error("The fragment already in the queue: {}", brandSoundFragment.getSoundFragment().getId());
+            return false;
         }
     }
 
@@ -102,7 +108,7 @@ public class PlaylistManager {
     }
 
     private void requestMoreFragments() {
-        int fragmentsToRequest = determineFragmentsToRequest(segments.size(), readyFragmentsToSlice.size());
+        int fragmentsToRequest = determineFragmentsToRequest(playlist.getSegmentCount(), readyFragmentsToSlice.size());
         LOGGER.info("Adding {} fragments for brand {} ", fragmentsToRequest, brand);
         if (fragmentsToRequest > 0) {
             soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
@@ -124,7 +130,7 @@ public class PlaylistManager {
 
     private int determineFragmentsToRequest(int segmentsSize, int stockSize) {
         if (stockSize > 10) return 0;
-        if (segmentsSize < 1) return 3;
+        if (segmentsSize < 1) return  config.getWarmUpFragmentQuantity();;
         return 0;
     }
 
@@ -167,7 +173,6 @@ public class PlaylistManager {
     public void shutdown() {
         LOGGER.info("Shutting down PlaylistManager for brand: {}", brand);
         processingFlags.remove(brand);
-        segments.clear();
         scheduler.shutdown();
 
         try {

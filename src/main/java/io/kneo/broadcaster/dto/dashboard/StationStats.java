@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.dto.dashboard;
 
-import io.kneo.broadcaster.controller.stream.HLSPlaylist.SegmentSizeSnapshot;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
@@ -27,7 +26,7 @@ public class StationStats {
     private Instant lastUpdated;
 
     @Getter
-    private List<SegmentSizeSnapshot> segmentSizeHistory = new ArrayList<>();
+    private List<Integer> segmentSizeHistory = new ArrayList<>();
 
     public void addPeriodicTask(SchedulerTaskTimeline line){
         timelines.add(line);

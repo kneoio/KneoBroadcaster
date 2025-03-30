@@ -64,7 +64,7 @@ public class DashboardService {
             stationStats.addPeriodicTask(manager.getTaskTimeline());
             PlaylistManagerStats playlistManagerStats = manager.getStats();
             stationStats.setPlaylistManagerStats(playlistManagerStats);
-            stationStats.setSegmentSizeHistory(playlist.getSegmentSizeHistory().stream().toList());
+            stationStats.setSegmentSizeHistory(playlist.getSegmentSizeHistory());
             PlaylistStats playlistStats = playlist.getStats();
             stationStats.setSegmentsSize(playlistStats.getSegmentCount());
             stationStats.setLastSegmentKey(playlist.getLastSegmentKey());

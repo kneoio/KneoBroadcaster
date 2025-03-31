@@ -8,29 +8,28 @@ import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import lombok.Getter;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final String SCHEDULED_TASK_ID = "playlist-manager-task";
     private static final int INTERVAL_SECONDS = 240;
+    private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
 
     @Getter
-    private final LinkedList<BrandSoundFragment> slicedFragmentsList = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> obtainedByHlsPlaylist = new LinkedList<>();
 
     @Getter
-    private final LinkedList<BrandSoundFragment> readyFragmentsToSlice = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> segmentedAndreadyToConsumeByHlsPlaylist = new LinkedList<>();
 
     @Getter
     private final String brand;
@@ -39,22 +38,11 @@ public class PlaylistManager {
 
     @Getter
     private final SchedulerTaskTimeline taskTimeline = new SchedulerTaskTimeline();
-
     private final SoundFragmentService soundFragmentService;
-
-    private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-
     private final AudioSegmentationService segmentationService;
 
-    private HLSPlaylist playlist;
-
-    @Getter
-    @Setter
-    private String currentlyPlaying;
-
     public PlaylistManager(HLSPlaylist playlist) {
-        this.playlist = playlist;
         this.config = playlist.getConfig();
         this.soundFragmentService = playlist.getSoundFragmentService();
         this.segmentationService = playlist.getSegmentationService();
@@ -71,8 +59,8 @@ public class PlaylistManager {
         LOGGER.info("Starting PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
             try {
+                addFragments(5);
                 taskTimeline.updateProgress();
-                sliceFragments();
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
@@ -80,125 +68,63 @@ public class PlaylistManager {
     }
 
     public boolean addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
-        if (isNewFragment(brandSoundFragment)) {
-            brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
-            readyFragmentsToSlice.add(brandSoundFragment);
-            return true;
-        } else {
-            LOGGER.error("The fragment already in the queue: {}", brandSoundFragment.getSoundFragment().getId());
-            return false;
-        }
-    }
-
-    private void sliceFragments() {
-        AtomicBoolean isProcessing = processingFlags.computeIfAbsent(brand, k -> new AtomicBoolean(false));
-        if (isProcessing.get() || !isProcessing.compareAndSet(false, true)) {
-            return;
-        }
-
+        readyFragmentsLock.writeLock().lock();
         try {
-            if (readyFragmentsToSlice.size() < 10) {
-                requestMoreFragments();
+            brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
+            segmentedAndreadyToConsumeByHlsPlaylist.add(brandSoundFragment);
+            LOGGER.info("Added and sliced fragment for brand {}: {}",
+                    brand, brandSoundFragment.getSoundFragment().getMetadata());
+            return true;
+        } finally {
+            readyFragmentsLock.writeLock().unlock();
+        }
+    }
+
+    public BrandSoundFragment getNextFragment() {
+        readyFragmentsLock.writeLock().lock();
+        try {
+            if (!segmentedAndreadyToConsumeByHlsPlaylist.isEmpty()) {
+                BrandSoundFragment nextFragment = segmentedAndreadyToConsumeByHlsPlaylist.poll();
+                moveFragmentToProcessedList(nextFragment);
+                return nextFragment;
             }
-            isProcessing.set(false);
-        } catch (Exception e) {
-            LOGGER.error("Error processing timer tick for brand {}: {}", brand, e.getMessage(), e);
-            isProcessing.set(false);
+            return null;
+        } finally {
+            readyFragmentsLock.writeLock().unlock();
         }
-    }
-
-    private void requestMoreFragments() {
-        int fragmentsToRequest = determineFragmentsToRequest(playlist.getSegmentCount(), readyFragmentsToSlice.size());
-        LOGGER.info("Adding {} fragments for brand {} ", fragmentsToRequest, brand);
-        if (fragmentsToRequest > 0) {
-            soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
-                    .subscribe().with(
-                            fragments -> {
-                                if (!fragments.isEmpty()) {
-                                    addFragmentsToSlice(fragments);
-                                }
-                                processingFlags.get(brand).set(false);
-                            },
-                            error -> {
-                                LOGGER.error("Error fetching fragments for brand {}: {}",
-                                        brand, error.getMessage(), error);
-                                processingFlags.get(brand).set(false);
-                            }
-                    );
-        }
-    }
-
-    private int determineFragmentsToRequest(int segmentsSize, int stockSize) {
-        if (stockSize > 10) return 0;
-        if (segmentsSize < 1) return  config.getWarmUpFragmentQuantity();;
-        return 0;
-    }
-
-    private void addFragmentsToSlice(List<BrandSoundFragment> fragments) {
-        for (BrandSoundFragment brandSoundFragment : fragments) {
-            if (isNewFragment(brandSoundFragment)) {
-                brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
-                readyFragmentsToSlice.add(brandSoundFragment);
-            }
-        }
-        LOGGER.info("Added {} fragments to ready list for brand {}", fragments.size(), brand);
-    }
-
-
-    public synchronized BrandSoundFragment getNextFragment() {
-        if (!readyFragmentsToSlice.isEmpty()) {
-            BrandSoundFragment nextFragment = readyFragmentsToSlice.poll();
-            moveFragmentToPlayed(nextFragment);
-            return nextFragment;
-        }
-        return null;
     }
 
     public PlaylistManagerStats getStats() {
         return PlaylistManagerStats.from(this);
     }
 
-    private synchronized void moveFragmentToPlayed(BrandSoundFragment fragmentToMove) {
-
+    private void moveFragmentToProcessedList(BrandSoundFragment fragmentToMove) {
         if (fragmentToMove != null) {
-            readyFragmentsToSlice.remove(fragmentToMove);
-            slicedFragmentsList.add(fragmentToMove);
+            slicedFragmentsLock.writeLock().lock();
+            try {
+                obtainedByHlsPlaylist.add(fragmentToMove);
 
-            if (slicedFragmentsList.size() > 10) {
-                slicedFragmentsList.poll();
+                if (obtainedByHlsPlaylist.size() > 10) {
+                    obtainedByHlsPlaylist.poll();
+                }
+            } finally {
+                slicedFragmentsLock.writeLock().unlock();
             }
         }
     }
 
-    public void shutdown() {
-        LOGGER.info("Shutting down PlaylistManager for brand: {}", brand);
-        processingFlags.remove(brand);
-        scheduler.shutdown();
+    private void addFragments(int fragmentsToRequest) {
+        LOGGER.info("Adding {} fragments for brand {} ", fragmentsToRequest, brand);
+            soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
+                    .subscribe().with(
+                            fragments -> {
+                               fragments.forEach(this::addFragmentToSlice);
+                            },
+                            error -> {
+                                LOGGER.error("Error fetching fragments for brand {}: {}",
+                                        brand, error.getMessage(), error);
 
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private boolean isNewFragment(BrandSoundFragment fragment) {
-
-        for (BrandSoundFragment played : slicedFragmentsList) {
-            if (played.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
-                return false;
-            }
-        }
-
-        for (BrandSoundFragment ready : readyFragmentsToSlice) {
-            if (ready.getSoundFragment().getId().equals(fragment.getSoundFragment().getId())) {
-                return false;
-            }
-        }
-
-        return true;
+                            }
+                    );
     }
 }

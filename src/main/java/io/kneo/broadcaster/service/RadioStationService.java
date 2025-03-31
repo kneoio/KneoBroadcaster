@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.config.RadioStationPool;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.model.RadioStation;

@@ -18,6 +18,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     private static final Logger LOGGER = LoggerFactory.getLogger(KneoBroadcasterApplicationInit.class);
 
     @Inject
+    AiHelperController aiHelperController;
+
+    @Inject
     DashboardController dashboardController;
 
     @Inject
@@ -55,6 +58,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     public void onStart(@Observes StartupEvent ev) {
         LOGGER.info("The application is starting...{}", EnvConst.APP_ID);
         super.setupRoutes(router);
+        aiHelperController.setupRoutes(router);
         dashboardController.setupRoutes(router);
         soundFragmentController.setupRoutes(router);
         radioController.setupRoutes(router);

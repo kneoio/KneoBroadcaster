@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.config.RadioStationPool;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
@@ -39,7 +39,7 @@ public class QueueService {
         return getPlaylist(brandName)
                 .onItem().transformToUni(playlist -> {
                     if (playlist != null && playlist.getPlaylistManager() != null) {
-                        LinkedList<BrandSoundFragment> fragments = playlist.getPlaylistManager().getReadyFragmentsToSlice();
+                        LinkedList<BrandSoundFragment> fragments = playlist.getPlaylistManager().getSegmentedAndreadyToConsumeByHlsPlaylist();
                         if (fragments.isEmpty()) {
                             return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                         }
@@ -56,24 +56,6 @@ public class QueueService {
                 .onFailure().invoke(failure ->
                         LOGGER.error("Error getting queue for brand {}: {}", brandName, failure.getMessage(), failure)
                 );
-    }
-
-    public Uni<String> getCurrentlyPlayingSong(String brandName) {
-        return getPlaylist(brandName)
-                .onItem().transform(playlist -> {
-                    if (playlist != null && playlist.getPlaylistManager() != null) {
-                        String currentlyPlaying = playlist.getPlaylistManager().getCurrentlyPlaying();
-                        LOGGER.debug("Current song for brand {}: {}", brandName, currentlyPlaying);
-                        return currentlyPlaying;
-                    } else {
-                        LOGGER.warn("Playlist or PlaylistManager not found for brand: {}", brandName);
-                        return null;
-                    }
-                })
-                .onFailure().recoverWithItem(failure -> {
-                    LOGGER.error("Error getting current song for brand {}: {}", brandName, failure.getMessage());
-                    return null;
-                });
     }
 
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, String filePath) {

@@ -3,7 +3,6 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.server.EnvConst;
 import io.kneo.broadcaster.service.DashboardService;
 import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.service.UserService;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -25,7 +24,7 @@ public class DashboardController {
 
 
     @Inject
-    public DashboardController(UserService userService, DashboardService dashboardService) {
+    public DashboardController(DashboardService dashboardService) {
         this.dashboardService = dashboardService;
     }
 
@@ -42,12 +41,9 @@ public class DashboardController {
 
     private void handleWebSocket(ServerWebSocket webSocket) {
         String clientId = java.util.UUID.randomUUID().toString();
-
         webSocket.accept();
         connectedClients.put(clientId, webSocket);
-
         sendDashboardData(webSocket);
-
         webSocket.closeHandler(v -> connectedClients.remove(clientId));
 
         webSocket.textMessageHandler(message -> {

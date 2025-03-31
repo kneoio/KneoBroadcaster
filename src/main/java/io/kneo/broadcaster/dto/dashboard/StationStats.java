@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.dto.dashboard;
 
+import io.kneo.broadcaster.controller.stream.HlsSegmentStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import lombok.Data;
@@ -9,11 +11,13 @@ import lombok.Getter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class StationStats {
     private String brandName;
     private RadioStationStatus status;
+    private ManagedBy managedBy;
     private int segmentsSize;
     private long lastSegmentKey;
     private long lastRequested;
@@ -23,6 +27,7 @@ public class StationStats {
     private long totalBytesProcessed;
     private double bitrate;
     private int queueSize;
+    private Map<String, HlsSegmentStats.SongStats> songStatistics;
     private Instant lastUpdated;
 
     @Getter
@@ -31,4 +36,6 @@ public class StationStats {
     public void addPeriodicTask(SchedulerTaskTimeline line){
         timelines.add(line);
     }
+
+
 }

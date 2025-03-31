@@ -41,7 +41,6 @@ public class QueueController {
     public void setupRoutes(Router router) {
         String path = "/api/:brand/queue";
         router.route(HttpMethod.GET, path).handler(this::get);
-        router.route(HttpMethod.GET, path + "/current").handler(this::getCurrentSong);
         router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.POST, path + "/:songId").handler(this::add);
     }
@@ -57,32 +56,6 @@ public class QueueController {
                                     .end(Json.encode(items));
                         },
                         error -> ctx.fail(500, error)
-                );
-    }
-
-    private void getCurrentSong(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-
-        service.getCurrentlyPlayingSong(brand)
-                .subscribe().with(
-                        currentSong -> {
-                            JsonObject response = new JsonObject();
-                            if (currentSong != null) {
-                                response.put("currentSong", currentSong);
-                                response.put("success", true);
-                            } else {
-                                response.put("success", false);
-                                response.put("message", "No song currently playing");
-                            }
-
-                            rc.response()
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(Json.encode(response));
-                        },
-                        error -> {
-                            LOGGER.error("Error getting current song: {}", error.getMessage());
-                            rc.fail(500, error);
-                        }
                 );
     }
 

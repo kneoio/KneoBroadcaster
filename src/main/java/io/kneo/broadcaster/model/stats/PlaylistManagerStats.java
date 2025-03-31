@@ -14,21 +14,12 @@ public class PlaylistManagerStats {
     private String brand;
     private String currentlyPlaying;
 
-    private static String getCurrentPlaying(PlaylistManager playlistManager) {
-        if (playlistManager.getCurrentlyPlaying() == null){
-            return "NOT PLAYING";
-        } else {
-            return playlistManager.getCurrentlyPlaying();
-        }
-    }
-
     public static PlaylistManagerStats from(PlaylistManager playlistManager) {
         return PlaylistManagerStats.builder()
                 .brand(playlistManager.getBrand())
-                .readyToPlayList(playlistManager.getReadyFragmentsToSlice().stream()
+                .readyToPlayList(playlistManager.getSegmentedAndreadyToConsumeByHlsPlaylist().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())
-                .currentlyPlaying(getCurrentPlaying(playlistManager))
-                .playedFragmentsList(playlistManager.getSlicedFragmentsList().stream()
+                        .playedFragmentsList(playlistManager.getObtainedByHlsPlaylist().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())
                 .build();
     }

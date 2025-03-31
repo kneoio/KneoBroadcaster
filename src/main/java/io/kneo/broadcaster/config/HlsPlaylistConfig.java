@@ -8,16 +8,17 @@ import io.smallrye.config.WithName;
 public interface HlsPlaylistConfig {
 
     @WithName("playlist.min.segments")
-    @WithDefault("50")
+    @WithDefault("20")
     int getMinSegments();
+
+    @WithName("playlist.segment.max")
+    @WithDefault("40")
+    int getMaxSegments();
 
     @WithName("playlist.segment.duration")
     @WithDefault("6")
     int getSegmentDuration();
 
-    @WithName("playlist.segment.max")
-    @WithDefault("70")
-    int getMaxSegments();
 
     @WithName("playmanager.warmup.fragments.quantity")
     @WithDefault("3")

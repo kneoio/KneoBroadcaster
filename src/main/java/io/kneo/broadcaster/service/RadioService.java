@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.config.RadioStationPool;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;

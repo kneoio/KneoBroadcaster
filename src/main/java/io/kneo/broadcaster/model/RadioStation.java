@@ -2,6 +2,7 @@ package io.kneo.broadcaster.model;
 
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import io.kneo.officeframe.cnst.CountryCode;
@@ -24,6 +25,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private Integer archived;
     private CountryCode country;
     private RadioStationStatus status;
+    private ManagedBy managedBy = ManagedBy.ITSELF;
     private UUID profileId;
 
     public void setWarmedUp(boolean b) {

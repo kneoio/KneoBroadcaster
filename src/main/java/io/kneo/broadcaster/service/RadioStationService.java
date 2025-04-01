@@ -133,7 +133,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             try {
                 dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast "));
-                dto.setActionUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/queue/action"));
+                dto.setActionUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/api/queue/action"));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }

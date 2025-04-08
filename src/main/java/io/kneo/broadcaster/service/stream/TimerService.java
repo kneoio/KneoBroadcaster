@@ -23,12 +23,12 @@ public class TimerService {
 
     @Inject
     public TimerService(HlsPlaylistConfig config) {
-        this.segmentDurationSeconds = config.getSegmentDuration();
+        this.segmentDurationSeconds = 10;
     }
 
     @PostConstruct
     void init() {
-        LOGGER.info("Initializing HLS Timer Service with segment duration: {}s", segmentDurationSeconds);
+        LOGGER.info("Initializing Timer Service with segment duration: {}s", segmentDurationSeconds);
         Instant now = Instant.now();
         Instant nextBoundary = now.plusSeconds(
                 segmentDurationSeconds - (now.getEpochSecond() % segmentDurationSeconds)
@@ -49,7 +49,7 @@ public class TimerService {
                 throwable -> LOGGER.error("c error", throwable)
         );
 
-        LOGGER.info("HLS Timer Service initialized and active");
+        LOGGER.info("Timer Service initialized and active");
     }
 
     public Multi<Long> getTicker() {
@@ -58,7 +58,7 @@ public class TimerService {
 
     @PreDestroy
     void cleanup() {
-        LOGGER.info("Shutting down HLS Timer Service");
+        LOGGER.info("Shutting down Timer Service");
         if (keepAliveSubscription != null) {
             keepAliveSubscription.cancel();
         }

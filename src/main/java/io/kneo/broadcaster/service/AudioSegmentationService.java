@@ -99,6 +99,7 @@ public class AudioSegmentationService {
             try {
                 byte[] data = Files.readAllBytes(Paths.get(segment.path()));
                 HlsSegment hlsSegment = new HlsSegment(
+                        0,
                         data,
                         segment.duration(),
                         segment.fragmentId(),

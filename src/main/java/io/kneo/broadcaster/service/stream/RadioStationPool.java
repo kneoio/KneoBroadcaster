@@ -39,11 +39,15 @@ public class RadioStationPool {
     private TimerService timerService;
 
     @Inject
+    private WindowSliderService windowSliderService;
+
+    @Inject
     AudioSegmentationService segmentationService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
         HLSPlaylist playlist = new HLSPlaylist(
                 timerService,
+                windowSliderService,
                 config,
                 soundFragmentService,
                 segmentationService,

@@ -1,11 +1,14 @@
 package io.kneo.broadcaster.controller.stream;
 
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.UUID;
 
 @Getter
 public class HlsSegment {
+    @Setter
+    private long sequence;
     private final byte[] data;
     private final long timestamp;
     private final int duration;
@@ -14,7 +17,8 @@ public class HlsSegment {
     private final UUID soundFragmentId;
     private final String songName;
 
-    public HlsSegment(byte[] data, int duration, UUID soundFragmentId, String songName, long timestamp) {
+    public HlsSegment(long sequence, byte[] data, int duration, UUID soundFragmentId, String songName, long timestamp) {
+        this.sequence = sequence;
         this.data = data;
         this.timestamp = timestamp;
         this.duration = duration;
@@ -23,6 +27,7 @@ public class HlsSegment {
         this.soundFragmentId = soundFragmentId;
         this.songName = songName;
     }
+
 
     public String toString() {
         return String.format("song=%s, duration=%s", songName, duration);

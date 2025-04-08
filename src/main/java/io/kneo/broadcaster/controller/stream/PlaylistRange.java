@@ -1,3 +1,11 @@
 package io.kneo.broadcaster.controller.stream;
 
-public record PlaylistRange(long start, long end) { }
+import io.kneo.broadcaster.model.SoundFragment;
+import java.util.concurrent.ConcurrentNavigableMap;
+
+public record PlaylistRange(ConcurrentNavigableMap<Long, HlsSegment> segments, long start, long end, SoundFragment fragment) {
+
+    public boolean isEmpty() {
+        return segments.isEmpty();
+    }
+}

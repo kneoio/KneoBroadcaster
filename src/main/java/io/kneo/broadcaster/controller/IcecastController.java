@@ -81,36 +81,6 @@ public class IcecastController {
                 );
     }
 
-    private void streamAudio(String brand, long segmentId, StreamData streamData) {
-        if (streamData.getListenerCount() == 0) {
-            LOGGER.info("No more listeners for brand: {}, stopping stream", brand);
-            activeStreams.remove(brand);
-            return;
-        }
-
-        service.getPlaylist(brand)
-                .onItem().transform(playlist -> playlist.getSegment(segmentId))
-                .subscribe().with(
-                        segment -> {
-                            if (segment != null) {
-                                // Send audio data to all listeners
-                                streamData.sendData(segment.getData());
-
-                                // Queue up the next segment
-                                long nextSegmentId = segmentId + 1;
-                                streamAudio(brand, nextSegmentId, streamData);
-                            } else {
-                                // If we ran out of segments, restart from the beginning
-                                streamAudio(brand, 0, streamData);
-                            }
-                        },
-                        throwable -> {
-                            LOGGER.error("Error streaming audio for brand: {} - {}", brand, throwable.getMessage());
-                            streamData.notifyError(500, "Error streaming audio");
-                            activeStreams.remove(brand);
-                        }
-                );
-    }
 
     private void getStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand");

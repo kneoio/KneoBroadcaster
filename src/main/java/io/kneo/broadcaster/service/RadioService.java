@@ -36,7 +36,7 @@ public class RadioService {
     public Uni<HLSPlaylist> getPlaylist(String brand) {
         return radioStationPool.get(brand)
                 .onItem().transform(station -> {
-                    if (station == null || station.getPlaylist() == null || station.getPlaylist().getSegmentCount() == 0) {
+                    if (station == null || station.getPlaylist() == null) {
                         LOGGER.warn("Station not initialized for brand: {}", brand);
                         throw new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE);
                     }

@@ -15,14 +15,14 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @ApplicationScoped
-public class TimerService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(TimerService.class);
+public class SegmentFeederTimer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SegmentFeederTimer.class);
     private final int segmentDurationSeconds;
     private Multi<Long> sharedTicker;
     private Cancellable keepAliveSubscription;
 
     @Inject
-    public TimerService(HlsPlaylistConfig config) {
+    public SegmentFeederTimer(HlsPlaylistConfig config) {
         this.segmentDurationSeconds = 10;
     }
 

@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 @ApplicationScoped
-public class WindowSliderService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(WindowSliderService.class);
+public class WindowSliderTimer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowSliderTimer.class);
 
     // Execution control
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();

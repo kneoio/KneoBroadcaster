@@ -20,7 +20,7 @@ public class GlobalTickerService {
     private final Map<String, Consumer<Long>> tickListeners = new ConcurrentHashMap<>();
 
     @Inject
-    private TimerService timerService;
+    private SegmentFeederTimer timerService;
 
     @PostConstruct
     public void init() {

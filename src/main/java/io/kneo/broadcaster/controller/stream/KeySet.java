@@ -2,7 +2,7 @@ package io.kneo.broadcaster.controller.stream;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PlaylistRangeKeySet {
+public class KeySet {
     public static final int DEFAULT_INCREMENT_STEP = 1;
     public static final int DEFAULT_START_VALUE = 0;
     public static final int MAX_WINDOW_SIZE = 2;
@@ -12,11 +12,11 @@ public class PlaylistRangeKeySet {
     private final int windowSize;
     private final int incrementStep;
 
-    public PlaylistRangeKeySet() {
+    public KeySet() {
         this(MAX_WINDOW_SIZE, DEFAULT_START_VALUE);
     }
 
-    public PlaylistRangeKeySet(int windowSize, long startValue) {
+    public KeySet(int windowSize, long startValue) {
         this.windowSize = clampWindowSize(windowSize);
         this.incrementStep = windowSize > 1 ? DEFAULT_INCREMENT_STEP : 0;
         this.window = new AtomicInteger[this.windowSize];
@@ -50,10 +50,6 @@ public class PlaylistRangeKeySet {
 
     public int next() {
         return windowSize > 1 ? window[1].get() : window[0].get();
-    }
-
-    public int future() {
-        return windowSize > 2 ? window[2].get() : next();
     }
 
     public int windowSize() {

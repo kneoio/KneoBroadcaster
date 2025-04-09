@@ -36,10 +36,10 @@ public class RadioStationPool {
     private SoundFragmentService soundFragmentService;
 
     @Inject
-    private TimerService timerService;
+    private SegmentFeederTimer timerService;
 
     @Inject
-    private WindowSliderService windowSliderService;
+    private WindowSliderTimer windowSliderService;
 
     @Inject
     AudioSegmentationService segmentationService;

@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
-import io.kneo.broadcaster.controller.stream.HlsSegmentStats;
+import io.kneo.broadcaster.controller.stream.HLSSegmentStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.PoolStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
@@ -61,7 +61,7 @@ public class DashboardService {
             stationStats.addPeriodicTask(manager.getTaskTimeline());
             stationStats.setPlaylistManagerStats(manager.getStats());
             stationStats.setSegmentSizeHistory(playlist.getSegmentSizeHistory());
-            HlsSegmentStats hlsSegmentStats = playlist.getStats();
+            HLSSegmentStats hlsSegmentStats = playlist.getStats();
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
             stationStats.setSegmentsSize(hlsSegmentStats.getSegmentCount());
            // stationStats.setLastSegmentKey(playlist.getLastSegmentKey());

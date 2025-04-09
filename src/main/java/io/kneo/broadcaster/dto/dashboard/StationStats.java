@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.dto.dashboard;
 
-import io.kneo.broadcaster.controller.stream.HlsSegmentStats;
+import io.kneo.broadcaster.controller.stream.HLSSegmentStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
@@ -10,6 +10,7 @@ import lombok.Getter;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +28,7 @@ public class StationStats {
     private long totalBytesProcessed;
     private double bitrate;
     private int queueSize;
-    private Map<String, HlsSegmentStats.SongStats> songStatistics;
+    private Map<String, HLSSegmentStats.SongStats> songStatistics = new LinkedHashMap<>();
     private Instant lastUpdated;
 
     @Getter

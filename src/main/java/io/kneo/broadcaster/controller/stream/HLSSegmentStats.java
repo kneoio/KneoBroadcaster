@@ -8,11 +8,10 @@ import java.util.stream.Collectors;
 
 @Getter
 public class HLSSegmentStats {
-    // ALL ORIGINAL FIELDS REMAIN UNCHANGED
     private final Map<Integer, PlaylistFragmentRange> mainQueue;
     private final Instant createdAt = Instant.now();
-    private long lastRequestedSegment = 0;
-    private Instant lastRequestedTimestamp = Instant.now();
+    private final long lastRequestedSegment = 0;
+    private final Instant lastRequestedTimestamp = Instant.now();
     private final long totalBytesProcessed = 0;
     private final int bitrate = 0;
     private final int queueSize = 0;

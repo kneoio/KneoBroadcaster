@@ -17,7 +17,7 @@ public class PlaylistManagerStats {
     public static PlaylistManagerStats from(PlaylistManager playlistManager) {
         return PlaylistManagerStats.builder()
                 .brand(playlistManager.getBrand())
-                .readyToPlayList(playlistManager.getSegmentedAndreadyToConsumeByHlsPlaylist().stream()
+                .readyToPlayList(playlistManager.getSegmentedAndReadyToConsume().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())
                         .playedFragmentsList(playlistManager.getObtainedByHlsPlaylist().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())

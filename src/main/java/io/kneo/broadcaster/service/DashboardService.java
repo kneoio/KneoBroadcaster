@@ -64,7 +64,6 @@ public class DashboardService {
             HLSSegmentStats hlsSegmentStats = playlist.getStats();
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
             stationStats.setSegmentsSize(hlsSegmentStats.getSegmentCount());
-           // stationStats.setLastSegmentKey(playlist.getLastSegmentKey());
             stationStats.setLastRequested(hlsSegmentStats.getLastRequestedSegment());
             stationStats.setLastSegmentTimestamp(hlsSegmentStats.getLastRequestedTimestamp());
             stationStats.setTotalBytesProcessed(hlsSegmentStats.getTotalBytesProcessed());

@@ -20,7 +20,6 @@ public class StationStats {
     private RadioStationStatus status;
     private ManagedBy managedBy;
     private int segmentsSize;
-    private long lastSegmentKey;
     private long lastRequested;
     private Instant lastSegmentTimestamp;
     private PlaylistManagerStats playlistManagerStats;

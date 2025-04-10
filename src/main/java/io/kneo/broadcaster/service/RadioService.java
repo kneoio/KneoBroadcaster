@@ -35,13 +35,13 @@ public class RadioService {
 
     public Uni<HLSPlaylist> getPlaylist(String brand) {
         return radioStationPool.get(brand)
-                .onItem().transform(station -> {
-                    if (station == null || station.getPlaylist() == null) {
-                        LOGGER.warn("Station not initialized for brand: {}", brand);
-                        throw new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE);
-                    }
-                    return station.getPlaylist();
-                })
+                .onItem().ifNull().failWith(() ->
+                        new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
+                )
+                .onItem().transform(RadioStation::getPlaylist)
+                .onItem().ifNull().failWith(() ->
+                        new RadioStationException(RadioStationException.ErrorType.PLAYLIST_NOT_AVAILABLE)
+                )
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to get playlist for brand: {}", brand, failure)
                 );

@@ -22,6 +22,9 @@ public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final String SCHEDULED_TASK_ID = "playlist-manager-task";
     private static final int INTERVAL_SECONDS = 240;
+    private static final int READY_QUEUE_MAX_SIZE = 3;
+    private static final int PROCESSED_QUEUE_MAX_SIZE = 10;
+
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
 
@@ -29,7 +32,7 @@ public class PlaylistManager {
     private final LinkedList<BrandSoundFragment> obtainedByHlsPlaylist = new LinkedList<>();
 
     @Getter
-    private final LinkedList<BrandSoundFragment> segmentedAndreadyToConsumeByHlsPlaylist = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> segmentedAndReadyToConsume = new LinkedList<>();
 
     @Getter
     private final String brand;
@@ -59,7 +62,14 @@ public class PlaylistManager {
         LOGGER.info("Starting PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                addFragments(5);
+                // Only add fragments if we have space in the ready queue
+                if (segmentedAndReadyToConsume.size() < READY_QUEUE_MAX_SIZE) {
+                    int neededFragments = READY_QUEUE_MAX_SIZE - segmentedAndReadyToConsume.size();
+                    addFragments(neededFragments);
+                } else {
+                    LOGGER.debug("Skipping fragment addition - ready queue is full ({} items)",
+                            READY_QUEUE_MAX_SIZE);
+                }
                 taskTimeline.updateProgress();
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
@@ -70,8 +80,16 @@ public class PlaylistManager {
     public boolean addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
         readyFragmentsLock.writeLock().lock();
         try {
+            // Don't add if queue is full
+            if (segmentedAndReadyToConsume.size() >= READY_QUEUE_MAX_SIZE) {
+                LOGGER.debug("Cannot add fragment - ready queue is full ({} items)",
+                        READY_QUEUE_MAX_SIZE);
+                return false;
+            }
+
             brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
-            segmentedAndreadyToConsumeByHlsPlaylist.add(brandSoundFragment);
+            segmentedAndReadyToConsume.add(brandSoundFragment);
+
             LOGGER.info("Added and sliced fragment for brand {}: {}",
                     brand, brandSoundFragment.getSoundFragment().getMetadata());
             return true;
@@ -83,8 +101,8 @@ public class PlaylistManager {
     public BrandSoundFragment getNextFragment() {
         readyFragmentsLock.writeLock().lock();
         try {
-            if (!segmentedAndreadyToConsumeByHlsPlaylist.isEmpty()) {
-                BrandSoundFragment nextFragment = segmentedAndreadyToConsumeByHlsPlaylist.poll();
+            if (!segmentedAndReadyToConsume.isEmpty()) {
+                BrandSoundFragment nextFragment = segmentedAndReadyToConsume.poll();
                 moveFragmentToProcessedList(nextFragment);
                 return nextFragment;
             }
@@ -104,8 +122,11 @@ public class PlaylistManager {
             try {
                 obtainedByHlsPlaylist.add(fragmentToMove);
 
-                if (obtainedByHlsPlaylist.size() > 10) {
-                    obtainedByHlsPlaylist.poll();
+                // Remove oldest fragment if queue size exceeds limit
+                if (obtainedByHlsPlaylist.size() > PROCESSED_QUEUE_MAX_SIZE) {
+                    BrandSoundFragment removed = obtainedByHlsPlaylist.poll();
+                    LOGGER.debug("Removed oldest fragment from processed queue: {}",
+                            removed.getSoundFragment().getMetadata());
                 }
             } finally {
                 slicedFragmentsLock.writeLock().unlock();
@@ -114,17 +135,21 @@ public class PlaylistManager {
     }
 
     private void addFragments(int fragmentsToRequest) {
-        LOGGER.info("Adding {} fragments for brand {} ", fragmentsToRequest, brand);
-            soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
-                    .subscribe().with(
-                            fragments -> {
-                               fragments.forEach(this::addFragmentToSlice);
-                            },
-                            error -> {
-                                LOGGER.error("Error fetching fragments for brand {}: {}",
-                                        brand, error.getMessage(), error);
+        if (fragmentsToRequest <= 0) {
+            LOGGER.debug("No fragments needed to be added");
+            return;
+        }
 
-                            }
-                    );
+        LOGGER.info("Adding {} fragments for brand {}", fragmentsToRequest, brand);
+        soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
+                .subscribe().with(
+                        fragments -> {
+                            fragments.forEach(this::addFragmentToSlice);
+                        },
+                        error -> {
+                            LOGGER.error("Error fetching fragments for brand {}: {}",
+                                    brand, error.getMessage(), error);
+                        }
+                );
     }
 }

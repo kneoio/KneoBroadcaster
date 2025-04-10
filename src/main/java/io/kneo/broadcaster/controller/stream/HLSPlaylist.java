@@ -34,12 +34,10 @@ public class HLSPlaylist {
     private final KeySet keySet = new KeySet();
     private final AtomicInteger rangeCounter = new AtomicInteger(0);
     private final AtomicLong currentSequence = new AtomicLong(0);
-    private final AtomicLong totalBytesProcessed = new AtomicLong(0);
 
     private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final AtomicBoolean windowSliderProcessingFlag = new AtomicBoolean(false);
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
-    private final AtomicInteger currentDuration = new AtomicInteger(0);
 
     @Getter
     private final List<Integer> segmentSizeHistory = new CopyOnWriteArrayList<>();
@@ -61,7 +59,7 @@ public class HLSPlaylist {
     private final HlsPlaylistConfig config;
     @Getter
     private SegmentFeederTimer segmentFeederTimer;
-    private final WindowSliderTimer windowSliderService;
+    private final WindowSliderTimer windowSliderTimer;
     @Getter
     private HLSSegmentStats stats;
 
@@ -73,14 +71,12 @@ public class HLSPlaylist {
             AudioSegmentationService segmentationService,
             String brandName) {
         this.segmentFeederTimer = segmentFeederTimer;
-        this.windowSliderService = windowSliderService;
+        this.windowSliderTimer = windowSliderService;
         this.config = config;
         this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
         stats = new HLSSegmentStats(mainQueue);
-        keySet.slide();
-        keySet.slide();
         LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
     }
 
@@ -96,7 +92,7 @@ public class HLSPlaylist {
                 },
                 error -> LOGGER.error("Timer subscription error for brand {}: {}", brandName, error.getMessage())
         );
-        Cancellable windowSlider = windowSliderService.getSliderTicker().subscribe().with(
+        Cancellable windowSlider = windowSliderTimer.getSliderTicker().subscribe().with(
                 timestamp -> {
                     LOGGER.debug("Slider tick: {}", timestamp);
                     windowSlider();
@@ -165,18 +161,6 @@ public class HLSPlaylist {
         }
     }
 
-    public int getSegmentCount() {
-        return 777;
-    }
-
-    public int getQueueSize() {
-        return mainQueue.size();
-    }
-
-    public long getTotalBytesProcessed() {
-        return totalBytesProcessed.get();
-    }
-
     public void shutdown() {
         LOGGER.info("Shutting down playlist for: {}", brandName);
         timerSubscriptions.forEach((brand, subscription) -> {
@@ -184,7 +168,6 @@ public class HLSPlaylist {
         });
         timerSubscriptions.clear();
         currentSequence.set(0);
-        totalBytesProcessed.set(0);
         segmentSizeHistory.clear();
     }
 
@@ -213,24 +196,26 @@ public class HLSPlaylist {
         }
 
         try {
-            BrandSoundFragment fragment = playlistManager.getNextFragment();
-            if (fragment != null) {
-                ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
-                long firstSequence = currentSequence.get();
+            if (mainQueue.size() < 5) {
+                BrandSoundFragment fragment = playlistManager.getNextFragment();
+                if (fragment != null) {
+                    ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
+                    long firstSequence = currentSequence.get();
 
-                fragment.getSegments().forEach(segment -> {
-                    long sequence = currentSequence.getAndIncrement();
-                    segment.setSequence(sequence);
-                    newSegments.put(sequence, segment);
-                });
+                    fragment.getSegments().forEach(segment -> {
+                        long sequence = currentSequence.getAndIncrement();
+                        segment.setSequence(sequence);
+                        newSegments.put(sequence, segment);
+                    });
 
-                if (!newSegments.isEmpty()) {
-                    long lastSequence = currentSequence.get() - 1;
-                    mainQueue.put(rangeCounter.getAndIncrement(), new PlaylistFragmentRange(newSegments, firstSequence, lastSequence, fragment.getSoundFragment()));
-                    LOGGER.debug("Added fragment: {}", fragment.getSoundFragment().getMetadata());
+                    if (!newSegments.isEmpty()) {
+                        long lastSequence = currentSequence.get() - 1;
+                        mainQueue.put(rangeCounter.getAndIncrement(),
+                                new PlaylistFragmentRange(newSegments, firstSequence, lastSequence, fragment.getSoundFragment()));
+                        LOGGER.debug("Added fragment: {}", fragment.getSoundFragment().getMetadata());
+                    }
                 }
             }
-
         } catch (Exception e) {
             LOGGER.error("Processing error for {}: {}", brandName, e.getMessage(), e);
         } finally {
@@ -245,8 +230,7 @@ public class HLSPlaylist {
 
         try {
             int duration = getCurrentSegmentsDuration();
-            currentDuration.set(duration);
-            windowSliderService.updateSlideDelay(duration * 1000L);
+            windowSliderTimer.updateSlideDelay(duration * 1000L);
             mainQueue.remove(keySet.current());
             keySet.slide();
             LOGGER.debug("Window slid. Next slide in {} seconds", duration);

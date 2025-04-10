@@ -105,8 +105,7 @@ public class RadioController {
 
         service.getPlaylist(brand)
                 .onItem().transform(playlist -> {
-                    return "Station: " + brand + "\n" +
-                            "Total bytes: " + playlist.getTotalBytesProcessed() + "\n";
+                    return "Station: " + brand;
                 })
                 .subscribe().with(
                         statusContent -> {

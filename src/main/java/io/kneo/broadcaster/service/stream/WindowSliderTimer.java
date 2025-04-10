@@ -23,19 +23,17 @@ import java.util.function.Consumer;
 public class WindowSliderTimer {
     private static final Logger LOGGER = LoggerFactory.getLogger(WindowSliderTimer.class);
 
-    // Execution control
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final AtomicReference<ScheduledFuture<?>> currentTask = new AtomicReference<>();
-    private final AtomicLong nextSlideDelay = new AtomicLong(10_000); // Default 10 seconds
+    private final AtomicLong nextSlideDelay = new AtomicLong(120_000); //after 120 sec. the first shift will happen
     private volatile Consumer<Long> tickConsumer;
 
-    // Statistics
     private final AtomicLong totalSlides = new AtomicLong(0);
     private volatile Instant lastSlideTime;
 
     public Multi<Long> getSliderTicker() {
         return Multi.createFrom().emitter(emitter -> {
-            LOGGER.info("🚀 New slider subscriber connected");
+            LOGGER.info("New slider subscriber connected");
 
             this.tickConsumer = tick -> {
                 totalSlides.incrementAndGet();
@@ -43,11 +41,10 @@ public class WindowSliderTimer {
                 emitter.emit(tick);
             };
 
-            // Initial schedule
             scheduleNextSlide();
 
             emitter.onTermination(() -> {
-                LOGGER.warn("❌ Subscriber disconnected. Cleaning up...");
+                LOGGER.warn("Subscriber disconnected. Cleaning up...");
                 cancelCurrentTask();
                 this.tickConsumer = null;
             });
@@ -58,74 +55,61 @@ public class WindowSliderTimer {
         cancelCurrentTask();
 
         long delay = nextSlideDelay.get();
-        ZoneId zone = ZoneId.of("Europe/Berlin"); // Replace with your zone
+        ZoneId zone = ZoneId.of("Europe/Lisbon");
         ZonedDateTime scheduledTime = ZonedDateTime.now(zone).plusNanos(delay * 1_000_000L);
 
-        LOGGER.info("⏰ Scheduling next slide in {}ms (at {} local time)",
+        LOGGER.info("Scheduling next slide in {}ms (at {} local time)",
                 delay,
                 scheduledTime.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
 
         ScheduledFuture<?> newTask = scheduler.schedule(() -> {
             ZonedDateTime actualTime = ZonedDateTime.now(zone);
-            LOGGER.info("🎬 Slide triggered! Scheduled: {} | Actual: {} | Drift: {}ms",
-                    scheduledTime.format(DateTimeFormatter.ISO_LOCAL_TIME),
-                    actualTime.format(DateTimeFormatter.ISO_LOCAL_TIME),
+            LOGGER.info("Slide triggered! Scheduled: Drift: {}ms",
                     ChronoUnit.MILLIS.between(scheduledTime, actualTime));
 
             if (tickConsumer != null) {
                 tickConsumer.accept(System.currentTimeMillis());
             }
-            scheduleNextSlide();
+           /// scheduleNextSlide();
         }, delay, TimeUnit.MILLISECONDS);
 
         currentTask.set(newTask);
     }
 
     public void updateSlideDelay(long delayMillis) {
-        if (delayMillis <= 0) {
-            throw new IllegalArgumentException("Delay must be positive");
+        if (delayMillis > 0) {
+            LOGGER.warn("Updating slide delay from {}ms to {}ms",
+                    nextSlideDelay.get(), delayMillis);
+            nextSlideDelay.set(delayMillis);
+
+            if (currentTask.get() != null) {
+                LOGGER.info("Rescheduling with new delay");
+                scheduleNextSlide();
+            }
         }
-
-        LOGGER.warn("🔄 Updating slide delay from {}ms to {}ms",
-                nextSlideDelay.get(), delayMillis);
-
-        nextSlideDelay.set(delayMillis);
-
-        if (currentTask.get() != null) {
-            LOGGER.info("🔁 Rescheduling with new delay");
-            scheduleNextSlide();
-        }
-    }
-
-    public Instant getLastSlideTime() {
-        return lastSlideTime;
-    }
-
-    public long getTotalSlides() {
-        return totalSlides.get();
     }
 
     private void cancelCurrentTask() {
         ScheduledFuture<?> task = currentTask.getAndSet(null);
         if (task != null) {
             task.cancel(false);
-            LOGGER.debug("🗑️ Cancelled pending slide task");
+            LOGGER.debug("Cancelled pending slide task");
         }
     }
 
     @PreDestroy
     public void cleanup() {
-        LOGGER.info("🧹 Shutting down WindowSliderService...");
+        LOGGER.info("Shutting down WindowSliderService...");
         cancelCurrentTask();
         scheduler.shutdownNow();
         try {
             if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
-                LOGGER.warn("⚠️ Force shutdown after timeout");
+                LOGGER.warn("Force shutdown after timeout");
             }
         } catch (InterruptedException e) {
-            LOGGER.error("🚨 Shutdown interrupted", e);
+            LOGGER.error("Shutdown interrupted", e);
             Thread.currentThread().interrupt();
         }
-        LOGGER.info("👋 Shutdown complete. Total slides: {}", totalSlides.get());
+        LOGGER.info("Shutdown complete. Total slides: {}", totalSlides.get());
     }
 }

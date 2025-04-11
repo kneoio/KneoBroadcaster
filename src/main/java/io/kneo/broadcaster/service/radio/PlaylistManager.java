@@ -32,7 +32,7 @@ public class PlaylistManager {
     private final LinkedList<BrandSoundFragment> obtainedByHlsPlaylist = new LinkedList<>();
 
     @Getter
-    private final LinkedList<BrandSoundFragment> segmentedAndReadyToConsume = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> segmentedAndReadyToBeConsumed = new LinkedList<>();
 
     @Getter
     private final String brand;
@@ -63,8 +63,8 @@ public class PlaylistManager {
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 // Only add fragments if we have space in the ready queue
-                if (segmentedAndReadyToConsume.size() < READY_QUEUE_MAX_SIZE) {
-                    int neededFragments = READY_QUEUE_MAX_SIZE - segmentedAndReadyToConsume.size();
+                if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
+                    int neededFragments = READY_QUEUE_MAX_SIZE - segmentedAndReadyToBeConsumed.size();
                     addFragments(neededFragments);
                 } else {
                     LOGGER.debug("Skipping fragment addition - ready queue is full ({} items)",
@@ -81,14 +81,14 @@ public class PlaylistManager {
         readyFragmentsLock.writeLock().lock();
         try {
             // Don't add if queue is full
-            if (segmentedAndReadyToConsume.size() >= READY_QUEUE_MAX_SIZE) {
+            if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
                 LOGGER.debug("Cannot add fragment - ready queue is full ({} items)",
                         READY_QUEUE_MAX_SIZE);
                 return false;
             }
 
             brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
-            segmentedAndReadyToConsume.add(brandSoundFragment);
+            segmentedAndReadyToBeConsumed.add(brandSoundFragment);
 
             LOGGER.info("Added and sliced fragment for brand {}: {}",
                     brand, brandSoundFragment.getSoundFragment().getMetadata());
@@ -101,8 +101,8 @@ public class PlaylistManager {
     public BrandSoundFragment getNextFragment() {
         readyFragmentsLock.writeLock().lock();
         try {
-            if (!segmentedAndReadyToConsume.isEmpty()) {
-                BrandSoundFragment nextFragment = segmentedAndReadyToConsume.poll();
+            if (!segmentedAndReadyToBeConsumed.isEmpty()) {
+                BrandSoundFragment nextFragment = segmentedAndReadyToBeConsumed.poll();
                 moveFragmentToProcessedList(nextFragment);
                 return nextFragment;
             }

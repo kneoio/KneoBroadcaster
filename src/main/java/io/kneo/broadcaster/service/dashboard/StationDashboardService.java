@@ -1,52 +1,37 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.dashboard;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.controller.stream.HLSPlaylistStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.dashboard.PoolStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @ApplicationScoped
-public class DashboardService {
-
-    @Inject
-    HlsPlaylistConfig config;
+public class StationDashboardService {
 
     @Inject
     RadioStationPool radioStationPool;
 
-    public Uni<PoolStats> getPoolInfo() {
-        HashMap<String, RadioStation> pool = radioStationPool.getPool();
-        PoolStats poolStats = new PoolStats();
-        poolStats.setTotalStations(pool.size()); //TODO temporary
-        poolStats.setMinimumSegments(config.getMinSegments());
-        poolStats.setSlidingWindowSize(config.getMaxSegments());
-        poolStats.setOnlineStations((int) pool.values().stream()
-                .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE)
-                .count());
-        poolStats.setWarmingStations((int) pool.values().stream()
-                .filter(station -> station.getStatus() == RadioStationStatus.WARMING_UP)
-                .count());
-        Map<String, StationStats> stationStats = pool.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> createStationStats(entry.getKey(), entry.getValue())
-                ));
-        poolStats.setStations(stationStats);
-     //   stats.addPeriodicTask(playlistManager.getTaskTimeline());
+    @Inject
+    HlsPlaylistConfig config;
 
-        return Uni.createFrom().item(poolStats);
+    public Uni<Optional<StationStats>> getStationStats(String stationId) {
+        HashMap<String, RadioStation> pool = radioStationPool.getPool();
+        if (pool.containsKey(stationId)) {
+            RadioStation station = pool.get(stationId);
+            StationStats stats = createStationStats(stationId, station);
+            return Uni.createFrom().item(Optional.of(stats));
+        }
+        return Uni.createFrom().item(Optional.empty());
     }
 
     private StationStats createStationStats(String brand, RadioStation station) {
@@ -72,5 +57,25 @@ public class DashboardService {
         }
 
         return stationStats;
+    }
+
+    public Uni<Boolean> isStationOnline(String stationId) {
+        HashMap<String, RadioStation> pool = radioStationPool.getPool();
+        return Uni.createFrom().item(
+                pool.containsKey(stationId) &&
+                        pool.get(stationId).getStatus() == RadioStationStatus.ON_LINE
+        );
+    }
+
+    public Uni<RadioStationStatus> getStationStatus(String stationId) {
+        HashMap<String, RadioStation> pool = radioStationPool.getPool();
+        if (pool.containsKey(stationId)) {
+            return Uni.createFrom().item(pool.get(stationId).getStatus());
+        }
+        return Uni.createFrom().item(RadioStationStatus.OFF_LINE);
+    }
+
+    public Uni<Boolean> stationExists(String stationId) {
+        return Uni.createFrom().item(radioStationPool.getPool().containsKey(stationId));
     }
 }

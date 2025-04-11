@@ -61,7 +61,7 @@ public class HLSPlaylist {
     private SegmentFeederTimer segmentFeederTimer;
     private final WindowSliderTimer windowSliderTimer;
     @Getter
-    private HLSSegmentStats stats;
+    private HLSPlaylistStats stats;
 
     public HLSPlaylist(
             SegmentFeederTimer segmentFeederTimer,
@@ -76,7 +76,7 @@ public class HLSPlaylist {
         this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
-        stats = new HLSSegmentStats(mainQueue);
+        stats = new HLSPlaylistStats(mainQueue);
         LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
     }
 

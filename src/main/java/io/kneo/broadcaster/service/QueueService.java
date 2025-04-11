@@ -39,7 +39,7 @@ public class QueueService {
         return getPlaylist(brandName)
                 .onItem().transformToUni(playlist -> {
                     if (playlist != null && playlist.getPlaylistManager() != null) {
-                        LinkedList<BrandSoundFragment> fragments = playlist.getPlaylistManager().getSegmentedAndReadyToConsume();
+                        LinkedList<BrandSoundFragment> fragments = playlist.getPlaylistManager().getSegmentedAndReadyToBeConsumed();
                         if (fragments.isEmpty()) {
                             return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                         }

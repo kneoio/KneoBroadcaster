@@ -49,6 +49,7 @@ public class RadioController {
                         },
                         throwable -> {
                             if (throwable instanceof RadioStationException) {
+                                LOGGER.warn("Radio station is not on-line for brand: {}", brand);
                                 rc.response()
                                         .setStatusCode(404)
                                         .putHeader("Content-Type", MediaType.TEXT_PLAIN)

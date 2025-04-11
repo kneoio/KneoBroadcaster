@@ -41,9 +41,6 @@ public class RadioService {
                 .onItem().transform(RadioStation::getPlaylist)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.PLAYLIST_NOT_AVAILABLE)
-                )
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Failed to get playlist for brand: {}", brand, failure)
                 );
     }
 

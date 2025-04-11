@@ -19,7 +19,7 @@ public class RadioStationException extends RuntimeException {
             this.defaultMessage = defaultMessage;
         }
 
-        }
+    }
 
     private final ErrorType errorType;
 

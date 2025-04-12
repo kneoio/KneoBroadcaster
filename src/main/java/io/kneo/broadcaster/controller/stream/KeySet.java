@@ -29,7 +29,7 @@ public class KeySet {
 
     private void initializeWindow(long startValue) {
         for (int i = 0; i < windowSize; i++) {
-            window[i] = new AtomicInteger((int) (startValue + (i * incrementStep)));
+            window[i] = new AtomicInteger((int) (startValue + (i * (windowSize > 1 ? DEFAULT_INCREMENT_STEP : 0))));
         }
     }
 
@@ -50,6 +50,10 @@ public class KeySet {
 
     public int next() {
         return windowSize > 1 ? window[1].get() : window[0].get();
+    }
+
+    public int future() {
+        return window[windowSize - 1].get() + incrementStep;
     }
 
     public int windowSize() {

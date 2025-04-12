@@ -23,6 +23,7 @@ public class StationStats {
     private RadioStationStatus status;
     @Getter
     private ManagedBy managedBy;
+    @Getter
     private PlaylistManagerStats playlistManagerStats;
     private SliderStats sliderStats;
     @Getter
@@ -33,6 +34,8 @@ public class StationStats {
     private List<Integer> segmentSizeHistory = new ArrayList<>();
     @Getter
     private long latestRequestedSeg;
+    @Getter
+    private List<Long[]> currentWindow;
 
     public String getNextScheduledTime() {
         return sliderStats.getScheduledTime().format(DateTimeFormatter.ofPattern("HH:mm:ss"));

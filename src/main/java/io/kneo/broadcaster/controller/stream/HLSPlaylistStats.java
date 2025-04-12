@@ -17,8 +17,8 @@ public class HLSPlaylistStats {
     public Map<Long, HLSSongStats> getSongStatistics() {
         return mainQueue.values().stream()
                 .map(range -> {
-                    String songName = range.fragment().getTitle();
-                    Collection<HlsSegment> songSegments = range.segments().values();
+                    String songName = range.getFragment().getTitle();
+                    Collection<HlsSegment> songSegments = range.getSegments().values();
 
                     int totalDuration = songSegments.stream().mapToInt(HlsSegment::getDuration).sum();
                     long totalSize = songSegments.stream().mapToLong(HlsSegment::getSize).sum();
@@ -26,8 +26,8 @@ public class HLSPlaylistStats {
                             (int) songSegments.stream().mapToInt(HlsSegment::getBitrate).average().orElse(0);
                     int requestCount = songRequestCounts.getOrDefault(songName, 0);
 
-                    return new AbstractMap.SimpleEntry<>(range.start(),
-                            new HLSSongStats(songName, range.start(), range.end(), songSegments.size(),
+                    return new AbstractMap.SimpleEntry<>(range.getStart(),
+                            new HLSSongStats(songName, range.getStart(), range.getEnd(), songSegments.size(),
                                     totalDuration, totalSize, avgBitrate, requestCount));
                 })
                 .sorted(Comparator.comparingLong(e -> e.getValue().getStart()))

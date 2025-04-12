@@ -35,7 +35,6 @@ public class HLSPlaylist {
     private final AtomicInteger rangeCounter = new AtomicInteger(0);
     private final AtomicLong currentSequence = new AtomicLong(0);
     private long latestRequestedSegment = 0;
-
     private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final AtomicBoolean windowSliderProcessingFlag = new AtomicBoolean(false);
     @Getter
@@ -88,23 +87,23 @@ public class HLSPlaylist {
         playlistManager = new PlaylistManager(this);
         playlistManager.start();
         LOGGER.info("Initializing maintenance for playlist: {}", brandName);
-        Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
+        Cancellable feeder = segmentFeederTimer.getTicker(brandName).subscribe().with(
                 timestamp -> {
                     LOGGER.debug("Feeder tick: {}", timestamp);
-                    segmentFeeder(brandName);
+                    feed();
                 },
                 error -> LOGGER.error("Timer subscription error for brand {}: {}", brandName, error.getMessage())
         );
-        Cancellable windowSlider = windowSliderTimer.getSliderTicker().subscribe().with(
+        Cancellable windowSlider = windowSliderTimer.getSliderTicker(brandName).subscribe().with(
                 timestamp -> {
                     LOGGER.debug("Slider tick: {}", timestamp);
-                    windowSlider();
+                    slide();
                 },
                 error -> LOGGER.error("Slider error", error)
         );
 
-        timerSubscriptions.put("slider" + brandName, windowSlider);
-        timerSubscriptions.put("feeder" + brandName, feeder);
+        timerSubscriptions.put("slider", windowSlider);
+        timerSubscriptions.put("feeder", feeder);
     }
 
     public String generatePlaylist() {
@@ -112,6 +111,7 @@ public class HLSPlaylist {
 
         PlaylistFragmentRange currentRange = mainQueue.get(keySet.current());
         PlaylistFragmentRange nextRange = mainQueue.get(keySet.next());
+        PlaylistFragmentRange futureRange = mainQueue.get(keySet.future()); // HERE'S YOUR FUCKING FUTURE()
 
         if (currentRange == null) {
             return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" +
@@ -127,15 +127,24 @@ public class HLSPlaylist {
                 .append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
                 .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
                 .append("#EXT-X-STREAM-INF:BANDWIDTH=64000\n")
-                .append("#EXT-X-MEDIA-SEQUENCE:").append(currentRange.start()).append("\n")
+                .append("#EXT-X-MEDIA-SEQUENCE:").append(currentRange.getStart()).append("\n")
                 .append("#EXT-X-PROGRAM-DATE-TIME:").append(getFormattedDateTime()).append("\n");
 
+        // Current segments
         appendSegments(playlist, currentRange, keySet.current());
 
+        // Next segments
         if (nextRange != null) {
             playlist.append("#EXT-X-DISCONTINUITY\n");
             appendSegments(playlist, nextRange, keySet.next());
         }
+
+        // Future segments - HERE'S WHAT YOU REALLY WANTED
+        if (futureRange != null) {
+            playlist.append("#EXT-X-DISCONTINUITY\n");
+            appendSegments(playlist, futureRange, keySet.future());
+        }
+
         return playlist.toString();
     }
 
@@ -147,19 +156,30 @@ public class HLSPlaylist {
                 return null;
             }
             String fragmentIdStr = matcher.group(2);
+            int fragmentId = Integer.parseInt(fragmentIdStr);
             latestRequestedSegment = Long.parseLong(matcher.group(3));
 
-            PlaylistFragmentRange range = mainQueue.get(Integer.parseInt(fragmentIdStr));
-            HlsSegment segment = range.segments().get(latestRequestedSegment);
+            PlaylistFragmentRange range = mainQueue.get(fragmentId);
+
+            if (range != null && fragmentId == keySet.current() && !range.getSegments().isEmpty()) {
+                long lastSequenceInCurrentRange = range.getSegments().lastKey();
+                long segmentsRemaining = lastSequenceInCurrentRange - latestRequestedSegment;
+                if (segmentsRemaining <= 5) {
+                    LOGGER.info("Approaching end of current range ({}), {} segments left. Triggering slide.", fragmentId, segmentsRemaining);
+                    slide();
+                }
+            }
+
+            HlsSegment segment = range.getSegments().get(latestRequestedSegment);
             if (segment != null) {
-                stats.setLastRequestedSegment(range.fragment().getTitle());
+                stats.setLastRequestedSegment(range.getFragment().getTitle());
             } else {
                 LOGGER.debug("Segment {} not found in fragment {}", latestRequestedSegment, fragmentIdStr);
             }
             return segment;
 
-        } catch (IllegalArgumentException e) {
-            LOGGER.warn("Malformed segment request: {}", segmentParam);
+        } catch (Exception e) {
+            LOGGER.warn("Error processing segment request '{}': {}", segmentParam, e.getMessage());
             return null;
         }
     }
@@ -168,9 +188,30 @@ public class HLSPlaylist {
         return latestRequestedSegment;
     }
 
+    public List<Long[]> getCurrentWindow() {
+        try {
+            return List.of(
+                    extractRange(keySet.current()),
+                    extractRange(keySet.next()),
+                    extractRange(keySet.future())
+            );
+        } catch (Exception e) {
+            return List.of(new Long[0], new Long[0], new Long[0]);
+        }
+    }
+
+    private Long[] extractRange(Object key) {
+        try {
+            Object entry = mainQueue != null ? mainQueue.get(key) : null;
+            return entry != null ? (Long[])entry.getClass().getMethod("getRange").invoke(entry) : new Long[0];
+        } catch (Exception e) {
+            return new Long[0];
+        }
+    }
+
     public void shutdown() {
         LOGGER.info("Shutting down playlist for: {}", brandName);
-        timerSubscriptions.forEach((brand, subscription) -> {
+        timerSubscriptions.forEach((key, subscription) -> { // Updated key name for clarity
             if (subscription != null) subscription.cancel();
         });
         timerSubscriptions.clear();
@@ -179,7 +220,7 @@ public class HLSPlaylist {
     }
 
     private void appendSegments(StringBuilder playlist, PlaylistFragmentRange range, int rangeKey) {
-        range.segments().forEach((seqKey, segment) -> {
+        range.getSegments().forEach((seqKey, segment) -> {
             playlist.append("#EXTINF:")
                     .append(segment.getDuration())
                     .append(",")
@@ -192,18 +233,18 @@ public class HLSPlaylist {
                     .append("_")
                     .append(seqKey)
                     .append(".ts\n");
-            recordSegmentSize(range.segments().size());
+            recordSegmentSize(range.getSegments().size());
         });
     }
 
-    private void segmentFeeder(String brandName) {
+    private void feed() {
         if (!processingFlags.computeIfAbsent(brandName, k -> new AtomicBoolean(false))
                 .compareAndSet(false, true)) {
             return;
         }
 
         try {
-            if (mainQueue.size() < 5) {
+            if (mainQueue.size() < 10) {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null) {
                     ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
@@ -219,30 +260,36 @@ public class HLSPlaylist {
                         long lastSequence = currentSequence.get() - 1;
                         mainQueue.put(rangeCounter.getAndIncrement(),
                                 new PlaylistFragmentRange(newSegments, firstSequence, lastSequence, fragment.getSoundFragment()));
-                        LOGGER.debug("Added fragment: {}", fragment.getSoundFragment().getMetadata());
+                        LOGGER.debug("Added fragment for brand {}: {}", brandName, fragment.getSoundFragment().getMetadata());
                     }
                 }
             }
         } catch (Exception e) {
-            LOGGER.error("Processing error for {}: {}", brandName, e.getMessage(), e);
+            LOGGER.error("Processing error for brand {}: {}", brandName, e.getMessage(), e);
         } finally {
             processingFlags.get(brandName).set(false);
         }
     }
 
-    private void windowSlider() {
+    private void slide() {
         if (!windowSliderProcessingFlag.compareAndSet(false, true)) {
             return;
         }
 
         try {
             int duration = getCurrentSegmentsDuration();
-            windowSliderTimer.updateSlideDelay(duration * 1000L);
-            mainQueue.remove(keySet.current());
+
+            // Set slide interval based on mainQueue size
+            if (mainQueue.isEmpty()) {
+                windowSliderTimer.setFixedSlideInterval(brandName, 60000); // 1 minute
+            } else {
+                windowSliderTimer.setFixedSlideInterval(brandName, 240000); // 4 minutes
+            }
+
+            mainQueue.get(keySet.current()).setStale(true);
             keySet.slide();
-            LOGGER.debug("Window slid. Next slide in {} seconds", duration);
         } catch (Exception e) {
-            LOGGER.error("Processing error for {}: {}", brandName, e.getMessage(), e);
+            LOGGER.error("Processing error for brand {}: {}", brandName, e.getMessage(), e);
         } finally {
             windowSliderProcessingFlag.set(false);
         }
@@ -260,8 +307,8 @@ public class HLSPlaylist {
 
         return Stream.of(current)
                 .filter(Objects::nonNull)
-                .filter(range -> range.segments() != null)
-                .flatMap(range -> range.segments().values().stream())
+                .filter(range -> range.getSegments() != null)
+                .flatMap(range -> range.getSegments().values().stream())
                 .filter(Objects::nonNull)
                 .mapToInt(HlsSegment::getDuration)
                 .sum();

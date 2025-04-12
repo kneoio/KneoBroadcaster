@@ -1,20 +1,17 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.HLSPlaylist;
-import io.kneo.broadcaster.controller.stream.HLSPlaylistStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.PoolStats;
-import io.kneo.broadcaster.dto.dashboard.StationStats;
+import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -38,39 +35,15 @@ public class DashboardService {
         poolStats.setWarmingStations((int) pool.values().stream()
                 .filter(station -> station.getStatus() == RadioStationStatus.WARMING_UP)
                 .count());
-        Map<String, StationStats> stationStats = pool.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> createStationStats(entry.getKey(), entry.getValue())
-                ));
+        List<StationEntry> stationStats = pool.values().stream()
+                .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE || station.getStatus() == RadioStationStatus.WARMING_UP)
+                .map(s -> new StationEntry(s.getSlugName()))
+                .collect(Collectors.toList());
         poolStats.setStations(stationStats);
      //   stats.addPeriodicTask(playlistManager.getTaskTimeline());
 
         return Uni.createFrom().item(poolStats);
     }
 
-    private StationStats createStationStats(String brand, RadioStation station) {
-        StationStats stationStats = new StationStats();
-        stationStats.setBrandName(brand);
-        stationStats.setStatus(station.getStatus());
-        stationStats.setManagedBy(station.getManagedBy());
 
-        if (station.getPlaylist() != null) {
-            HLSPlaylist playlist = station.getPlaylist();
-            PlaylistManager manager = playlist.getPlaylistManager();
-            stationStats.addPeriodicTask(manager.getTaskTimeline());
-            stationStats.setPlaylistManagerStats(manager.getStats());
-            stationStats.setSegmentSizeHistory(playlist.getSegmentSizeHistory());
-            HLSPlaylistStats hlsSegmentStats = playlist.getStats();
-            stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
-            stationStats.setSegmentsSize(hlsSegmentStats.getSegmentCount());
-            stationStats.setTotalBytesProcessed(hlsSegmentStats.getTotalBytesProcessed());
-            stationStats.setBitrate(hlsSegmentStats.getBitrate());
-            stationStats.setQueueSize(hlsSegmentStats.getQueueSize());
-        } else {
-            stationStats.setSegmentsSize(0);
-        }
-
-        return stationStats;
-    }
 }

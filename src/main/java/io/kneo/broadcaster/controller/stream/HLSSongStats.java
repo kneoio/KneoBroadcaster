@@ -4,6 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class HLSSongStats {
+    private final String title;
     private final int segmentCount;
     private final int totalDuration;
     private final long totalSize;
@@ -12,8 +13,9 @@ public class HLSSongStats {
     private final long start;
     private final long end;
 
-    public HLSSongStats(long start, long end, int segmentCount, int totalDuration,
+    public HLSSongStats(String title, long start, long end, int segmentCount, int totalDuration,
                         long totalSize, int averageBitrate, int requestCount) {
+        this.title = title;
         this.start = start;
         this.end = end;
         this.segmentCount = segmentCount;

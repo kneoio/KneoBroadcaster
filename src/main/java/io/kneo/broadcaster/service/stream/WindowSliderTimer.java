@@ -3,10 +3,10 @@ package io.kneo.broadcaster.service.stream;
 import io.smallrye.mutiny.Multi;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -27,9 +27,10 @@ public class WindowSliderTimer {
     private final AtomicReference<ScheduledFuture<?>> currentTask = new AtomicReference<>();
     private final AtomicLong nextSlideDelay = new AtomicLong(120_000); //after 120 sec. the first shift will happen
     private volatile Consumer<Long> tickConsumer;
+    @Getter
+    private ZonedDateTime scheduledTime;
 
     private final AtomicLong totalSlides = new AtomicLong(0);
-    private volatile Instant lastSlideTime;
 
     public Multi<Long> getSliderTicker() {
         return Multi.createFrom().emitter(emitter -> {
@@ -37,7 +38,6 @@ public class WindowSliderTimer {
 
             this.tickConsumer = tick -> {
                 totalSlides.incrementAndGet();
-                lastSlideTime = Instant.now();
                 emitter.emit(tick);
             };
 
@@ -56,7 +56,7 @@ public class WindowSliderTimer {
 
         long delay = nextSlideDelay.get();
         ZoneId zone = ZoneId.of("Europe/Lisbon");
-        ZonedDateTime scheduledTime = ZonedDateTime.now(zone).plusNanos(delay * 1_000_000L);
+        scheduledTime = ZonedDateTime.now(zone).plusNanos(delay * 1_000_000L);
 
         LOGGER.info("Scheduling next slide in {}ms (at {} local time)",
                 delay,
@@ -70,7 +70,6 @@ public class WindowSliderTimer {
             if (tickConsumer != null) {
                 tickConsumer.accept(System.currentTimeMillis());
             }
-           /// scheduleNextSlide();
         }, delay, TimeUnit.MILLISECONDS);
 
         currentTask.set(newTask);

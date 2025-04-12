@@ -38,7 +38,7 @@ public class DashboardController {
         });
 
         router.get("/api/ws/dashboard/station/:brand").handler(rc -> {
-            rc.request().toWebSocket().onSuccess(ws -> handleStationWebSocket(ws, rc.pathParam("brand")))
+            rc.request().toWebSocket().onSuccess(ws -> handleStation(ws, rc.pathParam("brand")))
                     .onFailure(err -> rc.fail(500, err));
         });
 
@@ -61,7 +61,7 @@ public class DashboardController {
         });
     }
 
-    private void handleStationWebSocket(ServerWebSocket webSocket, String brand) {
+    private void handleStation(ServerWebSocket webSocket, String brand) {
         String clientId = java.util.UUID.randomUUID().toString();
         webSocket.accept();
         connectedClients.put(clientId, webSocket);

@@ -34,9 +34,11 @@ public class HLSPlaylist {
     private final KeySet keySet = new KeySet();
     private final AtomicInteger rangeCounter = new AtomicInteger(0);
     private final AtomicLong currentSequence = new AtomicLong(0);
+    private long latestRequestedSegment = 0;
 
     private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
     private final AtomicBoolean windowSliderProcessingFlag = new AtomicBoolean(false);
+    @Getter
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
     @Getter
@@ -59,6 +61,7 @@ public class HLSPlaylist {
     private final HlsPlaylistConfig config;
     @Getter
     private SegmentFeederTimer segmentFeederTimer;
+    @Getter
     private final WindowSliderTimer windowSliderTimer;
     @Getter
     private HLSPlaylistStats stats;
@@ -100,8 +103,8 @@ public class HLSPlaylist {
                 error -> LOGGER.error("Slider error", error)
         );
 
-        timerSubscriptions.put(brandName, windowSlider);
-        timerSubscriptions.put(brandName, feeder);
+        timerSubscriptions.put("slider" + brandName, windowSlider);
+        timerSubscriptions.put("feeder" + brandName, feeder);
     }
 
     public String generatePlaylist() {
@@ -144,14 +147,14 @@ public class HLSPlaylist {
                 return null;
             }
             String fragmentIdStr = matcher.group(2);
-            long sequence = Long.parseLong(matcher.group(3));
+            latestRequestedSegment = Long.parseLong(matcher.group(3));
 
             PlaylistFragmentRange range = mainQueue.get(Integer.parseInt(fragmentIdStr));
-            HlsSegment segment = range.segments().get(sequence);
+            HlsSegment segment = range.segments().get(latestRequestedSegment);
             if (segment != null) {
                 stats.setLastRequestedSegment(range.fragment().getTitle());
             } else {
-                LOGGER.debug("Segment {} not found in fragment {}", sequence, fragmentIdStr);
+                LOGGER.debug("Segment {} not found in fragment {}", latestRequestedSegment, fragmentIdStr);
             }
             return segment;
 
@@ -159,6 +162,10 @@ public class HLSPlaylist {
             LOGGER.warn("Malformed segment request: {}", segmentParam);
             return null;
         }
+    }
+
+    public long getLatestRequestedSeg() {
+        return latestRequestedSegment;
     }
 
     public void shutdown() {

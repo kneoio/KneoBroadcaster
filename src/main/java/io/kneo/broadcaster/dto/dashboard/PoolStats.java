@@ -6,7 +6,6 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Getter
 @Setter
@@ -17,11 +16,12 @@ public class PoolStats {
     private int offlineStations;
     private int minimumSegments;
     private int slidingWindowSize;
-    private Map<String, StationStats> stations;
+    private List<StationEntry> stations;
 
     private List<SchedulerTaskTimeline> timelines = new ArrayList<>();
 
     public void addPeriodicTask(SchedulerTaskTimeline line){
         timelines.add(line);
     }
+
 }

@@ -6,6 +6,7 @@ import io.kneo.broadcaster.controller.stream.HLSPlaylistStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.stats.SliderStats;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.smallrye.mutiny.Uni;
@@ -24,11 +25,11 @@ public class StationDashboardService {
     @Inject
     HlsPlaylistConfig config;
 
-    public Uni<Optional<StationStats>> getStationStats(String stationId) {
+    public Uni<Optional<StationStats>> getStationStats(String brand) {
         HashMap<String, RadioStation> pool = radioStationPool.getPool();
-        if (pool.containsKey(stationId)) {
-            RadioStation station = pool.get(stationId);
-            StationStats stats = createStationStats(stationId, station);
+        if (pool.containsKey(brand)) {
+            RadioStation station = pool.get(brand);
+            StationStats stats = createStationStats(brand, station);
             return Uni.createFrom().item(Optional.of(stats));
         }
         return Uni.createFrom().item(Optional.empty());
@@ -42,18 +43,17 @@ public class StationDashboardService {
 
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
+            stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());
+            stationStats.setSliderStats(SliderStats.builder()
+                    .scheduledTime(playlist.getWindowSliderTimer()
+                            .getScheduledTime())
+                    .build());
             PlaylistManager manager = playlist.getPlaylistManager();
             stationStats.addPeriodicTask(manager.getTaskTimeline());
             stationStats.setPlaylistManagerStats(manager.getStats());
             stationStats.setSegmentSizeHistory(playlist.getSegmentSizeHistory());
             HLSPlaylistStats hlsSegmentStats = playlist.getStats();
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
-            stationStats.setSegmentsSize(hlsSegmentStats.getSegmentCount());
-            stationStats.setTotalBytesProcessed(hlsSegmentStats.getTotalBytesProcessed());
-            stationStats.setBitrate(hlsSegmentStats.getBitrate());
-            stationStats.setQueueSize(hlsSegmentStats.getQueueSize());
-        } else {
-            stationStats.setSegmentsSize(0);
         }
 
         return stationStats;

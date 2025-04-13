@@ -17,7 +17,6 @@
     import org.slf4j.LoggerFactory;
 
     import java.time.Duration;
-    import java.time.Instant;
     import java.time.ZoneId;
     import java.time.ZonedDateTime;
     import java.time.format.DateTimeFormatter;
@@ -70,8 +69,8 @@
         private final ExecutorService slideExecutor = Executors.newSingleThreadExecutor();
         private ZonedDateTime currentSegmentEndTime =  ZonedDateTime.now(LISBON_ZONE)
                 .plusMinutes(3);
-        @Getter
-        private final Map<SlideType, AtomicInteger> slideCounters = new EnumMap<>(SlideType.class);
+        private final Deque<SlideEvent> slideHistory = new ArrayDeque<>(20);
+        private final AtomicLong slideSequence = new AtomicLong(0);
 
         public HLSPlaylist(
                 SliderTimer sliderTimer,
@@ -90,8 +89,6 @@
             this.segmentationService = segmentationService;
             stats = new HLSPlaylistStats(mainQueue);
             LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
-            slideCounters.put(SlideType.TIMER, new AtomicInteger(0));
-            slideCounters.put(SlideType.EMERGENCY, new AtomicInteger(0));
         }
 
         public void initialize() {
@@ -107,16 +104,13 @@
                     error -> LOGGER.error("Feeder subscription error {}", error.getMessage())
             );
             Cancellable slider = sliderTimer.getTicker().subscribe().with(
-                    timestamp -> {
-                        LOGGER.debug("Slider tick: {}", timestamp);
-                        slide(timestamp, SlideType.TIMER);
-                    },
-                    error -> LOGGER.error("Slider subscription error", error)
+                    ts -> slide(SlideType.SCHEDULED_TIMER),
+                    error -> LOGGER.error("Timer error", error)
             );
             Cancellable janitor = janitorTimer.getTicker().subscribe().with(
                     timestamp -> {
                         LOGGER.debug("Janitor tick: {}", timestamp);
-                        clean();
+                        clean(2);
                     },
                     error -> LOGGER.error("Janitor subscription error {}", error.getMessage())
             );
@@ -178,7 +172,7 @@
                 long segmentsRemaining = range.getSegments().lastKey() - latestRequestedSegment;
                 if (segmentsRemaining <= 1) {
                     LOGGER.warn("Player starving! Only {} segments left. Triggering emergency slide.", segmentsRemaining);
-                    slideExecutor.execute(() -> slide(System.currentTimeMillis(), SlideType.EMERGENCY));
+                    slideExecutor.execute(() -> slide(SlideType.PLAYER_STARVATION));
                 }
 
                 HlsSegment segment = range.getSegments().get(latestRequestedSegment);
@@ -206,6 +200,10 @@
             });
             timerSubscriptions.clear();
             currentSequence.set(0);
+        }
+
+        public void manualSlide() {
+            slide(SlideType.MANUAL_OVERRIDE);
         }
 
         private void appendSegments(StringBuilder playlist, PlaylistFragmentRange range, int rangeKey) {
@@ -260,98 +258,146 @@
             }
         }
 
-        private void clean() {
-            if (mainQueue.isEmpty()) {
+        private void clean(int staleKeysToKeep) {
+            if (mainQueue.isEmpty() || staleKeysToKeep < 0) {
                 return;
             }
-
-            Integer newestStaleKey = null;
+            PriorityQueue<Integer> newestStaleKeysHeap = new PriorityQueue<>();
             Set<Integer> staleKeysToRemove = new HashSet<>();
 
             for (Map.Entry<Integer, PlaylistFragmentRange> entry : mainQueue.entrySet()) {
                 if (entry.getValue().isStale()) {
-                    if (newestStaleKey == null || entry.getKey() > newestStaleKey) {
-                        if (newestStaleKey != null) {
-                            staleKeysToRemove.add(newestStaleKey);
-                        }
-                        newestStaleKey = entry.getKey();
-                    } else {
+                    if (staleKeysToKeep == 0) {
                         staleKeysToRemove.add(entry.getKey());
+                    } else {
+                        if (newestStaleKeysHeap.size() < staleKeysToKeep) {
+                            newestStaleKeysHeap.offer(entry.getKey());
+                        } else if (entry.getKey() > newestStaleKeysHeap.peek()) {
+                            staleKeysToRemove.add(newestStaleKeysHeap.poll());
+                            newestStaleKeysHeap.offer(entry.getKey());
+                        } else {
+                            staleKeysToRemove.add(entry.getKey());
+                        }
                     }
                 }
             }
-
-            staleKeysToRemove.forEach(key -> {
-                mainQueue.remove(key);
-                LOGGER.debug("Removed stale fragment range with key: {}", key);
-            });
+            synchronized (mainQueue) {
+                staleKeysToRemove.forEach(key -> {
+                    mainQueue.remove(key);
+                    LOGGER.debug("Removed stale fragment range with key: {}", key);
+                });
+            }
         }
 
-        private void slide(long timestampMillis, SlideType slideType) {
+        private void slide(SlideType slideType) {
             if (!windowSliderProcessingFlag.compareAndSet(false, true)) {
-                LOGGER.trace("Slide skipped - already in progress (Type: {})", slideType);
                 return;
             }
 
             try {
                 ZonedDateTime now = ZonedDateTime.now(LISBON_ZONE);
-                ZonedDateTime timestamp = Instant.ofEpochMilli(timestampMillis).atZone(LISBON_ZONE);
-
-                // Handle emergency slides differently
-                if (slideType == SlideType.EMERGENCY) {
-                    LOGGER.warn("EMERGENCY SLIDE TRIGGERED at {}", now);
-                    performSlideOperations(now, slideType);
+                if (slideType == SlideType.PLAYER_STARVATION) {
+                    doSlide(now, slideType, Duration.ZERO);
                     return;
                 }
 
-                // Timer slide logic
-                if (currentSegmentEndTime == null) {
-                    LOGGER.warn("Initializing missing slide schedule");
-                    currentSegmentEndTime = now.plusSeconds(config.getSegmentDuration());
+                Duration timingError = currentSegmentEndTime != null
+                        ? Duration.between(currentSegmentEndTime, now)
+                        : Duration.ZERO;
+
+                 // - First time (null end time)
+                // - Within 5 second window (early/late)
+                // - Or extremely late (>5 sec)
+                if (currentSegmentEndTime == null ||
+                        timingError.abs().getSeconds() <= 5 ||
+                        timingError.toMinutes() > 1) {
+                    doSlide(now, slideType, timingError);
+                } else {
+                    LOGGER.warn("Slide skipped - {}ms remaining",
+                            timingError.negated().toMillis());
                 }
 
-                Duration remaining = Duration.between(now, currentSegmentEndTime);
-
-                // Allow slide if we're within 5 seconds of scheduled time (early or late)
-                if (remaining.abs().toMillis() <= 5000) {
-                    performSlideOperations(now, slideType);
-                }
-                // Handle late slides (more than 5 seconds)
-                else if (remaining.isNegative()) {
-                    LOGGER.warn("LATE SLIDE ({}ms overdue) - Type: {}",
-                            -remaining.toMillis(), slideType);
-                    performSlideOperations(now, slideType);
-                }
-                // Handle early attempts
-                else {
-                    LOGGER.warn("Slide called {}ms early - Type: {}",
-                            remaining.toMillis(), slideType);
-                }
-            } catch (Exception e) {
-                LOGGER.error("{} slide failed", slideType, e);
             } finally {
                 windowSliderProcessingFlag.set(false);
             }
         }
 
-        private void performSlideOperations(ZonedDateTime timestamp, SlideType slideType) {
-            // Mark current range as stale if exists
-            if (mainQueue.containsKey(keySet.current())) {
-                mainQueue.get(keySet.current()).setStale(true);
+        private void doSlide(ZonedDateTime now, SlideType slideType, Duration timingError) {
+            if (slideType != SlideType.PLAYER_STARVATION &&
+                    !mainQueue.isEmpty() &&
+                    keySet.current() == Collections.max(mainQueue.keySet())) {
+                LOGGER.debug("Already showing newest fragment {}", keySet.current());
+                return;
             }
 
-            // Update playlist window
-            keySet.slide();
+            // Get current state
+            int currentKey = keySet.current();
+            int nextKey = keySet.next();
+            int futureKey = keySet.future();
 
-            // Update tracking timestamps
-            currentSegmentEndTime = timestamp.plusSeconds(config.getSegmentDuration());
-            lastSlide = timestamp;
-            slideCounters.get(slideType).incrementAndGet();
+            // Simplified fragment access
+            PlaylistFragmentRange current = mainQueue.get((long)currentKey);
+            PlaylistFragmentRange next = mainQueue.get((long)nextKey);
+            PlaylistFragmentRange future = mainQueue.get((long)futureKey);
 
-            LOGGER.info("{} slide completed at {}. Next at {}",
+            // Create event with proper null checks
+            addToHistory(new SlideEvent(
                     slideType,
-                    timestamp.format(DateTimeFormatter.ISO_TIME),
-                    currentSegmentEndTime.format(DateTimeFormatter.ISO_TIME));
+                    now,
+                    slideSequence.incrementAndGet(),
+                    timingError,
+                    currentKey,
+                    current != null ? current.getStart() : -1,
+                    current != null ? current.getEnd() : -1,
+                    current != null ? current.getFragment().getId().toString() : "N/A",
+                    now,
+                    nextKey,
+                    next != null ? next.getStart() : -1,
+                    next != null ? next.getEnd() : -1,
+                    next != null ? next.getFragment().getId().toString() : "N/A",
+                    futureKey,
+                    future != null ? future.getStart() : -1,
+                    future != null ? future.getEnd() : -1,
+                    future != null ? future.getFragment().getId().toString() : "N/A"
+            ));
+
+            // Mark current as stale if exists
+            if (current != null) {
+                current.setStale(true);
+            }
+
+            // Perform slide
+            keySet.slide();
+            currentSegmentEndTime = now.plusSeconds(config.getSegmentDuration());
+            lastSlide = now;
+
+            // Log actual values that were stored
+            LOGGER.info("Slide executed: {} ({}ms {}) Current: {} [{}] Next: {} [{}] Future: {} [{}]",
+                    slideType,
+                    timingError.abs().toMillis(),
+                    timingError.isNegative() ? "early" : "late",
+                    currentKey,
+                    current != null ? current.getFragment().getId() : "MISSING",
+                    nextKey,
+                    next != null ? next.getFragment().getId() : "MISSING",
+                    futureKey,
+                    future != null ? future.getFragment().getId() : "MISSING"
+            );
+        }
+
+        private void addToHistory(SlideEvent event) {
+            synchronized(slideHistory) {
+                slideHistory.addLast(event);
+                if (slideHistory.size() > 20) {
+                    slideHistory.removeFirst();
+                }
+            }
+        }
+
+        public List<SlideEvent> getSlideHistory() {
+            synchronized(slideHistory) {
+                return new ArrayList<>(slideHistory);
+            }
         }
 
         private String getFormattedDateTime() {

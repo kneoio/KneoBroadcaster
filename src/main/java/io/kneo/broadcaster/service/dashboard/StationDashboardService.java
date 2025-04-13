@@ -40,9 +40,9 @@ public class StationDashboardService {
         stationStats.setBrandName(brand);
         stationStats.setStatus(station.getStatus());
         stationStats.setManagedBy(station.getManagedBy());
-
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
+            stationStats.setSlideHistory(playlist.getSlideHistory());
             stationStats.setLastSlide(playlist.getLastSlide());
             stationStats.setCurrentWindow(playlist.getKeySet(), playlist.getMainQueue());
             stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());

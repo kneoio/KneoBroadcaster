@@ -130,6 +130,25 @@ public class QueueController {
                                         .end("Failed to start radio station: " + throwable.getMessage());
                             }
                     );
+        } else if ("slide".equalsIgnoreCase(action)) {
+            LOGGER.info("Slide window for brand: {}", brand);
+            radioService.slide(brand)
+                    .subscribe().with(
+                            station -> {
+                                rc.response()
+                                        .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                        .putHeader("Access-Control-Allow-Origin", "*")
+                                        .setStatusCode(200)
+                                        .end("{\"status\":\"" + station.getStatus() + "}");
+                            },
+                            throwable -> {
+                                LOGGER.error("Error sliding for station: {}", throwable.getMessage());
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                        .end("Failed to slide for radio station: " + throwable.getMessage());
+                            }
+                    );
         } else if ("stop".equalsIgnoreCase(action)) {
             LOGGER.info("Stopping radio station for brand: {}", brand);
             radioService.stopStation(brand)

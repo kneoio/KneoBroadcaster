@@ -3,6 +3,7 @@ package io.kneo.broadcaster.dto.dashboard;
 import io.kneo.broadcaster.controller.stream.HLSSongStats;
 import io.kneo.broadcaster.controller.stream.KeySet;
 import io.kneo.broadcaster.controller.stream.PlaylistFragmentRange;
+import io.kneo.broadcaster.controller.stream.SlideEvent;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
@@ -39,6 +40,8 @@ public class StationStats {
     private Map<Integer, PlaylistFragmentRange> mainQueue;
     @Getter
     private ZonedDateTime lastSlide;
+    @Getter
+    private List<SlideEvent> slideHistory;
 
     public void addPeriodicTask(SchedulerTaskTimeline line){
         timelines.add(line);

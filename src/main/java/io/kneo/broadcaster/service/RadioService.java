@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -19,6 +19,13 @@ public class RadioService {
 
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
+        return radioStationPool.initializeStation(brand)
+                .onFailure().invoke(failure ->
+                        LOGGER.error("Failed to initialize station for brand: {}", brand, failure)
+                );
+    }
+
+    public Uni<RadioStation>  slide(String brand) {
         return radioStationPool.initializeStation(brand)
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to initialize station for brand: {}", brand, failure)

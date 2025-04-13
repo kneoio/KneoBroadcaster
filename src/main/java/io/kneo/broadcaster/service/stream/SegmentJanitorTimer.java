@@ -12,9 +12,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @ApplicationScoped
-public class SegmentFeederTimer {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SegmentFeederTimer.class);
-    private static final int DURATION_SEC = 30;
+public class SegmentJanitorTimer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SegmentJanitorTimer.class);
+    private static final int DURATION_SEC = 60;
     private Multi<Long> ticker;
     private Cancellable subscription;
 

@@ -22,7 +22,7 @@ public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final String SCHEDULED_TASK_ID = "playlist-manager-task";
     private static final int INTERVAL_SECONDS = 240;
-    private static final int READY_QUEUE_MAX_SIZE = 10;
+    private static final int READY_QUEUE_MAX_SIZE = 5;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 10;
 
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();

@@ -12,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Optional;
 
@@ -42,16 +43,14 @@ public class StationDashboardService {
 
         if (station.getPlaylist() != null) {
             HLSPlaylist playlist = station.getPlaylist();
+            stationStats.setLastSlide(playlist.getLastSlide());
+            stationStats.setCurrentWindow(playlist.getKeySet(), playlist.getMainQueue());
             stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());
+            stationStats.setSliderStats(SliderStats.builder().scheduledTime(ZonedDateTime.now()).build());
             stationStats.setCurrentWindow(playlist.getCurrentWindow());
-            stationStats.setSliderStats(SliderStats.builder()
-                    .scheduledTime(playlist.getWindowSliderTimer()
-                            .getScheduledTime(brand))
-                    .build());
             PlaylistManager manager = playlist.getPlaylistManager();
             stationStats.addPeriodicTask(manager.getTaskTimeline());
             stationStats.setPlaylistManagerStats(manager.getStats());
-            stationStats.setSegmentSizeHistory(playlist.getSegmentSizeHistory());
             HLSPlaylistStats hlsSegmentStats = playlist.getStats();
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
         }

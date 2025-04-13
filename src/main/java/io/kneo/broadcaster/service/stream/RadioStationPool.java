@@ -36,18 +36,22 @@ public class RadioStationPool {
     private SoundFragmentService soundFragmentService;
 
     @Inject
+    private SliderTimer sliderTimer;
+
+    @Inject
     private SegmentFeederTimer feederTimer;
 
     @Inject
-    private WindowSliderTimer sliderTimer;
+    private SegmentJanitorTimer janitorTimer;
 
     @Inject
     AudioSegmentationService segmentationService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
         HLSPlaylist playlist = new HLSPlaylist(
-                feederTimer,
                 sliderTimer,
+                feederTimer,
+                janitorTimer,
                 config,
                 soundFragmentService,
                 segmentationService,

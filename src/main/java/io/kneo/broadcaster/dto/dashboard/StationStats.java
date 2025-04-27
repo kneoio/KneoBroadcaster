@@ -51,8 +51,8 @@ public class StationStats {
         try {
             currentWindow = List.of(
                     extractRange(keySet.current()),
-                    extractRange(keySet.next()),
-                    extractRange(keySet.future())
+                    extractRange(keySet.next())
+                 //   extractRange(keySet.future())
             );
         } catch (Exception e) {
             currentWindow = List.of(new Long[0], new Long[0], new Long[0]);

@@ -52,9 +52,9 @@ public class KeySet {
         return windowSize > 1 ? window[1].get() : window[0].get();
     }
 
-    public int future() {
+   /* public int future() {
         return window[windowSize - 1].get() + incrementStep;
-    }
+    }*/
 
     public int windowSize() {
         return windowSize;

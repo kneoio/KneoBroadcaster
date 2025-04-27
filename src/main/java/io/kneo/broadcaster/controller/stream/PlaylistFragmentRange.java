@@ -11,14 +11,16 @@ public class PlaylistFragmentRange {
     private final ConcurrentNavigableMap<Long, HlsSegment> segments;
     private final long start;
     private final long end;
+    private final int duration;
     private final SoundFragment fragment;
     private ZonedDateTime staleTime;
     private boolean stale;
 
-    public PlaylistFragmentRange(ConcurrentNavigableMap<Long, HlsSegment> segments, long start, long end, SoundFragment fragment) {
+    public PlaylistFragmentRange(ConcurrentNavigableMap<Long, HlsSegment> segments, long start, long end, int duration, SoundFragment fragment) {
         this.segments = segments;
         this.start = start;
         this.end = end;
+        this.duration = duration;
         this.fragment = fragment;
     }
 
@@ -26,13 +28,15 @@ public class PlaylistFragmentRange {
         return segments.isEmpty();
     }
 
-    public Long[] getRange(){
-        return new Long[]{start, end};
-    }
-
     public void setStale(boolean stale) {
         this.stale = stale;
         staleTime = ZonedDateTime.now();
+    }
+
+    public int getDuration() {
+        return segments.values().stream()
+                .mapToInt(HlsSegment::getDuration)
+                .sum();
     }
 
     @Override

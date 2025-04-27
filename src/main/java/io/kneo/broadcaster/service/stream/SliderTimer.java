@@ -6,7 +6,7 @@ import java.time.Duration;
 
 @ApplicationScoped
 public class SliderTimer {
-    private static final int INTERVAL_SECONDS = 180;
+    public static final int INTERVAL_SECONDS = 60;
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
 
     public Multi<Long> getTicker() {

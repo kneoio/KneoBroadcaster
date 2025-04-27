@@ -29,7 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class HLSPlaylist {
-    private static final ZoneId LISBON_ZONE = ZoneId.of("Europe/Lisbon");
+    private static final ZoneId ZONE_ID = ZoneId.of("Europe/Lisbon");
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
     private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)_([0-9]+)\\.ts$");
     @Getter
@@ -67,8 +67,6 @@ public class HLSPlaylist {
     @Getter
     private HLSPlaylistStats stats;
     private final ExecutorService slideExecutor = Executors.newSingleThreadExecutor();
-    private ZonedDateTime currentSegmentEndTime = ZonedDateTime.now(LISBON_ZONE)
-            .plusMinutes(3);
     private final Deque<SlideEvent> slideHistory = new ArrayDeque<>(20);
     private final AtomicLong slideSequence = new AtomicLong(0);
 
@@ -104,7 +102,7 @@ public class HLSPlaylist {
                 error -> LOGGER.error("Feeder subscription error {}", error.getMessage())
         );
         Cancellable slider = sliderTimer.getTicker().subscribe().with(
-                ts -> slide(SlideType.SCHEDULED_TIMER),
+                ts -> slide(SlideType.SCHEDULED_TIMER, ts),
                 error -> LOGGER.error("Timer error", error)
         );
         Cancellable janitor = janitorTimer.getTicker().subscribe().with(
@@ -120,10 +118,9 @@ public class HLSPlaylist {
     }
 
     public String generatePlaylist() {
-        String programDateTime = getFormattedDateTime();
+        String programDateTime = getFormattedLastSlide();
         PlaylistFragmentRange currentRange = mainQueue.get(keySet.current());
         PlaylistFragmentRange nextRange = mainQueue.get(keySet.next());
-        PlaylistFragmentRange futureRange = mainQueue.get(keySet.future());
 
         if (currentRange == null) {
             return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" +
@@ -147,11 +144,6 @@ public class HLSPlaylist {
         if (nextRange != null) {
             appendSegments(playlist, nextRange, keySet.next());
         }
-
-        if (futureRange != null) {
-            appendSegments(playlist, futureRange, keySet.future());
-        }
-
         return playlist.toString();
     }
 
@@ -172,7 +164,7 @@ public class HLSPlaylist {
             long segmentsRemaining = range.getSegments().lastKey() - latestRequestedSegment;
             if (segmentsRemaining <= 1) {
                 LOGGER.warn("Player starving! Only {} segments left. Triggering emergency slide.", segmentsRemaining);
-                slideExecutor.execute(() -> slide(SlideType.PLAYER_STARVATION));
+                slideExecutor.execute(() -> slide(SlideType.PLAYER_STARVATION, 0));
             }
 
             HlsSegment segment = range.getSegments().get(latestRequestedSegment);
@@ -202,10 +194,6 @@ public class HLSPlaylist {
         currentSequence.set(0);
     }
 
-    public void manualSlide() {
-        slide(SlideType.MANUAL_OVERRIDE);
-    }
-
     private void appendSegments(StringBuilder playlist, PlaylistFragmentRange range, int rangeKey) {
         range.getSegments().forEach((seqKey, segment) -> {
             playlist.append("#EXTINF:")
@@ -229,24 +217,24 @@ public class HLSPlaylist {
             return;
         }
 
-
         try {
             if (mainQueue.size() < 10) {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null) {
                     ConcurrentNavigableMap<Long, HlsSegment> newSegments = new ConcurrentSkipListMap<>();
                     long firstSequence = currentSequence.get();
-
+                    AtomicInteger duration = new AtomicInteger();
                     fragment.getSegments().forEach(segment -> {
                         long sequence = currentSequence.getAndIncrement();
                         segment.setSequence(sequence);
                         newSegments.put(sequence, segment);
+                        duration.addAndGet(segment.getDuration());
                     });
 
                     if (!newSegments.isEmpty()) {
                         long lastSequence = currentSequence.get() - 1;
                         mainQueue.put(rangeCounter.getAndIncrement(),
-                                new PlaylistFragmentRange(newSegments, firstSequence, lastSequence, fragment.getSoundFragment()));
+                                new PlaylistFragmentRange(newSegments, firstSequence, lastSequence, duration.get(), fragment.getSoundFragment()));
                         LOGGER.debug("Added fragment for brand {}: {}", brandName, fragment.getSoundFragment().getMetadata());
                         radioStation.setStatus(RadioStationStatus.ON_LINE);
                     }
@@ -260,18 +248,15 @@ public class HLSPlaylist {
     }
 
     private void clean(int staleKeysToKeep) {
-        // Assumes mainQueue is a Map<Integer, PlaylistFragmentRange> accessible in the scope
-        // Assumes PlaylistFragmentRange has a boolean isStale() method
+        PriorityQueue<Integer> newestStaleKeysHeap;
+        Set<Integer> staleKeysToRemove;
 
-        PriorityQueue<Integer> newestStaleKeysHeap = null; // Init outside sync block if needed later, but populated inside
-        Set<Integer> staleKeysToRemove = null; // Init outside sync block if needed later, but populated inside
-
-        synchronized (mainQueue) { // Synchronize the entire operation if mainQueue is shared
+        synchronized (mainQueue) {
             if (mainQueue.isEmpty() || staleKeysToKeep < 0) {
                 return;
             }
-            newestStaleKeysHeap = new PriorityQueue<>(); // Initialize inside sync block
-            staleKeysToRemove = new HashSet<>(); // Initialize inside sync block
+            newestStaleKeysHeap = new PriorityQueue<>();
+            staleKeysToRemove = new HashSet<>();
 
             for (Map.Entry<Integer, PlaylistFragmentRange> entry : mainQueue.entrySet()) {
                 if (entry.getValue().isStale()) {
@@ -290,93 +275,66 @@ public class HLSPlaylist {
                 }
             }
 
-            // Removal part is already covered by the synchronized block
-            staleKeysToRemove.forEach(key -> {
-                mainQueue.remove(key);
-            });
+            staleKeysToRemove.forEach(mainQueue::remove);
         }
     }
 
-    private void slide(SlideType slideType) {
+    private void slide(SlideType slideType, long timestamp) {
         if (!windowSliderProcessingFlag.compareAndSet(false, true)) {
+            LOGGER.debug("Slide operation already in progress for {}, skipping.", brandName);
             return;
         }
         try {
+            ZonedDateTime now = ZonedDateTime.now(ZONE_ID);
 
-            long currentSeg = currentSequence.get();
-            long ls = getLastSegInRange();
-            if (ls >= currentSeg) {
-                return;
-            }
-
-
-            ZonedDateTime now = ZonedDateTime.now(LISBON_ZONE);
             if (slideType == SlideType.PLAYER_STARVATION) {
-                doSlide(now, slideType, Duration.ZERO);
+                LOGGER.warn("Executing emergency slide due to PLAYER_STARVATION request.");
+                //doSlide(now, slideType, Duration.ZERO);
+                //lastSlide = now;
+                lastSlide = lastSlide.minusSeconds(15);
                 return;
             }
 
-            Duration timingError = currentSegmentEndTime != null
-                    ? Duration.between(currentSegmentEndTime, now)
-                    : Duration.ZERO;
+            int currentKey = keySet.current();
+            PlaylistFragmentRange currentRange = mainQueue.get(currentKey);
 
-            // - First time (null end time)
-            // - Within 5 second window (early/late)
-            // - Or extremely late (>5 sec)
-            if (currentSegmentEndTime == null ||
-                    timingError.abs().getSeconds() <= 5 ||
-                    timingError.toMinutes() > 1) {
-                doSlide(now, slideType, timingError);
+            if (lastSlide == null) {
+                Duration gap = Duration.ofSeconds(0);
+                doSlide(now, slideType, gap);
+                lastSlide = now;
             } else {
-                LOGGER.warn("Slide skipped - {}ms remaining",
-                        timingError.negated().toMillis());
+                ZonedDateTime endOfTheLastFragment = lastSlide.plusSeconds(currentRange.getDuration());
+                if (now.isAfter(endOfTheLastFragment)) {
+                    Duration gap = Duration.between(endOfTheLastFragment, now);
+                    doSlide(now, slideType, gap);
+                    lastSlide = now;
+                }
             }
 
+        } catch (Exception e) {
+            LOGGER.error("Unexpected error during slide check (Type: {}): {}", slideType, e.getMessage(), e);
         } finally {
             windowSliderProcessingFlag.set(false);
         }
     }
 
-    private long getLastSegInRange() {
-        PlaylistFragmentRange range =  mainQueue.get(keySet.future());
-        if (range != null) {
-            return range.getEnd() - 1;
-        } else {
-            PlaylistFragmentRange range2 =  mainQueue.get(keySet.next());
-            if (range2 != null) {
-                return range2.getEnd() - 1;
-            } else {
-                return currentSequence.get() + 100;
-            }
-
-        }
-
-    }
-
-    private void doSlide(ZonedDateTime now, SlideType slideType, Duration timingError) {
-        if (slideType != SlideType.PLAYER_STARVATION &&
-                !mainQueue.isEmpty() &&
-                keySet.current() == Collections.max(mainQueue.keySet())) {
+    private void doSlide(ZonedDateTime now, SlideType slideType, Duration timeDiff) {
+        if (keySet.current() == Collections.max(mainQueue.keySet())) {
             LOGGER.debug("Already showing newest fragment {}", keySet.current());
             return;
         }
 
-        // Get current state
         int currentKey = keySet.current();
         int nextKey = keySet.next();
-        int futureKey = keySet.future();
 
-        // Simplified fragment access
-        PlaylistFragmentRange current = mainQueue.get((long) currentKey);
-        PlaylistFragmentRange next = mainQueue.get((long) nextKey);
-        PlaylistFragmentRange future = mainQueue.get((long) futureKey);
+        PlaylistFragmentRange current = mainQueue.get(currentKey);
+        PlaylistFragmentRange next = mainQueue.get(nextKey);
 
-        // Create event with proper null checks
         addToHistory(new SlideEvent(
                 slideType,
                 now,
                 slideSequence.incrementAndGet(),
-                timingError,
+                timeDiff,
                 currentKey,
                 current != null ? current.getStart() : -1,
                 current != null ? current.getEnd() : -1,
@@ -385,35 +343,14 @@ public class HLSPlaylist {
                 nextKey,
                 next != null ? next.getStart() : -1,
                 next != null ? next.getEnd() : -1,
-                next != null ? next.getFragment().getId().toString() : "N/A",
-                futureKey,
-                future != null ? future.getStart() : -1,
-                future != null ? future.getEnd() : -1,
-                future != null ? future.getFragment().getId().toString() : "N/A"
+                next != null ? next.getFragment().getId().toString() : "N/A"
         ));
 
-        // Mark current as stale if exists
         if (current != null) {
             current.setStale(true);
         }
 
-        // Perform slide
         keySet.slide();
-        currentSegmentEndTime = now.plusSeconds(config.getSegmentDuration());
-        lastSlide = now;
-
-        // Log actual values that were stored
-        LOGGER.info("Slide executed: {} ({}ms {}) Current: {} [{}] Next: {} [{}] Future: {} [{}]",
-                slideType,
-                timingError.abs().toMillis(),
-                timingError.isNegative() ? "early" : "late",
-                currentKey,
-                current != null ? current.getFragment().getId() : "MISSING",
-                nextKey,
-                next != null ? next.getFragment().getId() : "MISSING",
-                futureKey,
-                future != null ? future.getFragment().getId() : "MISSING"
-        );
     }
 
     private void addToHistory(SlideEvent event) {
@@ -431,8 +368,8 @@ public class HLSPlaylist {
         }
     }
 
-    private String getFormattedDateTime() {
-        return (lastSlide != null ? lastSlide : ZonedDateTime.now(LISBON_ZONE))
+    private String getFormattedLastSlide() {
+        return (lastSlide != null ? lastSlide : ZonedDateTime.now(ZONE_ID))
                 .format(DateTimeFormatter.ISO_INSTANT);
     }
 
@@ -440,8 +377,8 @@ public class HLSPlaylist {
         try {
             return List.of(
                     extractRange(keySet.current()),
-                    extractRange(keySet.next()),
-                    extractRange(keySet.future())
+                    extractRange(keySet.next())
+                    //  extractRange(keySet.future())
             );
         } catch (Exception e) {
             return List.of(new Long[0], new Long[0], new Long[0]);

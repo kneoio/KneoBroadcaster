@@ -7,7 +7,8 @@ public enum SlideType {
     SCHEDULED_TIMER("System Timer"),
     PLAYER_STARVATION("Low Buffer"),
     MANUAL_OVERRIDE("Manual Command"),
-    CATCHUP("Late Adjustment");
+    CATCHUP("Late Adjustment"),
+    ESTIMATED("Estimated");
 
     private final String triggerSource;
 

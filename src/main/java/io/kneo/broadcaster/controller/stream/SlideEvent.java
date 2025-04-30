@@ -20,9 +20,5 @@ public record SlideEvent(
         long nextRangeEnd,
         String nextFragmentId
 
-//        int futureKey,
-//       long futureRangeStart,
-//        long futureRangeEnd,
-//        String futureFragmentId
 ) {
 }

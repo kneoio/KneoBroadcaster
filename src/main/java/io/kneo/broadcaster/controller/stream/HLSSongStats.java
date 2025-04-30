@@ -12,9 +12,10 @@ public class HLSSongStats {
     private final int requestCount;
     private final long start;
     private final long end;
+    private final boolean isStale;
 
     public HLSSongStats(String title, long start, long end, int segmentCount, int totalDuration,
-                        long totalSize, int averageBitrate, int requestCount) {
+                        long totalSize, int averageBitrate, int requestCount, boolean isStale) {
         this.title = title;
         this.start = start;
         this.end = end;
@@ -23,5 +24,6 @@ public class HLSSongStats {
         this.totalSize = totalSize;
         this.averageBitrate = averageBitrate;
         this.requestCount = requestCount;
+        this.isStale = isStale;
     }
 }

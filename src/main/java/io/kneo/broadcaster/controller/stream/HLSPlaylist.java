@@ -32,6 +32,7 @@ public class HLSPlaylist {
     private static final ZoneId ZONE_ID = ZoneId.of("Europe/Lisbon");
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
     private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)_([0-9]+)\\.ts$");
+    private static final int SHORTEN_LAST_SLIDING_SEC = 60;
     @Getter
     private final Map<Integer, PlaylistFragmentRange> mainQueue = Collections.synchronizedMap(new LinkedHashMap<>());
     @Getter
@@ -291,23 +292,41 @@ public class HLSPlaylist {
                 LOGGER.warn("Executing emergency slide due to PLAYER_STARVATION request.");
                 //doSlide(now, slideType, Duration.ZERO);
                 //lastSlide = now;
-                lastSlide = lastSlide.minusSeconds(15);
+                lastSlide = lastSlide.minusSeconds(SHORTEN_LAST_SLIDING_SEC);
                 return;
             }
 
             int currentKey = keySet.current();
-            PlaylistFragmentRange currentRange = mainQueue.get(currentKey);
+            int nextKey = keySet.next();
+            PlaylistFragmentRange current = mainQueue.get(currentKey);
+            PlaylistFragmentRange next = mainQueue.get(nextKey);
 
             if (lastSlide == null) {
                 Duration gap = Duration.ofSeconds(0);
-                doSlide(now, slideType, gap);
+                doSlide(now, slideType, gap, currentKey, nextKey, current, next);
                 lastSlide = now;
             } else {
-                ZonedDateTime endOfTheLastFragment = lastSlide.plusSeconds(currentRange.getDuration());
+                ZonedDateTime endOfTheLastFragment = lastSlide.plusSeconds(current.getDuration());
                 if (now.isAfter(endOfTheLastFragment)) {
                     Duration gap = Duration.between(endOfTheLastFragment, now);
-                    doSlide(now, slideType, gap);
+                    doSlide(now, slideType, gap, currentKey, nextKey, current, next);
                     lastSlide = now;
+                } else {
+                    addToHistory(new SlideEvent(
+                            SlideType.ESTIMATED,
+                            endOfTheLastFragment,
+                            slideSequence.incrementAndGet(),
+                            Duration.ofSeconds(0),
+                            currentKey,
+                            current.getStart(),
+                            current.getEnd(),
+                            current.getFragment().getId().toString(),
+                            endOfTheLastFragment,
+                            nextKey,
+                            next != null ? next.getStart() : -1,
+                            next != null ? next.getEnd() : -1,
+                            next != null ? next.getFragment().getId().toString() : "N/A"
+                    ));
                 }
             }
 
@@ -318,17 +337,18 @@ public class HLSPlaylist {
         }
     }
 
-    private void doSlide(ZonedDateTime now, SlideType slideType, Duration timeDiff) {
+    private void doSlide(ZonedDateTime now,
+                         SlideType slideType,
+                         Duration timeDiff,
+                         int currentKey,
+                         int nextKey,
+                         PlaylistFragmentRange current,
+                         PlaylistFragmentRange next
+    ) {
         if (keySet.current() == Collections.max(mainQueue.keySet())) {
             LOGGER.debug("Already showing newest fragment {}", keySet.current());
             return;
         }
-
-        int currentKey = keySet.current();
-        int nextKey = keySet.next();
-
-        PlaylistFragmentRange current = mainQueue.get(currentKey);
-        PlaylistFragmentRange next = mainQueue.get(nextKey);
 
         addToHistory(new SlideEvent(
                 slideType,
@@ -355,6 +375,9 @@ public class HLSPlaylist {
 
     private void addToHistory(SlideEvent event) {
         synchronized (slideHistory) {
+            if (!slideHistory.isEmpty() && slideHistory.getLast().timestamp().equals(event.timestamp())) {
+                slideHistory.removeLast();
+            }
             slideHistory.addLast(event);
             if (slideHistory.size() > 20) {
                 slideHistory.removeFirst();

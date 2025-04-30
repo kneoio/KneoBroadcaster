@@ -28,7 +28,7 @@ public class HLSPlaylistStats {
 
                     return new AbstractMap.SimpleEntry<>(range.getStart(),
                             new HLSSongStats(songName, range.getStart(), range.getEnd(), songSegments.size(),
-                                    totalDuration, totalSize, avgBitrate, requestCount));
+                                    totalDuration, totalSize, avgBitrate, requestCount, range.isStale()));
                 })
                 .sorted(Comparator.comparingLong(e -> e.getValue().getStart()))
                 .collect(Collectors.toMap(

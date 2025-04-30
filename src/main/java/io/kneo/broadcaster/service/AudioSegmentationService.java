@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class AudioSegmentationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioSegmentationService.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
 
     FFmpegProvider ffmpeg;
 
@@ -118,9 +119,13 @@ public class AudioSegmentationService {
 
     public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {
         List<SegmentInfo> segments = new ArrayList<>();
-        String today = LocalDate.now().format(DATE_FORMATTER);
+        LocalDateTime now = LocalDateTime.now();
+        String today = now.format(DATE_FORMATTER);
+        String currentHour = now.format(HOUR_FORMATTER);
         String sanitizedSongName = sanitizeFileName(songMetadata);
-        Path songDir = Paths.get(outputDir, today, sanitizedSongName);
+
+        // Create directory structure: outputDir/yyyy-MM-dd/HH/songName/
+        Path songDir = Paths.get(outputDir, today, currentHour, sanitizedSongName);
 
         try {
             Files.createDirectories(songDir);

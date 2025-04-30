@@ -33,23 +33,6 @@ public class PlaylistFragmentRange {
         staleTime = ZonedDateTime.now();
     }
 
-    public int getDuration() {
-        return segments.values().stream()
-                .mapToInt(HlsSegment::getDuration)
-                .sum();
-    }
-
-    @Override
-    public String toString() {
-        return "PlaylistFragmentRange{" +
-                "segments=" + segments +
-                ", start=" + start +
-                ", end=" + end +
-                ", fragment=" + fragment +
-                ", stale=" + stale +
-                '}';
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -4,5 +4,6 @@ public enum RadioStationStatus {
     OFF_LINE,
     WARMING_UP,
     ON_LINE,
+    ON_LINE_WELL,
     SYSTEM_ERROR
 }

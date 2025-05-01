@@ -54,16 +54,15 @@ public class RadioStationPool {
                 janitorTimer,
                 config,
                 soundFragmentService,
-                segmentationService,
-                brandName
+                segmentationService
         );
-        playlist.initialize();
 
         return radioStationService.findByBrandName(brandName)
                 .onItem().invoke(station -> {
                     station.setPlaylist(playlist);
                     station.setStatus(RadioStationStatus.WARMING_UP);
                     playlist.setRadioStation(station);
+                    playlist.initialize();
                     pool.put(brandName, station);
                 })
                 .onItem().transformToUni(station -> Uni.createFrom().item(station));

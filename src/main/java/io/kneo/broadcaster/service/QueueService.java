@@ -1,14 +1,15 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.AudioMergerService;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -17,8 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,9 +38,9 @@ public class QueueService {
 
     public Uni<List<SoundFragmentDTO>> getQueueForBrand(String brandName) {
         return getPlaylist(brandName)
-                .onItem().transformToUni(playlist -> {
-                    if (playlist != null && playlist.getPlaylistManager() != null) {
-                        LinkedList<BrandSoundFragment> fragments = playlist.getPlaylistManager().getSegmentedAndReadyToBeConsumed();
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation != null && radioStation.getPlaylist() != null && radioStation.getPlaylist().getPlaylistManager() != null) {
+                        PriorityQueue<BrandSoundFragment> fragments = radioStation.getPlaylist().getPlaylistManager().getSegmentedAndReadyToBeConsumed();
                         if (fragments.isEmpty()) {
                             return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                         }
@@ -49,7 +50,7 @@ public class QueueService {
 
                         return Uni.join().all(unis).andCollectFailures();
                     } else {
-                        LOGGER.warn("Playlist or PlaylistManager not found for brand: {}", brandName);
+                        LOGGER.warn("RadioStation or Playlist not found for brand: {}", brandName);
                         return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                     }
                 })
@@ -78,16 +79,18 @@ public class QueueService {
                     }
 
                     return getPlaylist(brandName)
-                            .onItem().transformToUni(playlist -> {
-                                if (playlist != null && playlist.getPlaylistManager() != null) {
+                            .onItem().transformToUni(radioStation -> {
+                                if (radioStation != null) {
+                                    radioStation.setManagedBy(ManagedBy.AI_AGENT);
                                     BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                    brandSoundFragment.setId(soundFragment.getId());  //TODO Should we ?
+                                    brandSoundFragment.setId(soundFragment.getId());
                                     brandSoundFragment.setSoundFragment(soundFragment);
-                                    boolean result = playlist.getPlaylistManager().addFragmentToSlice(brandSoundFragment);
+                                    brandSoundFragment.setQueueNum(10);
+                                    boolean result = radioStation.getPlaylist().getPlaylistManager().addFragmentToSlice(brandSoundFragment);
                                     LOGGER.info("Added merged song to queue for brand {}: {}", brandName, soundFragment.getTitle());
                                     return Uni.createFrom().item(result);
                                 } else {
-                                    LOGGER.warn("Playlist not found for brand: {}", brandName);
+                                    LOGGER.warn("RadioStation or Playlist not found for brand: {}", brandName);
                                     return Uni.createFrom().item(false);
                                 }
                             });
@@ -98,18 +101,18 @@ public class QueueService {
                 });
     }
 
-    private Uni<HLSPlaylist> getPlaylist(String brand) {
+    private Uni<RadioStation> getPlaylist(String brand) {
         return radioStationPool.get(brand)
                 .onItem().transform(v -> {
-                    if (v == null || v.getPlaylist() == null) {
-                        LOGGER.warn("Station not initialized for brand: {}", brand);
+                    if (v == null) {
+                        LOGGER.warn("Station not found for brand: {}", brand);
                         throw new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE,
-                                String.format("Station not initialized for brand: %s", brand));
+                                String.format("Station not found for brand: %s", brand));
                     }
-                    return v.getPlaylist();
+                    return v;
                 })
                 .onFailure().invoke(failure ->
-                        LOGGER.error("Failed to get playlist for brand: {}", brand, failure)
+                        LOGGER.error("Failed to get station for brand: {}", brand, failure)
                 );
     }
 

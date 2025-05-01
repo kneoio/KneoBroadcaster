@@ -1,14 +1,16 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.dto.ConversationMemoryDTO;
 import io.kneo.broadcaster.model.ConversationMemory;
 import io.kneo.broadcaster.repository.ConversationMemoryRepository;
+import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MemoryService {
@@ -16,46 +18,74 @@ public class MemoryService {
     @Inject
     ConversationMemoryRepository repository;
 
-    public Uni<List<ConversationMemory>> getAll(int limit, int offset) {
-        return repository.getAll(limit, offset, null); // Assuming you might add user context later
+    public Uni<List<ConversationMemoryDTO>> getAll(int limit, int offset) {
+        return repository.getAll(limit, offset, null)
+                .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<List<ConversationMemory>> getByBrandId(UUID brandId, int limit, int offset) {
-        return repository.getByBrandId(brandId, limit, offset);
+    public Uni<List<ConversationMemoryDTO>> getByBrandId(String brand, int limit, int offset) {
+        return repository.getByBrandId(brand, limit, offset)
+                .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<ConversationMemory> getById(UUID id) {
-        return repository.findById(id);
+    public Uni<ConversationMemoryDTO> getById(UUID id) {
+        return repository.findById(id)
+                .onItem().ifNotNull().transform(this::mapEntityToDto);
     }
 
-    public Uni<ConversationMemory> create(ConversationMemory memory) {
-        return repository.insert(memory);
+    public Uni<ConversationMemoryDTO> upsert(UUID id, ConversationMemoryDTO dto, IUser user) {
+        ConversationMemory entity = mapDtoToEntity(dto);
+        Uni<ConversationMemory> operation;
+        if (id == null) {
+            operation = repository.insert(entity, user);
+        } else {
+            operation = repository.update(id, entity, user);
+        }
+        return operation.map(this::mapEntityToDto);
     }
 
-    public Uni<ConversationMemory> update(UUID id, ConversationMemory memory) {
-        return repository.update(id, memory);
-    }
 
     public Uni<Void> delete(UUID id) {
         return repository.delete(id)
-                .onItem().transform(count -> null); // Convert Integer to Void
+                .onItem().transformToUni(count -> Uni.createFrom().voidItem());
     }
 
-    public Uni<Void> archive(UUID id) {
-        return repository.archive(id)
-                .onItem().transform(count -> null); // Convert Integer to Void
+    public Uni<Object> deleteByBrand(String brand) {
+        return repository.deleteByBrand(brand)
+                .onItem().transformToUni(count -> Uni.createFrom().voidItem());
     }
 
-    // Additional business logic methods can be added here
-    public Uni<ConversationMemory> saveConversation(UUID brandId, String messageType, JsonObject content) {
-        ConversationMemory memory = new ConversationMemory();
-        memory.setBrandId(brandId);
-        memory.setMessageType(messageType);
-        memory.setContent(content);
-        return create(memory);
+    private List<ConversationMemoryDTO> mapEntityListToDtoList(List<ConversationMemory> entities) {
+        if (entities == null) {
+            return List.of();
+        }
+        return entities.stream()
+                .map(this::mapEntityToDto)
+                .collect(Collectors.toList());
     }
 
-    public Uni<List<ConversationMemory>> getRecentConversations(UUID brandId, int count) {
-        return getByBrandId(brandId, count, 0);
+    private ConversationMemoryDTO mapEntityToDto(ConversationMemory entity) {
+        if (entity == null) {
+            return null;
+        }
+        ConversationMemoryDTO dto = new ConversationMemoryDTO();
+        dto.setId(entity.getId());
+        dto.setBrand(entity.getBrand());
+        dto.setMessageType(entity.getMessageType());
+        dto.setContent(entity.getContent());
+        return dto;
     }
+
+    private ConversationMemory mapDtoToEntity(ConversationMemoryDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        ConversationMemory entity = new ConversationMemory();
+        entity.setBrand(dto.getBrand());
+        entity.setMessageType(dto.getMessageType());
+        entity.setContent(dto.getContent());
+        return entity;
+    }
+
+
 }

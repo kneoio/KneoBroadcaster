@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Getter
 public class BrandSoundFragment {
     private UUID id;
+    private int queueNum = 1000;
     private int playedByBrandCount;
     private LocalDateTime playedTime;
     private SoundFragment soundFragment;

@@ -18,6 +18,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,11 +41,11 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<List<ConversationMemory>> getByBrandId(UUID brandId, int limit, int offset) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand_id = $1" +
+    public Uni<List<ConversationMemory>> getByBrandId(String brand, int limit, int offset) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1" +
                 (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
         return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
+                .execute(Tuple.of(brand))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
@@ -61,16 +62,14 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<ConversationMemory> insert(ConversationMemory memory) {
+    public Uni<ConversationMemory> insert(ConversationMemory memory, IUser user) {
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (brand_id, created_date, last_modified, message_type, content, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id";
+                " (reg_date, author, last_mod_date, last_mod_user,brand, message_type, content, archived) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id";
 
-        LocalDateTime now = LocalDateTime.now();
-        Tuple params = Tuple.tuple()
-                .addUUID(memory.getBrandId())
-                .addLocalDateTime(now)
-                .addLocalDateTime(now)
+        LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+        Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
+                .addString(memory.getBrand())
                 .addString(memory.getMessageType())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
                 .addBoolean(memory.isArchived());
@@ -81,13 +80,14 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .onItem().transformToUni(this::findById);
     }
 
-    public Uni<ConversationMemory> update(UUID id, ConversationMemory memory) {
+    public Uni<ConversationMemory> update(UUID id, ConversationMemory memory, IUser user) {
         String sql = "UPDATE " + entityData.getTableName() +
-                " SET last_modified=$1, message_type=$2, content=$3, archived=$4 " +
-                "WHERE id=$5";
+                " SET last_mod_date=$1, last_mod_user=$2, message_type=$3, content=$4, archived=$5 " +
+                "WHERE id=$6";
 
         Tuple params = Tuple.tuple()
                 .addLocalDateTime(LocalDateTime.now())
+                .addLong(user.getId())
                 .addString(memory.getMessageType())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
                 .addBoolean(memory.isArchived())
@@ -108,10 +108,10 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .onItem().transform(RowSet::rowCount);
     }
 
-    public Uni<Integer> archive(UUID id) {
-        String sql = "UPDATE " + entityData.getTableName() + " SET archived=true WHERE id=$1";
+    public Uni<Object> deleteByBrand(String brand) {
+        String sql = "DELETE FROM " + entityData.getTableName() + " WHERE brand=$1";
         return client.preparedQuery(sql)
-                .execute(Tuple.of(id))
+                .execute(Tuple.of(brand))
                 .onItem().transform(RowSet::rowCount);
     }
 
@@ -122,11 +122,13 @@ public class ConversationMemoryRepository extends AsyncRepository {
     private ConversationMemory from(Row row) {
         ConversationMemory memory = new ConversationMemory();
         setDefaultFields(memory, row);
-        memory.setBrandId(row.getUUID("brand_id"));
+        memory.setBrand(row.getString("brand"));
         memory.setMessageType(row.getString("message_type"));
         memory.setContent(row.getJsonObject("content").mapTo(JsonObject.class));
         memory.setArchived(row.getBoolean("archived"));
 
         return memory;
     }
+
+
 }

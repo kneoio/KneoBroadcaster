@@ -2,7 +2,9 @@ package io.kneo.broadcaster.service.radio;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.AudioSegmentationService;
@@ -11,7 +13,9 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.PriorityQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -22,8 +26,8 @@ public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final String SCHEDULED_TASK_ID = "playlist-manager-task";
     private static final int INTERVAL_SECONDS = 240;
-    private static final int READY_QUEUE_MAX_SIZE = 5;
-    private static final int PROCESSED_QUEUE_MAX_SIZE = 10;
+    private static final int READY_QUEUE_MAX_SIZE = 3;
+    private static final int PROCESSED_QUEUE_MAX_SIZE = 5;
 
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
@@ -32,7 +36,8 @@ public class PlaylistManager {
     private final LinkedList<BrandSoundFragment> obtainedByHlsPlaylist = new LinkedList<>();
 
     @Getter
-    private final LinkedList<BrandSoundFragment> segmentedAndReadyToBeConsumed = new LinkedList<>();
+    //private final LinkedList<BrandSoundFragment> segmentedAndReadyToBeConsumed = new LinkedList<>();
+    private final PriorityQueue<BrandSoundFragment> segmentedAndReadyToBeConsumed = new PriorityQueue<>(Comparator.comparing(BrandSoundFragment::getQueueNum));
 
     @Getter
     private final String brand;
@@ -44,12 +49,14 @@ public class PlaylistManager {
     private final SoundFragmentService soundFragmentService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final AudioSegmentationService segmentationService;
+    private final RadioStation radioStation;
 
     public PlaylistManager(HLSPlaylist playlist) {
         this.config = playlist.getConfig();
         this.soundFragmentService = playlist.getSoundFragmentService();
         this.segmentationService = playlist.getSegmentationService();
-        this.brand = playlist.getBrandName();
+        this.radioStation = playlist.getRadioStation();
+        this.brand = radioStation.getSlugName();
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
         taskTimeline.registerTask(
                 SCHEDULED_TASK_ID,
@@ -58,8 +65,8 @@ public class PlaylistManager {
         );
     }
 
-    public void start() {
-        LOGGER.info("Starting PlaylistManager for brand: {}", brand);
+    public void startSelfManaging() {
+        LOGGER.info("Starting self manging PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 // Only add fragments if we have space in the ready queue
@@ -80,11 +87,12 @@ public class PlaylistManager {
     public boolean addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
         readyFragmentsLock.writeLock().lock();
         try {
-            // Don't add if queue is full
             if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
                 LOGGER.debug("Cannot add fragment - ready queue is full ({} items)",
                         READY_QUEUE_MAX_SIZE);
                 return false;
+            } else {
+                radioStation.setStatus(RadioStationStatus.ON_LINE_WELL);
             }
 
             brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
@@ -104,6 +112,9 @@ public class PlaylistManager {
             if (!segmentedAndReadyToBeConsumed.isEmpty()) {
                 BrandSoundFragment nextFragment = segmentedAndReadyToBeConsumed.poll();
                 moveFragmentToProcessedList(nextFragment);
+                if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
+                    radioStation.setStatus(RadioStationStatus.ON_LINE);
+                }
                 return nextFragment;
             }
             return null;

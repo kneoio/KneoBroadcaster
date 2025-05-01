@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
@@ -12,7 +13,6 @@ import io.kneo.broadcaster.service.stream.SegmentJanitorTimer;
 import io.kneo.broadcaster.service.stream.SliderTimer;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,8 +20,21 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,11 +59,8 @@ public class HLSPlaylist {
     private ZonedDateTime lastSlide;
     @Getter
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
-    @Setter
-    private RadioStation radioStation;
     @Getter
-    @Setter
-    private String brandName;
+    private RadioStation radioStation;
     @Getter
     private final SoundFragmentService soundFragmentService;
     @Getter
@@ -77,24 +87,20 @@ public class HLSPlaylist {
             SegmentJanitorTimer janitorTimer,
             HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
-            AudioSegmentationService segmentationService,
-            String brandName) {
+            AudioSegmentationService segmentationService) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
         this.janitorTimer = janitorTimer;
         this.config = config;
-        this.brandName = brandName;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
         stats = new HLSPlaylistStats(mainQueue);
-        LOGGER.info("Created HLSPlaylist for brand: {}", brandName);
     }
 
     public void initialize() {
-        LOGGER.info("New broadcast initialized for {}", brandName);
+        LOGGER.info("New broadcast initialized for {}",  radioStation.getSlugName());
         playlistManager = new PlaylistManager(this);
-        playlistManager.start();
-        LOGGER.info("Initializing maintenance for playlist: {}", brandName);
+        LOGGER.info("Initializing maintenance for playlist: {}",  radioStation.getSlugName());
         Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
                 timestamp -> {
                     LOGGER.debug("Feeder tick: {}", timestamp);
@@ -116,6 +122,17 @@ public class HLSPlaylist {
         timerSubscriptions.put("feeder", feeder);
         timerSubscriptions.put("slider", slider);
         timerSubscriptions.put("janitor", janitor);
+    }
+
+    public void setRadioStation(RadioStation radioStation) {
+        if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
+            playlistManager.startSelfManaging();
+            radioStation.setStatus(RadioStationStatus.WARMING_UP);
+        } else {
+            radioStation.setStatus(RadioStationStatus.WARMING_UP);
+        }
+
+        this.radioStation = radioStation;
     }
 
     public String generatePlaylist() {
@@ -187,8 +204,8 @@ public class HLSPlaylist {
     }
 
     public void shutdown() {
-        LOGGER.info("Shutting down playlist for: {}", brandName);
-        timerSubscriptions.forEach((key, subscription) -> { // Updated key name for clarity
+        LOGGER.info("Shutting down playlist for: {}", radioStation.getSlugName());
+        timerSubscriptions.forEach((key, subscription) -> {
             if (subscription != null) subscription.cancel();
         });
         timerSubscriptions.clear();
@@ -203,7 +220,7 @@ public class HLSPlaylist {
                     .append(segment.getSongName())
                     .append("\n")
                     .append("segments/")
-                    .append(brandName)
+                    .append(radioStation.getSlugName())
                     .append("_")
                     .append(rangeKey)
                     .append("_")
@@ -213,7 +230,7 @@ public class HLSPlaylist {
     }
 
     private void feed() {
-        if (!processingFlags.computeIfAbsent(brandName, k -> new AtomicBoolean(false))
+        if (!processingFlags.computeIfAbsent(radioStation.getSlugName(), k -> new AtomicBoolean(false))
                 .compareAndSet(false, true)) {
             return;
         }
@@ -236,15 +253,15 @@ public class HLSPlaylist {
                         long lastSequence = currentSequence.get() - 1;
                         mainQueue.put(rangeCounter.getAndIncrement(),
                                 new PlaylistFragmentRange(newSegments, firstSequence, lastSequence, duration.get(), fragment.getSoundFragment()));
-                        LOGGER.debug("Added fragment for brand {}: {}", brandName, fragment.getSoundFragment().getMetadata());
+                        LOGGER.debug("Added fragment for brand {}: {}", radioStation.getSlugName(), fragment.getSoundFragment().getMetadata());
                         radioStation.setStatus(RadioStationStatus.ON_LINE);
                     }
                 }
             }
         } catch (Exception e) {
-            LOGGER.error("Processing error for brand {}: {}", brandName, e.getMessage(), e);
+            LOGGER.error("Processing error for brand {}: {}", radioStation.getSlugName(), e.getMessage(), e);
         } finally {
-            processingFlags.get(brandName).set(false);
+            processingFlags.get(radioStation.getSlugName()).set(false);
         }
     }
 
@@ -282,7 +299,7 @@ public class HLSPlaylist {
 
     private void slide(SlideType slideType, long timestamp) {
         if (!windowSliderProcessingFlag.compareAndSet(false, true)) {
-            LOGGER.debug("Slide operation already in progress for {}, skipping.", brandName);
+            LOGGER.debug("Slide operation already in progress for {}, skipping.", radioStation.getSlugName());
             return;
         }
         try {

@@ -13,6 +13,7 @@ import jakarta.inject.Inject;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -31,9 +32,12 @@ public class AiHelperController {
         router.route().handler(BodyHandler.create());
         router.get("/api/ai/brands/status").handler(this::handleGetBrandsByStatus);
 
-        router.get("/api/ai/memory/:brand").handler(this::handleGetMemory);
-        router.post("/api/ai/memory/:brand").handler(this::handleSaveMemory);
-        router.delete("/api/ai/memory/:brand").handler(this::handleClearMemory);
+        // Memory endpoints
+        router.get("/api/ai/memory/brand/:brandId").handler(this::handleGetMemoriesByBrand);
+        router.get("/api/ai/memory/:id").handler(this::handleGetMemory);
+        router.post("/api/ai/memory").handler(this::handleCreateMemory);
+        router.put("/api/ai/memory/:id").handler(this::handleUpdateMemory);
+        router.delete("/api/ai/memory/:id").handler(this::handleDeleteMemory);
     }
 
     private void handleGetBrandsByStatus(RoutingContext rc) {
@@ -70,44 +74,103 @@ public class AiHelperController {
         }
     }
 
+    private void handleGetMemoriesByBrand(RoutingContext rc) {
+        try {
+            UUID brandId = UUID.fromString(rc.pathParam("brandId"));
+            int limit = rc.queryParam("limit").isEmpty() ? 10 : Integer.parseInt(rc.queryParam("limit").get(0));
+            int offset = rc.queryParam("offset").isEmpty() ? 0 : Integer.parseInt(rc.queryParam("offset").get(0));
+
+            memoryService.getByBrandId(brandId, limit, offset)
+                    .subscribe().with(
+                            memories -> rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(Json.encode(memories)),
+                            failure -> rc.response()
+                                    .setStatusCode(404)
+                                    .end(failure.getMessage())
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .end("Invalid UUID format or pagination parameters");
+        }
+    }
+
     private void handleGetMemory(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        memoryService.getMemory(brand)
-                .subscribe().with(
-                        memory -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encode(memory)),
-                        failure -> rc.response()
-                                .setStatusCode(404)
-                                .end(failure.getMessage())
-                );
+        try {
+            UUID id = UUID.fromString(rc.pathParam("id"));
+            memoryService.getById(id)
+                    .subscribe().with(
+                            memory -> rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(Json.encode(memory)),
+                            failure -> rc.response()
+                                    .setStatusCode(404)
+                                    .end(failure.getMessage())
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .end("Invalid UUID format");
+        }
     }
 
-    private void handleSaveMemory(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        ConversationMemory memory = rc.body().asJsonObject().mapTo(ConversationMemory.class);
-
-        memoryService.saveMemory(brand, memory)
-                .subscribe().with(
-                        saved -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encode(saved)),
-                        failure -> rc.response()
-                                .setStatusCode(400)
-                                .end(failure.getMessage())
-                );
+    private void handleCreateMemory(RoutingContext rc) {
+        try {
+            ConversationMemory memory = rc.body().asJsonObject().mapTo(ConversationMemory.class);
+            memoryService.create(memory)
+                    .subscribe().with(
+                            created -> rc.response()
+                                    .setStatusCode(201)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(Json.encode(created)),
+                            failure -> rc.response()
+                                    .setStatusCode(400)
+                                    .end(failure.getMessage())
+                    );
+        } catch (Exception e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .end("Invalid request body");
+        }
     }
 
-    private void handleClearMemory(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        memoryService.clearMemory(brand)
-                .subscribe().with(
-                        cleared -> rc.response()
-                                .setStatusCode(204)
-                                .end(),
-                        failure -> rc.response()
-                                .setStatusCode(400)
-                                .end(failure.getMessage())
-                );
+    private void handleUpdateMemory(RoutingContext rc) {
+        try {
+            UUID id = UUID.fromString(rc.pathParam("id"));
+            ConversationMemory memory = rc.body().asJsonObject().mapTo(ConversationMemory.class);
+            memoryService.update(id, memory)
+                    .subscribe().with(
+                            updated -> rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(Json.encode(updated)),
+                            failure -> rc.response()
+                                    .setStatusCode(400)
+                                    .end(failure.getMessage())
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .end("Invalid UUID format or request body");
+        }
+    }
+
+    private void handleDeleteMemory(RoutingContext rc) {
+        try {
+            UUID id = UUID.fromString(rc.pathParam("id"));
+            memoryService.delete(id)
+                    .subscribe().with(
+                            deleted -> rc.response()
+                                    .setStatusCode(204)
+                                    .end(),
+                            failure -> rc.response()
+                                    .setStatusCode(400)
+                                    .end(failure.getMessage())
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .end("Invalid UUID format");
+        }
     }
 }

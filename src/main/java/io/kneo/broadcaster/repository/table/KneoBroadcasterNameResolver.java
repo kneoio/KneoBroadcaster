@@ -8,6 +8,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     public static final String LISTENER = "listener";
     public static final String RADIO_STATION = "radio station";
     public static final String PROFILE = "profile";
+    public static final String MEMORY = "memory";
 
     private static final String SOUND_FRAGMENT_TABLE_NAME = "kneobroadcaster__sound_fragments";
     private static final String SOUND_FRAGMENT_ACCESS_TABLE_NAME = "kneobroadcaster__sound_fragment_readers";
@@ -18,6 +19,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     private static final String RADIO_STATION_ACCESS_TABLE_NAME = "kneobroadcaster__brand_readers";
     private static final String PROFILE_TABLE_NAME = "kneobroadcaster__profiles";
     private static final String PROFILE_ACCESS_TABLE_NAME = "kneobroadcaster__profile_readers";
+    private static final String MEMORY_TABLE_NAME = "kneobroadcaster__conversation_memory";
 
     public EntityData getEntityNames(String type) {
         return switch (type) {
@@ -38,6 +40,9 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
             case PROFILE -> new EntityData(
                     PROFILE_TABLE_NAME,
                     PROFILE_ACCESS_TABLE_NAME
+            );
+            case MEMORY -> new EntityData(
+                    MEMORY_TABLE_NAME
             );
             default -> super.getEntityNames(type);
         };

@@ -1,62 +1,37 @@
 package io.kneo.broadcaster.service.stream;
 
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 
+@Getter
 @ApplicationScoped
 public class FileJanitorTimer {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileJanitorTimer.class);
-    private static final int DURATION_SEC = 360;
-    private Multi<Long> ticker;
-    private Cancellable subscription;
+    private static final int DURATION_SEC = 360; // 6 minutes
+    private final Multi<Long> ticker;
 
-    private Multi<Long> createTicker() {
-        LOGGER.info("Creating Timer with duration: {}s", DURATION_SEC);
-        Instant now = Instant.now();
-        long secondsUntilNextBoundary = DURATION_SEC - (now.getEpochSecond() % DURATION_SEC);
-        Instant nextBoundary = now.plusSeconds((int) secondsUntilNextBoundary)
-                .truncatedTo(ChronoUnit.SECONDS);
-
-        long initialDelayMillis = nextBoundary.toEpochMilli() - now.toEpochMilli();
-        Multi<Long> ticker = Multi.createFrom().ticks()
-                .startingAfter(Duration.ofMillis(initialDelayMillis))
-                .every(Duration.ofSeconds(DURATION_SEC))
-                .onOverflow().drop()
-                .map(tick -> {
-                    long currentTimestamp = Instant.now().getEpochSecond();
-                    return currentTimestamp - (currentTimestamp % DURATION_SEC);
-                })
-                .broadcast().toAllSubscribers();
-
-        subscription = ticker.subscribe().with(
-                timestamp -> LOGGER.debug("Timer tick: timestamp={}", timestamp),
-                throwable -> LOGGER.error("Timer error", throwable)
-        );
-        return ticker;
+    public FileJanitorTimer() {
+        this.ticker = createTicker();
+        LOGGER.info("FileJanitorTimer initialized with {}s interval", DURATION_SEC);
     }
 
-    public Multi<Long> getTicker() {
-        if (ticker == null) {
-            ticker = createTicker();
-        }
-        return ticker;
+    private Multi<Long> createTicker() {
+        return Multi.createFrom().ticks()
+                .startingAfter(Duration.ZERO) // First tick immediately
+                .every(Duration.ofSeconds(DURATION_SEC))
+                .onOverflow().drop()
+                .onSubscription().invoke(sub -> LOGGER.debug("New subscriber connected"))
+                .onItem().invoke(tick -> LOGGER.debug("Timer tick #{}", tick));
     }
 
     @PreDestroy
     void cleanup() {
-        LOGGER.info("Shutting down SegmentFeederTimer");
-        if (subscription != null) {
-            LOGGER.debug("Cancelling subscription");
-            subscription.cancel();
-        }
-        LOGGER.info("SegmentFeederTimer shutdown complete.");
+        LOGGER.info("Shutting down FileJanitorTimer");
     }
 }

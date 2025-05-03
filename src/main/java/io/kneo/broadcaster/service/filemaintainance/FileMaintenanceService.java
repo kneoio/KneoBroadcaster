@@ -63,6 +63,8 @@ public class FileMaintenanceService {
     }
 
     void onStart(@Observes StartupEvent event) {
+        LOGGER.info("Starting initial cleanup of output directories.");
+        cleanAllPaths(-1L);
         startCleanupTask();
     }
 
@@ -134,7 +136,6 @@ public class FileMaintenanceService {
             }
         }
         try {
-            // Use one of the paths to update disk space, assuming they are on the same filesystem
             if (!outputDirs.isEmpty()) {
                 updateDiskSpace(Path.of(outputDirs.get(0)));
             }
@@ -210,7 +211,7 @@ public class FileMaintenanceService {
 
     public FileMaintenanceStats getStats() {
         try {
-             if (!outputDirs.isEmpty()) {
+            if (!outputDirs.isEmpty()) {
                 updateDiskSpace(Path.of(outputDirs.get(0)));
             }
         } catch (IOException e) {

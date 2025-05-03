@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.dto.AbstractDTO;
-
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -18,6 +18,7 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 public class SoundFragmentDTO extends AbstractDTO {
+    @Builder.Default
     private SourceType source = SourceType.LOCAL;
     private Integer status;
     private String localPath;

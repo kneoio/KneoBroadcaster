@@ -26,7 +26,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     private RadioStationService radioStationService;
 
     protected ListenerService() {
-        super(null, null);
+        super();
         this.repository = null;
         this.validator = null;
     }

@@ -1,9 +1,9 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.manipulation;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
+import io.kneo.broadcaster.model.SegmentInfo;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
@@ -75,7 +75,6 @@ public class AudioSegmentationService {
             for (File file : files) {
                 if (file.isDirectory()) {
                     cleanRecursively(file, false);
-                    // Delete empty directories except the root
                     if (file.listFiles() == null || file.listFiles().length == 0) {
                         file.delete();
                     }

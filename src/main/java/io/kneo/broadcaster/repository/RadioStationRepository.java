@@ -2,6 +2,7 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -120,6 +121,8 @@ public class RadioStationRepository extends AsyncRepository {
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
+        JsonObject aiAgentObject = row.getJsonObject("ai_agent");
+        doc.setAiAgent(aiAgentObject.mapTo(AiAgent.class));
 
         UUID profileId = row.getUUID("profile_id");
         if (profileId != null) {

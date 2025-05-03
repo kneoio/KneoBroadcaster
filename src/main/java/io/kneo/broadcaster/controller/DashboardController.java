@@ -78,7 +78,7 @@ public class DashboardController {
 
     private void sendDashboardData(ServerWebSocket webSocket) {
         ViewPage viewPage = createBaseViewPage();
-        dashboardService.getPoolInfo()
+        dashboardService.getInfo()
                 .subscribe().with(
                         poolStats -> {
                             viewPage.addPayload("Stats", poolStats);
@@ -106,7 +106,7 @@ public class DashboardController {
 
     private void getDashboard(RoutingContext rc) {
         ViewPage viewPage = createBaseViewPage();
-        dashboardService.getPoolInfo()
+        dashboardService.getInfo()
                 .subscribe().with(
                         poolStats -> {
                             viewPage.addPayload("Stats", poolStats);

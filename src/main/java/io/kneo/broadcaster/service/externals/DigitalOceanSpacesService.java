@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.externals;
 
 import io.kneo.broadcaster.config.DOConfig;
 import io.smallrye.mutiny.Uni;

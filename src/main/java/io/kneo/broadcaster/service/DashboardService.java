@@ -2,9 +2,11 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.dashboard.PoolStats;
+import io.kneo.broadcaster.dto.dashboard.Stats;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.stats.ConfigurationStats;
+import io.kneo.broadcaster.service.filemaintainance.FileMaintenanceService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,27 +25,35 @@ public class DashboardService {
     @Inject
     RadioStationPool radioStationPool;
 
-    public Uni<PoolStats> getPoolInfo() {
+    @Inject
+    FileMaintenanceService fileMaintenanceService;
+
+    @Inject
+    ConfigurationStats configurationStats;
+
+    public Uni<Stats> getInfo() {
         HashMap<String, RadioStation> pool = radioStationPool.getPool();
-        PoolStats poolStats = new PoolStats();
-        poolStats.setTotalStations(pool.size()); //TODO temporary
-        poolStats.setMinimumSegments(config.getMinSegments());
-        poolStats.setSlidingWindowSize(config.getMaxSegments());
-        poolStats.setOnlineStations((int) pool.values().stream()
-                .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE)
+        Stats stats = new Stats();
+        stats.setTotalStations(pool.size()); //TODO temporary
+        stats.setMinimumSegments(config.getMinSegments());
+        stats.setSlidingWindowSize(config.getMaxSegments());
+        stats.setOnlineStations((int) pool.values().stream()
+                .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE || station.getStatus() == RadioStationStatus.ON_LINE_WELL)
                 .count());
-        poolStats.setWarmingStations((int) pool.values().stream()
+        stats.setWarmingStations((int) pool.values().stream()
                 .filter(station -> station.getStatus() == RadioStationStatus.WARMING_UP)
                 .count());
         List<StationEntry> stationStats = pool.values().stream()
-                .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE || station.getStatus() == RadioStationStatus.WARMING_UP)
+                .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE
+                        || station.getStatus() == RadioStationStatus.ON_LINE_WELL
+                        || station.getStatus() == RadioStationStatus.WARMING_UP
+                )
                 .map(s -> new StationEntry(s.getSlugName()))
                 .collect(Collectors.toList());
-        poolStats.setStations(stationStats);
-     //   stats.addPeriodicTask(playlistManager.getTaskTimeline());
+        stats.setStations(stationStats);
+        stats.setFileMaintenanceStats(fileMaintenanceService.getStats());
+        stats.setConfigurationStats(configurationStats);
 
-        return Uni.createFrom().item(poolStats);
+        return Uni.createFrom().item(stats);
     }
-
-
 }

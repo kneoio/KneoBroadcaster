@@ -5,7 +5,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.service.AudioSegmentationService;
+import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.kneo.broadcaster.service.stream.SegmentFeederTimer;
@@ -362,7 +362,7 @@ public class HLSPlaylist {
                          PlaylistFragmentRange current,
                          PlaylistFragmentRange next
     ) {
-        if (keySet.current() == Collections.max(mainQueue.keySet())) {
+        if (!mainQueue.isEmpty() && keySet.current() == Collections.max(mainQueue.keySet())) {
             LOGGER.debug("Already showing newest fragment {}", keySet.current());
             return;
         }

@@ -7,7 +7,7 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
-import io.kneo.broadcaster.service.AudioSegmentationService;
+import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import lombok.Getter;
 import org.slf4j.Logger;

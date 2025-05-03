@@ -7,7 +7,7 @@ import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.broadcaster.service.DigitalOceanSpacesService;
+import io.kneo.broadcaster.service.externals.DigitalOceanSpacesService;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;

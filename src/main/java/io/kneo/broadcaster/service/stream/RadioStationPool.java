@@ -5,7 +5,7 @@ import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.service.AudioSegmentationService;
+import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.smallrye.mutiny.Uni;

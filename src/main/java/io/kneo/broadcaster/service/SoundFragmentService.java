@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
@@ -8,12 +7,11 @@ import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.UserRepository;
 import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.FileUpload;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -46,14 +44,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     @Inject
-    public SoundFragmentService(UserRepository userRepository,
-                                UserService userService,
-                                RadioService service,
+    public SoundFragmentService(RadioService service,
                                 RadioStationService radioStationService,
                                 RadioStationPool radiostationPool,
                                 Validator validator,
                                 SoundFragmentRepository repository) {
-        super(userRepository, userService);
+        super();
         this.validator = validator;
         this.repository = repository;
         this.radioService = service;

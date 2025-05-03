@@ -37,15 +37,13 @@ public class ConfigurationScanner {
 
         try {
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            String packagePath = packageName.replace('.', '/');
             Index index = new IndexReader(classLoader.getResourceAsStream("META-INF/jandex.idx")).read();
 
             List<AnnotationInstance> configMappings = index.getAnnotations(CONFIG_MAPPING_DOT_NAME);
 
             for (AnnotationInstance configMapping : configMappings) {
                 AnnotationTarget target = configMapping.target();
-                if (target instanceof ClassInfo) {
-                    ClassInfo classInfo = (ClassInfo) target;
+                if (target instanceof ClassInfo classInfo) {
                     if (classInfo.name().toString().startsWith(packageName)) {
                         String className = classInfo.simpleName().toLowerCase(); // Use simpleName() and toLowerCase()
                         Map<String, String> configDetails = new HashMap<>();
@@ -64,9 +62,8 @@ public class ConfigurationScanner {
 
                             configDetails.put(fieldName, defaultValue);
                         }
-                        stats.addConfig(className, configDetails); // Use the lowercase simple name as the key
+                        stats.addConfig(className, configDetails);
                         LOGGER.info("Found ConfigMapping: {}", className);
-                        configDetails.forEach((key, value) -> LOGGER.info("  {}: {}", key, value));
                     }
                 }
             }

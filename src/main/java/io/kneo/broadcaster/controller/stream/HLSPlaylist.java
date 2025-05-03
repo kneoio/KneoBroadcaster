@@ -318,7 +318,7 @@ public class HLSPlaylist {
             PlaylistFragmentRange current = mainQueue.get(currentKey);
             PlaylistFragmentRange next = mainQueue.get(nextKey);
 
-            if (lastSlide == null || current == null) {
+            if (lastSlide == null) {
                 Duration gap = Duration.ofSeconds(0);
                 doSlide(now, slideType, gap, currentKey, nextKey, current, next);
                 lastSlide = now;

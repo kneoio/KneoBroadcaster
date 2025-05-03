@@ -21,6 +21,10 @@ public interface BroadcasterConfig {
     @WithDefault("segmented")
     String getSegmentationOutputDir();
 
+    @WithName("external.upload.files.path")
+    @WithDefault("external_uploads")
+    String getPathForExternalServiceUploads();
+
     @WithName("ffmpeg.path")
     String getFfmpegPath();
 }

@@ -1,5 +1,6 @@
-package io.kneo.broadcaster.service.externals;
+package io.kneo.broadcaster.service.external;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.DOConfig;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -24,13 +25,18 @@ import java.nio.file.Paths;
 public class DigitalOceanSpacesService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DigitalOceanSpacesService.class);
 
-    @Inject
-    DOConfig doConfig;
+    private final DOConfig doConfig;
 
     private S3Client s3Client;
 
-    //TODO it needs to mention DO in the folder name
-    private static final String DESTINATION_FOLDER = "uploads/";
+    private final String outputDir;
+
+    @Inject
+    public DigitalOceanSpacesService( DOConfig doConfig, BroadcasterConfig broadcasterConfig) {
+        this.doConfig = doConfig;
+        this.outputDir = broadcasterConfig.getPathForExternalServiceUploads() + File.separator + "digital_ocean";
+        new File(outputDir).mkdirs();
+    }
 
     @PostConstruct
     public void init() {
@@ -47,7 +53,7 @@ public class DigitalOceanSpacesService {
 
     public Uni<Path> getFile(String keyName) {
         return Uni.createFrom().item(() -> {
-                    Path destinationPath = Paths.get(DESTINATION_FOLDER, keyName);
+                    Path destinationPath = Paths.get(outputDir, keyName);
                     File destinationFile = destinationPath.toFile();
                     if (!destinationFile.getParentFile().exists()) {
                         destinationFile.getParentFile().mkdirs();

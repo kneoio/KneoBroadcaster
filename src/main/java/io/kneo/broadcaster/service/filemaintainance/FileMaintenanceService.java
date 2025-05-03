@@ -53,7 +53,8 @@ public class FileMaintenanceService {
         this.outputDirs = List.of(
                 broadcasterConfig.getPathUploads(),
                 broadcasterConfig.getPathForMerged(),
-                broadcasterConfig.getSegmentationOutputDir()
+                broadcasterConfig.getSegmentationOutputDir(),
+                broadcasterConfig.getPathForExternalServiceUploads()
         );
         this.filesDeleted = 0;
         this.spaceFreedBytes = 0;
@@ -103,11 +104,11 @@ public class FileMaintenanceService {
             long directoriesDeletedForPath = 0;
 
             try {
-                LOGGER.info("Starting file cleanup task for directory: {} (tick: {})", outputDir, tick);
+                LOGGER.info("Starting cleanup for: {} (tick: {})", outputDir, tick);
                 Path outputPath = Path.of(outputDir);
 
                 if (!Files.exists(outputPath)) {
-                    LOGGER.debug("Output directory does not exist: {}", outputDir);
+                    LOGGER.debug("Directory does not exist: {}", outputDir);
                     continue;
                 }
 
@@ -132,7 +133,7 @@ public class FileMaintenanceService {
                 totalDirectoriesDeleted += directoriesDeletedForPath;
 
             } catch (IOException e) {
-                LOGGER.error("Error during file cleanup for directory: {}", outputDir, e);
+                LOGGER.error("Error during cleanup of: {}", outputDir, e);
             }
         }
         try {
@@ -143,14 +144,18 @@ public class FileMaintenanceService {
             LOGGER.warn("Could not update disk space", e);
         }
 
+        double totalSpaceFreedMB = (double) totalSpaceFreedBytes / (1024 * 1024);
+        double totalSpaceMB = (double) totalSpaceBytes / (1024 * 1024);
+        double availableSpaceMB = (double) availableSpaceBytes / (1024 * 1024);
+
         FileMaintenanceStats stats = FileMaintenanceStats.builder()
                 .fromService(totalFilesDeleted, totalSpaceFreedBytes, totalDirectoriesDeleted)
                 .totalSpaceBytes(totalSpaceBytes)
                 .availableSpaceBytes(availableSpaceBytes)
                 .build();
         eventBus.publish(ADDRESS_FILE_MAINTENANCE_STATS, stats);
-        LOGGER.info("File cleanup task completed. Total space freed: {} bytes. Total files deleted: {}. Total directories deleted: {}. Total space: {} bytes. Available space: {} bytes.",
-                totalSpaceFreedBytes, totalFilesDeleted, totalDirectoriesDeleted, totalSpaceBytes, availableSpaceBytes);
+        LOGGER.info("Cleanup done. Freed: {} MB, Deleted: {} files, {} dirs. Total: {} MB, Available: {} MB.",
+                String.format("%.2f", totalSpaceFreedMB), totalFilesDeleted, totalDirectoriesDeleted, String.format("%.2f", totalSpaceMB), String.format("%.2f", availableSpaceMB));
     }
 
     private void updateDiskSpace(Path path) throws IOException {

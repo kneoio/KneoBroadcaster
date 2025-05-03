@@ -61,7 +61,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id").handler(this::getFileById);
-        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
+       // router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
 
@@ -238,7 +238,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String originalFileName = file.fileName();
         String uniqueFileName = UUID.randomUUID() + "_" + originalFileName;
         String uploadDir = "uploads/" + brand;
-        String fileUrl = String.format("http://localhost:8090/api/%s/soundfragments/files/%s", brand,  uniqueFileName);
+        String fileUrl = String.format("http://{}/api/%s/soundfragments/files/%s", brand,  uniqueFileName);
 
         File dir = new File(uploadDir);
         if (!dir.exists()) {

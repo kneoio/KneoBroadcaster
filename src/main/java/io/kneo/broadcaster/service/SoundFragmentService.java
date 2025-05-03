@@ -11,7 +11,9 @@ import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.core.repository.UserRepository;
 import io.kneo.core.service.AbstractService;
+import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.FileUpload;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -44,12 +46,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     @Inject
-    public SoundFragmentService(RadioService service,
+    public SoundFragmentService(UserRepository userRepository,
+                                UserService userService,
+                                RadioService service,
                                 RadioStationService radioStationService,
                                 RadioStationPool radiostationPool,
                                 Validator validator,
                                 SoundFragmentRepository repository) {
-        super();
+        super(userRepository, userService);
         this.validator = validator;
         this.repository = repository;
         this.radioService = service;

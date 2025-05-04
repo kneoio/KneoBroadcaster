@@ -14,7 +14,7 @@ public class TimerDrivenKeySetDemo {
 
     private final QueuePopulator populator = new QueuePopulator();
     private final Map<Integer, PlaylistFragmentRange> mainQueue = populator.getQueueMap();
-    private final KeySet keySet = new KeySet();
+    private final KeySet keySet = new KeySet(3);
     private final AtomicReference<LocalTime> expectedEndTime = new AtomicReference<>();
 
 

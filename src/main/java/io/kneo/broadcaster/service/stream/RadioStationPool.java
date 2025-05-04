@@ -55,7 +55,8 @@ public class RadioStationPool {
                 janitorTimer,
                 config,
                 soundFragmentService,
-                segmentationService
+                segmentationService,
+                3
         );
 
         return radioStationService.findByBrandName(brandName)

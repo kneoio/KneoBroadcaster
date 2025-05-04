@@ -36,6 +36,8 @@ public class RadioController {
 
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand");
+        String userAgent = rc.request().getHeader("User-Agent");
+        LOGGER.debug("User-Agent: {}", userAgent);
         service.getPlaylist(brand)
                 .onItem().transform(HLSPlaylist::generatePlaylist)
                 .subscribe().with(

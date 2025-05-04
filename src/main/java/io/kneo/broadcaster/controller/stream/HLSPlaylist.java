@@ -49,17 +49,15 @@ public class HLSPlaylist {
     private static final int SHORTEN_LAST_SLIDING_SEC = 120;
     @Getter
     private final Map<Integer, PlaylistFragmentRange> mainQueue = Collections.synchronizedMap(new LinkedHashMap<>());
-    @Getter
-    private final KeySet keySet = new KeySet();
     private final AtomicInteger rangeCounter = new AtomicInteger(0);
-    private final AtomicLong currentSequence = new AtomicLong(0);
+    private AtomicLong currentSequence = new AtomicLong(0);
     private long latestRequestedSegment = 0;
-    private final Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
-    private final AtomicBoolean windowSliderProcessingFlag = new AtomicBoolean(false);
+    private Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
+    private AtomicBoolean windowSliderProcessingFlag = new AtomicBoolean(false);
     @Getter
     private ZonedDateTime lastSlide;
     @Getter
-    private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
+    private Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
     @Setter
     @Getter
     private RadioStation radioStation;
@@ -79,9 +77,13 @@ public class HLSPlaylist {
     private final SegmentJanitorTimer janitorTimer;
     @Getter
     private HLSPlaylistStats stats;
-    private final ExecutorService slideExecutor = Executors.newSingleThreadExecutor();
-    private final Deque<SlideEvent> slideHistory = new ArrayDeque<>(20);
-    private final AtomicLong slideSequence = new AtomicLong(0);
+    private ExecutorService slideExecutor = Executors.newSingleThreadExecutor();
+    private Deque<SlideEvent> slideHistory = new ArrayDeque<>(20);
+    private AtomicLong slideSequence = new AtomicLong(0);
+    private static final int DEFAULT_WINDOW_SIZE = 2; // Define the default window size here
+    @Getter
+    private final KeySet keySet; // Initialize KeySet in the constructor
+    private final int windowSize; // Add the windowSize field
 
     public HLSPlaylist(
             SliderTimer sliderTimer,
@@ -89,23 +91,35 @@ public class HLSPlaylist {
             SegmentJanitorTimer janitorTimer,
             HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
-            AudioSegmentationService segmentationService) {
+            AudioSegmentationService segmentationService,
+            int windowSize
+    ) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
         this.janitorTimer = janitorTimer;
         this.config = config;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
+        this.windowSize = Math.min(Math.max(windowSize, KeySet.MIN_WINDOW_SIZE), KeySet.MAX_WINDOW_SIZE); // Clamp the provided windowSize
+        this.keySet = new KeySet(this.windowSize); // Instantiate KeySet with the configured windowSize
         stats = new HLSPlaylistStats(mainQueue);
+        this.slideExecutor = Executors.newSingleThreadExecutor();
+        this.slideHistory = new ArrayDeque<>(20);
+        this.slideSequence = new AtomicLong(0);
+        this.timerSubscriptions = new ConcurrentHashMap<>();
+        this.processingFlags = new ConcurrentHashMap<>();
+        this.windowSliderProcessingFlag = new AtomicBoolean(false);
+        this.currentSequence = new AtomicLong(0);
+        this.latestRequestedSegment = 0;
     }
 
     public void initialize() {
-        LOGGER.info("New broadcast initialized for {}",  radioStation.getSlugName());
+        LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
         playlistManager = new PlaylistManager(this);
         if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();
         }
-        LOGGER.info("Initializing maintenance for playlist: {}",  radioStation.getSlugName());
+        LOGGER.info("Initializing maintenance for playlist: {}", radioStation.getSlugName());
         Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
                 timestamp -> {
                     LOGGER.debug("Feeder tick: {}", timestamp);
@@ -131,37 +145,39 @@ public class HLSPlaylist {
 
     public String generatePlaylist() {
         String programDateTime = getFormattedLastSlide();
-        PlaylistFragmentRange currentRange = mainQueue.get(keySet.current());
-        PlaylistFragmentRange nextRange = mainQueue.get(keySet.next());
+        List<Integer> currentWindowKeys = keySet.getCurrentWindowKeys();
 
-        if (currentRange == null) {
+        if (mainQueue.isEmpty()) {
             return "#EXTM3U\n" +
-                    //"#EXT-X-VERSION:3\n" +
                     "#EXT-X-VERSION:1\n" +
                     "#EXT-X-ALLOW-CACHE:NO\n" +
                     "#EXT-X-TARGETDURATION:" + config.getSegmentDuration() + "\n" +
                     "#EXT-X-MEDIA-SEQUENCE:" + currentSequence.get() +
-                    //"\n#EXT-X-DISCONTINUITY-SEQUENCE:" + (currentSequence.get() / 1000) +
-                     "\n";
+                    "\n";
         }
 
         StringBuilder playlist = new StringBuilder();
         playlist.append("#EXTM3U\n")
-                //.append("#EXT-X-VERSION:3\n")
                 .append("#EXT-X-VERSION:1\n")
                 .append("#EXT-X-ALLOW-CACHE:NO\n")
                 .append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
-                //.append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
-                .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
-                .append("#EXT-X-STREAM-INF:BANDWIDTH=64000\n")
-                .append("#EXT-X-MEDIA-SEQUENCE:").append(currentRange.getStart()).append("\n");
-                //.append("#EXT-X-PROGRAM-DATE-TIME:").append(programDateTime).append("\n");
+                .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n");
 
-        appendSegments(playlist, currentRange, keySet.current());
+        long firstSequenceInWindow = -1;
 
-        if (nextRange != null) {
-            appendSegments(playlist, nextRange, keySet.next());
+        for (Integer key : currentWindowKeys) {
+            PlaylistFragmentRange range = mainQueue.get(key);
+            if (range != null) {
+                if (firstSequenceInWindow == -1) {
+                    firstSequenceInWindow = range.getStart();
+                    playlist
+                            .append("#EXT-X-MEDIA-SEQUENCE:").append(firstSequenceInWindow).append("\n")
+                            .append("#EXT-X-PROGRAM-DATE-TIME:").append(programDateTime).append("\n");
+                }
+                appendSegments(playlist, range, key);
+            }
         }
+
         return playlist.toString();
     }
 
@@ -415,15 +431,23 @@ public class HLSPlaylist {
     }
 
     public List<Long[]> getCurrentWindow() {
-        try {
-            return List.of(
-                    extractRange(keySet.current()),
-                    extractRange(keySet.next())
-                    //  extractRange(keySet.future())
-            );
-        } catch (Exception e) {
-            return List.of(new Long[0], new Long[0], new Long[0]);
+        List<Long[]> windowRanges = new ArrayList<>();
+        List<Integer> currentWindowKeys = keySet.getCurrentWindowKeys();
+
+        for (Integer key : currentWindowKeys) {
+            try {
+                PlaylistFragmentRange range = mainQueue.get(key);
+                if (range != null) {
+                    windowRanges.add(new Long[]{range.getStart(), range.getEnd()});
+                } else {
+                    windowRanges.add(new Long[]{0L, 0L}); // Or handle the case where the range is not found differently
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Error extracting range for key {}: {}", key, e.getMessage());
+                windowRanges.add(new Long[]{0L, 0L});
+            }
         }
+        return windowRanges;
     }
 
     private Long[] extractRange(int key) {

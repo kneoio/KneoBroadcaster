@@ -151,7 +151,7 @@ public class HLSPlaylist {
                 .append("#EXT-X-VERSION:3\n")
                 .append("#EXT-X-ALLOW-CACHE:NO\n")
                 .append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
-                .append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
+                //.append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
                 .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
                 .append("#EXT-X-STREAM-INF:BANDWIDTH=64000\n")
                 .append("#EXT-X-MEDIA-SEQUENCE:").append(currentRange.getStart()).append("\n")

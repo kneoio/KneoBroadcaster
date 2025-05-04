@@ -53,8 +53,8 @@ public class FileMaintenanceService {
         this.outputDirs = List.of(
                 broadcasterConfig.getPathUploads(),
                 broadcasterConfig.getPathForMerged(),
-                broadcasterConfig.getSegmentationOutputDir(),
-                broadcasterConfig.getPathForExternalServiceUploads()
+                broadcasterConfig.getSegmentationOutputDir()
+               // broadcasterConfig.getPathForExternalServiceUploads()
         );
         this.filesDeleted = 0;
         this.spaceFreedBytes = 0;

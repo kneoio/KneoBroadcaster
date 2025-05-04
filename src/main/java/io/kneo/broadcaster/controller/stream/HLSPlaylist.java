@@ -323,7 +323,8 @@ public class HLSPlaylist {
                 doSlide(now, slideType, gap, currentKey, nextKey, current, next);
                 lastSlide = now;
             } else {
-                ZonedDateTime endOfTheLastFragment = lastSlide.plusSeconds(current.getDuration());
+                //ZonedDateTime endOfTheLastFragment = lastSlide.plusSeconds(current.getDuration());
+                ZonedDateTime endOfTheLastFragment = lastSlide.plusSeconds(next.getDuration());
                 if (now.isAfter(endOfTheLastFragment)) {
                     Duration gap = Duration.between(endOfTheLastFragment, now);
                     doSlide(now, slideType, gap, currentKey, nextKey, current, next);
@@ -340,9 +341,9 @@ public class HLSPlaylist {
                             current.getFragment().getId().toString(),
                             endOfTheLastFragment,
                             nextKey,
-                            next != null ? next.getStart() : -1,
-                            next != null ? next.getEnd() : -1,
-                            next != null ? next.getFragment().getId().toString() : "N/A"
+                            next.getStart(),
+                            next.getEnd(),
+                            next.getFragment().getId().toString()
                     ));
                 }
             }

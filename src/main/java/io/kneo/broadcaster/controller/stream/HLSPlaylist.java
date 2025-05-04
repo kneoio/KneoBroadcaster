@@ -141,21 +141,27 @@ public class HLSPlaylist {
         PlaylistFragmentRange nextRange = mainQueue.get(keySet.next());
 
         if (currentRange == null) {
-            return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ALLOW-CACHE:NO\n#EXT-X-TARGETDURATION:" +
-                    config.getSegmentDuration() + "\n#EXT-X-MEDIA-SEQUENCE:" + currentSequence.get() +
-                    "\n#EXT-X-DISCONTINUITY-SEQUENCE:" + (currentSequence.get() / 1000) + "\n";
+            return "#EXTM3U\n" +
+                    //"#EXT-X-VERSION:3\n" +
+                    "#EXT-X-VERSION:1\n" +
+                    "#EXT-X-ALLOW-CACHE:NO\n" +
+                    "#EXT-X-TARGETDURATION:" + config.getSegmentDuration() + "\n" +
+                    "#EXT-X-MEDIA-SEQUENCE:" + currentSequence.get() +
+                    //"\n#EXT-X-DISCONTINUITY-SEQUENCE:" + (currentSequence.get() / 1000) +
+                     "\n";
         }
 
         StringBuilder playlist = new StringBuilder();
         playlist.append("#EXTM3U\n")
-                .append("#EXT-X-VERSION:3\n")
+                //.append("#EXT-X-VERSION:3\n")
+                .append("#EXT-X-VERSION:1\n")
                 .append("#EXT-X-ALLOW-CACHE:NO\n")
                 .append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
                 //.append("#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n")
                 .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n")
                 .append("#EXT-X-STREAM-INF:BANDWIDTH=64000\n")
-                .append("#EXT-X-MEDIA-SEQUENCE:").append(currentRange.getStart()).append("\n")
-                .append("#EXT-X-PROGRAM-DATE-TIME:").append(programDateTime).append("\n");
+                .append("#EXT-X-MEDIA-SEQUENCE:").append(currentRange.getStart()).append("\n");
+                //.append("#EXT-X-PROGRAM-DATE-TIME:").append(programDateTime).append("\n");
 
         appendSegments(playlist, currentRange, keySet.current());
 

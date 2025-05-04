@@ -5,14 +5,15 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.kneo.broadcaster.service.stream.SegmentFeederTimer;
 import io.kneo.broadcaster.service.stream.SegmentJanitorTimer;
 import io.kneo.broadcaster.service.stream.SliderTimer;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +60,7 @@ public class HLSPlaylist {
     private ZonedDateTime lastSlide;
     @Getter
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
+    @Setter
     @Getter
     private RadioStation radioStation;
     @Getter
@@ -100,6 +102,9 @@ public class HLSPlaylist {
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}",  radioStation.getSlugName());
         playlistManager = new PlaylistManager(this);
+        if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
+            playlistManager.startSelfManaging();
+        }
         LOGGER.info("Initializing maintenance for playlist: {}",  radioStation.getSlugName());
         Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
                 timestamp -> {
@@ -122,17 +127,6 @@ public class HLSPlaylist {
         timerSubscriptions.put("feeder", feeder);
         timerSubscriptions.put("slider", slider);
         timerSubscriptions.put("janitor", janitor);
-    }
-
-    public void setRadioStation(RadioStation radioStation) {
-        if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
-            playlistManager.startSelfManaging();
-            radioStation.setStatus(RadioStationStatus.WARMING_UP);
-        } else {
-            radioStation.setStatus(RadioStationStatus.WARMING_UP);
-        }
-
-        this.radioStation = radioStation;
     }
 
     public String generatePlaylist() {

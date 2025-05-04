@@ -26,7 +26,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private Integer archived;
     private CountryCode country;
     private RadioStationStatus status;
-    private ManagedBy managedBy = ManagedBy.AI_AGENT;
+    private ManagedBy managedBy = ManagedBy.ITSELF;
     private AiAgent aiAgent;
     private UUID profileId;
 

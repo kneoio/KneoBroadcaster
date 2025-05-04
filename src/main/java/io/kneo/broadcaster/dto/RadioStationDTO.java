@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.dto;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
@@ -15,6 +16,7 @@ import java.net.URL;
 public class RadioStationDTO  extends AbstractDTO {
     private CountryCode country;
     private URL url;
+    private ManagedBy managedBy;
     private URL iceCastUrl;
     private URL actionUrl;
     private String slugName;

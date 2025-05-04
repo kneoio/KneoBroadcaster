@@ -5,6 +5,7 @@ import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -60,7 +61,11 @@ public class RadioStationPool {
         return radioStationService.findByBrandName(brandName)
                 .onItem().invoke(station -> {
                     station.setPlaylist(playlist);
-                    station.setStatus(RadioStationStatus.WARMING_UP);
+                    if (station.getManagedBy() == ManagedBy.ITSELF || station.getManagedBy() == ManagedBy.MIX) {
+                        station.setStatus(RadioStationStatus.WARMING_UP);
+                    } else {
+                        station.setStatus(RadioStationStatus.WAITING_FOR_CURATOR);
+                    }
                     playlist.setRadioStation(station);
                     playlist.initialize();
                     pool.put(brandName, station);

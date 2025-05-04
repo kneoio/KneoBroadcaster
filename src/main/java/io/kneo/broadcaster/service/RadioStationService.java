@@ -128,6 +128,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
+            dto.setManagedBy(doc.getManagedBy());
             dto.setProfile(tuple.getItem4());
 
             try {

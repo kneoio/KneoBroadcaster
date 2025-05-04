@@ -13,14 +13,10 @@ public class KeySet {
     private final int incrementStep;
 
     public KeySet() {
-        this(MAX_WINDOW_SIZE, DEFAULT_START_VALUE);
-    }
-
-    public KeySet(int windowSize, long startValue) {
-        this.windowSize = clampWindowSize(windowSize);
-        this.incrementStep = windowSize > 1 ? DEFAULT_INCREMENT_STEP : 0;
+        this.windowSize = clampWindowSize(MAX_WINDOW_SIZE);
+        this.incrementStep = DEFAULT_INCREMENT_STEP;
         this.window = new AtomicInteger[this.windowSize];
-        initializeWindow(startValue);
+        initializeWindow(DEFAULT_START_VALUE);
     }
 
     private int clampWindowSize(int size) {
@@ -52,11 +48,4 @@ public class KeySet {
         return windowSize > 1 ? window[1].get() : window[0].get();
     }
 
-   /* public int future() {
-        return window[windowSize - 1].get() + incrementStep;
-    }*/
-
-    public int windowSize() {
-        return windowSize;
-    }
 }

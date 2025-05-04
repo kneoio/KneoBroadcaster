@@ -45,7 +45,7 @@ public class HLSPlaylist {
     private static final ZoneId ZONE_ID = ZoneId.of("Europe/Lisbon");
     private static final Logger LOGGER = LoggerFactory.getLogger(HLSPlaylist.class);
     private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)_([0-9]+)\\.ts$");
-    private static final int SHORTEN_LAST_SLIDING_SEC = 60;
+    private static final int SHORTEN_LAST_SLIDING_SEC = 120;
     @Getter
     private final Map<Integer, PlaylistFragmentRange> mainQueue = Collections.synchronizedMap(new LinkedHashMap<>());
     @Getter

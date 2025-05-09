@@ -44,7 +44,6 @@ public class RadioController {
                         playlistContent -> {
                             rc.response()
                                     .putHeader("Content-Type", "application/vnd.apple.mpegurl")
-                                    .putHeader("Access-Control-Allow-Origin", "*")
                                     .putHeader("Cache-Control", "no-cache")
                                     .setStatusCode(200)
                                     .end(playlistContent);
@@ -81,7 +80,6 @@ public class RadioController {
                         data -> {
                             rc.response()
                                     .putHeader("Content-Type", "video/MP2T")
-                                    .putHeader("Access-Control-Allow-Origin", "*")
                                     .putHeader("Cache-Control", "no-cache")
                                     .setStatusCode(200)
                                     .end(Buffer.buffer(data));
@@ -114,7 +112,6 @@ public class RadioController {
                         statusContent -> {
                             rc.response()
                                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
-                                    .putHeader("Access-Control-Allow-Origin", "*")
                                     .setStatusCode(200)
                                     .end(statusContent);
                         },

@@ -51,7 +51,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     public void setupRoutes(Router router) {
-        String path = "/api/:brand/soundfragments";
+        String path = "/api/soundfragments";
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
                 .setDeleteUploadedFilesOnEnd(false)

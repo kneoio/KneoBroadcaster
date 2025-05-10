@@ -139,7 +139,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     private void getForBrand(RoutingContext rc) {
-        String brandName = rc.pathParam("brand");
+        String brandName = rc.request().getParam("brand");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 

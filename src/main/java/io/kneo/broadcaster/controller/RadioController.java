@@ -38,7 +38,7 @@ public class RadioController {
         String brand = rc.pathParam("brand");
         String userAgent = rc.request().getHeader("User-Agent");
         LOGGER.debug("User-Agent: {}", userAgent);
-        service.getPlaylist(brand)
+        service.getPlaylist(brand, userAgent)
                 .onItem().transform(HLSPlaylist::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -66,8 +66,8 @@ public class RadioController {
     private void getSegment(RoutingContext rc) {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand");
-
-        service.getPlaylist(brand)
+        String userAgent = rc.request().getHeader("User-Agent");
+        service.getPlaylist(brand, userAgent)
                 .onItem().transform(playlist -> {
                     HlsSegment segment = playlist.getSegment(segmentParam);
                     if (segment == null) {
@@ -103,8 +103,8 @@ public class RadioController {
 
     private void getStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand");
-
-        service.getPlaylist(brand)
+        String userAgent = rc.request().getHeader("User-Agent");
+        service.getPlaylist(brand, userAgent)
                 .onItem().transform(playlist -> {
                     return "Station: " + brand;
                 })

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -21,15 +22,18 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.OffsetDateTime;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
+import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.BRAND_STATS;
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.RADIO_STATION;
 
 @ApplicationScoped
 public class RadioStationRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
+    private static final EntityData brandStats = KneoBroadcasterNameResolver.create().getEntityNames(BRAND_STATS);
 
     @Inject
     public RadioStationRepository(PgPool client, ObjectMapper mapper) {
@@ -133,4 +137,57 @@ public class RadioStationRepository extends AsyncRepository {
 
         return doc;
     }
+
+    public Uni<Void> upsertStationAccess(String stationName, String userAgent) {
+        String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent) " +
+                "VALUES ($1, 1, $2, $3) ON CONFLICT (station_name) DO UPDATE SET access_count = " + brandStats.getTableName() + ".access_count + 1, " +
+                "last_access_time = $2, user_agent = $3;";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName, OffsetDateTime.now(), userAgent))
+                .replaceWithVoid();
+    }
+
+    public Uni<BrandAgentStats> findStationStatsByStationName(String stationName) {
+        String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " + brandStats.getTableName() + " WHERE station_name = $1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transform(iterator -> {
+                    if (iterator.hasNext()) {
+                        return fromStatsRow(iterator.next());
+                    } else {
+                        return null;
+                    }
+                });
+    }
+
+    public Uni<OffsetDateTime> findLastAccessTimeByBrand(String stationName) {
+        String sql = "SELECT last_access_time FROM " + brandStats.getTableName() + " WHERE station_name = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transform(iterator -> {
+                    if (iterator.hasNext()) {
+                        return iterator.next().getOffsetDateTime("last_access_time");
+                    } else {
+                        return null;
+                    }
+                });
+    }
+
+    private BrandAgentStats fromStatsRow(Row row) {
+        if (row == null) {
+            return null;
+        }
+        BrandAgentStats stats = new BrandAgentStats();
+        stats.setId(row.getLong("id"));
+        stats.setStationName(row.getString("station_name"));
+        stats.setAccessCount(row.getLong("access_count"));
+        stats.setLastAccessTime(row.getOffsetDateTime("last_access_time"));
+        stats.setUserAgent(row.getString("user_agent"));
+        return stats;
+    }
+
 }

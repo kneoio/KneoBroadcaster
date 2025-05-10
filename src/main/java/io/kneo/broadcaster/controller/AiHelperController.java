@@ -60,7 +60,7 @@ public class AiHelperController {
                     .map(RadioStationStatus::valueOf)
                     .collect(Collectors.toList());
 
-            aiHelperService.getBrandStatus(statuses)
+            aiHelperService.getByStatus(statuses)
                     .subscribe().with(
                             brands -> rc.response()
                                     .putHeader("Content-Type", "application/json")

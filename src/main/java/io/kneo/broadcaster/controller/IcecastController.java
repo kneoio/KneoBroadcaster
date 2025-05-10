@@ -63,7 +63,7 @@ public class IcecastController {
     }
 
     private void startStreaming(String brand, StreamData streamData) {
-        service.getPlaylist(brand)
+        service.getPlaylist(brand, null)
                 .subscribe().with(
                         playlist -> {
                             // Start a continuous loop to feed audio to listeners

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.controller.stream.HLSPlaylist;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
@@ -17,6 +18,9 @@ public class RadioService {
     @Inject
     RadioStationPool radioStationPool;
 
+    @Inject
+    RadioStationRepository radioStationRepository;
+
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
@@ -25,7 +29,7 @@ public class RadioService {
                 );
     }
 
-    public Uni<RadioStation>  slide(String brand) {
+    public Uni<RadioStation> slide(String brand) {
         return radioStationPool.initializeStation(brand)
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to initialize station for brand: {}", brand, failure)
@@ -40,8 +44,13 @@ public class RadioService {
                 );
     }
 
-    public Uni<HLSPlaylist> getPlaylist(String brand) {
-        return radioStationPool.get(brand)
+    public Uni<HLSPlaylist> getPlaylist(String brand, String userAgent) {
+        return recordAccess(brand, userAgent)
+                .onFailure().recoverWithItem(() -> {
+                    LOGGER.warn("Failed to record access, but continuing with playlist retrieval: {}", brand);
+                    return null;
+                })
+                .chain(() -> radioStationPool.get(brand))
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
                 )
@@ -51,4 +60,10 @@ public class RadioService {
                 );
     }
 
+    public Uni<Void> recordAccess(String brand, String userAgent) {
+        return radioStationRepository.upsertStationAccess(brand, userAgent)
+                .onFailure().invoke(failure ->
+                        LOGGER.error("Failed to record access for brand: {}, userAgent: {}", brand, userAgent, failure)
+                );
+    }
 }

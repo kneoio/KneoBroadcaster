@@ -13,11 +13,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Optional;
 
 @ApplicationScoped
 public class StationDashboardService {
+
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(StationDashboardService.class);
 
     @Inject
     RadioStationPool radioStationPool;
@@ -26,13 +27,10 @@ public class StationDashboardService {
     HlsPlaylistConfig config;
 
     public Uni<Optional<StationStats>> getStationStats(String brand) {
-        HashMap<String, RadioStation> pool = radioStationPool.getPool();
-        if (pool.containsKey(brand)) {
-            RadioStation station = pool.get(brand);
-            StationStats stats = createStationStats(brand, station);
-            return Uni.createFrom().item(Optional.of(stats));
-        }
-        return Uni.createFrom().item(Optional.empty());
+        return Uni.createFrom().item(() ->
+                radioStationPool.getStation(brand)
+                        .map(station -> createStationStats(brand, station))
+        );
     }
 
     private StationStats createStationStats(String brand, RadioStation station) {

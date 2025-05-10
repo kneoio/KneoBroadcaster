@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.RadioStationDTO;
@@ -94,6 +95,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     public Uni<RadioStationDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;
         return repository.findById(id).chain(this::mapToDTO);
+    }
+
+    public Uni<BrandAgentStats> getStats(String stationName) {
+        return repository.findStationStatsByStationName(stationName);
     }
 
     public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {

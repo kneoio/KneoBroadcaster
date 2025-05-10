@@ -78,12 +78,20 @@ public class RadioStationPool {
         return Uni.createFrom().item(radioStation);
     }
 
-    public Uni<RadioStation> stopAndRemove(String slugName) {
-        return stop(slugName)
-                .onItem().invoke(stoppedStation -> {
-                    if (stoppedStation != null) {
-                        pool.remove(slugName);
+    public Uni<RadioStation> stopAndRemove(String brandName) {
+        return radioStationService.findByBrandName(brandName)
+                .onItem().transformToUni(station -> {
+                    if (station == null) {
+                        LOGGER.warn("Station {} not found in database", brandName);
+                        return Uni.createFrom().nullItem();
                     }
+                    HLSPlaylist playlist = station.getPlaylist();
+                    if (playlist != null) {
+                        playlist.shutdown();
+                    }
+                    station.setStatus(RadioStationStatus.OFF_LINE);
+                    pool.remove(brandName);
+                    return Uni.createFrom().item(station);
                 });
     }
 

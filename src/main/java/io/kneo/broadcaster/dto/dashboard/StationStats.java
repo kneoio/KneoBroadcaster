@@ -24,6 +24,7 @@ public class StationStats {
     private String brandName;
     @Getter
     private RadioStationStatus status;
+    private long alived;
     @Getter
     private ManagedBy managedBy;
     @Getter
@@ -52,7 +53,7 @@ public class StationStats {
             currentWindow = List.of(
                     extractRange(keySet.current()),
                     extractRange(keySet.next())
-                 //   extractRange(keySet.future())
+                    //   extractRange(keySet.future())
             );
         } catch (Exception e) {
             currentWindow = List.of(new Long[0], new Long[0], new Long[0]);
@@ -68,5 +69,9 @@ public class StationStats {
         }
     }
 
-
+    public String getAliveTimeInHours() {
+        int hours = (int) (alived / 60);  // full hours
+        int minutes = (int) (alived % 60);  // remaining minutes
+        return String.format("%02d:%02d", hours, minutes);
+    }
 }

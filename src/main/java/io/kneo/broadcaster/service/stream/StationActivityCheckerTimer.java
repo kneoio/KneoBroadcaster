@@ -7,8 +7,9 @@ import java.time.Duration;
 
 @ApplicationScoped
 public class StationActivityCheckerTimer {
-    public static final int INTERVAL_MINUTES = 30;
-    private static final Duration INITIAL_DELAY = Duration.ofMinutes(15);
+    public static final int INTERVAL_MINUTES = 5;
+    //TODO adjust in real prod
+    private static final Duration INITIAL_DELAY = Duration.ofMinutes(0);
 
     public Multi<Long> getTicker() {
         return Multi.createFrom().ticks()

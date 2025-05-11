@@ -15,8 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
@@ -73,8 +72,7 @@ public class FileMaintenanceService {
                 .onItem().invoke(this::cleanAllPaths)
                 .onFailure().invoke(error -> LOGGER.error("Timer error", error))
                 .subscribe().with(
-                        item -> {
-                        },
+                        item -> {},
                         failure -> LOGGER.error("Subscription failed", failure)
                 );
     }
@@ -159,27 +157,61 @@ public class FileMaintenanceService {
                 String.format("%.2f", totalSpaceMB), String.format("%.2f", availableSpaceMB));
     }
 
-    /**
-     * Gets disk space using 'df -B1 /' command (works without root)
-     */
+    private boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("win");
+    }
+
     private void updateDiskSpace() throws IOException {
         try {
-            Process process = new ProcessBuilder("df", "-B1", "/").start();
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            String[] lines = output.split("\n");
-
-            if (lines.length >= 2) {
-                String[] parts = lines[1].split("\\s+");
-                if (parts.length >= 4) {
-                    this.totalSpaceBytes = Long.parseLong(parts[1]);      // Total blocks
-                    this.availableSpaceBytes = Long.parseLong(parts[3]); // Available blocks
-                    return;
-                }
+            if (isWindows()) {
+                updateDiskSpaceWindows();
+            } else {
+                updateDiskSpaceUnix();
             }
-            throw new IOException("Unexpected 'df' output format: " + output);
         } catch (IOException | NumberFormatException e) {
-            throw new IOException("Failed to get disk space via 'df' command", e);
+            // Fallback to Java NIO if command fails
+            try {
+                Path path = isWindows() ? Path.of("C:") : Path.of("/");
+                FileStore store = Files.getFileStore(path);
+                this.totalSpaceBytes = store.getTotalSpace();
+                this.availableSpaceBytes = store.getUsableSpace();
+            } catch (IOException ex) {
+                throw new IOException("Failed to get disk space via both command and Java NIO", ex);
+            }
         }
+    }
+
+    private void updateDiskSpaceUnix() throws IOException {
+        Process process = new ProcessBuilder("df", "-B1", "/").start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        String[] lines = output.split("\n");
+
+        if (lines.length >= 2) {
+            String[] parts = lines[1].split("\\s+");
+            if (parts.length >= 4) {
+                this.totalSpaceBytes = Long.parseLong(parts[1]);
+                this.availableSpaceBytes = Long.parseLong(parts[3]);
+                return;
+            }
+        }
+        throw new IOException("Unexpected 'df' output format: " + output);
+    }
+
+    private void updateDiskSpaceWindows() throws IOException {
+        Process process = new ProcessBuilder("wmic", "logicaldisk", "where", "DeviceID='C:'", "get",
+                "Size,FreeSpace", "/format:csv").start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        String[] lines = output.split("\n");
+
+        if (lines.length >= 2) {
+            String[] parts = lines[1].split(",");
+            if (parts.length >= 3) {
+                this.totalSpaceBytes = Long.parseLong(parts[1].trim());
+                this.availableSpaceBytes = Long.parseLong(parts[2].trim());
+                return;
+            }
+        }
+        throw new IOException("Unexpected 'wmic' output format: " + output);
     }
 
     private void cleanEmptyDirectories(Path directory) throws IOException {

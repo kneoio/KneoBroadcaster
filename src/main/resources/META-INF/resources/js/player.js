@@ -9,15 +9,15 @@ document.addEventListener('DOMContentLoaded', function() {
     var durationDisplay = document.getElementById('duration');
     var volumeButton = document.getElementById('volume-button');
     var volumeBar = document.getElementById('volume-bar');
-    var themeToggleButton = document.getElementById('theme-toggle'); // Get theme toggle button
+    var themeToggleButton = document.getElementById('theme-toggle');
 
     var audioSrc = null;
-    let currentTheme = 'light'; // Default theme
+    let currentTheme = 'light';
 
     const HLS_BASE_URL = window.location.origin;
     const HLS_PATH_SUFFIX = '/radio/stream.m3u8';
     const PARAMETER_NAME = 'radio';
-    const THEME_STORAGE_KEY = 'bratan-radio-theme'; // Key for localStorage
+    const THEME_STORAGE_KEY = 'bratan-radio-theme';
 
     const urlParams = new URLSearchParams(window.location.search);
     const dynamicRadioName = urlParams.get(PARAMETER_NAME);
@@ -43,35 +43,47 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Apply saved theme preference on load
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
     if (savedTheme === 'dark') {
         enableDarkTheme();
     } else {
-        // Default to light theme if no preference saved or saved as light
         enableLightTheme();
     }
-    // Add event listener to the theme toggle button
     themeToggleButton.addEventListener('click', toggleTheme);
     // --- End Theme Toggle Functions ---
 
 
+    // Function to display messages
+    // Clears the other message div when displaying a new message
     function displayMessage(element, message, isError = false) {
         element.textContent = message;
         element.style.display = message ? 'block' : 'none';
+
+        // Set CSS classes based on message type
         if (isError) {
             element.classList.add('error');
             element.classList.remove('status');
         } else {
-             element.classList.add('status');
-             element.classList.remove('error');
+            element.classList.add('status');
+            element.classList.remove('error');
         }
-         if (element === errorMessageDiv && message) {
-             streamUrlDisplayDiv.style.display = 'none';
-         } else if (element === streamUrlDisplayDiv && message) {
-             errorMessageDiv.style.display = 'none';
-         }
+
+        // Hide the other message div when showing a new one
+        if (message) { // Only hide the other if a message is actually being displayed
+            if (element === errorMessageDiv) {
+                streamUrlDisplayDiv.style.display = 'none';
+            } else {
+                errorMessageDiv.style.display = 'none';
+            }
+        }
     }
+
+    // Function to clear all messages
+    function clearMessages() {
+        displayMessage(errorMessageDiv, '');
+        displayMessage(streamUrlDisplayDiv, '');
+    }
+
 
     function formatTime(seconds) {
         if (isNaN(seconds)) return '0:00';
@@ -128,36 +140,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
              hls.on(Hls.Events.ERROR, function(event, data) {
                 console.error('Hls.js error:', data);
-                 streamUrlDisplayDiv.style.display = 'none';
-                 errorMessageDiv.style.display = 'block';
-
+                // Always display fatal errors
                 if (data.fatal) {
-                     errorMessageDiv.textContent = 'Fatal HLS.js error: ' + (data.details || 'Unknown error');
+                    displayMessage(errorMessageDiv, 'Fatal HLS.js error: ' + (data.details || 'Unknown error'), true);
+                     // Attempt specific recoveries
                     switch(data.type) {
                         case Hls.ErrorTypes.NETWORK_ERROR:
                              console.log('Attempting network error recovery...');
+                             // Only attempt startLoad if it's a network error
                             hls.startLoad();
                             break;
                         case Hls.ErrorTypes.MEDIA_ERROR:
                              console.log('Attempting media error recovery...');
-                             hls.recoverMediaError();
+                             hls.recoverMediaError(); // Try to recover media errors
                             break;
                          case Hls.ErrorTypes.KEY_SYSTEM_ERROR:
                               errorMessageDiv.textContent = 'DRM Key System Error: ' + (data.details || 'Unknown error');
-                              hls.destroy();
+                              hls.destroy(); // Cannot recover from key system errors
                               break;
                          case Hls.ErrorTypes.MUX_ERROR:
                              errorMessageDiv.textContent = 'Muxing Error: ' + (data.details || 'Unknown error');
-                             hls.destroy();
+                              hls.destroy(); // Mux errors usually unrecoverable by player
                              break;
                         default:
+                            // For other fatal errors, destroy Hls.js
                             hls.destroy();
-                             errorMessageDiv.textContent = 'Unrecoverable HLS.js error: ' + (data.details || 'Unknown error');
+                            errorMessageDiv.textContent = 'Unrecoverable HLS.js error: ' + (data.details || 'Unknown error');
                             break;
                     }
                 } else {
-                      errorMessageDiv.textContent = 'HLS.js warning: ' + (data.details || 'Unknown warning');
-                      streamUrlDisplayDiv.style.display = 'block';
+                     // Display non-fatal errors/warnings in the error message area
+                     // These are the ones we'll clear on playback
+                     displayMessage(errorMessageDiv, 'HLS.js warning: ' + (data.details || 'Unknown warning'), false); // Use error div for warnings too
                 }
             });
 
@@ -182,22 +196,37 @@ document.addEventListener('DOMContentLoaded', function() {
             volumeButton.disabled = true;
         }
 
+        // --- Event Listener to Clear Messages on Playback ---
+        // When the audio starts playing, clear any existing warning/error messages
+        audio.addEventListener('playing', function() {
+             clearMessages(); // Clear both error and status messages
+             // You could potentially display a brief "Playing..." status here if needed
+        });
+
+         // Optional: Clear messages also on 'canplay' or 'canplaythrough'
+         // audio.addEventListener('canplay', clearMessages);
+         // audio.addEventListener('canplaythrough', clearMessages);
+        // --- End Message Clearing Listener ---
+
+
         // --- Add Event Listeners for Custom Controls ---
 
         playPauseButton.addEventListener('click', function() {
             if (audio.paused || audio.ended) {
+                // Attempt to play
                 audio.play().catch(function(error) {
                     console.error('Play failed after click:', error);
                      displayMessage(errorMessageDiv, 'Could not start playback after click. Try again.', true);
                 });
             } else {
+                // Pause
                 audio.pause();
             }
         });
 
         audio.addEventListener('play', function() {
              updatePlayPauseButton();
-             displayMessage(streamUrlDisplayDiv, `Playing stream: ${audioSrc}`);
+             // Message is cleared by 'playing' event listener
         });
         audio.addEventListener('pause', function() {
             updatePlayPauseButton();

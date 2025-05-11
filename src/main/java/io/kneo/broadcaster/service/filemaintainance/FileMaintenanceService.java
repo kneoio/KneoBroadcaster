@@ -14,7 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.FileStore;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -54,7 +54,6 @@ public class FileMaintenanceService {
                 broadcasterConfig.getPathUploads(),
                 broadcasterConfig.getPathForMerged(),
                 broadcasterConfig.getSegmentationOutputDir()
-               // broadcasterConfig.getPathForExternalServiceUploads()
         );
         this.filesDeleted = 0;
         this.spaceFreedBytes = 0;
@@ -136,12 +135,13 @@ public class FileMaintenanceService {
                 LOGGER.error("Error during cleanup of: {}", outputDir, e);
             }
         }
+
         try {
-            if (!outputDirs.isEmpty()) {
-                updateDiskSpace(Path.of(outputDirs.get(0)));
-            }
+            updateDiskSpace();
         } catch (IOException e) {
             LOGGER.warn("Could not update disk space", e);
+            this.totalSpaceBytes = -1;
+            this.availableSpaceBytes = -1;
         }
 
         double totalSpaceFreedMB = (double) totalSpaceFreedBytes / (1024 * 1024);
@@ -155,14 +155,31 @@ public class FileMaintenanceService {
                 .build();
         eventBus.publish(ADDRESS_FILE_MAINTENANCE_STATS, stats);
         LOGGER.info("Cleanup done. Freed: {} MB, Deleted: {} files, {} dirs. Total: {} MB, Available: {} MB.",
-                String.format("%.2f", totalSpaceFreedMB), totalFilesDeleted, totalDirectoriesDeleted, String.format("%.2f", totalSpaceMB), String.format("%.2f", availableSpaceMB));
+                String.format("%.2f", totalSpaceFreedMB), totalFilesDeleted, totalDirectoriesDeleted,
+                String.format("%.2f", totalSpaceMB), String.format("%.2f", availableSpaceMB));
     }
 
-    private void updateDiskSpace(Path path) throws IOException {
-        FileStore fileStore = Files.getFileStore(path);
-        this.totalSpaceBytes = fileStore.getTotalSpace();
-        this.availableSpaceBytes = fileStore.getUsableSpace();
-        LOGGER.debug("Total space: {} bytes, Available space: {} bytes for path: {}", totalSpaceBytes, availableSpaceBytes, path);
+    /**
+     * Gets disk space using 'df -B1 /' command (works without root)
+     */
+    private void updateDiskSpace() throws IOException {
+        try {
+            Process process = new ProcessBuilder("df", "-B1", "/").start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            String[] lines = output.split("\n");
+
+            if (lines.length >= 2) {
+                String[] parts = lines[1].split("\\s+");
+                if (parts.length >= 4) {
+                    this.totalSpaceBytes = Long.parseLong(parts[1]);      // Total blocks
+                    this.availableSpaceBytes = Long.parseLong(parts[3]); // Available blocks
+                    return;
+                }
+            }
+            throw new IOException("Unexpected 'df' output format: " + output);
+        } catch (IOException | NumberFormatException e) {
+            throw new IOException("Failed to get disk space via 'df' command", e);
+        }
     }
 
     private void cleanEmptyDirectories(Path directory) throws IOException {
@@ -216,11 +233,11 @@ public class FileMaintenanceService {
 
     public FileMaintenanceStats getStats() {
         try {
-            if (!outputDirs.isEmpty()) {
-                updateDiskSpace(Path.of(outputDirs.get(0)));
-            }
+            updateDiskSpace();
         } catch (IOException e) {
             LOGGER.warn("Could not update disk space for stats", e);
+            this.totalSpaceBytes = -1;
+            this.availableSpaceBytes = -1;
         }
         return FileMaintenanceStats.builder()
                 .fromService(this.filesDeleted, this.spaceFreedBytes, this.directoriesDeleted)

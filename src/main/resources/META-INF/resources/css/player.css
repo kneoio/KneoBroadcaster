@@ -1,15 +1,302 @@
-/* Player-specific styles */
+:root {
+    /* Light Theme Variables */
+    --bg-color-light: #f0f0f0;
+    --text-color-light: #333;
+    --container-bg-light: #fff;
+    --message-error-bg-light: #f2dede;
+    --message-error-text-light: #a94442;
+    --message-status-bg-light: #d9edf7;
+    --message-status-text-light: #31708f;
+    --button-bg-light: #007bff;
+    --button-hover-bg-light: #0056b3;
+    --button-text-light: white;
+    --slider-track-light: #ddd;
+    --slider-thumb-light: #007bff;
+    --time-display-color-light: #555;
+}
+
+/* Apply light theme variables by default */
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px; /* Add some padding on mobile */
+    padding-top: 60px; /* Add extra padding at the top to prevent content hidden by fixed button */
+    box-sizing: border-box;
+
+    background-color: var(--bg-color-light);
+    color: var(--text-color-light); /* Default text color for body */
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth theme transition */
+}
+
+/* Dark Theme Variables & Styles */
+body.dark-theme {
+    --bg-color-dark: #222;
+    --text-color-dark: #eee;
+    --container-bg-dark: #333;
+    --message-error-bg-dark: #5a3a3a;
+    --message-error-text-dark: #ffcccc;
+    --message-status-bg-dark: #3a5a6a;
+    --message-status-text-dark: #ccf0ff;
+    --button-bg-dark: #555;
+    --button-hover-bg-dark: #666;
+    --button-text-dark: #eee;
+    --slider-track-dark: #555;
+    --slider-thumb-dark: #999;
+    --time-display-color-dark: #ccc;
+
+    background-color: var(--bg-color-dark);
+    color: var(--text-color-dark);
+}
+
+
 .player-container {
-    composes: container;
-}
-
-#debug {
-    margin-top: 1rem;
-    font-size: 0.8em;
-    color: #999;
-}
-
-audio {
+    padding: 20px;
+    border-radius: 8px;
     width: 100%;
-    margin-top: 1rem;
+    max-width: 500px;
+    text-align: center;
+    box-sizing: border-box;
+
+    background-color: var(--container-bg-light);
+     transition: background-color 0.3s ease;
+}
+
+body.dark-theme .player-container {
+    background-color: var(--container-bg-dark);
+}
+
+h1 {
+    color: var(--text-color-light);
+    margin-top: 0;
+    font-size: 1.5em;
+     transition: color 0.3s ease;
+}
+
+body.dark-theme h1 {
+     color: var(--text-color-dark);
+}
+
+
+/* Hide the default audio controls */
+#audioPlayer::-webkit-media-controls { display: none !important; }
+#audioPlayer::media-controls { display: none !important; }
+#audioPlayer {
+    display: block;
+    width: 0;
+    height: 0;
+    visibility: hidden;
+}
+
+
+.message {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    word-break: break-all;
+    text-align: center;
+    display: none;
+     transition: color 0.3s ease, background-color 0.3s ease;
+}
+
+.message.error {
+    color: var(--message-error-text-light);
+    background-color: var(--message-error-bg-light);
+}
+
+body.dark-theme .message.error {
+    color: var(--message-error-text-dark);
+    background-color: var(--message-error-bg-dark);
+}
+
+.message.status {
+    color: var(--message-status-text-light);
+    background-color: var(--message-status-bg-light);
+}
+
+body.dark-theme .message.status {
+    color: var(--message-status-text-dark);
+    background-color: var(--message-status-bg-dark);
+}
+
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+    gap: 10px;
+}
+
+.control-button {
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    background-color: var(--button-bg-light);
+    color: var(--button-text-light);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* --- Positioning for the Theme Toggle Button --- */
+/* This rule specifically targets the theme toggle button */
+#theme-toggle {
+    position: fixed; /* Position relative to the viewport */
+    top: 15px;       /* 15px from the top edge */
+    right: 15px;     /* 15px from the right edge */
+    z-index: 1000;   /* Ensure it's above other content */
+    width: 45px; /* Slightly larger for easier tapping on mobile */
+    height: 45px;
+    font-size: 1.4em;
+}
+/* --- End Positioning for the Theme Toggle Button --- */
+
+
+.control-button:hover {
+    background-color: var(--button-hover-bg-light);
+}
+
+body.dark-theme .control-button {
+    background-color: var(--button-bg-dark);
+    color: var(--button-text-dark);
+}
+
+body.dark-theme .control-button:hover {
+     background-color: var(--button-hover-bg-dark);
+}
+
+
+#play-pause::before { content: '▶'; }
+#play-pause.paused::before { content: '❚❚'; }
+
+/* Theme Toggle Button Icon */
+#theme-toggle::before { content: '☀️'; }
+body.dark-theme #theme-toggle::before { content: '🌙'; }
+
+
+.progress-container {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    gap: 5px;
+    min-width: 150px;
+}
+
+.time-display {
+    font-size: 0.9em;
+    flex-shrink: 0;
+     color: var(--time-display-color-light);
+      transition: color 0.3s ease;
+}
+
+body.dark-theme .time-display {
+    color: var(--time-display-color-dark);
+}
+
+
+.progress-bar, .volume-bar {
+    flex-grow: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 5px;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity .2s;
+    border-radius: 5px;
+    background: var(--slider-track-light);
+    transition: background 0.3s ease;
+}
+
+body.dark-theme .progress-bar,
+body.dark-theme .volume-bar {
+    background: var(--slider-track-dark);
+}
+
+
+.progress-bar:hover, .volume-bar:hover {
+    opacity: 1;
+}
+
+/* Style the thumb (draggable part) */
+.progress-bar::-webkit-slider-thumb, .volume-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: var(--slider-thumb-light);
+     transition: background 0.3s ease;
+}
+.progress-bar::-moz-range-thumb, .volume-bar::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: var(--slider-thumb-light);
+     transition: background 0.3s ease;
+}
+
+body.dark-theme .progress-bar::-webkit-slider-thumb,
+body.dark-theme .volume-bar::-webkit-slider-thumb {
+    background: var(--slider-thumb-dark);
+}
+body.dark-theme .progress-bar::-moz-range-thumb,
+body.dark-theme .volume-bar::-moz-range-thumb {
+    background: var(--slider-thumb-dark);
+}
+
+
+.volume-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 100px;
+    flex-shrink: 0;
+}
+
+/* Volume Button Text/Icons */
+.volume-button::before { content: '🔊'; }
+.volume-button.muted::before { content: '🔇'; }
+.volume-button.low-volume::before { content: '🔉'; }
+
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+    .controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+     .control-button {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5em;
+     }
+
+    /* Ensure theme toggle doesn't get huge */
+    #theme-toggle {
+         width: 45px;
+         height: 45px;
+         font-size: 1.4em;
+    }
+
+
+    .progress-container, .volume-container {
+        width: 100%;
+        min-width: auto;
+    }
 }

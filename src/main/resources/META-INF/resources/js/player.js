@@ -196,37 +196,27 @@ document.addEventListener('DOMContentLoaded', function() {
             volumeButton.disabled = true;
         }
 
-        // --- Event Listener to Clear Messages on Playback ---
-        // When the audio starts playing, clear any existing warning/error messages
+
         audio.addEventListener('playing', function() {
-             clearMessages(); // Clear both error and status messages
-             // You could potentially display a brief "Playing..." status here if needed
+             clearMessages();
+
         });
 
-         // Optional: Clear messages also on 'canplay' or 'canplaythrough'
-         // audio.addEventListener('canplay', clearMessages);
-         // audio.addEventListener('canplaythrough', clearMessages);
-        // --- End Message Clearing Listener ---
-
-
-        // --- Add Event Listeners for Custom Controls ---
 
         playPauseButton.addEventListener('click', function() {
             if (audio.paused || audio.ended) {
-                // Attempt to play
+
                 audio.play().catch(function(error) {
                     console.error('Play failed after click:', error);
                      displayMessage(errorMessageDiv, 'Could not start playback after click. Try again.', true);
                 });
             } else {
-                // Pause
                 audio.pause();
             }
         });
 
         audio.addEventListener('play', function() {
              updatePlayPauseButton();
-             // Message is cleared by 'playing' event listener
         });
         audio.addEventListener('pause', function() {
             updatePlayPauseButton();

@@ -29,9 +29,9 @@
     border-bottom: 1px solid #444;
     cursor: pointer;
     user-select: none;
-    display: flex; /* Use flexbox to align header text and button */
-    justify-content: space-between; /* Put space between header text and button */
-    align-items: center; /* Vertically align items */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .console-output {
@@ -43,7 +43,7 @@
 }
 
 body {
-    padding-bottom: 220px; /* Adjust based on console max-height + margin */
+    padding-bottom: 220px;
 }
 
 .console-line {
@@ -61,7 +61,6 @@ body {
 .console-warn { color: #cd9731; }
 .console-error { color: #f44747; }
 
-/* --- Styles for the new Clear button --- */
 .clear-button {
     background-color: #555;
     color: white;
@@ -69,9 +68,9 @@ body {
     padding: 3px 8px;
     border-radius: 3px;
     cursor: pointer;
-    font-size: 0.8em; /* Smaller font for the button */
-    margin-left: 10px; /* Space between header text and button */
-    flex-shrink: 0; /* Prevent button from shrinking */
+    font-size: 0.8em;
+    margin-left: 10px;
+    flex-shrink: 0;
 }
 
 .clear-button:hover {
@@ -81,4 +80,3 @@ body {
 .clear-button:active {
     background-color: #444;
 }
-/* --- End Clear button styles --- */

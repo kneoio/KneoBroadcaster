@@ -287,7 +287,6 @@ body.dark-theme .volume-bar::-moz-range-thumb {
         font-size: 1.5em;
      }
 
-    /* Ensure theme toggle doesn't get huge */
     #theme-toggle {
          width: 45px;
          height: 45px;

@@ -1,20 +1,18 @@
 /* css/status.css */
 
 .backend-status-text {
-    margin-top: 20px; /* Space from the very top */
-    margin-bottom: 15px; /* Space below (between status and player) */
-    /* Removed: text-align: center; */
+    margin-top: 20px;
+    margin-bottom: 15px;
     color: #abb2bf;
-    font-size: 1em; /* Increased font size slightly (was 0.9em) */
-    /* Removed: borders, backgrounds, specific font-family, padding */
+    font-size: 1em;
 }
 
 .backend-status-text.error {
-    color: #e06c75; /* Red */
+    color: #e06c75;
 }
 
-/* Adjust body padding slightly if needed based on status height */
+
 body {
-    padding-top: 10px; /* Removed, margin-top on status handles top space */
-    /* padding-bottom remains in console.css for the fixed element */
+    padding-top: 10px;
+
 }

@@ -13,18 +13,18 @@ public class AiAgent {
     private String name;
     private LanguageCode language;
 
-    private List<String> preferredVoiceNames;
+    private List<String> preferredVoice;
 
     public AiAgent() {
-        this.preferredVoiceNames = new ArrayList<>();
+        this.preferredVoice = new ArrayList<>();
     }
 
 
     public void addPreferredVoiceName(String voiceName) {
-        this.preferredVoiceNames.add(voiceName);
+        this.preferredVoice.add(voiceName);
     }
 
     public void removePreferredVoiceName(String voiceName) {
-        this.preferredVoiceNames.remove(voiceName);
+        this.preferredVoice.remove(voiceName);
     }
 }

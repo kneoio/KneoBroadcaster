@@ -1,0 +1,84 @@
+/* css/console.css */
+
+.app-console {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0 10px;
+    z-index: 1000;
+    border-top: 1px solid #ccc;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 0;
+    background-color: #1e1e1e;
+    color: #cccccc;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', 'Lucida Console', monospace;
+    font-size: 0.9em;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.console-header {
+    background-color: #333;
+    padding: 5px 10px;
+    font-weight: bold;
+    border-bottom: 1px solid #444;
+    cursor: pointer;
+    user-select: none;
+    display: flex; /* Use flexbox to align header text and button */
+    justify-content: space-between; /* Put space between header text and button */
+    align-items: center; /* Vertically align items */
+}
+
+.console-output {
+    padding: 10px 0;
+    max-height: 200px;
+    overflow-y: auto;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+body {
+    padding-bottom: 220px; /* Adjust based on console max-height + margin */
+}
+
+.console-line {
+    margin-bottom: 5px;
+    padding: 2px 0;
+    border-bottom: 1px dashed #444;
+}
+
+.console-line:last-child {
+    border-bottom: none;
+}
+
+.console-log { color: #cccccc; }
+.console-info { color: #6a9955; }
+.console-warn { color: #cd9731; }
+.console-error { color: #f44747; }
+
+/* --- Styles for the new Clear button --- */
+.clear-button {
+    background-color: #555;
+    color: white;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em; /* Smaller font for the button */
+    margin-left: 10px; /* Space between header text and button */
+    flex-shrink: 0; /* Prevent button from shrinking */
+}
+
+.clear-button:hover {
+    background-color: #666;
+}
+
+.clear-button:active {
+    background-color: #444;
+}
+/* --- End Clear button styles --- */

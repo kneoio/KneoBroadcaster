@@ -106,7 +106,7 @@ public class RadioController {
         String userAgent = rc.request().getHeader("User-Agent");
         service.getPlaylist(brand, userAgent)
                 .onItem().transform(playlist -> {
-                    return "Station: " + brand;
+                    return String.format("Brand: %s, Managed by: %s",brand, playlist.getRadioStation().getManagedBy());
                 })
                 .subscribe().with(
                         statusContent -> {

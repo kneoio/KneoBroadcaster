@@ -205,8 +205,8 @@ public class FileMaintenanceService {
 
         if (lines.length >= 2) {
             String[] parts = lines[1].split(",");
-            if (parts.length >= 3) {
-                this.totalSpaceBytes = Long.parseLong(parts[1].trim());
+            if (parts.length >= 4) {
+                this.totalSpaceBytes = Long.parseLong(parts[3].trim());
                 this.availableSpaceBytes = Long.parseLong(parts[2].trim());
                 return;
             }

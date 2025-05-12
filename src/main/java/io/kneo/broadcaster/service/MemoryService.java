@@ -56,18 +56,12 @@ public class MemoryService {
     }
 
     private List<ConversationMemoryDTO> mapEntityListToDtoList(List<ConversationMemory> entities) {
-        if (entities == null) {
-            return List.of();
-        }
         return entities.stream()
                 .map(this::mapEntityToDto)
                 .collect(Collectors.toList());
     }
 
     private ConversationMemoryDTO mapEntityToDto(ConversationMemory entity) {
-        if (entity == null) {
-            return null;
-        }
         ConversationMemoryDTO dto = new ConversationMemoryDTO();
         dto.setId(entity.getId());
         dto.setBrand(entity.getBrand());
@@ -77,9 +71,6 @@ public class MemoryService {
     }
 
     private ConversationMemory mapDtoToEntity(ConversationMemoryDTO dto) {
-        if (dto == null) {
-            return null;
-        }
         ConversationMemory entity = new ConversationMemory();
         entity.setBrand(dto.getBrand());
         entity.setMessageType(dto.getMessageType());

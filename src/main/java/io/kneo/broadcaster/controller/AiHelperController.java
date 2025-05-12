@@ -82,7 +82,6 @@ public class AiHelperController {
     private void handleGetMemoriesByBrand(RoutingContext rc) {
         try {
             String brand = rc.pathParam("brand");
-            // Using original parsing logic
             int limit = rc.queryParam("limit").isEmpty() ? 10 : Integer.parseInt(rc.queryParam("limit").get(0));
             int offset = rc.queryParam("offset").isEmpty() ? 0 : Integer.parseInt(rc.queryParam("offset").get(0));
 
@@ -93,7 +92,7 @@ public class AiHelperController {
                                     .putHeader("Content-Type", "application/json")
                                     .end(Json.encode(memories)),
                             failure -> rc.response()
-                                    .setStatusCode(404) // Keep original status code assumption
+                                    .setStatusCode(404)
                                     .putHeader("Content-Type", "text/plain")
                                     .end(failure.getMessage())
                     );

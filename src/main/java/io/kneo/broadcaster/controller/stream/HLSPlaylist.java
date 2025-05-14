@@ -50,14 +50,14 @@ public class HLSPlaylist {
     @Getter
     private final Map<Integer, PlaylistFragmentRange> mainQueue = Collections.synchronizedMap(new LinkedHashMap<>());
     private final AtomicInteger rangeCounter = new AtomicInteger(0);
-    private AtomicLong currentSequence = new AtomicLong(0);
+    private final AtomicLong currentSequence;
     private long latestRequestedSegment = 0;
-    private Map<String, AtomicBoolean> processingFlags = new ConcurrentHashMap<>();
-    private AtomicBoolean windowSliderProcessingFlag = new AtomicBoolean(false);
+    private final Map<String, AtomicBoolean> processingFlags;
+    private final AtomicBoolean windowSliderProcessingFlag;
     @Getter
     private ZonedDateTime lastSlide;
     @Getter
-    private Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
+    private Map<String, Cancellable> timerSubscriptions;
     @Setter
     @Getter
     private RadioStation radioStation;
@@ -77,13 +77,12 @@ public class HLSPlaylist {
     private final SegmentJanitorTimer janitorTimer;
     @Getter
     private HLSPlaylistStats stats;
-    private ExecutorService slideExecutor = Executors.newSingleThreadExecutor();
-    private Deque<SlideEvent> slideHistory = new ArrayDeque<>(20);
-    private AtomicLong slideSequence = new AtomicLong(0);
-    private static final int DEFAULT_WINDOW_SIZE = 2; // Define the default window size here
+    private final ExecutorService slideExecutor;
+    private final Deque<SlideEvent> slideHistory;
+    private final AtomicLong slideSequence;
     @Getter
-    private final KeySet keySet; // Initialize KeySet in the constructor
-    private final int windowSize; // Add the windowSize field
+    private final KeySet keySet;
+    private final int windowSize;
 
     public HLSPlaylist(
             SliderTimer sliderTimer,
@@ -100,8 +99,8 @@ public class HLSPlaylist {
         this.config = config;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
-        this.windowSize = Math.min(Math.max(windowSize, KeySet.MIN_WINDOW_SIZE), KeySet.MAX_WINDOW_SIZE); // Clamp the provided windowSize
-        this.keySet = new KeySet(this.windowSize); // Instantiate KeySet with the configured windowSize
+        this.windowSize = Math.min(Math.max(windowSize, KeySet.MIN_WINDOW_SIZE), KeySet.MAX_WINDOW_SIZE);
+        this.keySet = new KeySet(this.windowSize);
         stats = new HLSPlaylistStats(mainQueue);
         this.slideExecutor = Executors.newSingleThreadExecutor();
         this.slideHistory = new ArrayDeque<>(20);
@@ -116,7 +115,7 @@ public class HLSPlaylist {
     public void initialize() {
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
         playlistManager = new PlaylistManager(this);
-        if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
+        if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
             playlistManager.startSelfManaging();
         }
         LOGGER.info("Initializing maintenance for playlist: {}", radioStation.getSlugName());
@@ -449,13 +448,4 @@ public class HLSPlaylist {
         }
         return windowRanges;
     }
-
-    private Long[] extractRange(int key) {
-        try {
-            return new Long[]{mainQueue.get(key).getStart(), mainQueue.get(key).getEnd()};
-        } catch (Exception e) {
-            return new Long[]{0L, 0L};
-        }
-    }
-
 }

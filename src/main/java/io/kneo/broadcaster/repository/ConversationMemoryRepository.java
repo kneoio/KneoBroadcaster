@@ -2,6 +2,7 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ConversationMemory;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -62,6 +63,15 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<List<ConversationMemory>> findByType(String brand, MemoryType type) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND message_type = $2";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brand, type))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     public Uni<ConversationMemory> insert(ConversationMemory memory, IUser user) {
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (reg_date, author, last_mod_date, last_mod_user,brand, message_type, content, archived) " +
@@ -70,7 +80,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
                 .addString(memory.getBrand())
-                .addString(memory.getMessageType())
+                .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
                 .addBoolean(memory.isArchived());
 
@@ -88,7 +98,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
         Tuple params = Tuple.tuple()
                 .addLocalDateTime(LocalDateTime.now())
                 .addLong(user.getId())
-                .addString(memory.getMessageType())
+                .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
                 .addBoolean(memory.isArchived())
                 .addUUID(id);
@@ -123,7 +133,8 @@ public class ConversationMemoryRepository extends AsyncRepository {
         ConversationMemory memory = new ConversationMemory();
         setDefaultFields(memory, row);
         memory.setBrand(row.getString("brand"));
-        memory.setMessageType(row.getString("message_type"));
+        //TODO rename to memory type
+        memory.setMemoryType(MemoryType.valueOf(row.getString("message_type")));
         memory.setContent(row.getJsonObject("content").mapTo(JsonObject.class));
         memory.setArchived(row.getBoolean("archived"));
 

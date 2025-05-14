@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.core.model.DataEntity;
 import io.vertx.core.json.JsonObject;
 import lombok.Getter;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ConversationMemory extends DataEntity<UUID> {
     private String brand;
-    private String messageType;
+    private MemoryType memoryType;
     private JsonObject content;
     private boolean archived;
 

@@ -36,7 +36,7 @@ public class AiHelperController {
 
         router.get("/api/ai/brands/status").handler(this::handleGetBrandsByStatus);
 
-        router.get("/api/ai/memory/:brand").handler(this::handleGetMemoriesByBrand);
+        router.get("/api/ai/memory/:brand/:type").handler(this::handleGetMemoriesByType);
         router.post("/api/ai/memory/:id?").handler(this::handleUpsertMemory);
         router.delete("/api/ai/memory/:id").handler(this::handleDeleteMemory);
         router.delete("/api/ai/memory/brand/:brand").handler(this::handleDeleteMemoriesByBrand);
@@ -66,7 +66,7 @@ public class AiHelperController {
                                     .putHeader("Content-Type", "application/json")
                                     .end(Json.encode(brands)),
                             failure -> rc.response()
-                                    .setStatusCode(400) // Or 500 depending on expected failures
+                                    .setStatusCode(400)
                                     .putHeader("Content-Type", "text/plain")
                                     .end(failure.getMessage())
                     );
@@ -79,14 +79,12 @@ public class AiHelperController {
         }
     }
 
-    private void handleGetMemoriesByBrand(RoutingContext rc) {
+    private void handleGetMemoriesByType(RoutingContext rc) {
         try {
             String brand = rc.pathParam("brand");
-            int limit = rc.queryParam("limit").isEmpty() ? 10 : Integer.parseInt(rc.queryParam("limit").get(0));
-            int offset = rc.queryParam("offset").isEmpty() ? 0 : Integer.parseInt(rc.queryParam("offset").get(0));
+            String type = rc.pathParam("type");
 
-
-            memoryService.getByBrandId(brand, limit, offset)
+            memoryService.getByType(brand, type)
                     .subscribe().with(
                             memories -> rc.response()
                                     .putHeader("Content-Type", "application/json")
@@ -109,33 +107,7 @@ public class AiHelperController {
         }
     }
 
-    private void handleDeleteMemoriesByBrand(RoutingContext rc) {
-        try {
-            String brand = rc.pathParam("brand");
 
-            memoryService.deleteByBrand(brand)
-                    .subscribe().with(
-                            deletedCount -> {
-                                JsonObject response = new JsonObject()
-                                        .put("deletedCount", deletedCount)
-                                        .put("brand", brand);
-                                rc.response()
-                                        .setStatusCode(200)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(response.encode());
-                            },
-                            failure -> rc.response()
-                                    .setStatusCode(400)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end(failure.getMessage())
-                    );
-        } catch (Exception e) {
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("An unexpected error occurred while deleting memories by brand: " + e.getMessage());
-        }
-    }
 
     private void handleUpsertMemory(RoutingContext rc) {
         String idParam = rc.pathParam("id");
@@ -177,6 +149,34 @@ public class AiHelperController {
                     .setStatusCode(400)
                     .putHeader("Content-Type", "text/plain")
                     .end("Invalid request data: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteMemoriesByBrand(RoutingContext rc) {
+        try {
+            String brand = rc.pathParam("brand");
+
+            memoryService.deleteByBrand(brand)
+                    .subscribe().with(
+                            deletedCount -> {
+                                JsonObject response = new JsonObject()
+                                        .put("deletedCount", deletedCount)
+                                        .put("brand", brand);
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(response.encode());
+                            },
+                            failure -> rc.response()
+                                    .setStatusCode(400)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end(failure.getMessage())
+                    );
+        } catch (Exception e) {
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("An unexpected error occurred while deleting memories by brand: " + e.getMessage());
         }
     }
 

@@ -16,7 +16,7 @@ public interface HlsPlaylistConfig {
     int getMaxSegments();
 
     @WithName("playlist.segment.duration")
-    @WithDefault("4")
+    @WithDefault("8")
     int getSegmentDuration();
 
 

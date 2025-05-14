@@ -36,7 +36,6 @@ public class PlaylistManager {
     private final LinkedList<BrandSoundFragment> obtainedByHlsPlaylist = new LinkedList<>();
 
     @Getter
-    //private final LinkedList<BrandSoundFragment> segmentedAndReadyToBeConsumed = new LinkedList<>();
     private final PriorityQueue<BrandSoundFragment> segmentedAndReadyToBeConsumed = new PriorityQueue<>(Comparator.comparing(BrandSoundFragment::getQueueNum));
 
     @Getter

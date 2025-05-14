@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ConversationMemoryDTO;
 import io.kneo.broadcaster.model.ConversationMemory;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.ConversationMemoryRepository;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -31,6 +32,11 @@ public class MemoryService {
     public Uni<ConversationMemoryDTO> getById(UUID id) {
         return repository.findById(id)
                 .onItem().ifNotNull().transform(this::mapEntityToDto);
+    }
+
+    public Uni<List<ConversationMemoryDTO>> getByType(String brand, String type) {
+        return repository.findByType(brand, MemoryType.valueOf(type))
+                .map(this::mapEntityListToDtoList);
     }
 
     public Uni<ConversationMemoryDTO> upsert(UUID id, ConversationMemoryDTO dto, IUser user) {
@@ -65,7 +71,7 @@ public class MemoryService {
         ConversationMemoryDTO dto = new ConversationMemoryDTO();
         dto.setId(entity.getId());
         dto.setBrand(entity.getBrand());
-        dto.setMessageType(entity.getMessageType());
+        dto.setMemoryType(entity.getMemoryType());
         dto.setContent(entity.getContent());
         return dto;
     }
@@ -73,7 +79,7 @@ public class MemoryService {
     private ConversationMemory mapDtoToEntity(ConversationMemoryDTO dto) {
         ConversationMemory entity = new ConversationMemory();
         entity.setBrand(dto.getBrand());
-        entity.setMessageType(dto.getMessageType());
+        entity.setMemoryType(dto.getMemoryType());
         entity.setContent(dto.getContent());
         return entity;
     }

@@ -70,8 +70,8 @@ public class StationStats {
     }
 
     public String getAliveTimeInHours() {
-        int hours = (int) (alived / 60);  // full hours
-        int minutes = (int) (alived % 60);  // remaining minutes
+        int hours = (int) (alived / 60);
+        int minutes = (int) (alived % 60);
         return String.format("%02d:%02d", hours, minutes);
     }
 }

@@ -64,7 +64,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
     }
 
     public Uni<List<ConversationMemory>> findByType(String brand, MemoryType type) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND message_type = $2";
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND memory_type = $2";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brand, type))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -74,7 +74,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
 
     public Uni<ConversationMemory> insert(ConversationMemory memory, IUser user) {
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (reg_date, author, last_mod_date, last_mod_user,brand, message_type, content, archived) " +
+                " (reg_date, author, last_mod_date, last_mod_user,brand, memory_type, content, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id";
 
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
@@ -92,7 +92,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
 
     public Uni<ConversationMemory> update(UUID id, ConversationMemory memory, IUser user) {
         String sql = "UPDATE " + entityData.getTableName() +
-                " SET last_mod_date=$1, last_mod_user=$2, message_type=$3, content=$4, archived=$5 " +
+                " SET last_mod_date=$1, last_mod_user=$2, memory_type=$3, content=$4, archived=$5 " +
                 "WHERE id=$6";
 
         Tuple params = Tuple.tuple()
@@ -133,8 +133,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
         ConversationMemory memory = new ConversationMemory();
         setDefaultFields(memory, row);
         memory.setBrand(row.getString("brand"));
-        //TODO rename to memory type
-        memory.setMemoryType(MemoryType.valueOf(row.getString("message_type")));
+        memory.setMemoryType(MemoryType.valueOf(row.getString("memory_type")));
         memory.setContent(row.getJsonObject("content").mapTo(JsonObject.class));
         memory.setArchived(row.getBoolean("archived"));
 

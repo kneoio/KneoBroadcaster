@@ -20,7 +20,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     private static final String RADIO_STATION_ACCESS_TABLE_NAME = "kneobroadcaster__brand_readers";
     private static final String PROFILE_TABLE_NAME = "kneobroadcaster__profiles";
     private static final String PROFILE_ACCESS_TABLE_NAME = "kneobroadcaster__profile_readers";
-    private static final String MEMORY_TABLE_NAME = "kneobroadcaster__conversation_memory";
+    private static final String MEMORY_TABLE_NAME = "kneobroadcaster__memory";
     private static final String BRAND_STATS_TABLE_NAME = "kneobroadcaster__brand_agent_stats";
 
     public EntityData getEntityNames(String type) {

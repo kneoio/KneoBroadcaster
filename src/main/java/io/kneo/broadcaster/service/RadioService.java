@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.controller.stream.HLSPlaylist;
+import io.kneo.broadcaster.controller.stream.IStreamManager;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -44,7 +44,7 @@ public class RadioService {
                 );
     }
 
-    public Uni<HLSPlaylist> getPlaylist(String brand, String userAgent) {
+    public Uni<IStreamManager> getPlaylist(String brand, String userAgent) {
         return recordAccess(brand, userAgent)
                 .onFailure().recoverWithItem(() -> {
                     LOGGER.warn("Failed to record access, but continuing with playlist retrieval: {}", brand);

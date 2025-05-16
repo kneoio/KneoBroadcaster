@@ -1,7 +1,8 @@
 package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.HLSPlaylist;
+import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.controller.stream.StreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
@@ -48,14 +49,13 @@ public class RadioStationPool {
     AudioSegmentationService segmentationService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
-        HLSPlaylist playlist = new HLSPlaylist(
+        StreamManager playlist = new StreamManager(
                 sliderTimer,
                 feederTimer,
-                janitorTimer,
                 config,
                 soundFragmentService,
                 segmentationService,
-                3
+                10
         );
 
         return radioStationService.findByBrandName(brandName)
@@ -85,7 +85,7 @@ public class RadioStationPool {
                         LOGGER.warn("Station {} not found in database", brandName);
                         return Uni.createFrom().nullItem();
                     }
-                    HLSPlaylist playlist = station.getPlaylist();
+                    IStreamManager playlist = station.getPlaylist();
                     if (playlist != null) {
                         playlist.shutdown();
                     }
@@ -109,7 +109,7 @@ public class RadioStationPool {
             LOGGER.warn("Attempted to stop non-existent station: {}", brandName);
             return Uni.createFrom().nullItem();
         }
-        HLSPlaylist playlist = radioStation.getPlaylist();
+        IStreamManager playlist = radioStation.getPlaylist();
         if (playlist != null) {
             playlist.shutdown();
         }

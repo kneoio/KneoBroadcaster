@@ -1,14 +1,13 @@
 package io.kneo.broadcaster.service.radio;
 
-import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.HLSPlaylist;
+import io.kneo.broadcaster.controller.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
-import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,8 +40,6 @@ public class PlaylistManager {
     @Getter
     private final String brand;
 
-    private final HlsPlaylistConfig config;
-
     @Getter
     private final SchedulerTaskTimeline taskTimeline = new SchedulerTaskTimeline();
     private final SoundFragmentService soundFragmentService;
@@ -50,8 +47,7 @@ public class PlaylistManager {
     private final AudioSegmentationService segmentationService;
     private final RadioStation radioStation;
 
-    public PlaylistManager(HLSPlaylist playlist) {
-        this.config = playlist.getConfig();
+    public PlaylistManager(IStreamManager playlist) {
         this.soundFragmentService = playlist.getSoundFragmentService();
         this.segmentationService = playlist.getSegmentationService();
         this.radioStation = playlist.getRadioStation();
@@ -68,7 +64,6 @@ public class PlaylistManager {
         LOGGER.info("Starting self manging PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                // Only add fragments if we have space in the ready queue
                 if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
                     int neededFragments = READY_QUEUE_MAX_SIZE - segmentedAndReadyToBeConsumed.size();
                     addFragments(neededFragments);
@@ -131,8 +126,6 @@ public class PlaylistManager {
             slicedFragmentsLock.writeLock().lock();
             try {
                 obtainedByHlsPlaylist.add(fragmentToMove);
-
-                // Remove oldest fragment if queue size exceeds limit
                 if (obtainedByHlsPlaylist.size() > PROCESSED_QUEUE_MAX_SIZE) {
                     BrandSoundFragment removed = obtainedByHlsPlaylist.poll();
                     LOGGER.debug("Removed oldest fragment from processed queue: {}",

@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.manipulation;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SegmentInfo;
@@ -30,20 +31,18 @@ public class AudioSegmentationService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
 
-    FFmpegProvider ffmpeg;
-
-    BroadcasterConfig broadcasterConfig;
+    private final FFmpegProvider ffmpeg;
 
     @Setter
-    public static int segmentDuration = 20;
+    public static int segmentDuration;
     private final String outputDir;
 
     @Inject
-    public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg) {
-        this.broadcasterConfig = broadcasterConfig;
+    public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
         this.ffmpeg = ffmpeg;
         this.outputDir = broadcasterConfig.getSegmentationOutputDir();
         new File(outputDir).mkdirs();
+        segmentDuration = hlsPlaylistConfig.getSegmentDuration();
     }
 
     public ConcurrentLinkedQueue<HlsSegment> slice(SoundFragment soundFragment) {
@@ -78,7 +77,6 @@ public class AudioSegmentationService {
         String currentHour = now.format(HOUR_FORMATTER);
         String sanitizedSongName = sanitizeFileName(songMetadata);
 
-        // Create directory structure: outputDir/yyyy-MM-dd/HH/songName/
         Path songDir = Paths.get(outputDir, today, currentHour, sanitizedSongName);
 
         try {

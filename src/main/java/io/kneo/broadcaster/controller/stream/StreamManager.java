@@ -1,0 +1,229 @@
+package io.kneo.broadcaster.controller.stream;
+
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.kneo.broadcaster.service.radio.PlaylistManager;
+import io.kneo.broadcaster.service.stream.SegmentFeederTimer;
+import io.kneo.broadcaster.service.stream.SliderTimer; // Using the new SliderTimer
+import io.smallrye.mutiny.subscription.Cancellable;
+import lombok.Getter;
+import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class StreamManager implements IStreamManager {
+    private static final ZoneId ZONE_ID = ZoneId.of("Europe/Lisbon");
+    private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
+    private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)\\.ts$");
+
+    private final ConcurrentSkipListMap<Long, HlsSegment> liveSegments = new ConcurrentSkipListMap<>();
+    private final AtomicLong currentSequence = new AtomicLong(0);
+    private long latestRequestedSegment = 0;
+
+    @Getter @Setter
+    private RadioStation radioStation;
+    @Getter
+    private PlaylistManager playlistManager;
+    @Getter
+    private final HlsPlaylistConfig config;
+    @Getter
+    private HLSPlaylistStats stats;
+    @Getter
+    private final SoundFragmentService soundFragmentService;
+    @Getter
+    private final AudioSegmentationService segmentationService;
+
+    private final SegmentFeederTimer segmentFeederTimer;
+    private final SliderTimer sliderTimer; // Now using SliderTimer for window advancement
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+
+    private final int maxVisibleSegments;
+
+    private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
+
+    public StreamManager(
+            SliderTimer sliderTimer,
+            SegmentFeederTimer segmentFeederTimer,
+            HlsPlaylistConfig config,
+            SoundFragmentService soundFragmentService,
+            AudioSegmentationService segmentationService,
+            int maxVisibleSegments
+    ) {
+        this.sliderTimer = sliderTimer;
+        this.segmentFeederTimer = segmentFeederTimer;
+        this.config = config;
+        this.soundFragmentService = soundFragmentService;
+        this.segmentationService = segmentationService;
+        this.maxVisibleSegments = maxVisibleSegments;
+    }
+
+    public void initialize() {
+        LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
+        playlistManager = new PlaylistManager(this);
+        if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
+            playlistManager.startSelfManaging();
+        }
+
+        // Feeder subscribes to add new segments
+        Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
+                timestamp -> executorService.submit(this::feedSegments),
+                error -> LOGGER.error("Feeder subscription error {}", error.getMessage())
+        );
+
+        // Slider now subscribes to slide the window by removing old segments
+        Cancellable slider = sliderTimer.getTicker().subscribe().with(
+                timestamp -> executorService.submit(this::slideWindow),
+                error -> LOGGER.error("Slider subscription error {}", error.getMessage())
+        );
+
+        timerSubscriptions.put("feeder", feeder);
+        timerSubscriptions.put("slider", slider); // Updated subscription name
+    }
+
+    /**
+     * Adds new segments from the playlist manager into the liveSegments map.
+     * Ensures there's always a buffer of segments.
+     */
+    private void feedSegments() {
+        if (liveSegments.size() < maxVisibleSegments * 2) { // Maintain a buffer
+            try {
+                BrandSoundFragment fragment = playlistManager.getNextFragment();
+                if (fragment != null && !fragment.getSegments().isEmpty()) {
+                    fragment.getSegments().forEach(segment -> {
+                        segment.setSequence(currentSequence.getAndIncrement());
+                        liveSegments.put(segment.getSequence(), segment);
+                    });
+                    LOGGER.debug("Added fragments for {}. Total live segments: {}", radioStation.getSlugName(), liveSegments.size());
+                    radioStation.setStatus(RadioStationStatus.ON_LINE);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error feeding segments for {}: {}", radioStation.getSlugName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    private void slideWindow() {
+        if (liveSegments.isEmpty()) {
+            return;
+        }
+
+        // Directly remove segments from the front if the total buffer size exceeds the
+        // desired number of visible segments. This ensures the window advances.
+        while (liveSegments.size() > maxVisibleSegments) {
+            long removedKey = liveSegments.firstKey(); // Get the key of the segment to be removed
+            liveSegments.pollFirstEntry(); // Remove the oldest segment
+            LOGGER.debug("Removed segment with sequence {} from buffer. Remaining segments: {}", removedKey, liveSegments.size());
+        }
+        LOGGER.debug("Window slid for {}. Current first key: {}", radioStation.getSlugName(), liveSegments.firstKey());
+    }
+
+    /**
+     * Generates the HLS playlist string based on the current live segments.
+     */
+    public String generatePlaylist() {
+        if (liveSegments.isEmpty()) {
+            return "#EXTM3U\n" +
+                    "#EXT-X-VERSION:3\n" +
+                    "#EXT-X-ALLOW-CACHE:NO\n" +
+                    "#EXT-X-TARGETDURATION:" + config.getSegmentDuration() + "\n" +
+                    "#EXT-X-MEDIA-SEQUENCE:0\n";
+        }
+
+        StringBuilder playlist = new StringBuilder();
+        playlist.append("#EXTM3U\n")
+                .append("#EXT-X-VERSION:3\n")
+                .append("#EXT-X-ALLOW-CACHE:NO\n")
+                .append("#EXT-X-PLAYLIST-TYPE:EVENT\n")
+                .append("#EXT-X-TARGETDURATION:").append(config.getSegmentDuration()).append("\n");
+
+        long firstSequenceInWindow = liveSegments.firstKey();
+        playlist.append("#EXT-X-MEDIA-SEQUENCE:").append(firstSequenceInWindow).append("\n");
+        playlist.append("#EXT-X-PROGRAM-DATE-TIME:")
+                .append(ZonedDateTime.now(ZONE_ID).format(DateTimeFormatter.ISO_INSTANT))
+                .append("\n");
+
+        liveSegments.tailMap(firstSequenceInWindow).entrySet().stream()
+                .limit(maxVisibleSegments)
+                .forEach(entry -> {
+                    HlsSegment segment = entry.getValue();
+                    playlist.append("#EXTINF:")
+                            .append(segment.getDuration())
+                            .append(",")
+                            .append(segment.getSongName())
+                            .append("\n")
+                            .append("segments/")
+                            .append(radioStation.getSlugName())
+                            .append("_")
+                            .append(segment.getSequence())
+                            .append(".ts\n");
+                });
+
+        return playlist.toString();
+    }
+
+    /**
+     * Retrieves a specific HLS segment by its name (which contains the sequence number).
+     */
+    public HlsSegment getSegment(String segmentParam) {
+        try {
+            Matcher matcher = SEGMENT_PATTERN.matcher(segmentParam);
+            if (!matcher.find()) {
+                LOGGER.warn("Segment '{}' doesn't match expected pattern: {}", segmentParam, SEGMENT_PATTERN.pattern());
+                return null;
+            }
+            long segmentSequence = Long.parseLong(matcher.group(2));
+
+            latestRequestedSegment = segmentSequence;
+
+            HlsSegment segment = liveSegments.get(segmentSequence);
+            if (segment == null) {
+                LOGGER.debug("Segment {} not found in liveSegments for {}", segmentSequence, radioStation.getSlugName());
+            }
+            return segment;
+
+        } catch (Exception e) {
+            LOGGER.warn("Error processing segment request '{}': {}", segmentParam, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Returns the sequence number of the most recently requested segment.
+     */
+    public long getLatestRequestedSeg() {
+        return latestRequestedSegment;
+    }
+
+    /**
+     * Shuts down all timers and clears resources.
+     */
+    public void shutdown() {
+        LOGGER.info("Shutting down SimpleHLSPlaylist for: {}", radioStation.getSlugName());
+        timerSubscriptions.forEach((key, subscription) -> {
+            if (subscription != null) subscription.cancel();
+        });
+        timerSubscriptions.clear();
+        executorService.shutdownNow();
+        currentSequence.set(0);
+        liveSegments.clear();
+    }
+
+
+}

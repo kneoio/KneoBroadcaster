@@ -14,7 +14,7 @@ import java.time.temporal.ChronoUnit;
 @ApplicationScoped
 public class SegmentFeederTimer {
     private static final Logger LOGGER = LoggerFactory.getLogger(SegmentFeederTimer.class);
-    private static final int DURATION_SEC = 30;
+    private static final int DURATION_SEC = 4;
     private Multi<Long> ticker;
     private Cancellable subscription;
 

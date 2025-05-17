@@ -4,7 +4,9 @@
     <title>Bratan Radio Player</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="css/player.css">
-    <link rel="stylesheet" href="css/status.css"> <link rel="stylesheet" href="css/console.css"> </head>
+    <link rel="stylesheet" href="css/status.css">
+    <link rel="stylesheet" href="css/console.css">
+</head>
 <body>
 
 <button id="theme-toggle" class="control-button theme-toggle"></button>
@@ -12,6 +14,7 @@
 <div id="backend-status-text" class="backend-status-text">Loading backend status...</div>
 <div class="player-container">
     <h1>Bratan radio player</h1>
+    <div id="song-title-display" class="song-title"></div>
 
     <div id="error-message" class="message error"></div>
     <div id="stream-url-display" class="message status"></div>
@@ -38,11 +41,18 @@
 <div id="app-console" class="app-console">
     <div class="console-header">
         <span>App Console</span>
-        <button id="clear-console" class="clear-button">Clear</button>
+        <div class="console-controls">
+            <label for="log-to-console-toggle" class="console-log-toggle-label">Log here:</label>
+            <input type="checkbox" id="log-to-console-toggle" class="console-log-toggle">
+            <button id="clear-console" class="clear-button">Clear</button>
+        </div>
     </div>
     <div class="console-output" id="console-output"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-<script src="js/player.js"></script> <script src="js/status.js"></script> <script src="js/console.js"></script> </body>
+<script src="js/player.js"></script>
+<script src="js/status.js"></script>
+<script src="js/console.js"></script>
+</body>
 </html>

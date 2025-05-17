@@ -299,3 +299,26 @@ body.dark-theme .volume-bar::-moz-range-thumb {
         min-width: auto;
     }
 }
+
+/* Add these styles at the end of your player.css or in a relevant section */
+
+.song-title {
+    margin-top: 10px; /* Adjust as needed */
+    margin-bottom: 15px; /* Add some space before messages/controls */
+    font-size: 1.1em;   /* Make it slightly larger */
+    font-weight: bold;
+    color: var(--text-color-light); /* Use theme variable */
+    min-height: 1.3em; /* Prevent layout shift if title is empty briefly */
+    text-align: center;
+    word-break: break-word; /* In case of very long titles */
+    transition: color 0.3s ease;
+}
+
+body.dark-theme .song-title {
+    color: var(--text-color-dark); /* Use theme variable */
+}
+
+/* You might want to adjust the h1 margin if the song title is directly below it */
+.player-container h1 {
+    margin-bottom: 5px; /* Reduce space if song title follows directly */
+}

@@ -7,6 +7,7 @@ import java.time.ZonedDateTime;
 import java.util.concurrent.ConcurrentNavigableMap;
 
 @Getter
+@Deprecated
 public class PlaylistFragmentRange {
     private final ConcurrentNavigableMap<Long, HlsSegment> segments;
     private final long start;

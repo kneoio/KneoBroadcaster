@@ -2,6 +2,8 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.vertx.core.buffer.Buffer;
@@ -106,7 +108,12 @@ public class RadioController {
         String userAgent = rc.request().getHeader("User-Agent");
         service.getPlaylist(brand, userAgent)
                 .onItem().transform(playlist -> {
-                    return String.format("Brand: %s, Managed by: %s",brand, playlist.getRadioStation().getManagedBy());
+                    RadioStation station = playlist.getRadioStation();
+                    if (station.getManagedBy() == ManagedBy.ITSELF) {
+                        return String.format("Brand: %s, Managed by: %s", brand, station.getManagedBy());
+                    } else {
+                        return String.format("Brand: %s, Managed by: %s, DJ: %s", brand, station.getManagedBy(), station.getAiAgent().getName());
+                    }
                 })
                 .subscribe().with(
                         statusContent -> {

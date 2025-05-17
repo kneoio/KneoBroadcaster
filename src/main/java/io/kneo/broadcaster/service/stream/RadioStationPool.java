@@ -82,6 +82,7 @@ public class RadioStationPool {
                                     }
 
                                     LOGGER.info("RadioStationPool: Creating new StreamManager instance for station {}.", key);
+                                    feederTimer.setDurationSec(config.getSegmentDuration());
                                     StreamManager newPlaylist = new StreamManager(
                                             sliderTimer,
                                             feederTimer,

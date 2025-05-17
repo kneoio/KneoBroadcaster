@@ -7,7 +7,7 @@
     right: 0;
     width: 100%;
     margin: 0;
-    padding: 0 10px;
+    padding: 0 10px; /* Horizontal padding only for the main container */
     z-index: 1000;
     border-top: 1px solid #ccc;
     border-left: none;
@@ -24,27 +24,55 @@
 
 .console-header {
     background-color: #333;
-    padding: 5px 10px;
+    padding: 5px 10px; /* Padding for header content */
     font-weight: bold;
     border-bottom: 1px solid #444;
-    cursor: pointer;
+    /* cursor: pointer; */ /* Removed as we have interactive elements now */
     user-select: none;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
+/* *** NEW STYLES FOR CONSOLE CONTROLS (CHECKBOX, LABEL, BUTTON) *** */
+.console-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Adds space between label, checkbox, and button */
+}
+
+.console-log-toggle-label {
+    font-weight: normal; /* Labels are typically not bold */
+    color: #bbb;        /* Slightly lighter for differentiation */
+    font-size: 0.9em;
+    cursor: pointer; /* Make label clickable for the checkbox */
+}
+
+.console-log-toggle {
+    vertical-align: middle; /* Align checkbox with text */
+    margin: 0; /* Remove default margins if any */
+    cursor: pointer;
+}
+/* *** END NEW STYLES *** */
+
+
 .console-output {
-    padding: 10px 0;
+    padding: 10px; /* Padding for output content */
     max-height: 200px;
     overflow-y: auto;
     word-wrap: break-word;
     white-space: pre-wrap;
 }
 
+/* Adjust body padding if the console height changes or if it's collapsible in the future */
+/* This assumes the console is always visible at its max-height + header. */
+/* Total height approx: 200px (output) + 30px (header) + 10px (padding) = 240px */
 body {
-    padding-bottom: 220px;
+    /* Ensure this value is enough to show content above the fixed console */
+    /* You might need to adjust this if your player or other elements are tall */
+    padding-bottom: calc(200px + 30px + 20px); /* max-height + header-approx-height + some-buffer */
 }
+
 
 .console-line {
     margin-bottom: 5px;
@@ -69,7 +97,7 @@ body {
     border-radius: 3px;
     cursor: pointer;
     font-size: 0.8em;
-    margin-left: 10px;
+    /* margin-left: 10px; Removed, using gap on parent now */
     flex-shrink: 0;
 }
 

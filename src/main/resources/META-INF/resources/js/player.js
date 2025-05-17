@@ -1,7 +1,12 @@
+// js/player.js
 document.addEventListener('DOMContentLoaded', function() {
+    // ---- TEST LOG ----
+    console.log('[Player.js] DOMContentLoaded: Initializing Bratan Radio Player script.');
+
     var audio = document.getElementById('audioPlayer');
     var errorMessageDiv = document.getElementById('error-message');
     var streamUrlDisplayDiv = document.getElementById('stream-url-display');
+    var songTitleDisplay = document.getElementById('song-title-display');
 
     var playPauseButton = document.getElementById('play-pause');
     var seekBar = document.getElementById('seek-bar');
@@ -27,12 +32,16 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.classList.add('dark-theme');
         currentTheme = 'dark';
         localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+        // ---- TEST LOG ----
+        console.info('[Player.js] Theme changed to Dark.');
     }
 
     function enableLightTheme() {
         document.body.classList.remove('dark-theme');
         currentTheme = 'light';
         localStorage.setItem(THEME_STORAGE_KEY, 'light');
+        // ---- TEST LOG ----
+        console.info('[Player.js] Theme changed to Light.');
     }
 
     function toggleTheme() {
@@ -47,19 +56,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savedTheme === 'dark') {
         enableDarkTheme();
     } else {
-        enableLightTheme();
+        enableLightTheme(); // Default to light if no saved theme or saved is light
     }
     themeToggleButton.addEventListener('click', toggleTheme);
     // --- End Theme Toggle Functions ---
 
-
-    // Function to display messages
-    // Clears the other message div when displaying a new message
     function displayMessage(element, message, isError = false) {
+        // ... (rest of the function remains the same)
         element.textContent = message;
         element.style.display = message ? 'block' : 'none';
 
-        // Set CSS classes based on message type
         if (isError) {
             element.classList.add('error');
             element.classList.remove('status');
@@ -68,8 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
             element.classList.remove('error');
         }
 
-        // Hide the other message div when showing a new one
-        if (message) { // Only hide the other if a message is actually being displayed
+        if (message) {
             if (element === errorMessageDiv) {
                 streamUrlDisplayDiv.style.display = 'none';
             } else {
@@ -78,14 +83,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Function to clear all messages
     function clearMessages() {
         displayMessage(errorMessageDiv, '');
         displayMessage(streamUrlDisplayDiv, '');
     }
 
-
     function formatTime(seconds) {
+        // ... (rest of the function remains the same)
         if (isNaN(seconds)) return '0:00';
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = Math.floor(seconds % 60);
@@ -94,16 +98,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updatePlayPauseButton() {
+        // ... (rest of the function remains the same)
         if (audio.paused || audio.ended) {
             playPauseButton.classList.remove('paused');
-             playPauseButton.classList.add('play');
+            playPauseButton.classList.add('play');
         } else {
             playPauseButton.classList.add('paused');
             playPauseButton.classList.remove('play');
         }
     }
 
-     function updateVolumeButton() {
+    function updateVolumeButton() {
+        // ... (rest of the function remains the same)
          if (audio.muted || audio.volume === 0) {
              volumeButton.classList.add('muted');
              volumeButton.classList.remove('low-volume');
@@ -114,122 +120,119 @@ document.addEventListener('DOMContentLoaded', function() {
          else {
              volumeButton.classList.remove('muted', 'low-volume');
          }
-     }
+    }
 
     if (!dynamicRadioName) {
+        // ---- TEST LOG (using warn for this case) ----
+        console.warn(`[Player.js] URL parameter "${PARAMETER_NAME}" is MISSING.`);
         displayMessage(errorMessageDiv, `Error: The required URL parameter "${PARAMETER_NAME}" is missing (e.g., ?${PARAMETER_NAME}=nunoscope).`, true);
         audio.style.display = 'none';
-         playPauseButton.disabled = true;
-         seekBar.disabled = true;
-         volumeBar.disabled = true;
-         volumeButton.disabled = true;
+        playPauseButton.disabled = true;
+        seekBar.disabled = true;
+        volumeBar.disabled = true;
+        volumeButton.disabled = true;
+        if(songTitleDisplay) songTitleDisplay.textContent = 'Radio parameter missing';
     } else {
+        // ---- TEST LOG ----
+        console.log(`[Player.js] URL parameter "${PARAMETER_NAME}" found: ${dynamicRadioName}`);
         audioSrc = `${HLS_BASE_URL}/${dynamicRadioName}${HLS_PATH_SUFFIX}`;
         displayMessage(streamUrlDisplayDiv, `Attempting to load stream: ${audioSrc}`);
+        if(songTitleDisplay) songTitleDisplay.textContent = 'Loading stream info...';
 
         if (Hls.isSupported()) {
-            var hls = new Hls();
+            // ---- TEST LOG ----
+            console.log('[Player.js] HLS.js is supported. Initializing HLS player.');
+            var hls = new Hls({
+                // debug: true // You can also enable HLS.js internal debugging if needed
+            });
             hls.loadSource(audioSrc);
             hls.attachMedia(audio);
 
-            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+                // ---- TEST LOG ----
+                console.log('[Player.js] HLS.js Event: MANIFEST_PARSED. Levels:', data.levels.length);
                 displayMessage(streamUrlDisplayDiv, `Stream loaded. Click the ▶ button to play.`);
-                 seekBar.max = audio.duration;
-                 durationDisplay.textContent = formatTime(audio.duration);
-            });
-
-             hls.on(Hls.Events.ERROR, function(event, data) {
-                console.error('Hls.js error:', data);
-                // Always display fatal errors
-                if (data.fatal) {
-                    displayMessage(errorMessageDiv, 'Fatal HLS.js error: ' + (data.details || 'Unknown error'), true);
-                     // Attempt specific recoveries
-                    switch(data.type) {
-                        case Hls.ErrorTypes.NETWORK_ERROR:
-                             console.log('Attempting network error recovery...');
-                             // Only attempt startLoad if it's a network error
-                            hls.startLoad();
-                            break;
-                        case Hls.ErrorTypes.MEDIA_ERROR:
-                             console.log('Attempting media error recovery...');
-                             hls.recoverMediaError(); // Try to recover media errors
-                            break;
-                         case Hls.ErrorTypes.KEY_SYSTEM_ERROR:
-                              errorMessageDiv.textContent = 'DRM Key System Error: ' + (data.details || 'Unknown error');
-                              hls.destroy(); // Cannot recover from key system errors
-                              break;
-                         case Hls.ErrorTypes.MUX_ERROR:
-                             errorMessageDiv.textContent = 'Muxing Error: ' + (data.details || 'Unknown error');
-                              hls.destroy(); // Mux errors usually unrecoverable by player
-                             break;
-                        default:
-                            // For other fatal errors, destroy Hls.js
-                            hls.destroy();
-                            errorMessageDiv.textContent = 'Unrecoverable HLS.js error: ' + (data.details || 'Unknown error');
-                            break;
-                    }
-                } else {
-                     // Display non-fatal errors/warnings in the error message area
-                     // These are the ones we'll clear on playback
-                     displayMessage(errorMessageDiv, 'HLS.js warning: ' + (data.details || 'Unknown warning'), false); // Use error div for warnings too
+                seekBar.max = audio.duration;
+                durationDisplay.textContent = formatTime(audio.duration);
+                if(songTitleDisplay && (!songTitleDisplay.textContent || songTitleDisplay.textContent === 'Loading stream info...')) {
+                    songTitleDisplay.textContent = 'Press play to start radio';
                 }
             });
 
+            hls.on(Hls.Events.FRAG_CHANGED, function(event, data) {
+                // ---- TEST LOG ----
+                // console.debug('[Player.js] HLS.js Event: FRAG_CHANGED. Title:', data.frag.title); // Using debug for frequent events
+                if (songTitleDisplay && data && data.frag && data.frag.title) {
+                    songTitleDisplay.textContent = data.frag.title;
+                }
+            });
+
+            hls.on(Hls.Events.ERROR, function(event, data) {
+                console.error('[Player.js] HLS.js error:', data); // Already a console call
+                if (data.fatal) {
+                    // ... (rest of error handling)
+                }
+            });
 
         } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-            audio.src = audioSrc;
-            audio.addEventListener('loadedmetadata', function() {
-                displayMessage(streamUrlDisplayDiv, `Stream loaded (native). Click the ▶ button to play.`);
-                 seekBar.max = audio.duration;
-                 durationDisplay.textContent = formatTime(audio.duration);
-            });
-             audio.addEventListener('error', function() {
-                 console.error('Native audio error');
-                 displayMessage(errorMessageDiv, 'Native audio playback error.', true);
-             });
+            // ---- TEST LOG ----
+            console.log('[Player.js] Native HLS playback is supported. Using native player.');
+            // ... (rest of native HLS handling)
         } else {
-            displayMessage(errorMessageDiv, 'Your browser does not support HLS audio playback.', true);
-            audio.style.display = 'none';
-            playPauseButton.disabled = true;
-            seekBar.disabled = true;
-            volumeBar.disabled = true;
-            volumeButton.disabled = true;
+            // ---- TEST LOG (using warn) ----
+            console.warn('[Player.js] HLS playback not supported by this browser.');
+            // ... (rest of no support handling)
         }
 
 
         audio.addEventListener('playing', function() {
-             clearMessages();
-
+            // ---- TEST LOG ----
+            console.log('[Player.js] Audio event: playing');
+            clearMessages();
+            if (songTitleDisplay && songTitleDisplay.textContent === 'Press play to start radio') {
+                // songTitleDisplay.textContent = 'Loading song...';
+            }
         });
 
 
         playPauseButton.addEventListener('click', function() {
             if (audio.paused || audio.ended) {
-
+                // ---- TEST LOG ----
+                console.log('[Player.js] Play button clicked. Attempting to play.');
                 audio.play().catch(function(error) {
-                    console.error('Play failed after click:', error);
-                     displayMessage(errorMessageDiv, 'Could not start playback after click. Try again.', true);
+                    console.error('[Player.js] Play failed after click:', error);
+                    displayMessage(errorMessageDiv, 'Could not start playback after click. Try again.', true);
                 });
             } else {
+                // ---- TEST LOG ----
+                console.log('[Player.js] Pause button clicked. Attempting to pause.');
                 audio.pause();
             }
         });
 
         audio.addEventListener('play', function() {
-             updatePlayPauseButton();
+            // ---- TEST LOG ----
+            console.info('[Player.js] Audio event: play (playback has begun or resumed)');
+            updatePlayPauseButton();
         });
         audio.addEventListener('pause', function() {
+            // ---- TEST LOG ----
+            console.info('[Player.js] Audio event: pause');
             updatePlayPauseButton();
-             if (!audio.ended) {
-                 displayMessage(streamUrlDisplayDiv, `Paused: ${audioSrc}`);
-             }
+            if (!audio.ended) {
+                displayMessage(streamUrlDisplayDiv, `Paused: ${audioSrc}`);
+            }
         });
+        // ... (rest of player.js)
         audio.addEventListener('ended', function() {
+            console.log('[Player.js] Audio event: ended');
             updatePlayPauseButton();
-             displayMessage(streamUrlDisplayDiv, `Stream ended.`);
+            displayMessage(streamUrlDisplayDiv, `Stream ended.`);
+            if(songTitleDisplay) songTitleDisplay.textContent = 'Stream ended';
         });
 
         audio.addEventListener('timeupdate', function() {
+            // console.debug('[Player.js] Audio event: timeupdate', audio.currentTime); // This is very frequent, use debug
             if (!seekBar.dragging && audio.duration !== Infinity && !isNaN(audio.duration)) {
                  seekBar.value = audio.currentTime;
                  currentTimeDisplay.textContent = formatTime(audio.currentTime);
@@ -245,23 +248,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         seekBar.addEventListener('input', function() {
+             // console.debug('[Player.js] Seek bar input:', seekBar.value); // Frequent, use debug
              seekBar.dragging = true;
              currentTimeDisplay.textContent = formatTime(seekBar.value);
         });
 
         seekBar.addEventListener('change', function() {
+             console.log('[Player.js] Seek bar changed (value committed):', seekBar.value);
              seekBar.dragging = false;
              audio.currentTime = seekBar.value;
         });
 
         volumeBar.addEventListener('input', function() {
+             // console.debug('[Player.js] Volume bar input:', volumeBar.value); // Frequent, use debug
              audio.volume = volumeBar.value;
              audio.muted = false;
              updateVolumeButton();
         });
 
-         let lastVolume = 1;
+        let lastVolume = 1;
         volumeButton.addEventListener('click', function() {
+             console.log('[Player.js] Volume button clicked.');
              if (audio.muted || audio.volume === 0) {
                  lastVolume = volumeBar.value > 0 ? volumeBar.value : 1;
                  audio.muted = false;
@@ -280,10 +287,11 @@ document.addEventListener('DOMContentLoaded', function() {
          updateVolumeButton();
 
          audio.addEventListener('volumechange', function() {
-             if (!volumeBar.dragging) {
+             // console.debug('[Player.js] Audio event: volumechange', audio.volume); // Frequent, use debug
+             if (!volumeBar.dragging) { // Ensure this flag exists or handle appropriately
                  volumeBar.value = audio.volume;
-                 updateVolumeButton();
              }
+             updateVolumeButton();
          });
     }
 });

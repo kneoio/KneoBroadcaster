@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,25 +15,26 @@ import java.time.temporal.ChronoUnit;
 @ApplicationScoped
 public class SegmentFeederTimer {
     private static final Logger LOGGER = LoggerFactory.getLogger(SegmentFeederTimer.class);
-    private static final int DURATION_SEC = 4;
+    @Setter
+    private int durationSec = 4;
     private Multi<Long> ticker;
     private Cancellable subscription;
 
     private Multi<Long> createTicker() {
-        LOGGER.info("Creating Timer with duration: {}s", DURATION_SEC);
+        LOGGER.info("Creating Timer with duration: {}s", durationSec);
         Instant now = Instant.now();
-        long secondsUntilNextBoundary = DURATION_SEC - (now.getEpochSecond() % DURATION_SEC);
+        long secondsUntilNextBoundary = durationSec - (now.getEpochSecond() % durationSec);
         Instant nextBoundary = now.plusSeconds((int) secondsUntilNextBoundary)
                 .truncatedTo(ChronoUnit.SECONDS);
 
         long initialDelayMillis = nextBoundary.toEpochMilli() - now.toEpochMilli();
         Multi<Long> ticker = Multi.createFrom().ticks()
                 .startingAfter(Duration.ofMillis(initialDelayMillis))
-                .every(Duration.ofSeconds(DURATION_SEC))
+                .every(Duration.ofSeconds(durationSec))
                 .onOverflow().drop()
                 .map(tick -> {
                     long currentTimestamp = Instant.now().getEpochSecond();
-                    return currentTimestamp - (currentTimestamp % DURATION_SEC);
+                    return currentTimestamp - (currentTimestamp % durationSec);
                 })
                 .broadcast().toAllSubscribers();
 

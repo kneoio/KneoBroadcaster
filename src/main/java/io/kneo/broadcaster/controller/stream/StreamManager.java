@@ -47,7 +47,7 @@ public class StreamManager implements IStreamManager {
     private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
 
     @Getter @Setter
-    private RadioStation radioStation; // This is set by RadioStationPool before initialize() is called
+    private RadioStation radioStation;
     @Getter
     private PlaylistManager playlistManager;
     @Getter
@@ -84,24 +84,18 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void initialize() {
-        String radioSlugForLog;
         if (this.radioStation != null) {
-            radioSlugForLog = (this.radioStation.getSlugName() != null) ? this.radioStation.getSlugName() : "UNKNOWN_STATION";
             if (this.radioStation.getManagedBy() == ManagedBy.ITSELF || this.radioStation.getManagedBy() == ManagedBy.MIX) {
                 this.radioStation.setStatus(RadioStationStatus.WARMING_UP);
-                System.out.println(String.format("StreamManager.initialize Debug: Station %s status set to WARMING_UP by StreamManager.", radioSlugForLog));
             } else {
                 this.radioStation.setStatus(RadioStationStatus.WAITING_FOR_CURATOR);
-                System.out.println(String.format("StreamManager.initialize Debug: Station %s status set to WAITING_FOR_CURATOR by StreamManager.", radioSlugForLog));
             }
         } else {
-            radioSlugForLog = "UNKNOWN_STATION";
             LOGGER.error("StreamManager.initialize: RadioStation object is null. Cannot set initial status or properly initialize.");
-            // Early exit or throw exception if radioStation is essential for further initialization
             return;
         }
 
-        LOGGER.info("New broadcast initialized for {}", radioSlugForLog);
+        LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
         playlistManager = new PlaylistManager(this);
         if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
@@ -110,12 +104,12 @@ public class StreamManager implements IStreamManager {
 
         Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
                 timestamp -> executorService.submit(this::feedSegments),
-                error -> LOGGER.error("Feeder subscription error for {}: {}", radioSlugForLog, error.getMessage(), error)
+                error -> LOGGER.error("Feeder subscription error for {}: {}", radioStation.getSlugName(), error.getMessage(), error)
         );
 
         Cancellable slider = sliderTimer.getTicker().subscribe().with(
                 timestamp -> executorService.submit(this::slideWindow),
-                error -> LOGGER.error("Slider subscription error for {}: {}", radioSlugForLog, error.getMessage(), error)
+                error -> LOGGER.error("Slider subscription error for {}: {}", radioStation.getSlugName(), error.getMessage(), error)
         );
 
         timerSubscriptions.put("feeder", feeder);
@@ -123,49 +117,46 @@ public class StreamManager implements IStreamManager {
     }
 
     private void feedSegments() {
-        String radioSlugForDebug = (this.radioStation != null && this.radioStation.getSlugName() != null)
-                ? this.radioStation.getSlugName()
-                : "UNKNOWN_STATION";
-        System.out.println(String.format("feedSegments Debug: [START] For %s. liveSegments: %d, pendingQueue: %d.",
-                radioSlugForDebug, liveSegments.size(), pendingFragmentSegmentsQueue.size()));
+        System.out.printf("feedSegments Debug: [START] For %s. liveSegments: %d, pendingQueue: %d.%n",
+                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());
 
         int drippedCountThisCall = 0;
         if (pendingFragmentSegmentsQueue.isEmpty()) {
-            System.out.println(String.format("feedSegments Debug: [DRIP] Pending queue for %s is empty. No segments to drip to liveSegments this pass.", radioSlugForDebug));
+            System.out.printf("feedSegments Debug: [DRIP] Pending queue for %s is empty. No segments to drip to liveSegments this pass.%n", radioStation.getSlugName());
         } else {
-            System.out.println(String.format("feedSegments Debug: [DRIP] For %s. Attempting to drip up to %d segment(s) from pendingQueue (current size %d) to liveSegments (current size %d, drip limit if full %d).",
-                    radioSlugForDebug, SEGMENTS_TO_DRIP_PER_FEED_CALL, pendingFragmentSegmentsQueue.size(), liveSegments.size(), maxVisibleSegments * 2));
+            System.out.printf("feedSegments Debug: [DRIP] For %s. Attempting to drip up to %d segment(s) from pendingQueue (current size %d) to liveSegments (current size %d, drip limit if full %d).%n",
+                    radioStation.getSlugName(), SEGMENTS_TO_DRIP_PER_FEED_CALL, pendingFragmentSegmentsQueue.size(), liveSegments.size(), maxVisibleSegments * 2);
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
-                    System.out.println(String.format("feedSegments Debug: [DRIP] liveSegments buffer for %s is full or at limit (%d/%d). Pausing drip-feed for this call.",
-                            liveSegments.size(), maxVisibleSegments * 2, radioSlugForDebug));
+                    System.out.printf("feedSegments Debug: [DRIP] liveSegments buffer for %s is full or at limit (%d/%d). Pausing drip-feed for this call.%n",
+                            radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments * 2);
                     break;
                 }
                 if (!pendingFragmentSegmentsQueue.isEmpty()) {
                     HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                     liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
-                    drippedCountThisCall++;
-                    System.out.println(String.format("feedSegments Debug: [DRIP] Dripped segment %d to liveSegments for %s. liveSegments now: %d, pendingQueue now: %d",
-                            segmentToMakeLive.getSequence(), radioSlugForDebug, liveSegments.size(), pendingFragmentSegmentsQueue.size()));
+                    drippedCountThisCall ++;
+                    System.out.printf("feedSegments Debug: [DRIP] Dripped segment %d to liveSegments for %s. liveSegments now: %d, pendingQueue now: %d%n",
+                            segmentToMakeLive.getSequence(), radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());
                 } else {
-                    System.out.println(String.format("feedSegments Debug: [DRIP] pendingFragmentSegmentsQueue for %s became empty during drip attempt.", radioSlugForDebug));
+                    System.out.printf("feedSegments Debug: [DRIP] pendingFragmentSegmentsQueue for %s became empty during drip attempt.%n", radioStation.getSlugName());
                     break;
                 }
             }
             if (drippedCountThisCall > 0) {
-                System.out.println(String.format("feedSegments Debug: [DRIP] Finished dripping for %s. Dripped %d segment(s) in this call.", radioSlugForDebug, drippedCountThisCall));
-                if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) { // Check liveSegments not empty
+                System.out.printf("feedSegments Debug: [DRIP] Finished dripping for %s. Dripped %d segment(s) in this call.%n", radioStation.getSlugName(), drippedCountThisCall);
+                if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    System.out.println(String.format("feedSegments Debug: [STATUS] Radio station %s status set to ON_LINE.", radioSlugForDebug));
+                    System.out.printf("feedSegments Debug: [STATUS] Radio station %s status set to ON_LINE.%n", radioStation.getSlugName());
                 }
             } else {
-                System.out.println(String.format("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).", radioSlugForDebug));
+                System.out.println(String.format("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).", radioStation.getSlugName()));
             }
         }
 
         if (pendingFragmentSegmentsQueue.size() < PENDING_QUEUE_REFILL_THRESHOLD) {
-            System.out.println(String.format("feedSegments Debug: [REFILL] Pending queue for %s is low (size: %d, threshold: %d). Attempting to fetch new fragment.",
-                    radioSlugForDebug, pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD));
+            System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s is low (size: %d, threshold: %d). Attempting to fetch new fragment.%n",
+                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);
             try {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null && !fragment.getSegments().isEmpty()) {
@@ -173,8 +164,8 @@ public class StreamManager implements IStreamManager {
                     final long[] firstSeqInBatch = {-1L};
                     final long[] lastSeqInBatch = {-1L};
 
-                    System.out.println(String.format("feedSegments Debug: [REFILL] Fetched BrandSoundFragment for %s with %d HLS segments. Assigning sequence numbers...",
-                            radioSlugForDebug, newSegmentsFromFragment));
+                    System.out.printf("feedSegments Debug: [REFILL] Fetched BrandSoundFragment for %s with %d HLS segments. Assigning sequence numbers...%n",
+                            radioStation.getSlugName(), newSegmentsFromFragment);
                     fragment.getSegments().forEach(segment -> {
                         long seq = currentSequence.getAndIncrement();
                         if (firstSeqInBatch[0] == -1L) {
@@ -184,45 +175,42 @@ public class StreamManager implements IStreamManager {
                         segment.setSequence(seq);
                         pendingFragmentSegmentsQueue.offer(segment);
                     });
-                    System.out.println(String.format("feedSegments Debug: [REFILL] Added %d new segments (sequences approx %d to %d) to pendingFragmentSegmentsQueue for %s. New pendingQueue size: %d",
-                            newSegmentsFromFragment, firstSeqInBatch[0], lastSeqInBatch[0], radioSlugForDebug, pendingFragmentSegmentsQueue.size()));
+                    System.out.printf("feedSegments Debug: [REFILL] Added %d new segments (sequences approx %d to %d) to pendingFragmentSegmentsQueue for %s. New pendingQueue size: %d%n",
+                            newSegmentsFromFragment, firstSeqInBatch[0], lastSeqInBatch[0], radioStation.getSlugName(), pendingFragmentSegmentsQueue.size());
                 } else {
-                    System.out.println(String.format("feedSegments Debug: [REFILL] No new fragment or empty fragment obtained for %s from PlaylistManager.", radioSlugForDebug));
+                    System.out.printf("feedSegments Debug: [REFILL] No new fragment or empty fragment obtained for %s from PlaylistManager.%n", radioStation.getSlugName());
                 }
             } catch (Exception e) {
-                LOGGER.error("feedSegments: Error during [REFILL] fetching/processing new fragment for {}: {}", radioSlugForDebug, e.getMessage(), e);
+                LOGGER.error("feedSegments: Error during [REFILL] fetching/processing new fragment for {}: {}", radioStation.getSlugName(), e.getMessage(), e);
             }
         } else {
-            System.out.println(String.format("feedSegments Debug: [REFILL] Pending queue for %s not low (size: %d, threshold: %d). No refill attempt needed.",
-                    radioSlugForDebug, pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD));
+            System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s not low (size: %d, threshold: %d). No refill attempt needed.%n",
+                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);
         }
-        System.out.println(String.format("feedSegments Debug: [END] For %s. liveSegments: %d, pendingQueue: %d",
-                radioSlugForDebug, liveSegments.size(), pendingFragmentSegmentsQueue.size()));
+        System.out.printf("feedSegments Debug: [END] For %s. liveSegments: %d, pendingQueue: %d%n",
+                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());
     }
 
     private void slideWindow() {
-        String radioSlugForDebug = (this.radioStation != null && this.radioStation.getSlugName() != null)
-                ? this.radioStation.getSlugName()
-                : "UNKNOWN_STATION";
         if (liveSegments.isEmpty()) {
             return;
         }
-        System.out.println(String.format("slideWindow Debug: Checking window for %s. Current segments in liveSegments: %d, Max visible in playlist: %d",
-                radioSlugForDebug, liveSegments.size(), maxVisibleSegments));
+        System.out.printf("slideWindow Debug: Checking window for %s. Current segments in liveSegments: %d, Max visible in playlist: %d%n",
+                radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments);
         int removedCount = 0;
         while (liveSegments.size() > maxVisibleSegments) {
             long removedKey = liveSegments.firstKey();
             liveSegments.pollFirstEntry();
             removedCount++;
-            System.out.println(String.format("slideWindow Debug: Removed segment for %s with sequence %d. liveSegments now: %d",
-                    radioSlugForDebug, removedKey, liveSegments.size()));
+            System.out.printf("slideWindow Debug: Removed segment for %s with sequence %d. liveSegments now: %d%n",
+                    radioStation.getSlugName(), removedKey, liveSegments.size());
         }
         if (removedCount > 0) {
-            System.out.println(String.format("slideWindow Debug: Finished sliding for %s. Removed %d segment(s). liveSegments now: %d. First key in liveSegments: %s",
-                    radioSlugForDebug, removedCount, liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey()));
+            System.out.printf("slideWindow Debug: Finished sliding for %s. Removed %d segment(s). liveSegments now: %d. First key in liveSegments: %s%n",
+                    radioStation.getSlugName(), removedCount, liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());
         } else {
-            System.out.println(String.format("slideWindow Debug: No segments needed removal for %s during this pass. liveSegments size: %d. First key: %s",
-                    radioSlugForDebug, liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey()));
+            System.out.printf("slideWindow Debug: No segments needed removal for %s during this pass. liveSegments size: %d. First key: %s%n",
+                    radioStation.getSlugName(), liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());
         }
     }
 
@@ -233,7 +221,7 @@ public class StreamManager implements IStreamManager {
                 : "UNKNOWN_STATION";
 
         if (liveSegments.isEmpty()) {
-            System.out.println(String.format("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=0, Segments=[] (Live segments empty)", radioSlugForDebug));
+            System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=0, Segments=[] (Live segments empty)%n", radioSlugForDebug);
             return "#EXTM3U\n" +
                     "#EXT-X-VERSION:3\n" +
                     "#EXT-X-ALLOW-CACHE:NO\n" +
@@ -280,8 +268,8 @@ public class StreamManager implements IStreamManager {
                 .map(String::valueOf)
                 .collect(Collectors.joining(", "));
 
-        System.out.println(String.format("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=%d, Segments=[%s]",
-                radioSlugForDebug, firstSequenceInWindow, segmentsLogString));
+        System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=%d, Segments=[%s]%n",
+                radioSlugForDebug, firstSequenceInWindow, segmentsLogString);
 
         return playlist.toString();
     }
@@ -316,9 +304,7 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void shutdown() {
-        String radioSlugForDebug = (this.radioStation != null && this.radioStation.getSlugName() != null)
-                ? this.radioStation.getSlugName() : "UNKNOWN_STATION";
-        LOGGER.info("Shutting down HLSPlaylist for: {}", radioSlugForDebug);
+        LOGGER.info("Shutting down HLSPlaylist for: {}", radioStation.getSlugName());
         timerSubscriptions.forEach((key, subscription) -> {
             if (subscription != null) subscription.cancel();
         });
@@ -326,8 +312,8 @@ public class StreamManager implements IStreamManager {
         executorService.shutdownNow();
         currentSequence.set(0);
         liveSegments.clear();
-        pendingFragmentSegmentsQueue.clear(); // Clear the new queue as well
-        LOGGER.info("HLSPlaylist for {} has been shut down. All queues cleared.", radioSlugForDebug);
+        pendingFragmentSegmentsQueue.clear();
+        LOGGER.info("HLSPlaylist for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
             radioStation.setStatus(RadioStationStatus.OFF_LINE); // Also update local status
         }

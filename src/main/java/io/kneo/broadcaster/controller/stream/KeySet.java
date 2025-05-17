@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Deprecated
 public class KeySet {
     public static final int DEFAULT_INCREMENT_STEP = 1;
     public static final int DEFAULT_START_VALUE = 0;

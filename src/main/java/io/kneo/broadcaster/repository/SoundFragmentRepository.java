@@ -27,12 +27,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+// import java.io.IOException; // Not directly used in the snippet after changes
+// import java.nio.file.Files; // Not directly used in the snippet after changes
+// import java.nio.file.Paths; // Not directly used in the snippet after changes
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -83,10 +82,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, true)
-                                .onItem().transform(fragment -> {
-                                    return fragment;
-                                });
+                        return from(row, true);
                     } else {
                         LOGGER.warn(String.format("No %s found with id: " + uuid, entityData.getTableName()));
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
@@ -153,8 +149,8 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<Integer> updatePlayedByBrand(UUID brandId, UUID soundFragmentId) {
-        String sql = "UPDATE kneobroadcaster__brand_sound_fragments " +
-                "SET played_by_brand_count = played_by_brand_count + 1, " +
+        String sql = "UPDATE "  + entityData.getTableName() +
+                " SET played_by_brand_count = played_by_brand_count + 1, " +
                 "last_time_played_by_brand = NOW() " +
                 "WHERE brand_id = $1 AND sound_fragment_id = $2";
 
@@ -168,15 +164,20 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<SoundFragment> insert(SoundFragment doc, List<FileUpload> files, IUser user) {
+        if (files == null || files.isEmpty() || files.get(0) == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("A file is required to create a SoundFragment."));
+        }
+        FileUpload fileToUpload = files.get(0);
+
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+        String doKey = user.getUserName() + "/" + UUID.randomUUID().toString() + "-" + fileToUpload.fileName();
+
         String sql = String.format(
                 "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                        "title, artist, genre, album, played) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $12, $13) RETURNING id;",
+                        "title, artist, genre, album, slug_name, do_key, archived) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
                 entityData.getTableName()
         );
-        String filesSql = "INSERT INTO kneobroadcaster__sound_fragment_files " +
-                "(entity_id, file_data, mime_type, size, original_name, version) VALUES ($1, $2, $3, $4, $5, $6)";
 
         Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
                 .addString(doc.getSource().name())
@@ -185,121 +186,103 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getGenre())
-                .addString(doc.getAlbum());
+                .addString(doc.getAlbum())
+                .addString(doc.getSlugName())
+                .addString(doKey)
+                .addInteger(0);
 
         String readersSql = String.format(
                 "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
                 entityData.getRlsName()
         );
 
-        return client.withTransaction(tx -> {
-            return tx.preparedQuery(sql)
-                    .execute(params)
-                    .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                    .onItem().transformToUni(id -> {
-                        return tx.preparedQuery(readersSql)
+        return digitalOceanSpacesService.uploadFile(doKey, fileToUpload)
+                .onItem().transformToUni(v -> client.withTransaction(tx -> tx.preparedQuery(sql)
+                        .execute(params)
+                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                        .onItem().transformToUni(id -> tx.preparedQuery(readersSql)
                                 .execute(Tuple.of(user.getId(), id, true, true))
-                                .onItem().ignore().andContinueWithNull()
-                                .onItem().transformToUni(unused -> {
-                                    if (files.isEmpty()) {
-                                        return Uni.createFrom().item(id);
-                                    }
-
-                                    List<Uni<RowSet<Row>>> fileInserts = new ArrayList<>();
-                                    for (FileUpload file : files) {
-                                        try {
-                                            byte[] fileContent = Files.readAllBytes(Paths.get(file.uploadedFileName()));
-                                            Uni<RowSet<Row>> fileInsert = tx.preparedQuery(filesSql)
-                                                    .execute(Tuple.of(
-                                                            id,
-                                                            fileContent,
-                                                            file.contentType(),
-                                                            (int) Files.size(Paths.get(file.uploadedFileName())),
-                                                            file.fileName(),
-                                                            1
-                                                    ));
-                                            fileInserts.add(fileInsert);
-                                        } catch (IOException e) {
-                                            return Uni.createFrom().failure(e);
-                                        }
-                                    }
-
-                                    return Uni.combine().all().unis(fileInserts)
-                                            .discardItems()
-                                            .onItem().transform(v -> id);
-                                });
-                    });
-        }).onItem().transformToUni(id -> findById(id, user.getId()));
+                                .onItem().transform(ignored -> id)
+                        )
+                ))
+                .onItem().transformToUni(id -> findById(id, user.getId()));
     }
 
     public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<FileUpload> files, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
-                    if (permissions[0]) {
-                        String deleteSql = String.format("DELETE FROM %s WHERE entity_id=$1", entityData.getFilesTableName());
-                        String filesSql = String.format("INSERT INTO %s (entity_id, file_data, type) VALUES ($1, $2, $3)", entityData.getFilesTableName());
-
-                        return client.withTransaction(tx -> {
-                            return tx.preparedQuery(deleteSql)
-                                    .execute(Tuple.of(id))
-                                    .onItem().transformToUni(ignored -> {
-                                        // Insert new files if any
-                                        if (!files.isEmpty()) {
-                                            List<Uni<RowSet<Row>>> fileInserts = new ArrayList<>();
-                                            for (FileUpload file : files) {
-                                                try {
-                                                    byte[] fileContent = Files.readAllBytes(Paths.get(file.uploadedFileName()));
-                                                    Uni<RowSet<Row>> fileInsert = tx.preparedQuery(filesSql)
-                                                            .execute(Tuple.of(
-                                                                    id,
-                                                                    fileContent,
-                                                                    file.contentType()
-                                                            ));
-                                                    fileInserts.add(fileInsert);
-                                                } catch (IOException e) {
-                                                    return Uni.createFrom().failure(e);
-                                                }
-                                            }
-                                            return Uni.combine().all().unis(fileInserts)
-                                                    .discardItems()
-                                                    .onItem().transform(v -> id);
-                                        }
-                                        return Uni.createFrom().item(id);
-                                    })
-                                    .onItem().transformToUni(unused -> {
-                                        LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-                                        String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
-                                                "source=$3, status=$4, type=$5, title=$6, " +
-                                                "artist=$7, genre=$8, album=$9 WHERE id=$10;", entityData.getTableName());
-
-                                        Tuple params = Tuple.of(user.getId(), nowTime)
-                                                .addString(doc.getSource().name())
-                                                .addInteger(doc.getStatus())
-                                                .addString(doc.getType().name())
-                                                .addString(doc.getTitle())
-                                                .addString(doc.getArtist())
-                                                .addString(doc.getGenre())
-                                                .addString(doc.getAlbum())
-                                                .addUUID(id);
-
-                                        return tx.preparedQuery(updateSql)
-                                                .execute(params)
-                                                .onItem().transformToUni(rowSet -> {
-                                                    if (rowSet.rowCount() == 0) {
-                                                        return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                                    }
-                                                    return findById(id, user.getId());
-                                                });
-                                    });
-                        });
-                    } else {
+                    if (!permissions[0]) {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                     }
+
+                    return findById(id, user.getId())
+                            .onItem().transformToUni(existingDoc -> {
+                                Uni<String> doKeyUni;
+                                String newDoKeyForUpdate = existingDoc.getDoKey();
+
+                                if (files != null && !files.isEmpty() && files.get(0) != null) {
+                                    FileUpload newFileToUpload = files.get(0);
+                                    String generatedNewDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + newFileToUpload.fileName();
+                                    newDoKeyForUpdate = generatedNewDoKey;
+
+                                    Uni<Void> uploadAndDeleteOldUni = digitalOceanSpacesService.uploadFile(generatedNewDoKey, newFileToUpload);
+                                    if (existingDoc.getDoKey() != null && !existingDoc.getDoKey().isBlank()) {
+                                        uploadAndDeleteOldUni = uploadAndDeleteOldUni
+                                                .flatMap(v -> digitalOceanSpacesService.deleteFile(existingDoc.getDoKey())
+                                                        .onFailure().recoverWithItem((Void)null)
+                                                );
+                                    }
+                                    doKeyUni = uploadAndDeleteOldUni.map(v -> generatedNewDoKey);
+                                } else {
+                                    doKeyUni = Uni.createFrom().item(existingDoc.getDoKey());
+                                }
+
+                                final String finalNewDoKeyForUpdate = newDoKeyForUpdate;
+                                return doKeyUni.onItem().transformToUni(processedDoKey -> {
+                                    LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+                                    String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
+                                                    "source=$3, status=$4, type=$5, title=$6, " +
+                                                    "artist=$7, genre=$8, album=$9, slug_name=$10, do_key=$11 WHERE id=$12;",
+                                            entityData.getTableName());
+
+                                    Tuple params = Tuple.of(user.getId(), nowTime)
+                                            .addString(doc.getSource().name())
+                                            .addInteger(doc.getStatus())
+                                            .addString(doc.getType().name())
+                                            .addString(doc.getTitle())
+                                            .addString(doc.getArtist())
+                                            .addString(doc.getGenre())
+                                            .addString(doc.getAlbum())
+                                            .addString(doc.getSlugName())
+                                            .addString(finalNewDoKeyForUpdate)
+                                            .addUUID(id);
+
+                                    return client.withTransaction(tx -> tx.preparedQuery(updateSql)
+                                            .execute(params)
+                                            .onItem().transformToUni(rowSet -> {
+                                                if (rowSet.rowCount() == 0) {
+                                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                                }
+                                                return findById(id, user.getId());
+                                            }));
+                                });
+                            });
                 });
     }
 
     public Uni<Integer> delete(UUID uuid, IUser user) {
-        return delete(uuid, entityData, user);
+        return findById(uuid, user.getId())
+                .onItem().transformToUni(soundFragment -> {
+                    Uni<Void> deleteFileUni = Uni.createFrom().voidItem();
+                    if (soundFragment.getDoKey() != null && !soundFragment.getDoKey().isBlank()) {
+                        deleteFileUni = digitalOceanSpacesService.deleteFile(soundFragment.getDoKey())
+                                .onFailure().recoverWithUni(e -> {
+                                    LOGGER.error("Failed to delete file {} from DO Spaces for SoundFragment {}. DB record deletion will proceed.", soundFragment.getDoKey(), uuid, e);
+                                    return Uni.createFrom().voidItem();
+                                });
+                    }
+                    return deleteFileUni.onItem().transformToUni(v -> super.delete(uuid, entityData, user));
+                });
     }
 
     private Uni<SoundFragment> from(Row row, boolean setFile) {
@@ -313,14 +296,25 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
-        if (setFile) {
-            return digitalOceanSpacesService.getFile(row.getString("do_key"))
-                    .onItem().transformToUni(file -> {
-                        doc.setFilePath(file);
+
+        doc.setSlugName(row.getString("slug_name"));
+        doc.setDoKey(row.getString("do_key"));
+
+        if (row.getString("description") != null) {
+            doc.setDescription(row.getString("description"));
+        }
+
+        if (setFile && doc.getDoKey() != null && !doc.getDoKey().isBlank()) {
+            return digitalOceanSpacesService.getFile(doc.getDoKey())
+                    .onItem().transform(filePath -> {
+                        doc.setFilePath(filePath);
+                        return doc;
+                    })
+                    .onFailure().recoverWithUni(e -> {
+                        LOGGER.warn("Failed to fetch file from DO for key {}: {}. SoundFragment will not have filePath.", doc.getDoKey(), e.getMessage());
                         return Uni.createFrom().item(doc);
                     });
         }
         return Uni.createFrom().item(doc);
     }
-
 }

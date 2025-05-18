@@ -78,19 +78,12 @@ public class QueueController {
     }
 
     private String determineFilePath(RoutingContext rc, String brand) {
-        if (!rc.request().isExpectMultipart()) {
-            return null;
-        }
-
         List<FileUpload> files = rc.fileUploads();
         if (files.isEmpty()) {
             return null;
         }
 
         FileUpload file = files.get(0);
-        if (!file.fileName().toLowerCase().endsWith(".mp3")) {
-            return null;
-        }
 
         String fileName = UUID.randomUUID() + "_" + file.fileName();
         String uploadDir = config.getPathUploads() + "/" + brand;
@@ -98,7 +91,7 @@ public class QueueController {
 
         try {
             Files.createDirectories(Paths.get(uploadDir));
-            Files.copy(Paths.get(file.uploadedFileName()), Paths.get(filePath));
+            Files.move(Paths.get(file.uploadedFileName()), Paths.get(filePath));
             return filePath;
         } catch (IOException e) {
             return null;

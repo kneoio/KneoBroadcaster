@@ -52,7 +52,8 @@ public class FileMaintenanceService {
         this.outputDirs = List.of(
                 broadcasterConfig.getPathUploads(),
                 broadcasterConfig.getPathForMerged(),
-                broadcasterConfig.getSegmentationOutputDir()
+                broadcasterConfig.getSegmentationOutputDir(),
+                broadcasterConfig.getQuarkusFileUploadsPath()
         );
         this.filesDeleted = 0;
         this.spaceFreedBytes = 0;
@@ -169,7 +170,6 @@ public class FileMaintenanceService {
                 updateDiskSpaceUnix();
             }
         } catch (IOException | NumberFormatException e) {
-            // Fallback to Java NIO if command fails
             try {
                 Path path = isWindows() ? Path.of("C:") : Path.of("/");
                 FileStore store = Files.getFileStore(path);

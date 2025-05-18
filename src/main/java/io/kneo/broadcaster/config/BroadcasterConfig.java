@@ -25,6 +25,9 @@ public interface BroadcasterConfig {
     @WithDefault("external_uploads")
     String getPathForExternalServiceUploads();
 
+    @WithName("quarkus.file.upload.path")
+    String getQuarkusFileUploadsPath();
+
     @WithName("ffmpeg.path")
     String getFfmpegPath();
 }

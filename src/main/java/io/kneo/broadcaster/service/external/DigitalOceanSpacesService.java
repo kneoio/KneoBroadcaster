@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.DOConfig;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.vertx.ext.web.FileUpload;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -11,10 +12,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.File;
 import java.net.URI;
@@ -26,13 +30,11 @@ public class DigitalOceanSpacesService {
     private static final Logger LOGGER = LoggerFactory.getLogger(DigitalOceanSpacesService.class);
 
     private final DOConfig doConfig;
-
     private S3Client s3Client;
-
     private final String outputDir;
 
     @Inject
-    public DigitalOceanSpacesService( DOConfig doConfig, BroadcasterConfig broadcasterConfig) {
+    public DigitalOceanSpacesService(DOConfig doConfig, BroadcasterConfig broadcasterConfig) {
         this.doConfig = doConfig;
         this.outputDir = broadcasterConfig.getPathForExternalServiceUploads() + File.separator + "digital_ocean";
         new File(outputDir).mkdirs();
@@ -48,21 +50,19 @@ public class DigitalOceanSpacesService {
                 .region(Region.of(doConfig.getRegion()))
                 .endpointOverride(URI.create(endpointUrl))
                 .build();
-        LOGGER.info("S3 client initialized successfully.");
     }
 
     public Uni<Path> getFile(String keyName) {
         return Uni.createFrom().item(() -> {
                     Path destinationPath = Paths.get(outputDir, keyName);
                     File destinationFile = destinationPath.toFile();
-                    if (!destinationFile.getParentFile().exists()) {
-                        destinationFile.getParentFile().mkdirs();
+                    File parentDir = destinationFile.getParentFile();
+                    if (parentDir != null && !parentDir.exists()) {
+                        parentDir.mkdirs();
                     }
                     if (destinationFile.exists()) {
-                        LOGGER.info("File already exists: {}", keyName);
                         return destinationPath;
                     }
-                    LOGGER.info("Downloading file from S3: {}", keyName);
                     GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                             .bucket(doConfig.getBucketName())
                             .key(keyName)
@@ -71,10 +71,40 @@ public class DigitalOceanSpacesService {
                     return destinationPath;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .onFailure().recoverWithUni(throwable -> {
-                    LOGGER.error("Error retrieving file: {}", keyName, throwable);
-                    return Uni.createFrom().failure(throwable);
-                });
+                .onFailure().invoke(throwable -> LOGGER.error("Error retrieving file: {} from S3 bucket: {}", keyName, doConfig.getBucketName(), throwable))
+                .onFailure().recoverWithUni(Uni.createFrom()::failure);
+    }
+
+    public Uni<Void> uploadFile(String keyName, FileUpload fileUpload) {
+        return Uni.createFrom().<Void>item(() -> {
+                    PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                            .bucket(doConfig.getBucketName())
+                            .key(keyName)
+                            .contentType(fileUpload.contentType())
+                            .build();
+                    s3Client.putObject(putObjectRequest, RequestBody.fromFile(Paths.get(fileUpload.uploadedFileName())));
+                    return null;
+                })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onFailure().invoke(throwable -> LOGGER.error("Error uploading file to S3. Key: {}, Bucket: {}", keyName, doConfig.getBucketName(), throwable))
+                .onFailure().recoverWithUni(Uni.createFrom()::failure);
+    }
+
+    public Uni<Void> deleteFile(String keyName) {
+        if (keyName == null || keyName.isBlank()) {
+            return Uni.createFrom().voidItem();
+        }
+        return Uni.createFrom().<Void>item(() -> {
+                    DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                            .bucket(doConfig.getBucketName())
+                            .key(keyName)
+                            .build();
+                    s3Client.deleteObject(deleteObjectRequest);
+                    return null;
+                })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onFailure().invoke(throwable -> LOGGER.error("Error deleting file from S3. Key: {}, Bucket: {}", keyName, doConfig.getBucketName(), throwable))
+                .onFailure().recoverWithUni(Uni.createFrom()::failure);
     }
 
     public void closeS3Client() {
@@ -82,5 +112,4 @@ public class DigitalOceanSpacesService {
             s3Client.close();
         }
     }
-
 }

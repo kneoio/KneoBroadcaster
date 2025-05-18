@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
@@ -12,6 +13,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -40,14 +42,19 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     SoundFragmentService service;
 
+    private BroadcasterConfig config;
+    private String uploadDir;
+
     public SoundFragmentController() {
         super(null);
     }
 
     @Inject
-    public SoundFragmentController(UserService userService, SoundFragmentService service) {
+    public SoundFragmentController(UserService userService, SoundFragmentService service, BroadcasterConfig config) {
         super(userService);
         this.service = service;
+        this.config = config;
+        uploadDir = config.getPathUploads() + "/sound-fragment-controller";
     }
 
     public void setupRoutes(Router router) {
@@ -60,8 +67,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
-        router.route(HttpMethod.GET, path + "/files/:id").handler(this::getFileById);
-       // router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
+        router.route(HttpMethod.GET, path + "/files/:filename").handler(this::getFileByName);
+        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
 
@@ -107,35 +114,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         },
                         rc::fail
                 );
-    }
-
-    private void getFileById(RoutingContext rc) {
-        String id = rc.pathParam("id");
-        String uploadDir = "uploads/";
-        String filePath = uploadDir + "/" + id;
-        File file = new File(filePath);
-
-        if (file.exists() && file.isFile()) {
-            try {
-                byte[] fileData = Files.readAllBytes(file.toPath());
-                rc.response()
-                        .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
-                        .putHeader("Content-Type", getMimeType(file))
-                        .putHeader("Content-Length", String.valueOf(file.length()))
-                        .setStatusCode(200)
-                        .end(Buffer.buffer(fileData));
-            } catch (IOException e) {
-                rc.response()
-                        .setStatusCode(500)
-                        .putHeader("Content-Type", "text/plain")
-                        .end("Error reading file from disk: " + e.getMessage());
-            }
-        } else {
-            rc.response()
-                    .setStatusCode(404)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("File not found or access denied");
-        }
     }
 
     private void getForBrand(RoutingContext rc) {
@@ -204,10 +182,13 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             rc.response().setStatusCode(statusCode).end(JsonObject.mapFrom(doc).encode());
                         },
                         throwable -> {
-                            // Debug logging
-                            System.err.println("Error in upsert: " + throwable.getMessage());
-                            throwable.printStackTrace();
-                            rc.fail(throwable);
+                            if (throwable instanceof DocumentModificationAccessException) {
+                                rc.response().setStatusCode(403).end("Not enough right to update");
+                            } else {
+                                System.err.println("Error in upsert: " + throwable.getMessage());
+                                throwable.printStackTrace();
+                                rc.fail(throwable);
+                            }
                         }
                 );
     }
@@ -222,8 +203,35 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
+    private void getFileByName(RoutingContext rc) {
+        String fileName = rc.pathParam("filename");
+        String filePath = uploadDir + "/" + fileName;
+        File file = new File(filePath);
+
+        if (file.exists() && file.isFile()) {
+            try {
+                byte[] fileData = Files.readAllBytes(file.toPath());
+                rc.response()
+                        .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
+                        .putHeader("Content-Type", getMimeType(file))
+                        .putHeader("Content-Length", String.valueOf(file.length()))
+                        .setStatusCode(200)
+                        .end(Buffer.buffer(fileData));
+            } catch (IOException e) {
+                rc.response()
+                        .setStatusCode(500)
+                        .putHeader("Content-Type", "text/plain")
+                        .end("Error reading file from disk: " + e.getMessage());
+            }
+        } else {
+            rc.response()
+                    .setStatusCode(404)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("File not found or access denied");
+        }
+    }
+
     private void uploadFile(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
         List<FileUpload> files = rc.fileUploads();
 
         if (files.isEmpty()) {
@@ -236,18 +244,25 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         FileUpload file = files.get(0);
         String originalFileName = file.fileName();
-        String uniqueFileName = UUID.randomUUID() + "_" + originalFileName;
-        String uploadDir = "uploads/" + brand;
-        String fileUrl = String.format("http://{}/api/%s/soundfragments/files/%s", brand,  uniqueFileName);
+        String uniqueFileName = "sfc_" + UUID.randomUUID() + "_" + originalFileName;
+        String finalFilePath = uploadDir + "/" + uniqueFileName;
+        String fileUrl = String.format("%s/api/soundfragments/files/%s", config.getHost(), uniqueFileName);
 
         File dir = new File(uploadDir);
         if (!dir.exists()) {
-            dir.mkdirs();
+            if (!dir.mkdirs()) {
+                rc.response()
+                        .setStatusCode(500)
+                        .putHeader("Content-Type", "text/plain")
+                        .end("Error creating target directory");
+                return;
+            }
         }
 
         try {
-            Files.copy(Paths.get(file.uploadedFileName()), Paths.get(uploadDir + "/" + uniqueFileName)); // Fix the copy call
+            Files.move(Paths.get(file.uploadedFileName()), Paths.get(finalFilePath));
         } catch (IOException e) {
+            LOGGER.error("Error moving file {} to {}: {}", file.uploadedFileName(), finalFilePath, e.getMessage());
             rc.response()
                     .setStatusCode(500)
                     .putHeader("Content-Type", "text/plain")
@@ -262,8 +277,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         "url", fileUrl,
                         "fileName", originalFileName
                 )));
-
     }
-
 
 }

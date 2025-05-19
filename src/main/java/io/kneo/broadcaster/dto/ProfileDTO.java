@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.dto;
 
+import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.model.cnst.AnnouncementFrequency;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -15,7 +16,7 @@ import java.util.List;
 public class ProfileDTO extends AbstractDTO {
     private String name;
     private String description;
-    private List<String> allowedGenres;
+    private List<Genre> allowedGenres;
     private AnnouncementFrequency announcementFrequency;
     private boolean explicitContent;
     private LanguageCode language;

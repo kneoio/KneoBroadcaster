@@ -15,20 +15,19 @@ import io.kneo.core.repository.UserRepository;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
-import io.vertx.ext.web.FileUpload;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.text.Normalizer;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.text.Normalizer;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SoundFragmentService extends AbstractService<SoundFragment, SoundFragmentDTO> {
@@ -74,7 +73,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().item(List.of());
                     } else {
                         List<Uni<SoundFragmentDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
+                                .map(doc -> mapToDTO(doc, false))
                                 .collect(Collectors.toList());
                         return Uni.join().all(unis).andFailFast();
                     }
@@ -96,7 +95,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<SoundFragmentDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
         return repository.findById(uuid, user.getId())
-                .chain(this::mapToDTO);
+                .chain(doc -> mapToDTO(doc, true));
     }
 
     public Uni<FileData> getFile(UUID fileId, IUser user) {
@@ -210,20 +209,22 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
         if (id == null) {
             return repository.insert(entity, dto.getUploadedFiles(), user)
-                    .chain(this::mapToDTO);
+                    .chain(doc -> mapToDTO(doc, true));
         } else {
             return repository.update(UUID.fromString(id), entity, dto.getUploadedFiles(), user)
-                    .chain(this::mapToDTO);
+                    .chain(doc -> mapToDTO(doc, true));
         }
     }
 
-    private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc) {
+    private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl) {
         return Uni.combine().all().unis(
                 userRepository.getUserName(doc.getAuthor()),
                 userRepository.getUserName(doc.getLastModifier())
         ).asTuple().onItem().transform(tuple -> {
             String author = tuple.getItem1();
             String lastModifier = tuple.getItem2();
+
+
 
             return SoundFragmentDTO.builder()
                     .id(doc.getId())
@@ -272,7 +273,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
 
     private Uni<BrandSoundFragmentDTO> mapToBrandSoundFragmentDTO(BrandSoundFragment fragment) {
-        return mapToDTO(fragment.getSoundFragment())
+        return mapToDTO(fragment.getSoundFragment(), false)
                 .onItem().transform(soundFragmentDTO -> {
                     BrandSoundFragmentDTO dto = new BrandSoundFragmentDTO();
                     dto.setId(fragment.getId());

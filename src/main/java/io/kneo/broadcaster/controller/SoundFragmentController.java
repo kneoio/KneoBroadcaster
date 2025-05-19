@@ -47,6 +47,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     SoundFragmentService service;
     private BroadcasterConfig config;
     private String uploadDir;
+    private String downloadDir;
 
     public SoundFragmentController() {
         super(null);
@@ -57,7 +58,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         super(userService);
         this.service = service;
         this.config = config;
-        uploadDir = config.getPathUploads() + "/sound-fragment-controller";
+        downloadDir = config.getPathUploads() + "/sound-fragment-controller-download";
+        uploadDir = config.getPathUploads() + "/sound-fragment-controller-upload";
     }
 
     public void setupRoutes(Router router) {
@@ -207,7 +209,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String requestedFileName = rc.pathParam("filename");
         getContextUser(rc).subscribe().with(user -> {
             String userName = user.getUserName();
-            String filePath = uploadDir + "/" + userName + "/" + requestedFileName;
+            String filePath = downloadDir + "/" + userName + "/" + requestedFileName;
             File file = new File(filePath);
             if (file.exists() && file.isFile()) {
                 try {

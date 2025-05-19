@@ -132,7 +132,8 @@ public class ProfileRepository extends AsyncRepository {
             for (int i = 0; i < genresJson.size(); i++) {
                 genres.add(genresJson.getString(i));
             }
-            profile.setAllowedGenres(genres);
+            //TODO genre now is reference
+            //profile.setAllowedGenres(genres);
         }
 
         String frequency = row.getString("announcement_frequency");

@@ -5,14 +5,12 @@ import io.kneo.broadcaster.controller.stream.HLSPlaylistStats;
 import io.kneo.broadcaster.controller.stream.IStreamManager;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.model.stats.SliderStats;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.time.ZonedDateTime;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -41,14 +39,8 @@ public class StationDashboardService {
         stationStats.setAlived(station.getCurrentAliveDurationMinutes());
         if (station.getPlaylist() != null) {
             IStreamManager playlist = station.getPlaylist();
-         //   stationStats.setSlideHistory(playlist.getSlideHistory());
-         //   stationStats.setLastSlide(playlist.getLastSlide());
-         //   stationStats.setCurrentWindow(playlist.getKeySet(), playlist.getMainQueue());
             stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());
-            stationStats.setSliderStats(SliderStats.builder().scheduledTime(ZonedDateTime.now()).build());
-        //    stationStats.setCurrentWindow(playlist.getCurrentWindow());
             PlaylistManager manager = playlist.getPlaylistManager();
-        //    stationStats.addPeriodicTask(manager.getTaskTimeline());
             stationStats.setPlaylistManagerStats(manager.getStats());
             HLSPlaylistStats hlsSegmentStats = playlist.getStats();
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());

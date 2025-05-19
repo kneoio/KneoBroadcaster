@@ -1,8 +1,6 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.QueueItemDTO;
-import io.kneo.broadcaster.model.InterstitialPlaylistItem;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.vertx.core.http.HttpMethod;
@@ -169,13 +167,5 @@ public class QueueController {
         }
     }
 
-    @Deprecated
-    private QueueItemDTO convertToDTO(InterstitialPlaylistItem item) {
-        QueueItemDTO dto = new QueueItemDTO();
-        dto.setId(item.getId());
-        dto.setMetadata(item.getMetadata());
-        dto.setType(item.getType());
-        dto.setPriority(item.getPriority());
-        return dto;
-    }
+
 }

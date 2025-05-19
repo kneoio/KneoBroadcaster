@@ -150,7 +150,7 @@ public class StreamManager implements IStreamManager {
                     System.out.printf("feedSegments Debug: [STATUS] Radio station %s status set to ON_LINE.%n", radioStation.getSlugName());
                 }
             } else {
-                System.out.println(String.format("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).", radioStation.getSlugName()));
+                System.out.printf("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).%n", radioStation.getSlugName());
             }
         }
 
@@ -276,23 +276,21 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public HlsSegment getSegment(String segmentParam) {
-        String radioSlugForDebug = (this.radioStation != null && this.radioStation.getSlugName() != null)
-                ? this.radioStation.getSlugName() : "UNKNOWN_STATION";
         try {
             Matcher matcher = SEGMENT_PATTERN.matcher(segmentParam);
             if (!matcher.find()) {
-                LOGGER.warn("Segment '{}' doesn't match expected pattern: {} for station: {}", segmentParam, SEGMENT_PATTERN.pattern(), radioSlugForDebug);
+                LOGGER.warn("Segment '{}' doesn't match expected pattern: {}", segmentParam, SEGMENT_PATTERN.pattern());
                 return null;
             }
             long segmentSequence = Long.parseLong(matcher.group(2));
             latestRequestedSegment = segmentSequence;
             HlsSegment segment = liveSegments.get(segmentSequence);
             if (segment == null) {
-                LOGGER.debug("Segment {} not found in liveSegments for {}", segmentSequence, radioSlugForDebug);
+                LOGGER.debug("Segment {} not found in liveSegments", segmentSequence);
             }
             return segment;
         } catch (Exception e) {
-            LOGGER.warn("Error processing segment request '{}' for station {}: {}", segmentParam, radioSlugForDebug, e.getMessage(), e);
+            LOGGER.warn("Error processing segment request '{}' : {}", segmentParam,  e.getMessage(), e);
             return null;
         }
     }

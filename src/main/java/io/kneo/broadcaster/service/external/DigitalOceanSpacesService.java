@@ -4,7 +4,6 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.DOConfig;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.vertx.ext.web.FileUpload;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -75,14 +74,14 @@ public class DigitalOceanSpacesService {
                 .onFailure().recoverWithUni(Uni.createFrom()::failure);
     }
 
-    public Uni<Void> uploadFile(String keyName, FileUpload fileUpload) {
+    public Uni<Void> uploadFile(String keyName, String fileToUpload) {
         return Uni.createFrom().<Void>item(() -> {
                     PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                             .bucket(doConfig.getBucketName())
                             .key(keyName)
-                            .contentType(fileUpload.contentType())
+                          //  .contentType(fileToUpload.contentType())
                             .build();
-                    s3Client.putObject(putObjectRequest, RequestBody.fromFile(Paths.get(fileUpload.uploadedFileName())));
+                    s3Client.putObject(putObjectRequest, RequestBody.fromFile(Paths.get(fileToUpload)));
                     return null;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())

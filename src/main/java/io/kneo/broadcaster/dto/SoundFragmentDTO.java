@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
+import java.util.List;
 import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -27,6 +28,7 @@ public class SoundFragmentDTO extends AbstractDTO {
     private String artist;
     private String genre;
     private String album;
+    private List<String> uploadedFiles;
 
     public SoundFragmentDTO(String id) {
         this.id = UUID.fromString(id);

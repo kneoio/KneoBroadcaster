@@ -16,7 +16,6 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.ext.web.FileUpload;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -27,9 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
-// import java.io.IOException; // Not directly used in the snippet after changes
-// import java.nio.file.Files; // Not directly used in the snippet after changes
-// import java.nio.file.Paths; // Not directly used in the snippet after changes
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -163,14 +159,14 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<SoundFragment> insert(SoundFragment doc, List<FileUpload> files, IUser user) {
+    public Uni<SoundFragment> insert(SoundFragment doc, List<String> files, IUser user) {
         if (files == null || files.isEmpty() || files.get(0) == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("A file is required to create a SoundFragment."));
         }
-        FileUpload fileToUpload = files.get(0);
+        String fileToUpload = files.get(0);
 
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        String doKey = user.getUserName() + "/" + UUID.randomUUID().toString() + "-" + fileToUpload.fileName();
+        String doKey = user.getUserName() + "/" + UUID.randomUUID().toString() + "-" + fileToUpload;
 
         String sql = String.format(
                 "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
@@ -208,7 +204,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onItem().transformToUni(id -> findById(id, user.getId()));
     }
 
-    public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<FileUpload> files, IUser user) {
+    public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<String> files, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[0]) {
@@ -221,8 +217,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                                 String newDoKeyForUpdate = existingDoc.getDoKey();
 
                                 if (files != null && !files.isEmpty() && files.get(0) != null) {
-                                    FileUpload newFileToUpload = files.get(0);
-                                    String generatedNewDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + newFileToUpload.fileName();
+                                    String newFileToUpload = files.get(0);
+                                    String generatedNewDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + newFileToUpload;
                                     newDoKeyForUpdate = generatedNewDoKey;
 
                                     Uni<Void> uploadAndDeleteOldUni = digitalOceanSpacesService.uploadFile(generatedNewDoKey, newFileToUpload);

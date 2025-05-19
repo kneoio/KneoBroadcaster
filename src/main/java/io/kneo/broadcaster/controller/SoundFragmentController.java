@@ -19,7 +19,6 @@ import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.Router;
@@ -27,21 +26,25 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
+
 @ApplicationScoped
+
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
     SoundFragmentService service;
-
     private BroadcasterConfig config;
     private String uploadDir;
 
@@ -62,7 +65,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
                 .setDeleteUploadedFilesOnEnd(false)
-                .setBodyLimit(100 * 1024 * 1024));
+                .setBodyLimit(100L * 1024 * 1024));
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
@@ -77,7 +80,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private void get(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
-
         getContextUser(rc)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user),
@@ -102,7 +104,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private void getById(RoutingContext rc) {
         String id = rc.pathParam("id");
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.ENG.name()));
-
         getContextUser(rc)
                 .chain(user -> service.getDTO(UUID.fromString(id), user, languageCode))
                 .subscribe().with(
@@ -146,39 +147,38 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
-        String contentType = rc.request().getHeader("Content-Type");
         SoundFragmentDTO dto;
-        List<FileUpload> files;
-
-        if (contentType != null && contentType.startsWith("multipart/form-data")) {
-            files = rc.fileUploads();
-            if (files.isEmpty()) {
-                rc.fail(400);
+        try {
+            JsonObject jsonObject = rc.body().asJsonObject();
+            if (jsonObject == null) {
+                rc.response().setStatusCode(400).end("Request body must be a valid JSON object.");
                 return;
             }
-            String jsonData = rc.request().getFormAttribute("data");
-            if (jsonData != null) {
-                try {
-                    dto = new JsonObject(jsonData).mapTo(SoundFragmentDTO.class);
-                } catch (Exception e) {
-                    System.err.println("Error parsing JSON: " + e.getMessage());
-                    rc.fail(400);
-                    return;
-                }
-            } else {
-                dto = new SoundFragmentDTO();
-            }
-        } else {
-            files = new ArrayList<>();
-            JsonObject jsonObject = rc.body().asJsonObject();
+
             dto = jsonObject.mapTo(SoundFragmentDTO.class);
+        } catch (Exception e) {
+            System.err.println("Error parsing SoundFragmentDTO from JSON: " + e.getMessage());
+            rc.response().setStatusCode(400).end("Invalid JSON payload.");
+            return;
         }
 
+        final SoundFragmentDTO finalDto = dto;
         getContextUser(rc)
-                .chain(user -> service.upsert(id, dto, files, user, LanguageCode.ENG))
+                .chain(user -> {
+                    String userName = user.getUserName();
+                    if (finalDto.getUploadedFiles() != null && !finalDto.getUploadedFiles().isEmpty()) {
+                        List<String> absoluteFilePaths = new ArrayList<>();
+                        for (String fileName : finalDto.getUploadedFiles()) {
+                            absoluteFilePaths.add(uploadDir + "/" + userName + "/" + fileName);
+                        }
+                        finalDto.setUploadedFiles(absoluteFilePaths);
+                    }
+
+                    return service.upsert(id, finalDto, user, LanguageCode.ENG);
+                })
                 .subscribe().with(
                         doc -> {
-                            int statusCode = id == null ? 201 : 200;
+                            int statusCode = (id == null || id.isEmpty()) ? 201 : 200;
                             rc.response().setStatusCode(statusCode).end(JsonObject.mapFrom(doc).encode());
                         },
                         throwable -> {
@@ -204,79 +204,104 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     private void getFileByName(RoutingContext rc) {
-        String fileName = rc.pathParam("filename");
-        String filePath = uploadDir + "/" + fileName;
-        File file = new File(filePath);
-
-        if (file.exists() && file.isFile()) {
-            try {
-                byte[] fileData = Files.readAllBytes(file.toPath());
+        String requestedFileName = rc.pathParam("filename");
+        getContextUser(rc).subscribe().with(user -> {
+            String userName = user.getUserName();
+            String filePath = uploadDir + "/" + userName + "/" + requestedFileName;
+            File file = new File(filePath);
+            if (file.exists() && file.isFile()) {
+                try {
+                    byte[] fileData = Files.readAllBytes(file.toPath());
+                    rc.response()
+                            .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
+                            .putHeader("Content-Type", getMimeType(file))
+                            .putHeader("Content-Length", String.valueOf(file.length()))
+                            .setStatusCode(200)
+                            .end(Buffer.buffer(fileData));
+                } catch (IOException e) {
+                    LOGGER.error("Error reading file {} from disk: {}", filePath, e.getMessage(), e);
+                    rc.response()
+                            .setStatusCode(500)
+                            .putHeader("Content-Type", "text/plain")
+                            .end("Error reading file from disk: " + e.getMessage());
+                }
+            } else {
+                LOGGER.warn("File not found or access denied for user {}: {}", userName, filePath);
                 rc.response()
-                        .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
-                        .putHeader("Content-Type", getMimeType(file))
-                        .putHeader("Content-Length", String.valueOf(file.length()))
-                        .setStatusCode(200)
-                        .end(Buffer.buffer(fileData));
-            } catch (IOException e) {
-                rc.response()
-                        .setStatusCode(500)
+                        .setStatusCode(404)
                         .putHeader("Content-Type", "text/plain")
-                        .end("Error reading file from disk: " + e.getMessage());
+                        .end("File not found or access denied");
             }
-        } else {
-            rc.response()
-                    .setStatusCode(404)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("File not found or access denied");
-        }
+        }, throwable -> {
+            LOGGER.error("Failed to get user context for getFileByName: {}", throwable.getMessage(), throwable);
+            rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error processing user for file access");
+        });
     }
 
     private void uploadFile(RoutingContext rc) {
-        List<FileUpload> files = rc.fileUploads();
+        List<FileUpload> fileUploads = rc.fileUploads();
 
-        if (files.isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("No file uploaded");
+        if (fileUploads.isEmpty()) {
+            rc.response().setStatusCode(400).putHeader("Content-Type", "text/plain").end("No file uploaded");
             return;
         }
 
-        FileUpload file = files.get(0);
-        String originalFileName = file.fileName();
-        String uniqueFileName = "sfc_" + UUID.randomUUID() + "_" + originalFileName;
-        String finalFilePath = uploadDir + "/" + uniqueFileName;
-        String fileUrl = String.format("%s/api/soundfragments/files/%s", config.getHost(), uniqueFileName);
+        FileUpload uploadedFile = fileUploads.get(0);
+        getContextUser(rc).subscribe().with(user -> {
+            String userName = user.getUserName();
+            String userSpecificUploadPath = uploadDir + "/" + userName;
 
-        File dir = new File(uploadDir);
-        if (!dir.exists()) {
-            if (!dir.mkdirs()) {
-                rc.response()
-                        .setStatusCode(500)
-                        .putHeader("Content-Type", "text/plain")
-                        .end("Error creating target directory");
-                return;
+            File userDir = new File(userSpecificUploadPath);
+            if (!userDir.exists()) {
+                if (!userDir.mkdirs()) {
+                    LOGGER.error("Error creating target directory for user {}: {}", userName, userSpecificUploadPath);
+                    rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error creating user directory");
+                    return;
+                }
             }
-        }
 
-        try {
-            Files.move(Paths.get(file.uploadedFileName()), Paths.get(finalFilePath));
-        } catch (IOException e) {
-            LOGGER.error("Error moving file {} to {}: {}", file.uploadedFileName(), finalFilePath, e.getMessage());
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Error saving file");
-            return;
-        }
+            String originalFileName = uploadedFile.fileName();
+            String safeOriginalFileName = Paths.get(originalFileName).getFileName().toString();
+            String uniqueFileName = "sfc_" + UUID.randomUUID() + "_" + safeOriginalFileName;
+            String finalFilePath = userSpecificUploadPath + "/" + uniqueFileName;
+            String fileUrl = String.format("%s/api/soundfragments/files/%s", config.getHost(), uniqueFileName);
+            Path tempFilePath = Paths.get(uploadedFile.uploadedFileName());
+            Path destinationFilePath = Paths.get(finalFilePath);
 
-        rc.response()
-                .setStatusCode(202)
-                .putHeader("Content-Type", "application/json")
-                .end(Json.encodePrettily(Map.of(
-                        "url", fileUrl,
-                        "fileName", originalFileName
-                )));
+            try {
+                Files.move(tempFilePath, destinationFilePath, StandardCopyOption.REPLACE_EXISTING);
+                JsonObject responsePayload = new JsonObject()
+                        .put("filePath", finalFilePath)
+                        .put("fileUrl", fileUrl)
+                        .put("fileName", uniqueFileName);
+
+                rc.response()
+                        .setStatusCode(200)
+                        .putHeader("Content-Type", "application/json")
+                        .end(responsePayload.encode());
+
+            } catch (IOException e) {
+                LOGGER.error("Error moving file {} to {}: {}", tempFilePath, destinationFilePath, e.getMessage());
+                try {
+                    Files.deleteIfExists(tempFilePath);
+                } catch (IOException ex) {
+                    LOGGER.error("Error deleting temporary file {}: {}", tempFilePath, ex.getMessage());
+                }
+
+                rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error saving file");
+            }
+
+        }, throwable -> {
+            LOGGER.error("Failed to get user context for file upload: {}", throwable.getMessage(), throwable);
+            fileUploads.forEach(fu -> {
+
+                try {
+                    Files.deleteIfExists(Paths.get(fu.uploadedFileName()));
+                } catch (IOException e) {
+                    LOGGER.warn("Could not delete temp file {} after user context failure: {}", fu.uploadedFileName(), e.getMessage());
+                }
+            });
+            rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error processing user for upload");
+        });
     }
-
 }

@@ -3,6 +3,7 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -13,10 +14,12 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -106,13 +109,21 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private void getById(RoutingContext rc) {
         String id = rc.pathParam("id");
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.ENG.name()));
+
         getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(id), user, languageCode))
+                .chain(user ->
+                        service.getDTO(UUID.fromString(id), user, languageCode)
+                                .map(doc -> Tuple2.of(doc, user))
+                )
                 .subscribe().with(
-                        owner -> {
+                        tuple -> {
+                            SoundFragmentDTO doc = tuple.getItem1();
+                            IUser user = tuple.getItem2();
                             FormPage page = new FormPage();
-                            page.addPayload(PayloadType.DOC_DATA, owner);
-                            page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            ActionBox actionBox = new ActionBox();
+                          //  if (user.getId() == doc.getAuthor())
+                            page.addPayload(PayloadType.DOC_DATA, doc);
+                            page.addPayload(PayloadType.CONTEXT_ACTIONS, actionBox);
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
                         rc::fail
@@ -169,9 +180,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .chain(user -> {
                     String userName = user.getUserName();
                     if (finalDto.getUploadedFiles() != null && !finalDto.getUploadedFiles().isEmpty()) {
-                        List<String> absoluteFilePaths = new ArrayList<>();
-                        for (String fileName : finalDto.getUploadedFiles()) {
-                            absoluteFilePaths.add(uploadDir + "/" + userName + "/" + fileName);
+                        List<UploadFileDTO> absoluteFilePaths = new ArrayList<>();
+                        for (UploadFileDTO fileName : finalDto.getUploadedFiles()) {
+                            UploadFileDTO uploadFileDTO = UploadFileDTO.builder()
+                                    .name(uploadDir + "/" + userName + "/" + fileName)
+                                    .build();
+                            absoluteFilePaths.add(uploadFileDTO);
                         }
                         finalDto.setUploadedFiles(absoluteFilePaths);
                     }

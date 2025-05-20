@@ -17,6 +17,7 @@ public class AiAgent {
     private String mainPrompt;
     private List<String> preferredVoice;
     private List<Tool> enabledTools;
+    private Voice voice;
 
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();

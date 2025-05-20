@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -22,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -208,10 +210,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         SoundFragment entity = buildEntity(dto);
 
         if (id == null) {
-            return repository.insert(entity, dto.getUploadedFiles(), user)
+            return repository.insert(entity, dto.getUploadedFiles().stream().map(UploadFileDTO::getName).toList(), user)
                     .chain(doc -> mapToDTO(doc, true));
         } else {
-            return repository.update(UUID.fromString(id), entity, dto.getUploadedFiles(), user)
+            return repository.update(UUID.fromString(id), entity, dto.getUploadedFiles().stream().map(UploadFileDTO::getName).toList(), user)
                     .chain(doc -> mapToDTO(doc, true));
         }
     }
@@ -223,7 +225,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         ).asTuple().onItem().transform(tuple -> {
             String author = tuple.getItem1();
             String lastModifier = tuple.getItem2();
-
+            List<UploadFileDTO> files = new ArrayList<>();
+            if (exposeFileUrl && doc.getDoKey() != null) {
+                files.add(UploadFileDTO.builder()
+                        .id(doc.getDoKey())
+                        .name(doc.getDoKey())
+                        .status("finished")
+                        .url("/soundfragments/files/" + doc.getDoKey())
+                        .percentage(100)
+                        .build());
+            }
 
 
             return SoundFragmentDTO.builder()
@@ -239,6 +250,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .artist(doc.getArtist())
                     .genre(doc.getGenre())
                     .album(doc.getAlbum())
+                    .uploadedFiles(files)
                     .build();
         });
     }

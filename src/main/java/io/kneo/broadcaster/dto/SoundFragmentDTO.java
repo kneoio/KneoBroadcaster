@@ -28,7 +28,7 @@ public class SoundFragmentDTO extends AbstractDTO {
     private String artist;
     private String genre;
     private String album;
-    private List<String> uploadedFiles;
+    private List<UploadFileDTO> uploadedFiles;
 
     public SoundFragmentDTO(String id) {
         this.id = UUID.fromString(id);

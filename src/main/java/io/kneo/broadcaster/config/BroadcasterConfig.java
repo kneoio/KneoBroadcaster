@@ -13,6 +13,10 @@ public interface BroadcasterConfig {
     @WithDefault("controller-uploads")
     String getPathUploads();
 
+    @WithName("controller.download.files.path")
+    @WithDefault("controller-downloads")
+    String getPathDownloads();
+
     @WithName("merged.files.path")
     @WithDefault("merged")
     String getPathForMerged();

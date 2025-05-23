@@ -16,6 +16,7 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -42,10 +44,17 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     private final DigitalOceanSpacesService digitalOceanSpacesService;
 
+    private final Vertx vertx;
+
     @Inject
-    public SoundFragmentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, DigitalOceanSpacesService digitalOceanSpacesService) {
+    public SoundFragmentRepository(PgPool client,
+                                   ObjectMapper mapper,
+                                   RLSRepository rlsRepository,
+                                   DigitalOceanSpacesService digitalOceanSpacesService,
+                                   Vertx vertx) { // Inject Vertx here
         super(client, mapper, rlsRepository);
         this.digitalOceanSpacesService = digitalOceanSpacesService;
+        this.vertx = vertx; // Assign it
     }
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final IUser user) {
@@ -125,23 +134,72 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<FileData> getFileById(UUID fileId, Long userId) {
-        String sql = "SELECT file_data, mime_type FROM kneobroadcaster__sound_fragment_files " +
-                "WHERE entity_id = $1 AND EXISTS (" +
-                "SELECT 1 FROM kneobroadcaster__readers WHERE entity_id = $1 AND reader = $2)";
+        final String sql = "SELECT sf.do_key, sf.mime_type " +
+                "FROM " + entityData.getTableName() + " sf " +
+                "JOIN " + entityData.getRlsName() + " rls ON sf.id = rls.entity_id " +
+                "WHERE sf.id = $1 AND rls.reader = $2";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(fileId, userId))
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
-                        return Uni.createFrom().failure(new FileNotFoundException("File not found."));
+                        LOGGER.warn("SoundFragment lookup: No record found for id {} with read permission for user {}.", fileId, userId);
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(
+                                String.format("File not found (ID: %s) or access denied.", fileId)
+                        ));
                     }
                     Row row = rows.iterator().next();
-                    return Uni.createFrom().item(new FileData(
-                            row.getBuffer("file_data").getBytes(),
-                            row.getString("mime_type")
-                    ));
+                    String doKey = row.getString("do_key");
+                    //String mimeType = row.getString("mime_type");
+                    String mimeType = "audio/mpeg";
+
+                    if (doKey == null || doKey.isBlank()) {
+                        LOGGER.warn("SoundFragment (id: {}) has a null or empty 'do_key'. Cannot fetch from DigitalOcean Spaces.", fileId);
+                        return Uni.createFrom().failure(new FileNotFoundException(
+                                String.format("File data is not available for ID: %s (missing storage key).", fileId)
+                        ));
+                    }
+
+                    return digitalOceanSpacesService.getFile(doKey)
+                            .onItem().transformToUni(filePath -> {
+                                if (filePath == null) {
+                                    LOGGER.error("DigitalOceanSpacesService returned an empty/null file path for do_key: {} (SoundFragment ID: {})", doKey, fileId);
+                                    return Uni.createFrom().failure(new IOException(
+                                            String.format("Failed to obtain a valid temporary file path for DO key: %s", doKey)
+                                    ));
+                                }
+                                LOGGER.debug("File for do_key '{}' (SoundFragment ID '{}') downloaded to temporary path: {}", doKey, fileId, filePath);
+
+                                io.vertx.mutiny.core.file.FileSystem fs = this.vertx.fileSystem();
+                                return fs.readFile(String.valueOf(filePath))
+                                        .onItem().transform(buffer -> new FileData(buffer.getBytes(), mimeType))
+                                        .eventually(() -> {
+                                            LOGGER.debug("Attempting to delete temporary file: {}", filePath);
+                                            return fs.delete(String.valueOf(filePath))
+                                                    .onFailure().invoke(e -> LOGGER.warn("Failed to delete temporary file '{}': {}", filePath, e.getMessage()));
+                                        });
+                            })
+                            .onFailure().transform(ex -> {
+                                LOGGER.error("Error in DigitalOcean/FileSystem pipeline for do_key '{}' (SoundFragment ID '{}'). Error: {}",
+                                        doKey, fileId, ex.getMessage(), ex);
+                                if (ex instanceof FileNotFoundException) {
+                                    return ex;
+                                }
+                                return new FileNotFoundException(
+                                        String.format("Failed to retrieve file content from storage for ID: %s. Cause: %s", fileId, ex.getMessage())
+                                );
+                            });
                 })
-                .onFailure().recoverWithUni(e -> Uni.createFrom().failure(e));
+                .onFailure(FileNotFoundException.class).recoverWithUni(fnfException -> {
+                    return Uni.createFrom().failure(fnfException);
+                })
+                .onFailure().recoverWithUni(otherException -> {
+                    LOGGER.error("Unexpected error while attempting to fetch file metadata or content for SoundFragment ID '{}', User ID '{}'. SQL was: '{}'. Error: {}",
+                            fileId, userId, sql, otherException.getMessage(), otherException);
+                    return Uni.createFrom().failure(new RuntimeException(
+                            String.format("An unexpected error occurred while fetching file data for ID: %s.", fileId), otherException
+                    ));
+                });
     }
 
     public Uni<Integer> updatePlayedByBrand(UUID brandId, UUID soundFragmentId) {

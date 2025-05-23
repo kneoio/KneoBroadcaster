@@ -32,15 +32,13 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 
 @ApplicationScoped
@@ -61,8 +59,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         super(userService);
         this.service = service;
         this.config = config;
-        downloadDir = config.getPathUploads() + "/sound-fragment-controller-download";
-        uploadDir = config.getPathUploads() + "/sound-fragment-controller-upload";
+        downloadDir = config.getPathDownloads() + "/sound-fragments-controller";
+        uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
 
     public void setupRoutes(Router router) {
@@ -75,7 +73,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
-        router.route(HttpMethod.GET, path + "/files/:filename").handler(this::getFileByName);
+        router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
@@ -121,7 +119,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             IUser user = tuple.getItem2();
                             FormPage page = new FormPage();
                             ActionBox actionBox = new ActionBox();
-                          //  if (user.getId() == doc.getAuthor())
+                            //  if (user.getId() == doc.getAuthor())
                             page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, actionBox);
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
@@ -159,54 +157,47 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     private void upsert(RoutingContext rc) {
-        String id = rc.pathParam("id");
-        SoundFragmentDTO dto;
         try {
-            JsonObject jsonObject = rc.body().asJsonObject();
-            if (jsonObject == null) {
-                rc.response().setStatusCode(400).end("Request body must be a valid JSON object.");
+            JsonObject json = rc.body().asJsonObject();
+            if (json == null) {
+                rc.response().setStatusCode(400).end("Request body must be a valid JSON object");
                 return;
             }
 
-            dto = jsonObject.mapTo(SoundFragmentDTO.class);
-        } catch (Exception e) {
-            System.err.println("Error parsing SoundFragmentDTO from JSON: " + e.getMessage());
-            rc.response().setStatusCode(400).end("Invalid JSON payload.");
-            return;
-        }
+            SoundFragmentDTO dto = json.mapTo(SoundFragmentDTO.class);
+            String id = rc.pathParam("id");
 
-        final SoundFragmentDTO finalDto = dto;
-        getContextUser(rc)
-                .chain(user -> {
-                    String userName = user.getUserName();
-                    if (finalDto.getUploadedFiles() != null && !finalDto.getUploadedFiles().isEmpty()) {
-                        List<UploadFileDTO> absoluteFilePaths = new ArrayList<>();
-                        for (UploadFileDTO fileName : finalDto.getUploadedFiles()) {
-                            UploadFileDTO uploadFileDTO = UploadFileDTO.builder()
-                                    .name(uploadDir + "/" + userName + "/" + fileName)
-                                    .build();
-                            absoluteFilePaths.add(uploadFileDTO);
+            getContextUser(rc)
+                    .chain(user -> {
+                        // Process file paths if present
+                        if (dto.getUploadedFiles() != null && !dto.getUploadedFiles().isEmpty()) {
+                            dto.setUploadedFiles(
+                                    dto.getUploadedFiles().stream()
+                                            .map(file -> UploadFileDTO.builder()
+                                                    .name(uploadDir + "/" + user.getUserName() + "/" + file.getName())
+                                                    .build())
+                                            .collect(Collectors.toList())
+                            );
                         }
-                        finalDto.setUploadedFiles(absoluteFilePaths);
-                    }
 
-                    return service.upsert(id, finalDto, user, LanguageCode.ENG);
-                })
-                .subscribe().with(
-                        doc -> {
-                            int statusCode = (id == null || id.isEmpty()) ? 201 : 200;
-                            rc.response().setStatusCode(statusCode).end(JsonObject.mapFrom(doc).encode());
-                        },
-                        throwable -> {
-                            if (throwable instanceof DocumentModificationAccessException) {
-                                rc.response().setStatusCode(403).end("Not enough right to update");
-                            } else {
-                                System.err.println("Error in upsert: " + throwable.getMessage());
-                                throwable.printStackTrace();
-                                rc.fail(throwable);
+                        return service.upsert(id, dto, user, LanguageCode.ENG);
+                    })
+                    .subscribe().with(
+                            doc -> rc.response()
+                                    .setStatusCode(id == null ? 201 : 200)
+                                    .end(JsonObject.mapFrom(doc).encode()),
+                            throwable -> {
+                                if (throwable instanceof DocumentModificationAccessException) {
+                                    rc.response().setStatusCode(403).end("Not enough rights to update");
+                                } else {
+                                    rc.fail(throwable); // Let Vert.x error handler deal with it
+                                }
                             }
-                        }
-                );
+                    );
+
+        } catch (Exception e) {
+            rc.response().setStatusCode(400).end("Invalid JSON payload");
+        }
     }
 
     private void delete(RoutingContext rc) {
@@ -219,105 +210,58 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-    private void getFileByName(RoutingContext rc) {
-        String requestedFileName = rc.pathParam("filename");
-        getContextUser(rc).subscribe().with(user -> {
-            String userName = user.getUserName();
-            String filePath = downloadDir + "/" + userName + "/" + requestedFileName;
-            File file = new File(filePath);
-            if (file.exists() && file.isFile()) {
-                try {
-                    byte[] fileData = Files.readAllBytes(file.toPath());
-                    rc.response()
-                            .putHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"")
-                            .putHeader("Content-Type", getMimeType(file))
-                            .putHeader("Content-Length", String.valueOf(file.length()))
-                            .setStatusCode(200)
-                            .end(Buffer.buffer(fileData));
-                } catch (IOException e) {
-                    LOGGER.error("Error reading file {} from disk: {}", filePath, e.getMessage(), e);
-                    rc.response()
-                            .setStatusCode(500)
-                            .putHeader("Content-Type", "text/plain")
-                            .end("Error reading file from disk: " + e.getMessage());
-                }
-            } else {
-                LOGGER.warn("File not found or access denied for user {}: {}", userName, filePath);
-                rc.response()
-                        .setStatusCode(404)
-                        .putHeader("Content-Type", "text/plain")
-                        .end("File not found or access denied");
-            }
-        }, throwable -> {
-            LOGGER.error("Failed to get user context for getFileByName: {}", throwable.getMessage(), throwable);
-            rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error processing user for file access");
-        });
+    private void getBySlugName(RoutingContext rc) {
+        String id = rc.pathParam("id");
+        String requestedFileName = rc.pathParam("slug");
+
+        getContextUser(rc)
+                .chain(user -> service.getFile(UUID.fromString(id), user))
+                .subscribe().with(
+                        fileData -> {
+                            if (fileData == null || fileData.getData() == null || fileData.getData().length == 0) {
+                                rc.response()
+                                        .setStatusCode(404)
+                                        .end("File content not available");
+                                return;
+                            }
+
+                            rc.response()
+                                    .putHeader("Content-Disposition", "attachment; filename=\"" + requestedFileName + "\"")
+                                    .putHeader("Content-Type", fileData.getMimeType())
+                                    .putHeader("Content-Length", String.valueOf(fileData.getData().length))
+                                    .end(Buffer.buffer(fileData.getData()));
+                        },
+                        rc::fail
+                );
     }
 
     private void uploadFile(RoutingContext rc) {
-        List<FileUpload> fileUploads = rc.fileUploads();
-
-        if (fileUploads.isEmpty()) {
-            rc.response().setStatusCode(400).putHeader("Content-Type", "text/plain").end("No file uploaded");
+        if (rc.fileUploads().isEmpty()) {
+            rc.fail(400);
             return;
         }
 
-        FileUpload uploadedFile = fileUploads.get(0);
-        getContextUser(rc).subscribe().with(user -> {
-            String userName = user.getUserName();
-            String userSpecificUploadPath = uploadDir + "/" + userName;
+        FileUpload uploadedFile = rc.fileUploads().get(0);
+        Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
-            File userDir = new File(userSpecificUploadPath);
-            if (!userDir.exists()) {
-                if (!userDir.mkdirs()) {
-                    LOGGER.error("Error creating target directory for user {}: {}", userName, userSpecificUploadPath);
-                    rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error creating user directory");
-                    return;
-                }
-            }
+        getContextUser(rc)
+                .chain(user -> Uni.createFrom().emitter(emitter -> {
+                    try {
+                        String fileName = "sfc_" + UUID.randomUUID() + "_" + uploadedFile.fileName();
+                        Path dest = Files.createDirectories(Paths.get(uploadDir, user.getUserName()))
+                                .resolve(fileName);
 
-            String originalFileName = uploadedFile.fileName();
-            String safeOriginalFileName = Paths.get(originalFileName).getFileName().toString();
-            String uniqueFileName = "sfc_" + UUID.randomUUID() + "_" + safeOriginalFileName;
-            String finalFilePath = userSpecificUploadPath + "/" + uniqueFileName;
-            String fileUrl = String.format("%s/api/soundfragments/files/%s", config.getHost(), uniqueFileName);
-            Path tempFilePath = Paths.get(uploadedFile.uploadedFileName());
-            Path destinationFilePath = Paths.get(finalFilePath);
-
-            try {
-                Files.move(tempFilePath, destinationFilePath, StandardCopyOption.REPLACE_EXISTING);
-                JsonObject responsePayload = new JsonObject()
-                        .put("filePath", finalFilePath)
-                        .put("fileUrl", fileUrl)
-                        .put("fileName", uniqueFileName);
-
-                rc.response()
-                        .setStatusCode(200)
-                        .putHeader("Content-Type", "application/json")
-                        .end(responsePayload.encode());
-
-            } catch (IOException e) {
-                LOGGER.error("Error moving file {} to {}: {}", tempFilePath, destinationFilePath, e.getMessage());
-                try {
-                    Files.deleteIfExists(tempFilePath);
-                } catch (IOException ex) {
-                    LOGGER.error("Error deleting temporary file {}: {}", tempFilePath, ex.getMessage());
-                }
-
-                rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error saving file");
-            }
-
-        }, throwable -> {
-            LOGGER.error("Failed to get user context for file upload: {}", throwable.getMessage(), throwable);
-            fileUploads.forEach(fu -> {
-
-                try {
-                    Files.deleteIfExists(Paths.get(fu.uploadedFileName()));
-                } catch (IOException e) {
-                    LOGGER.warn("Could not delete temp file {} after user context failure: {}", fu.uploadedFileName(), e.getMessage());
-                }
-            });
-            rc.response().setStatusCode(500).putHeader("Content-Type", "text/plain").end("Error processing user for upload");
-        });
+                        Files.move(tempFile, dest, StandardCopyOption.REPLACE_EXISTING);
+                        emitter.complete(config.getHost() + "/api/soundfragments/files/" + fileName);
+                    } catch (IOException e) {
+                        emitter.fail(e);
+                    }
+                }))
+                .subscribe().with(
+                        url -> rc.response()
+                                .putHeader("Content-Type", "application/json")
+                                .end(new JsonObject().put("fileUrl", url).encode()),
+                        rc::fail
+                );
     }
 }

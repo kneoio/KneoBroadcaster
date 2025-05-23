@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.model;
 
-//TODO should move to core
+import lombok.Getter;
+
+@Getter
 public class FileData {
     private final byte[] data;
     private final String mimeType;
@@ -10,11 +12,4 @@ public class FileData {
         this.mimeType = mimeType;
     }
 
-    public byte[] getData() {
-        return data;
-    }
-
-    public String getMimeType() {
-        return mimeType;
-    }
 }

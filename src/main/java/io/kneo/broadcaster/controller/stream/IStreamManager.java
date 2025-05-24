@@ -25,7 +25,7 @@ public interface IStreamManager {
 
     AudioSegmentationService getSegmentationService();
 
-    HLSPlaylistStats getStats();
+    StreamManagerStats getStats();
 
     PlaylistManager getPlaylistManager();
 

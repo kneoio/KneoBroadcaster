@@ -1,8 +1,7 @@
 package io.kneo.broadcaster.service.dashboard;
 
-import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.HLSPlaylistStats;
 import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.controller.stream.StreamManagerStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
@@ -16,13 +15,8 @@ import java.util.Optional;
 @ApplicationScoped
 public class StationDashboardService {
 
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(StationDashboardService.class);
-
     @Inject
     RadioStationPool radioStationPool;
-
-    @Inject
-    HlsPlaylistConfig config;
 
     public Uni<Optional<StationStats>> getStationStats(String brand) {
         return Uni.createFrom().item(() ->
@@ -42,8 +36,8 @@ public class StationDashboardService {
             stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());
             PlaylistManager manager = playlist.getPlaylistManager();
             stationStats.setPlaylistManagerStats(manager.getStats());
-            HLSPlaylistStats hlsSegmentStats = playlist.getStats();
-            stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
+            StreamManagerStats hlsSegmentStats = playlist.getStats();
+            stationStats.setHlsSongStats(hlsSegmentStats.getSongStatistics());
         }
 
         return stationStats;

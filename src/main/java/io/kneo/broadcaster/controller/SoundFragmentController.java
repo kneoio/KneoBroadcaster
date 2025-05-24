@@ -190,7 +190,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 if (throwable instanceof DocumentModificationAccessException) {
                                     rc.response().setStatusCode(403).end("Not enough rights to update");
                                 } else {
-                                    rc.fail(throwable); // Let Vert.x error handler deal with it
+                                    rc.fail(throwable);
                                 }
                             }
                     );

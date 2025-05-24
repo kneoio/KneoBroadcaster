@@ -208,12 +208,17 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
         assert repository != null;
         SoundFragment entity = buildEntity(dto);
+        List<String> uploadedFileNames = dto.getUploadedFiles() == null ?
+                Collections.emptyList() :
+                dto.getUploadedFiles().stream()
+                        .map(UploadFileDTO::getName)
+                        .toList();
 
         if (id == null) {
-            return repository.insert(entity, dto.getUploadedFiles().stream().map(UploadFileDTO::getName).toList(), user)
+            return repository.insert(entity, uploadedFileNames, user)
                     .chain(doc -> mapToDTO(doc, true));
         } else {
-            return repository.update(UUID.fromString(id), entity, dto.getUploadedFiles().stream().map(UploadFileDTO::getName).toList(), user)
+            return repository.update(UUID.fromString(id), entity, uploadedFileNames, user)
                     .chain(doc -> mapToDTO(doc, true));
         }
     }

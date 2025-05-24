@@ -53,7 +53,7 @@ public class StreamManager implements IStreamManager {
     @Getter
     private final HlsPlaylistConfig config;
     @Getter
-    private HLSPlaylistStats stats;
+    private StreamManagerStats stats;
     @Getter
     private final SoundFragmentService soundFragmentService;
     @Getter

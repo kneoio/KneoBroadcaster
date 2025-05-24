@@ -23,11 +23,13 @@ import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.apache.tika.Tika;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -43,7 +45,6 @@ public class SoundFragmentRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SOUND_FRAGMENT);
 
     private final DigitalOceanSpacesService digitalOceanSpacesService;
-
     private final Vertx vertx;
 
     @Inject
@@ -51,11 +52,33 @@ public class SoundFragmentRepository extends AsyncRepository {
                                    ObjectMapper mapper,
                                    RLSRepository rlsRepository,
                                    DigitalOceanSpacesService digitalOceanSpacesService,
-                                   Vertx vertx) { // Inject Vertx here
+                                   Vertx vertx) {
         super(client, mapper, rlsRepository);
         this.digitalOceanSpacesService = digitalOceanSpacesService;
-        this.vertx = vertx; // Assign it
+        this.vertx = vertx;
     }
+
+    private Uni<String> detectMimeType(String filePath) {
+        return vertx.executeBlocking(Uni.createFrom().emitter(emitter -> {
+            try {
+                Tika tika = new Tika();
+                String detectedMimeType = tika.detect(Paths.get(filePath));
+                if (detectedMimeType == null || detectedMimeType.isEmpty()) {
+                    LOGGER.warn("Tika could not determine MIME type for file {}. Defaulting to application/octet-stream.", filePath);
+                    emitter.complete("application/octet-stream");
+                } else {
+                    emitter.complete(detectedMimeType);
+                }
+            } catch (IOException e) {
+                LOGGER.error("IOException during MIME type detection for file {}: {}. Defaulting to application/octet-stream.", filePath, e.getMessage(), e);
+                emitter.complete("application/octet-stream"); // Or fail: emitter.fail(e);
+            } catch (Exception e) {
+                LOGGER.error("Unexpected error during MIME type detection for file {}: {}. Defaulting to application/octet-stream.", filePath, e.getMessage(), e);
+                emitter.complete("application/octet-stream"); // Or fail: emitter.fail(e);
+            }
+        }), false);
+    }
+
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
@@ -150,8 +173,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                     }
                     Row row = rows.iterator().next();
                     String doKey = row.getString("do_key");
-                    //String mimeType = row.getString("mime_type");
-                    String mimeType = "audio/mpeg";
+                    String mimeType = row.getString("mime_type"); // Use mime_type from DB
+
 
                     if (doKey == null || doKey.isBlank()) {
                         LOGGER.warn("SoundFragment (id: {}) has a null or empty 'do_key'. Cannot fetch from DigitalOcean Spaces.", fileId);
@@ -221,45 +244,50 @@ public class SoundFragmentRepository extends AsyncRepository {
         if (files == null || files.isEmpty() || files.get(0) == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("A file is required to create a SoundFragment."));
         }
-        String fileToUpload = files.get(0);
+        String fileToUploadPath = files.get(0);
+        String originalFileName = Paths.get(fileToUploadPath).getFileName().toString();
 
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        String doKey = user.getUserName() + "/" + UUID.randomUUID().toString() + "-" + fileToUpload;
+        String doKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + originalFileName;
 
-        String sql = String.format(
-                "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                        "title, artist, genre, album, slug_name, do_key, archived) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
-                entityData.getTableName()
-        );
+        return detectMimeType(fileToUploadPath)
+                .flatMap(detectedMimeType -> {
+                    String sql = String.format(
+                            "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
+                                    "title, artist, genre, album, slug_name, do_key, archived, mime_type) " +
+                                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id;",
+                            entityData.getTableName()
+                    );
 
-        Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
-                .addString(doc.getSource().name())
-                .addInteger(doc.getStatus())
-                .addString(doc.getType().name())
-                .addString(doc.getTitle())
-                .addString(doc.getArtist())
-                .addString(doc.getGenre())
-                .addString(doc.getAlbum())
-                .addString(doc.getSlugName())
-                .addString(doKey)
-                .addInteger(0);
+                    Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
+                            .addString(doc.getSource().name())
+                            .addInteger(doc.getStatus())
+                            .addString(doc.getType().name())
+                            .addString(doc.getTitle())
+                            .addString(doc.getArtist())
+                            .addString(doc.getGenre())
+                            .addString(doc.getAlbum())
+                            .addString(doc.getSlugName())
+                            .addString(doKey)
+                            .addInteger(0) // archived
+                            .addString(detectedMimeType); // mime_type
 
-        String readersSql = String.format(
-                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                entityData.getRlsName()
-        );
+                    String readersSql = String.format(
+                            "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
+                            entityData.getRlsName()
+                    );
 
-        return digitalOceanSpacesService.uploadFile(doKey, fileToUpload)
-                .onItem().transformToUni(v -> client.withTransaction(tx -> tx.preparedQuery(sql)
-                        .execute(params)
-                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id -> tx.preparedQuery(readersSql)
-                                .execute(Tuple.of(user.getId(), id, true, true))
-                                .onItem().transform(ignored -> id)
-                        )
-                ))
-                .onItem().transformToUni(id -> findById(id, user.getId()));
+                    return digitalOceanSpacesService.uploadFile(doKey, fileToUploadPath)
+                            .onItem().transformToUni(v -> client.withTransaction(tx -> tx.preparedQuery(sql)
+                                    .execute(params)
+                                    .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                                    .onItem().transformToUni(id -> tx.preparedQuery(readersSql)
+                                            .execute(Tuple.of(user.getId(), id, true, true))
+                                            .onItem().transform(ignored -> id)
+                                    )
+                            ))
+                            .onItem().transformToUni(id -> findById(id, user.getId()));
+                });
     }
 
     public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<String> files, IUser user) {
@@ -269,60 +297,71 @@ public class SoundFragmentRepository extends AsyncRepository {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                     }
 
-                    return findById(id, user.getId())
+                    return findById(id, user.getId()) // Fetches existingDoc, populating its mime_type via from()
                             .onItem().transformToUni(existingDoc -> {
-                                Uni<String> doKeyUni;
-                                String newDoKeyForUpdate = existingDoc.getDoKey();
+                                Uni<String> doKeyToSetUni;
+                                Uni<String> mimeTypeToSetUni;
+                                final String existingDoKey = existingDoc.getDoKey();
+                                final String existingMimeType = existingDoc.getMimeType() != null ? existingDoc.getMimeType() : "application/octet-stream";
+
 
                                 if (files != null && !files.isEmpty() && files.get(0) != null) {
-                                    String newFileToUpload = files.get(0);
-                                    String generatedNewDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + newFileToUpload;
-                                    newDoKeyForUpdate = generatedNewDoKey;
+                                    String newFileLocalPath = files.get(0);
+                                    String originalFileName = Paths.get(newFileLocalPath).getFileName().toString();
+                                    String generatedNewDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + originalFileName;
 
-                                    Uni<Void> uploadAndDeleteOldUni = digitalOceanSpacesService.uploadFile(generatedNewDoKey, newFileToUpload);
-                                    if (existingDoc.getDoKey() != null && !existingDoc.getDoKey().isBlank()) {
+                                    mimeTypeToSetUni = detectMimeType(newFileLocalPath);
+
+                                    Uni<Void> uploadAndDeleteOldUni = digitalOceanSpacesService.uploadFile(generatedNewDoKey, newFileLocalPath);
+                                    if (existingDoKey != null && !existingDoKey.isBlank()) {
                                         uploadAndDeleteOldUni = uploadAndDeleteOldUni
-                                                .flatMap(v -> digitalOceanSpacesService.deleteFile(existingDoc.getDoKey())
-                                                        .onFailure().recoverWithItem((Void)null)
+                                                .flatMap(v -> digitalOceanSpacesService.deleteFile(existingDoKey)
+                                                        .onFailure().recoverWithItem((Void) null)
                                                 );
                                     }
-                                    doKeyUni = uploadAndDeleteOldUni.map(v -> generatedNewDoKey);
+                                    doKeyToSetUni = uploadAndDeleteOldUni.map(v -> generatedNewDoKey);
                                 } else {
-                                    doKeyUni = Uni.createFrom().item(existingDoc.getDoKey());
+                                    doKeyToSetUni = Uni.createFrom().item(existingDoKey);
+                                    mimeTypeToSetUni = Uni.createFrom().item(existingMimeType);
                                 }
 
-                                final String finalNewDoKeyForUpdate = newDoKeyForUpdate;
-                                return doKeyUni.onItem().transformToUni(processedDoKey -> {
-                                    LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-                                    String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
-                                                    "source=$3, status=$4, type=$5, title=$6, " +
-                                                    "artist=$7, genre=$8, album=$9, slug_name=$10, do_key=$11 WHERE id=$12;",
-                                            entityData.getTableName());
+                                return Uni.combine().all().unis(doKeyToSetUni, mimeTypeToSetUni).asTuple()
+                                        .onItem().transformToUni(resolvedDataTuple -> {
+                                            String finalDoKeyToSet = resolvedDataTuple.getItem1();
+                                            String finalMimeTypeToSet = resolvedDataTuple.getItem2();
 
-                                    Tuple params = Tuple.of(user.getId(), nowTime)
-                                            .addString(doc.getSource().name())
-                                            .addInteger(doc.getStatus())
-                                            .addString(doc.getType().name())
-                                            .addString(doc.getTitle())
-                                            .addString(doc.getArtist())
-                                            .addString(doc.getGenre())
-                                            .addString(doc.getAlbum())
-                                            .addString(doc.getSlugName())
-                                            .addString(finalNewDoKeyForUpdate)
-                                            .addUUID(id);
+                                            LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+                                            String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
+                                                            "source=$3, status=$4, type=$5, title=$6, " +
+                                                            "artist=$7, genre=$8, album=$9, slug_name=$10, do_key=$11, mime_type=$12 WHERE id=$13;",
+                                                    entityData.getTableName());
 
-                                    return client.withTransaction(tx -> tx.preparedQuery(updateSql)
-                                            .execute(params)
-                                            .onItem().transformToUni(rowSet -> {
-                                                if (rowSet.rowCount() == 0) {
-                                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                                }
-                                                return findById(id, user.getId());
-                                            }));
-                                });
+                                            Tuple params = Tuple.of(user.getId(), nowTime)
+                                                    .addString(doc.getSource().name())
+                                                    .addInteger(doc.getStatus())
+                                                    .addString(doc.getType().name())
+                                                    .addString(doc.getTitle())
+                                                    .addString(doc.getArtist())
+                                                    .addString(doc.getGenre())
+                                                    .addString(doc.getAlbum())
+                                                    .addString(doc.getSlugName())
+                                                    .addString(finalDoKeyToSet)
+                                                    .addString(finalMimeTypeToSet)
+                                                    .addUUID(id);
+
+                                            return client.withTransaction(tx -> tx.preparedQuery(updateSql)
+                                                    .execute(params)
+                                                    .onItem().transformToUni(rowSet -> {
+                                                        if (rowSet.rowCount() == 0) {
+                                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                                        }
+                                                        return findById(id, user.getId());
+                                                    }));
+                                        });
                             });
                 });
     }
+
 
     public Uni<Integer> delete(UUID uuid, IUser user) {
         return findById(uuid, user.getId())
@@ -340,7 +379,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     private Uni<SoundFragment> from(Row row, boolean setFile) {
-        SoundFragment doc = new SoundFragment();
+        SoundFragment doc = new SoundFragment(); // Assuming SoundFragment has setMimeType method
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
         doc.setStatus(row.getInteger("status"));
@@ -350,9 +389,9 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
-
         doc.setSlugName(row.getString("slug_name"));
         doc.setDoKey(row.getString("do_key"));
+        doc.setMimeType(row.getString("mime_type")); // Populate mime_type
 
         if (row.getString("description") != null) {
             doc.setDescription(row.getString("description"));

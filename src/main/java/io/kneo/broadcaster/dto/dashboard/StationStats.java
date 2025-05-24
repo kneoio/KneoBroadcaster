@@ -9,9 +9,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Setter
 public class StationStats {
@@ -27,7 +25,7 @@ public class StationStats {
     @Getter
     private List<SchedulerTaskTimeline> timelines = new ArrayList<>();
     @Getter
-    private Map<Long, HLSSongStats> songStatistics = new LinkedHashMap<>();
+    private HLSSongStats hlsSongStats;
     @Getter
     private long latestRequestedSeg;
 

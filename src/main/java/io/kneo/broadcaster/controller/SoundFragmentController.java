@@ -5,8 +5,10 @@ import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
+import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -32,6 +34,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +42,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static java.nio.file.Files.probeContentType;
+import static java.nio.file.Files.readAllBytes;
 
 
 @ApplicationScoped
@@ -74,7 +80,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
-        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
+        router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
 
@@ -215,7 +221,24 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String requestedFileName = rc.pathParam("slug");
 
         getContextUser(rc)
-                .chain(user -> service.getFile(UUID.fromString(id), user))
+                .chain(user -> {
+                    Path destination = Paths.get(uploadDir, user.getUserName());
+                    File file = new File(Path.of(destination.toString(), requestedFileName).toUri());
+                    if (file.exists()) {
+                        try {
+                            byte[] fileBytes = readAllBytes(file.toPath());
+                            String mimeType = probeContentType(file.toPath());
+                            if (mimeType == null) {
+                                mimeType = "application/octet-stream";
+                            }
+                            return Uni.createFrom().item(new FileData(fileBytes, mimeType));
+                        } catch (IOException e) {
+                            return Uni.createFrom().failure(e);
+                        }
+                    } else {
+                        return service.getFile(UUID.fromString(id), user);
+                    }
+                })
                 .subscribe().with(
                         fileData -> {
                             if (fileData == null || fileData.getData() == null || fileData.getData().length == 0) {
@@ -240,21 +263,25 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             rc.fail(400);
             return;
         }
-
+        String id = rc.pathParam("id");
         FileUpload uploadedFile = rc.fileUploads().get(0);
         Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
         getContextUser(rc)
                 .chain(user -> Uni.createFrom().emitter(emitter -> {
-                    try {
-                        String fileName = "sfc_" + UUID.randomUUID() + "_" + uploadedFile.fileName();
-                        Path dest = Files.createDirectories(Paths.get(uploadDir, user.getUserName()))
-                                .resolve(fileName);
+                    if (user.getId() > 0) {
+                        try {
+                            String fileName = WebHelper.generateSlug(uploadedFile.fileName());
+                            Path destination = Files.createDirectories(Paths.get(uploadDir, user.getUserName())).resolve(fileName);
 
-                        Files.move(tempFile, dest, StandardCopyOption.REPLACE_EXISTING);
-                        emitter.complete(config.getHost() + "/api/soundfragments/files/" + fileName);
-                    } catch (IOException e) {
-                        emitter.fail(e);
+                            Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
+                            LOGGER.info("Uploaded file moved to {}", movedTo);
+                            emitter.complete(config.getHost() + "/api/soundfragments/files/" + id + "/" + fileName);
+                        } catch (IOException e) {
+                            emitter.fail(e);
+                        }
+                    } else {
+                        rc.response().setStatusCode(403).end("Unauthorized user");
                     }
                 }))
                 .subscribe().with(
@@ -264,4 +291,5 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         rc::fail
                 );
     }
+
 }

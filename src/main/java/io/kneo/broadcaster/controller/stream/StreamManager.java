@@ -53,8 +53,6 @@ public class StreamManager implements IStreamManager {
     @Getter
     private final HlsPlaylistConfig config;
     @Getter
-    private StreamManagerStats stats;
-    @Getter
     private final SoundFragmentService soundFragmentService;
     @Getter
     private final AudioSegmentationService segmentationService;
@@ -301,6 +299,12 @@ public class StreamManager implements IStreamManager {
     }
 
     @Override
+    public StreamManagerStats getStats(){
+        //TODO it should be snapshot
+        return new StreamManagerStats(liveSegments);
+    }
+
+    @Override
     public void shutdown() {
         LOGGER.info("Shutting down HLSPlaylist for: {}", radioStation.getSlugName());
         timerSubscriptions.forEach((key, subscription) -> {
@@ -313,7 +317,7 @@ public class StreamManager implements IStreamManager {
         pendingFragmentSegmentsQueue.clear();
         LOGGER.info("HLSPlaylist for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
-            radioStation.setStatus(RadioStationStatus.OFF_LINE); // Also update local status
+            radioStation.setStatus(RadioStationStatus.OFF_LINE);
         }
     }
 }

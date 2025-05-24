@@ -9,6 +9,7 @@ import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -22,20 +23,15 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SoundFragmentService extends AbstractService<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentService.class);
-    private static final Pattern NONLATIN = Pattern.compile("[^\\w-]");
-    private static final Pattern WHITESPACE = Pattern.compile("[\\s]");
 
     private final SoundFragmentRepository repository;
     private final RadioService radioService;
@@ -260,16 +256,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         });
     }
 
-    private String generateSlug(String title, String artist) {
-        if (title == null) title = "";
-        if (artist == null) artist = "";
-        String input = title + " " + artist;
-        String nowhitespace = WHITESPACE.matcher(input).replaceAll("-");
-        String normalized = Normalizer.normalize(nowhitespace, Normalizer.Form.NFD);
-        String slug = NONLATIN.matcher(normalized).replaceAll("");
-        return slug.toLowerCase(Locale.ENGLISH);
-    }
-
     private SoundFragment buildEntity(SoundFragmentDTO dto) {
         SoundFragment doc = new SoundFragment();
         doc.setSource(dto.getSource());
@@ -279,7 +265,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setArtist(dto.getArtist());
         doc.setGenre(dto.getGenre());
         doc.setAlbum(dto.getAlbum());
-        doc.setSlugName(generateSlug(dto.getTitle(), dto.getArtist()));
+        doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
         return doc;
     }
 

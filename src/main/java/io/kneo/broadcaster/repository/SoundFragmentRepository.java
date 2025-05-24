@@ -17,6 +17,7 @@ import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
+import io.vertx.mutiny.core.file.FileSystem;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -193,7 +194,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                 }
                                 LOGGER.debug("File for do_key '{}' (SoundFragment ID '{}') downloaded to temporary path: {}", doKey, fileId, filePath);
 
-                                io.vertx.mutiny.core.file.FileSystem fs = this.vertx.fileSystem();
+                                FileSystem fs = this.vertx.fileSystem();
                                 return fs.readFile(String.valueOf(filePath))
                                         .onItem().transform(buffer -> new FileData(buffer.getBytes(), mimeType))
                                         .eventually(() -> {

@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 public class WebHelper {
     private static final Pattern NON_LATIN = Pattern.compile("[^\\w-]");
-    private static final Pattern WHITESPACE = Pattern.compile("[\\s]");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s");
 
 
     public static String generateSlug(String title, String artist) {

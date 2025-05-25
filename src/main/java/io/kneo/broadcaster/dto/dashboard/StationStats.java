@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
+import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -28,6 +29,10 @@ public class StationStats {
     private HLSSongStats hlsSongStats;
     @Getter
     private long latestRequestedSeg;
+    @Getter
+    private SegmentTimelineDisplay timeline;
+    @Getter
+    private long listenersCount;
 
     public String getAliveTimeInHours() {
         int hours = (int) (alived / 60);

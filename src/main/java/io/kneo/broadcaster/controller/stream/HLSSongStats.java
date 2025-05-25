@@ -6,9 +6,9 @@ import lombok.Getter;
 public class HLSSongStats {
     private final String title;
     private final long segmentTimestamp;
-    private final int requestCount;
+    private final long requestCount;
 
-    public HLSSongStats(String title, long segmentTimestamp, int requestCount) {
+    public HLSSongStats(String title, long segmentTimestamp, long requestCount) {
         this.title = title;
         this.segmentTimestamp = segmentTimestamp;
         this.requestCount = requestCount;

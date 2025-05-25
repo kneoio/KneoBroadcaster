@@ -74,12 +74,12 @@ public class DigitalOceanSpacesService {
                 .onFailure().recoverWithUni(Uni.createFrom()::failure);
     }
 
-    public Uni<Void> uploadFile(String keyName, String fileToUpload) {
+    public Uni<Void> uploadFile(String keyName, String fileToUpload, String mimeType) {
         return Uni.createFrom().<Void>item(() -> {
                     PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                             .bucket(doConfig.getBucketName())
                             .key(keyName)
-                          //  .contentType(fileToUpload.contentType())
+                            .contentType(mimeType)
                             .build();
                     s3Client.putObject(putObjectRequest, RequestBody.fromFile(Paths.get(fileToUpload)));
                     return null;

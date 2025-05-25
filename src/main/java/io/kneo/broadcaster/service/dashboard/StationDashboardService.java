@@ -38,6 +38,8 @@ public class StationDashboardService {
             stationStats.setPlaylistManagerStats(manager.getStats());
             StreamManagerStats hlsSegmentStats = playlist.getStats();
             stationStats.setHlsSongStats(hlsSegmentStats.getSongStatistics());
+            stationStats.setTimeline(hlsSegmentStats.getSegmentTimelineDisplay());
+            stationStats.setListenersCount(hlsSegmentStats.getListenersCount());
         }
 
         return stationStats;

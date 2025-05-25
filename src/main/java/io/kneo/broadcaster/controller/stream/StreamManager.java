@@ -5,6 +5,9 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
+// Assume StreamManagerStats class exists and its constructor is updated
+// import io.kneo.broadcaster.model.stats.StreamManagerStats;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
@@ -20,11 +23,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.LinkedList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue; // Added import
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,6 +46,7 @@ public class StreamManager implements IStreamManager {
     private final ConcurrentSkipListMap<Long, HlsSegment> liveSegments = new ConcurrentSkipListMap<>();
     private final AtomicLong currentSequence = new AtomicLong(0);
     private long latestRequestedSegment = 0;
+    private final Queue<Long> segmentRequestTimestamps = new ConcurrentLinkedQueue<>();
 
     private final Queue<HlsSegment> pendingFragmentSegmentsQueue = new LinkedList<>();
     private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
@@ -283,6 +289,11 @@ public class StreamManager implements IStreamManager {
             long segmentSequence = Long.parseLong(matcher.group(2));
             latestRequestedSegment = segmentSequence;
             HlsSegment segment = liveSegments.get(segmentSequence);
+
+            if (segment != null) { // Record timestamp if segment is valid/found
+                segmentRequestTimestamps.offer(System.currentTimeMillis());
+            }
+
             if (segment == null) {
                 LOGGER.debug("Segment {} not found in liveSegments", segmentSequence);
             }
@@ -298,10 +309,27 @@ public class StreamManager implements IStreamManager {
         return latestRequestedSegment;
     }
 
+    private long countAndPruneRecentSegmentRequests() {
+        long fiveMinutesAgoInMillis = System.currentTimeMillis() - (5 * 60 * 1000L);
+        while (true) {
+            Long oldestTimestamp = segmentRequestTimestamps.peek();
+            if (oldestTimestamp == null || oldestTimestamp >= fiveMinutesAgoInMillis) {
+                break;
+            }
+            segmentRequestTimestamps.poll();
+        }
+        return segmentRequestTimestamps.size();
+    }
+
     @Override
     public StreamManagerStats getStats(){
-        //TODO it should be snapshot
-        return new StreamManagerStats(liveSegments);
+        long recentRequestsCount = countAndPruneRecentSegmentRequests();
+        return new StreamManagerStats(
+                Map.copyOf(liveSegments),
+                getSegmentTimelineDisplay(3,3),
+                recentRequestsCount,
+                config
+        );
     }
 
     @Override
@@ -315,9 +343,42 @@ public class StreamManager implements IStreamManager {
         currentSequence.set(0);
         liveSegments.clear();
         pendingFragmentSegmentsQueue.clear();
+        segmentRequestTimestamps.clear(); // Clear timestamps on shutdown
         LOGGER.info("HLSPlaylist for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
         }
+    }
+
+    public SegmentTimelineDisplay getSegmentTimelineDisplay(int numPastSegmentsToShow, int numUpcomingSegmentsToShow) {
+        List<Long> visibleSegmentSequences;
+        List<Long> pastSegmentSequences = new ArrayList<>();
+
+        if (liveSegments.isEmpty()) {
+            visibleSegmentSequences = Collections.emptyList();
+        } else {
+            visibleSegmentSequences = new ArrayList<>(liveSegments.keySet());
+            if (numPastSegmentsToShow > 0 && !visibleSegmentSequences.isEmpty()) {
+                long firstVisibleSequence = visibleSegmentSequences.get(0);
+                for (int i = numPastSegmentsToShow; i >= 1; i--) {
+                    long pastSequence = firstVisibleSequence - i;
+                    pastSegmentSequences.add(pastSequence);
+                }
+            }
+        }
+
+        List<Long> upcomingSegmentSequences;
+        synchronized (pendingFragmentSegmentsQueue) {
+            upcomingSegmentSequences = pendingFragmentSegmentsQueue.stream()
+                    .map(HlsSegment::getSequence)
+                    .limit(numUpcomingSegmentsToShow)
+                    .toList(); // .collect(Collectors.toList()) for older Java versions
+        }
+
+        return new SegmentTimelineDisplay(
+                Collections.unmodifiableList(pastSegmentSequences),
+                Collections.unmodifiableList(visibleSegmentSequences),
+                Collections.unmodifiableList(upcomingSegmentSequences)
+        );
     }
 }

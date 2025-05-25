@@ -3,7 +3,6 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -16,7 +15,6 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
@@ -48,7 +46,6 @@ import static java.nio.file.Files.readAllBytes;
 
 
 @ApplicationScoped
-
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
     SoundFragmentService service;
@@ -73,6 +70,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String path = "/api/soundfragments";
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
+                .setMergeFormAttributes(true)
+                .setUploadsDirectory(uploadDir)
                 .setDeleteUploadedFilesOnEnd(false)
                 .setBodyLimit(100L * 1024 * 1024));
         router.route(path + "*").handler(this::addHeaders);
@@ -115,19 +114,21 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.ENG.name()));
 
         getContextUser(rc)
-                .chain(user ->
-                        service.getDTO(UUID.fromString(id), user, languageCode)
-                                .map(doc -> Tuple2.of(doc, user))
-                )
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        SoundFragmentDTO dto = new SoundFragmentDTO();
+                        dto.setAuthor(user.getUserName());
+                        dto.setLastModifier(user.getUserName());
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return service.getDTO(UUID.fromString(id), user, languageCode)
+                            .map(doc -> Tuple2.of(doc, user));
+                })
                 .subscribe().with(
                         tuple -> {
                             SoundFragmentDTO doc = tuple.getItem1();
-                            IUser user = tuple.getItem2();
                             FormPage page = new FormPage();
-                            ActionBox actionBox = new ActionBox();
-                            //  if (user.getId() == doc.getAuthor())
                             page.addPayload(PayloadType.DOC_DATA, doc);
-                            page.addPayload(PayloadType.CONTEXT_ACTIONS, actionBox);
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
                         rc::fail
@@ -175,13 +176,10 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             getContextUser(rc)
                     .chain(user -> {
-                        // Process file paths if present
-                        if (dto.getUploadedFiles() != null && !dto.getUploadedFiles().isEmpty()) {
-                            dto.setUploadedFiles(
-                                    dto.getUploadedFiles().stream()
-                                            .map(file -> UploadFileDTO.builder()
-                                                    .name(uploadDir + "/" + user.getUserName() + "/" + file.getName())
-                                                    .build())
+                        if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
+                            dto.setNewlyUploaded(
+                                    dto.getNewlyUploaded().stream()
+                                            .map(fileName -> uploadDir + "/" + user.getUserName() + "/" + id + "/" + fileName)
                                             .collect(Collectors.toList())
                             );
                         }
@@ -222,8 +220,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc)
                 .chain(user -> {
-                    Path destination = Paths.get(uploadDir, user.getUserName());
-                    File file = new File(Path.of(destination.toString(), requestedFileName).toUri());
+                    Path destinationDir = Paths.get(uploadDir, user.getUserName(), id);
+                    File file = new File(Path.of(destinationDir.toString(), requestedFileName).toUri());
                     if (file.exists()) {
                         try {
                             byte[] fileBytes = readAllBytes(file.toPath());
@@ -272,7 +270,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     if (user.getId() > 0) {
                         try {
                             String fileName = WebHelper.generateSlug(uploadedFile.fileName());
-                            Path destination = Files.createDirectories(Paths.get(uploadDir, user.getUserName())).resolve(fileName);
+                            Path destination = Files.createDirectories(Paths.get(uploadDir, user.getUserName(), id)).resolve(fileName);
 
                             Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
                             LOGGER.info("Uploaded file moved to {}", movedTo);

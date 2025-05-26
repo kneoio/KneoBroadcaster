@@ -1,8 +1,10 @@
 package io.kneo.broadcaster.util;
 
 import java.text.Normalizer;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class WebHelper {
     private static final Pattern NON_LATIN = Pattern.compile("[^\\w-]");
@@ -39,4 +41,13 @@ public class WebHelper {
         return slug + extension;
     }
 
+    public static String generateSlugPath(String... segments) {
+        if (segments == null || segments.length == 0) {
+            return "";
+        }
+
+        return Arrays.stream(segments)
+                .map(WebHelper::generateSlug)
+                .collect(Collectors.joining("/"));
+    }
 }

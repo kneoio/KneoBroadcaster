@@ -225,9 +225,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             if (exposeFileUrl && doc.getDoKey() != null) {
                 files.add(UploadFileDTO.builder()
                         .id(doc.getSlugName())
-                        .name(doc.getDoKey())
+                        .name(doc.getSlugName())
                         .status("finished")
-                        .url("/soundfragments/files/" + doc.getId() + "/" + doc.getSlugName())
+                        .url("/api/soundfragments/files/" + doc.getId() + "/" + doc.getSlugName())
                         .percentage(100)
                         .build());
             }

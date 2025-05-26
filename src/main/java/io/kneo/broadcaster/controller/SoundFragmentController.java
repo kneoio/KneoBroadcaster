@@ -51,7 +51,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     SoundFragmentService service;
     private BroadcasterConfig config;
     private String uploadDir;
-    private String downloadDir;
 
     public SoundFragmentController() {
         super(null);
@@ -62,7 +61,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         super(userService);
         this.service = service;
         this.config = config;
-        downloadDir = config.getPathDownloads() + "/sound-fragments-controller";
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
 
@@ -72,8 +70,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .setHandleFileUploads(true)
                 .setMergeFormAttributes(true)
                 .setUploadsDirectory(uploadDir)
-                .setDeleteUploadedFilesOnEnd(false)
-                .setBodyLimit(100L * 1024 * 1024));
+                //.setBodyLimit(100L * 1024 * 1024)
+                .setDeleteUploadedFilesOnEnd(false));
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
@@ -213,6 +211,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         rc::fail
                 );
     }
+
 
     private void getBySlugName(RoutingContext rc) {
         String id = rc.pathParam("id");

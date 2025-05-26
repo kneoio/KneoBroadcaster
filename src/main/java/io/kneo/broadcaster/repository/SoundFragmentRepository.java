@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.service.external.DigitalOceanSpacesService;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -37,7 +38,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SOUND_FRAGMENT;
-
 
 @ApplicationScoped
 public class SoundFragmentRepository extends AsyncRepository {
@@ -91,7 +91,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                         Row row = iterator.next();
                         return from(row, true);
                     } else {
-                        LOGGER.warn(String.format("No %s found with id: " + uuid, entityData.getTableName()));
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
                     }
                 });
@@ -136,7 +135,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<FileData> getFileById(UUID fileId, Long userId) {
-        final String sql = "SELECT sf.do_key, sf.mime_type " +
+        final String sql = "SELECT sf.artist, sf.album, sf.title, sf.mime_type " +
                 "FROM " + entityData.getTableName() + " sf " +
                 "JOIN " + entityData.getRlsName() + " rls ON sf.id = rls.entity_id " +
                 "WHERE sf.id = $1 AND rls.reader = $2";
@@ -145,59 +144,44 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .execute(Tuple.of(fileId, userId))
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
-                        LOGGER.warn("SoundFragment lookup: No record found for id {} with read permission for user {}.", fileId, userId);
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(
                                 String.format("File not found (ID: %s) or access denied.", fileId)
                         ));
                     }
                     Row row = rows.iterator().next();
-                    String doKey = row.getString("do_key");
-                    String mimeType = row.getString("mime_type"); // Use mime_type from DB
-
-
-                    if (doKey == null || doKey.isBlank()) {
-                        LOGGER.warn("SoundFragment (id: {}) has a null or empty 'do_key'. Cannot fetch from DigitalOcean Spaces.", fileId);
-                        return Uni.createFrom().failure(new FileNotFoundException(
-                                String.format("File data is not available for ID: %s (missing storage key).", fileId)
-                        ));
-                    }
+                    String artist = row.getString("artist");
+                    String album = row.getString("album");
+                    String title = row.getString("title");
+                    String mimeType = row.getString("mime_type");
+                    String doKey = WebHelper.generateSlugPath(artist, album, title);
 
                     return digitalOceanSpacesService.getFile(doKey)
                             .onItem().transformToUni(filePath -> {
                                 if (filePath == null) {
-                                    LOGGER.error("DigitalOceanSpacesService returned an empty/null file path for do_key: {} (SoundFragment ID: {})", doKey, fileId);
                                     return Uni.createFrom().failure(new IOException(
                                             String.format("Failed to obtain a valid temporary file path for DO key: %s", doKey)
                                     ));
                                 }
-                                LOGGER.debug("File for do_key '{}' (SoundFragment ID '{}') downloaded to temporary path: {}", doKey, fileId, filePath);
-
                                 FileSystem fs = this.vertx.fileSystem();
                                 return fs.readFile(String.valueOf(filePath))
                                         .onItem().transform(buffer -> new FileData(buffer.getBytes(), mimeType))
-                                        .eventually(() -> {
-                                            LOGGER.debug("Attempting to delete temporary file: {}", filePath);
-                                            return fs.delete(String.valueOf(filePath))
-                                                    .onFailure().invoke(e -> LOGGER.warn("Failed to delete temporary file '{}': {}", filePath, e.getMessage()));
-                                        });
+                                        .eventually(() -> fs.delete(String.valueOf(filePath))
+                                                .onFailure().invoke(e -> LOGGER.warn("Failed to delete temporary file '{}': {}", filePath, e.getMessage())));
                             })
                             .onFailure().transform(ex -> {
-                                LOGGER.error("Error in DigitalOcean/FileSystem pipeline for do_key '{}' (SoundFragment ID '{}'). Error: {}",
-                                        doKey, fileId, ex.getMessage(), ex);
-                                if (ex instanceof FileNotFoundException) {
+                                if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
                                     return ex;
                                 }
                                 return new FileNotFoundException(
-                                        String.format("Failed to retrieve file content from storage for ID: %s. Cause: %s", fileId, ex.getMessage())
+                                        String.format("Failed to retrieve file content from storage for ID: %s. Derived Key: %s. Cause: %s", fileId, doKey, ex.getMessage())
                                 );
                             });
                 })
-                .onFailure(FileNotFoundException.class).recoverWithUni(fnfException -> {
-                    return Uni.createFrom().failure(fnfException);
-                })
+                .onFailure(FileNotFoundException.class).recoverWithUni(fnfException -> Uni.createFrom().failure(fnfException))
                 .onFailure().recoverWithUni(otherException -> {
-                    LOGGER.error("Unexpected error while attempting to fetch file metadata or content for SoundFragment ID '{}', User ID '{}'. SQL was: '{}'. Error: {}",
-                            fileId, userId, sql, otherException.getMessage(), otherException);
+                    if (otherException instanceof DocumentHasNotFoundException) {
+                        return Uni.createFrom().failure(otherException);
+                    }
                     return Uni.createFrom().failure(new RuntimeException(
                             String.format("An unexpected error occurred while fetching file data for ID: %s.", fileId), otherException
                     ));
@@ -221,38 +205,32 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     public Uni<SoundFragment> insert(SoundFragment doc, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        String determinedDoKey = null;
+        doc.setDoKey(getDoKey(doc));
         Uni<String> mimeTypeUni = Uni.createFrom().item((String) null);
         Uni<Void> uploadUni = Uni.createFrom().voidItem();
-        return executeInsertTransaction(doc, user, nowTime, determinedDoKey, mimeTypeUni, uploadUni);
+        return executeInsertTransaction(doc, user, nowTime, mimeTypeUni, uploadUni);
     }
 
     public Uni<SoundFragment> insert(SoundFragment doc, List<String> files, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-
-        String determinedDoKey = null;
         Uni<String> mimeTypeUni = Uni.createFrom().item((String) null);
         Uni<Void> uploadUni = Uni.createFrom().voidItem();
 
+        String derivedKey = getDoKey(doc);
+        doc.setDoKey(derivedKey);
         String pathCandidate = null;
-        if (!files.isEmpty()) {
+        if (files != null && !files.isEmpty()) {
             pathCandidate = files.get(0);
         }
 
-        String mimeType = "";
         if (pathCandidate != null && !pathCandidate.trim().isEmpty()) {
             String actualFileToUploadPath = pathCandidate.trim();
-            String actualOriginalFileName = Paths.get(actualFileToUploadPath).getFileName().toString();
-            determinedDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + actualOriginalFileName;
-
-            final String finalKey = determinedDoKey;
-            mimeType = detectMimeType(actualFileToUploadPath);
-            mimeTypeUni = wrapToUni(mimeType);
-            //TODO it will need compensation logic to clean orphans
-            uploadUni = digitalOceanSpacesService.uploadFile(finalKey, actualFileToUploadPath, mimeType);
+            String detectedMimeType = detectMimeType(actualFileToUploadPath);
+            mimeTypeUni = wrapToUni(detectedMimeType);
+            uploadUni = digitalOceanSpacesService.uploadFile(derivedKey, actualFileToUploadPath, detectedMimeType);
         }
 
-        return executeInsertTransaction(doc, user, nowTime, determinedDoKey, mimeTypeUni, uploadUni);
+        return executeInsertTransaction(doc, user, nowTime, mimeTypeUni, uploadUni);
     }
 
     public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<String> files, IUser user) {
@@ -262,43 +240,33 @@ public class SoundFragmentRepository extends AsyncRepository {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                     }
 
-                    return findById(id, user.getId()) // Fetches existingDoc, populating its mime_type via from()
+                    return findById(id, user.getId())
                             .onItem().transformToUni(existingDoc -> {
-                                Uni<String> doKeyToSetUni;
                                 Uni<String> mimeTypeToSetUni;
-                                final String existingDoKey = existingDoc.getDoKey();
-                                final String existingMimeType = existingDoc.getMimeType() != null ? existingDoc.getMimeType() : "application/octet-stream";
+                                final String currentMimeTypeInDb = existingDoc.getMimeType() != null ? existingDoc.getMimeType() : "application/octet-stream";
 
+                                String doKey = getDoKey(doc);
+                                doc.setDoKey(doKey);
+                                Uni<Void> doUploadOperation = Uni.createFrom().voidItem();
 
-                                if (!files.isEmpty() && files.get(0) != null) {
-                                    String newFileLocalPath = files.get(0);
-                                    String originalFileName = Paths.get(newFileLocalPath).getFileName().toString();
-                                    String generatedNewDoKey = user.getUserName() + "/" + UUID.randomUUID() + "-" + originalFileName;
-                                    String mimeType = detectMimeType(newFileLocalPath);
-                                    mimeTypeToSetUni = wrapToUni(mimeType);
-
-                                    Uni<Void> uploadAndDeleteOldUni = digitalOceanSpacesService.uploadFile(generatedNewDoKey, newFileLocalPath, mimeType);
-                                    if (existingDoKey != null && !existingDoKey.isBlank()) {
-                                        uploadAndDeleteOldUni = uploadAndDeleteOldUni
-                                                .flatMap(v -> digitalOceanSpacesService.deleteFile(existingDoKey)
-                                                        .onFailure().recoverWithItem((Void) null)
-                                                );
-                                    }
-                                    doKeyToSetUni = uploadAndDeleteOldUni.map(v -> generatedNewDoKey);
+                                if (files != null && !files.isEmpty() && files.get(0) != null) {
+                                    String newFileLocalPath = files.get(0).trim();
+                                    String detectedMimeType = detectMimeType(newFileLocalPath);
+                                    mimeTypeToSetUni = wrapToUni(detectedMimeType);
+                                    doUploadOperation = digitalOceanSpacesService.uploadFile(doKey, newFileLocalPath, detectedMimeType);
                                 } else {
-                                    doKeyToSetUni = Uni.createFrom().item(existingDoKey);
-                                    mimeTypeToSetUni = Uni.createFrom().item(existingMimeType);
+                                    mimeTypeToSetUni = Uni.createFrom().item(currentMimeTypeInDb);
                                 }
 
-                                return Uni.combine().all().unis(doKeyToSetUni, mimeTypeToSetUni).asTuple()
+                                return Uni.combine().all().unis(doUploadOperation.map(v -> doKey), mimeTypeToSetUni).asTuple()
                                         .onItem().transformToUni(resolvedDataTuple -> {
-                                            String finalDoKeyToSet = resolvedDataTuple.getItem1();
-                                            String finalMimeTypeToSet = resolvedDataTuple.getItem2();
+                                            String ignoredDoKey = resolvedDataTuple.getItem1();
+                                            String mimeTypeForDb = resolvedDataTuple.getItem2();
 
                                             LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
                                             String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                                                             "source=$3, status=$4, type=$5, title=$6, " +
-                                                            "artist=$7, genre=$8, album=$9, slug_name=$10, do_key=$11, mime_type=$12 WHERE id=$13;",
+                                                            "artist=$7, genre=$8, album=$9, slug_name=$10, mime_type=$11 WHERE id=$12;",
                                                     entityData.getTableName());
 
                                             Tuple params = Tuple.of(user.getId(), nowTime)
@@ -310,8 +278,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                     .addString(doc.getGenre())
                                                     .addString(doc.getAlbum())
                                                     .addString(doc.getSlugName())
-                                                    .addString(finalDoKeyToSet)
-                                                    .addString(finalMimeTypeToSet)
+                                                    .addString(mimeTypeForDb)
                                                     .addUUID(id);
 
                                             return client.withTransaction(tx -> tx.preparedQuery(updateSql)
@@ -330,12 +297,14 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     public Uni<Integer> delete(UUID uuid, IUser user) {
         return findById(uuid, user.getId())
-                .onItem().transformToUni(soundFragment -> {
+                .onItem().transformToUni(doc -> {
+                    final String doKey = getDoKey(doc);
                     Uni<Void> deleteFileUni = Uni.createFrom().voidItem();
-                    if (soundFragment.getDoKey() != null && !soundFragment.getDoKey().isBlank()) {
-                        deleteFileUni = digitalOceanSpacesService.deleteFile(soundFragment.getDoKey())
+
+                    if (doKey != null && !doKey.isBlank()) {
+                        deleteFileUni = digitalOceanSpacesService.deleteFile(doKey)
                                 .onFailure().recoverWithUni(e -> {
-                                    LOGGER.error("Failed to delete file {} from DO Spaces for SoundFragment {}. DB record deletion will proceed.", soundFragment.getDoKey(), uuid, e);
+                                    LOGGER.error("Failed to delete file {} from DO Spaces for SoundFragment {}. DB record deletion will proceed.", doKey, uuid, e);
                                     return Uni.createFrom().voidItem();
                                 });
                     }
@@ -354,22 +323,23 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setGenre(row.getString("genre"));
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
+        doc.setDoKey(getDoKey(doc));
         doc.setSlugName(row.getString("slug_name"));
-        doc.setDoKey(row.getString("do_key"));
-        doc.setMimeType(row.getString("mime_type")); // Populate mime_type
+        doc.setMimeType(row.getString("mime_type"));
 
         if (row.getString("description") != null) {
             doc.setDescription(row.getString("description"));
         }
 
         if (setFile && doc.getDoKey() != null && !doc.getDoKey().isBlank()) {
-            return digitalOceanSpacesService.getFile(doc.getDoKey())
+            final String keyToFetch = doc.getDoKey();
+            return digitalOceanSpacesService.getFile(keyToFetch)
                     .onItem().transform(filePath -> {
                         doc.setFilePath(filePath);
                         return doc;
                     })
                     .onFailure().recoverWithUni(e -> {
-                        LOGGER.warn("Failed to fetch file from DO for key {}: {}. SoundFragment will not have filePath.", doc.getDoKey(), e.getMessage());
+                        LOGGER.warn("Failed to fetch file from DO for key {}: {}. SoundFragment will not have filePath.", keyToFetch, e.getMessage());
                         return Uni.createFrom().item(doc);
                     });
         }
@@ -377,13 +347,13 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
-                                                        String doKeyForDb, Uni<String> mimeTypeDetectionUni, Uni<Void> fileUploadCompletionUni) {
-        return mimeTypeDetectionUni.flatMap(detectedMimeType ->
+                                                        Uni<String> mimeTypeUni, Uni<Void> fileUploadCompletionUni) {
+        return mimeTypeUni.flatMap(detectedMimeType ->
                         fileUploadCompletionUni.onItem().transformToUni(v -> {
                             String sql = String.format(
                                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                                            "title, artist, genre, album, slug_name, do_key, archived, mime_type) " +
-                                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id;",
+                                            "title, artist, genre, album, slug_name, archived, mime_type) " +
+                                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
                                     entityData.getTableName()
                             );
 
@@ -396,7 +366,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                                     .addString(doc.getGenre())
                                     .addString(doc.getAlbum())
                                     .addString(doc.getSlugName())
-                                    .addValue(doKeyForDb)
                                     .addInteger(0)
                                     .addValue(detectedMimeType);
 
@@ -434,16 +403,11 @@ public class SoundFragmentRepository extends AsyncRepository {
         }
     }
 
-    private Uni<String> wrapToUni(String mimeType) {
-        return vertx.executeBlocking(Uni.createFrom().emitter(emitter -> {
-            try {
-                emitter.complete(mimeType);
-            } catch (Exception e) {
-                LOGGER.error("Unexpected error during MIME type detection for file {}: {}. Defaulting to application/octet-stream.", mimeType, e.getMessage(), e);
-                emitter.complete("application/octet-stream");
-            }
-        }), false);
+    private Uni<String> wrapToUni(String detectedMimeType) {
+        return Uni.createFrom().item(detectedMimeType);
     }
 
-
+    private static String getDoKey(SoundFragment doc) {
+        return WebHelper.generateSlugPath(doc.getArtist(), doc.getAlbum(), doc.getTitle());
+    }
 }

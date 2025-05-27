@@ -59,9 +59,16 @@ public class SoundFragmentRepository extends AsyncRepository {
         this.vertx = vertx;
     }
 
-    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final IUser user) {
+    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId() + " ORDER BY t.last_mod_date DESC";
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        sql += " ORDER BY t.last_mod_date DESC";
+
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
@@ -73,34 +80,53 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user) {
-        return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        return client.query(sql)
+                .execute()
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<SoundFragment> findById(UUID uuid, Long userID) {
-        return client.preparedQuery(String.format(
-                        "SELECT theTable.*, rls.* " +
-                                "FROM %s theTable " +
-                                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                                "WHERE rls.reader = $1 AND theTable.id = $2",
-                        entityData.getTableName(), entityData.getRlsName()))
+    public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeArchived) {
+        String sql = "SELECT theTable.*, rls.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.id = $2";
+
+        if (!includeArchived) {
+            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+        }
+
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(userID, uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, true);
+                        return from(row, false);
                     } else {
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
                     }
                 });
     }
 
-    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset) {
+    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset, boolean includeArchived) {
         String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "WHERE bsf.brand_id = $1 ORDER BY played_by_brand_count";
+                "WHERE bsf.brand_id = $1";
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        sql += " ORDER BY played_by_brand_count";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
@@ -124,21 +150,29 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getCountForBrand(UUID brandId) {
+    public Uni<Integer> getCountForBrand(UUID brandId, boolean includeArchived) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "WHERE bsf.brand_id = $1";
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId))
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<FileData> getFileById(UUID fileId, Long userId) {
-        final String sql = "SELECT sf.artist, sf.album, sf.title, sf.mime_type " +
+    public Uni<FileData> getFileById(UUID fileId, Long userId, boolean includeArchived) {
+        String sql = "SELECT sf.artist, sf.album, sf.title, sf.mime_type " +
                 "FROM " + entityData.getTableName() + " sf " +
                 "JOIN " + entityData.getRlsName() + " rls ON sf.id = rls.entity_id " +
                 "WHERE sf.id = $1 AND rls.reader = $2";
+
+        if (!includeArchived) {
+            sql += " AND (sf.archived IS NULL OR sf.archived = 0)";
+        }
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(fileId, userId))
@@ -203,6 +237,22 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<Integer> archive(UUID uuid, IUser user) {
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), uuid));
+                    }
+
+                    String sql = String.format("UPDATE %s SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
+                            entityData.getTableName());
+
+                    return client.preparedQuery(sql)
+                            .execute(Tuple.of(ZonedDateTime.now().toLocalDateTime(), user.getId(), uuid))
+                            .onItem().transform(RowSet::rowCount);
+                });
+    }
+
     public Uni<SoundFragment> insert(SoundFragment doc, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         doc.setDoKey(getDoKey(doc));
@@ -240,7 +290,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                     }
 
-                    return findById(id, user.getId())
+                    return findById(id, user.getId(), true)
                             .onItem().transformToUni(existingDoc -> {
                                 Uni<String> mimeTypeToSetUni;
                                 final String currentMimeTypeInDb = existingDoc.getMimeType() != null ? existingDoc.getMimeType() : "application/octet-stream";
@@ -287,16 +337,15 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                         if (rowSet.rowCount() == 0) {
                                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                                         }
-                                                        return findById(id, user.getId());
+                                                        return findById(id, user.getId(), true);
                                                     }));
                                         });
                             });
                 });
     }
 
-
     public Uni<Integer> delete(UUID uuid, IUser user) {
-        return findById(uuid, user.getId())
+        return findById(uuid, user.getId(), true)
                 .onItem().transformToUni(doc -> {
                     final String doKey = getDoKey(doc);
                     Uni<Void> deleteFileUni = Uni.createFrom().voidItem();
@@ -312,7 +361,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    private Uni<SoundFragment> from(Row row, boolean setFile) {
+    private Uni<SoundFragment> from(Row row, boolean downloadFile) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
@@ -331,7 +380,7 @@ public class SoundFragmentRepository extends AsyncRepository {
             doc.setDescription(row.getString("description"));
         }
 
-        if (setFile && doc.getDoKey() != null && !doc.getDoKey().isBlank()) {
+        if (downloadFile) {
             final String keyToFetch = doc.getDoKey();
             return digitalOceanSpacesService.getFile(keyToFetch)
                     .onItem().transform(filePath -> {
@@ -384,9 +433,10 @@ public class SoundFragmentRepository extends AsyncRepository {
                             );
                         })
                 )
-                .onItem().transformToUni(id -> findById(id, user.getId()));
+                .onItem().transformToUni(id -> findById(id, user.getId(), true));
     }
 
+    //TODO should be moved to 2next
     private String detectMimeType(String filePath) {
         Tika tika = new Tika();
         try {

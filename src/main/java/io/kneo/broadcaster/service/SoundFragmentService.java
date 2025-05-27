@@ -6,9 +6,7 @@ import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.cnst.FragmentActionType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
-import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -34,38 +32,30 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentService.class);
 
     private final SoundFragmentRepository repository;
-    private final RadioService radioService;
     private final RadioStationService radioStationService;
-    private final RadioStationPool radiostationPool;
     Validator validator;
 
     protected SoundFragmentService() {
-        super(null, null);
+        super(null);
         this.repository = null;
         this.radioStationService = null;
-        this.radioService = null;
-        this.radiostationPool = null;
     }
 
     @Inject
     public SoundFragmentService(UserRepository userRepository,
                                 UserService userService,
-                                RadioService service,
                                 RadioStationService radioStationService,
-                                RadioStationPool radiostationPool,
                                 Validator validator,
                                 SoundFragmentRepository repository) {
         super(userRepository, userService);
         this.validator = validator;
         this.repository = repository;
-        this.radioService = service;
         this.radioStationService = radioStationService;
-        this.radiostationPool = radiostationPool;
     }
 
     public Uni<List<SoundFragmentDTO>> getAll(final int limit, final int offset, final IUser user) {
         assert repository != null;
-        return repository.getAll(limit, offset, user)
+        return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -81,24 +71,24 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
-        return repository.getAllCount(user);
+        return repository.getAllCount(user, false);
     }
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset) {
         assert repository != null;
-        return repository.getAll(limit, offset, SuperUser.build());
+        return repository.getAll(limit, offset, false, SuperUser.build());
     }
 
     @Override
     public Uni<SoundFragmentDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
-        return repository.findById(uuid, user.getId())
+        return repository.findById(uuid, user.getId(), false)
                 .chain(doc -> mapToDTO(doc, true));
     }
 
     public Uni<FileData> getFile(UUID fileId, IUser user) {
         assert repository != null;
-        return repository.getFileById(fileId, user.getId());
+        return repository.getFileById(fileId, user.getId(), false);
     }
 
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle) {
@@ -116,7 +106,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     if (shuffle) {
                         limit = 0;
                     }
-                    return repository.findForBrand(brandId, limit, 0)
+                    return repository.findForBrand(brandId, limit, 0, false)
                             .chain(fragments -> {
                                 if (shuffle && fragments != null && !fragments.isEmpty()) {
                                     Collections.shuffle(fragments);
@@ -133,32 +123,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<Void> updateForBrand(UUID soundFragmentId, String brandName, FragmentActionType actionType) {
-        assert repository != null;
-        assert radioStationService != null;
-        LOGGER.debug("Action: {} for brand: {}, sound fragment: {}", actionType.name(), brandName, soundFragmentId);
-        return radioStationService.findByBrandName(brandName)
-                .onItem().transformToUni(radioStation -> {
-                    if (radioStation == null) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
-                    }
-
-                    UUID brandId = radioStation.getId();
-                    return repository.updatePlayedByBrand(brandId, soundFragmentId)
-                            .onItem().transformToUni(updateCount -> {
-                                if (updateCount == 0) {
-                                    return Uni.createFrom().failure(new IllegalArgumentException("No matching record found for brand: " + brandName + " and fragment: " + soundFragmentId));
-                                }
-                                return Uni.createFrom().voidItem();
-                            });
-                })
-                .onFailure().recoverWithUni(failure -> {
-                    LOGGER.error("Failed to update fragment for brand: {}", brandName, failure);
-                    return Uni.createFrom().failure(failure);
-                });
-    }
-
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit) {
+      public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit) {
         assert repository != null;
         assert radioStationService != null;
         return radioStationService.findByBrandName(brandName)
@@ -167,32 +132,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandId, limit, 0)
+                    return repository.findForBrand(brandId, limit, 0, false)
                             .chain(fragments -> {
                                 List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
                                         .map(this::mapToBrandSoundFragmentDTO)
                                         .collect(Collectors.toList());
                                 return Uni.join().all(unis).andFailFast();
-                            });
-                })
-                .onFailure().recoverWithUni(failure -> {
-                    LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
-                    return Uni.createFrom().failure(failure);
-                });
-    }
-
-    public Uni<Integer> getBrandSoundFragmentCount(String brandName) {
-        assert repository != null;
-        assert radioStationService != null;
-        return radioStationService.findByBrandName(brandName)
-                .onItem().transformToUni(radioStation -> {
-                    if (radioStation == null) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
-                    }
-                    UUID brandId = radioStation.getId();
-                    return repository.getCountForBrand(brandId)
-                            .chain(count -> {
-                                return Uni.createFrom().item(count);
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
@@ -267,6 +212,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;
         return repository.delete(UUID.fromString(id), user);
+    }
+
+    public Uni<Integer> archive(String id, IUser user) {
+        assert repository != null;
+        return repository.archive(UUID.fromString(id), user);
     }
 
 

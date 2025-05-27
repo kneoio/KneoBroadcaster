@@ -29,6 +29,8 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,12 +40,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static java.nio.file.Files.probeContentType;
 import static java.nio.file.Files.readAllBytes;
-
 
 @ApplicationScoped
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
@@ -51,17 +53,19 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     SoundFragmentService service;
     private BroadcasterConfig config;
     private String uploadDir;
+    private Validator validator;
 
     public SoundFragmentController() {
         super(null);
     }
 
     @Inject
-    public SoundFragmentController(UserService userService, SoundFragmentService service, BroadcasterConfig config) {
+    public SoundFragmentController(UserService userService, SoundFragmentService service, BroadcasterConfig config, Validator validator) {
         super(userService);
         this.service = service;
         this.config = config;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
+        this.validator = validator;
     }
 
     public void setupRoutes(Router router) {
@@ -172,16 +176,27 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             SoundFragmentDTO dto = json.mapTo(SoundFragmentDTO.class);
             String id = rc.pathParam("id");
 
+            Set<ConstraintViolation<SoundFragmentDTO>> violations = validator.validate(dto);
+            if (!violations.isEmpty()) {
+                handleValidationErrors(rc, violations);
+                return;
+            }
+
             getContextUser(rc)
                     .chain(user -> {
                         if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
                             dto.setNewlyUploaded(
                                     dto.getNewlyUploaded().stream()
-                                            .map(fileName -> uploadDir + "/" + user.getUserName() + "/" + id + "/" + fileName)
+                                            .map(fileName -> {
+                                                if (id == null) {
+                                                    return uploadDir + "/" + user.getUserName() + "/null/" + fileName;
+                                                } else {
+                                                    return uploadDir + "/" + user.getUserName() + "/" + id + "/" + fileName;
+                                                }
+                                            })
                                             .collect(Collectors.toList())
                             );
                         }
-
                         return service.upsert(id, dto, user, LanguageCode.ENG);
                     })
                     .subscribe().with(

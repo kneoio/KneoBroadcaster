@@ -48,6 +48,7 @@ public class WebHelper {
 
         return Arrays.stream(segments)
                 .map(WebHelper::generateSlug)
+                .filter(slug -> !slug.isEmpty())
                 .collect(Collectors.joining("/"));
     }
 }

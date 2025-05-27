@@ -32,7 +32,7 @@
         <dependency>
             <groupId>io.kneo</groupId>
             <artifactId>2next</artifactId>
-            <version>1.1.5</version>
+            <version>1.1.6</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

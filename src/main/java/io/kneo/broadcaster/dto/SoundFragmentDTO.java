@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.dto.AbstractDTO;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,9 +23,10 @@ public class SoundFragmentDTO extends AbstractDTO {
     @Builder.Default
     private SourceType source = SourceType.LOCAL;
     private Integer status;
-    private String localPath;
     private PlaylistItemType type;
+    @NotBlank
     private String title;
+    @NotBlank
     private String artist;
     private String genre;
     private String album;

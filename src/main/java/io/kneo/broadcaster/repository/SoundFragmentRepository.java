@@ -6,8 +6,9 @@ import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.repository.file.DigitalOceanStorageStrategy;
+import io.kneo.broadcaster.repository.file.IFileStorageStrategy;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.broadcaster.service.external.DigitalOceanSpacesService;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -17,8 +18,6 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.mutiny.core.Vertx;
-import io.vertx.mutiny.core.file.FileSystem;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -31,7 +30,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -44,19 +46,15 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SOUND_FRAGMENT);
-
-    private final DigitalOceanSpacesService digitalOceanSpacesService;
-    private final Vertx vertx;
+    private final IFileStorageStrategy fileStorage;
 
     @Inject
     public SoundFragmentRepository(PgPool client,
                                    ObjectMapper mapper,
-                                   RLSRepository rlsRepository,
-                                   DigitalOceanSpacesService digitalOceanSpacesService,
-                                   Vertx vertx) {
+                                   RLSRepository rlsRepository, DigitalOceanStorageStrategy fileStorage
+                                   ) {
         super(client, mapper, rlsRepository);
-        this.digitalOceanSpacesService = digitalOceanSpacesService;
-        this.vertx = vertx;
+        this.fileStorage = fileStorage;
     }
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived, final IUser user) {
@@ -150,20 +148,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getCountForBrand(UUID brandId, boolean includeArchived) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "WHERE bsf.brand_id = $1";
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
     public Uni<FileData> getFileById(UUID fileId, Long userId, boolean includeArchived) {
         String sql = "SELECT sf.artist, sf.album, sf.title, sf.mime_type " +
                 "FROM " + entityData.getTableName() + " sf " +
@@ -189,19 +173,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                     String mimeType = row.getString("mime_type");
                     String doKey = WebHelper.generateSlugPath(artist, album, title);
 
-                    return digitalOceanSpacesService.getFile(doKey)
-                            .onItem().transformToUni(filePath -> {
-                                if (filePath == null) {
-                                    return Uni.createFrom().failure(new IOException(
-                                            String.format("Failed to obtain a valid temporary file path for DO key: %s", doKey)
-                                    ));
-                                }
-                                FileSystem fs = this.vertx.fileSystem();
-                                return fs.readFile(String.valueOf(filePath))
-                                        .onItem().transform(buffer -> new FileData(buffer.getBytes(), mimeType))
-                                        .eventually(() -> fs.delete(String.valueOf(filePath))
-                                                .onFailure().invoke(e -> LOGGER.warn("Failed to delete temporary file '{}': {}", filePath, e.getMessage())));
-                            })
+                    return fileStorage.retrieveFile(doKey)
+                            .onItem().transform(fileBytes -> new FileData(fileBytes, mimeType))
                             .onFailure().transform(ex -> {
                                 if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
                                     return ex;
@@ -222,37 +195,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<Integer> updatePlayedByBrand(UUID brandId, UUID soundFragmentId) {
-        String sql = "UPDATE " + entityData.getTableName() +
-                " SET played_by_brand_count = played_by_brand_count + 1, " +
-                "last_time_played_by_brand = NOW() " +
-                "WHERE brand_id = $1 AND sound_fragment_id = $2";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, soundFragmentId))
-                .onItem().transform(RowSet::rowCount)
-                .onFailure().recoverWithUni(e -> {
-                    LOGGER.error("Failed to update played_by_brand_count and last_time_played_by_brand", e);
-                    return Uni.createFrom().failure(e);
-                });
-    }
-
-    public Uni<Integer> archive(UUID uuid, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), uuid));
-                    }
-
-                    String sql = String.format("UPDATE %s SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
-                            entityData.getTableName());
-
-                    return client.preparedQuery(sql)
-                            .execute(Tuple.of(ZonedDateTime.now().toLocalDateTime(), user.getId(), uuid))
-                            .onItem().transform(RowSet::rowCount);
-                });
-    }
-
     public Uni<SoundFragment> insert(SoundFragment doc, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         doc.setDoKey(getDoKey(doc));
@@ -264,7 +206,6 @@ public class SoundFragmentRepository extends AsyncRepository {
     public Uni<SoundFragment> insert(SoundFragment doc, List<String> files, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
         Uni<String> mimeTypeUni = Uni.createFrom().item((String) null);
-        Uni<Void> uploadUni = Uni.createFrom().voidItem();
 
         String derivedKey = getDoKey(doc);
         doc.setDoKey(derivedKey);
@@ -273,14 +214,35 @@ public class SoundFragmentRepository extends AsyncRepository {
             pathCandidate = files.get(0);
         }
 
+        String detectedMimeType = null;
         if (pathCandidate != null && !pathCandidate.trim().isEmpty()) {
             String actualFileToUploadPath = pathCandidate.trim();
-            String detectedMimeType = detectMimeType(actualFileToUploadPath);
+            detectedMimeType = detectMimeType(actualFileToUploadPath);
             mimeTypeUni = wrapToUni(detectedMimeType);
-            uploadUni = digitalOceanSpacesService.uploadFile(derivedKey, actualFileToUploadPath, detectedMimeType);
         }
 
-        return executeInsertTransaction(doc, user, nowTime, mimeTypeUni, uploadUni);
+        // First execute the database insert without file upload
+        String finalDetectedMimeType = detectedMimeType;
+        String finalPathCandidate = pathCandidate;
+
+        return executeInsertTransaction(doc, user, nowTime, mimeTypeUni, Uni.createFrom().voidItem())
+                .onItem().transformToUni(insertedDoc -> {
+                    // Now we have the ID, store the file with parent_table and parent_id
+                    if (finalPathCandidate != null && !finalPathCandidate.trim().isEmpty()) {
+                        return fileStorage.storeFile(derivedKey, finalPathCandidate.trim(), finalDetectedMimeType,
+                                        entityData.getTableName(), insertedDoc.getId())
+                                .onItem().transformToUni(storedKey -> {
+                                    LOGGER.debug("File stored successfully with key: {} for doc ID: {}", storedKey, insertedDoc.getId());
+                                    return Uni.createFrom().item(insertedDoc);
+                                })
+                                .onFailure().recoverWithUni(ex -> {
+                                    LOGGER.error("Failed to store file with key: {} for doc ID: {}", derivedKey, insertedDoc.getId(), ex);
+                                    return Uni.createFrom().failure(new RuntimeException("File storage failed after sound fragment creation", ex));
+                                });
+                    } else {
+                        return Uni.createFrom().item(insertedDoc);
+                    }
+                });
     }
 
     public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<String> files, IUser user) {
@@ -303,7 +265,18 @@ public class SoundFragmentRepository extends AsyncRepository {
                                     String newFileLocalPath = files.get(0).trim();
                                     String detectedMimeType = detectMimeType(newFileLocalPath);
                                     mimeTypeToSetUni = wrapToUni(detectedMimeType);
-                                    doUploadOperation = digitalOceanSpacesService.uploadFile(doKey, newFileLocalPath, detectedMimeType);
+                                    //doUploadOperation = digitalOceanSpacesService.uploadFile(doKey, newFileLocalPath, detectedMimeType);
+                                    // In the update method, replace the digitalOceanSpacesService.uploadFile call with:
+                                    doUploadOperation = fileStorage.storeFile(doKey, newFileLocalPath, detectedMimeType,
+                                                    entityData.getTableName(), id)
+                                            .onItem().transformToUni(storedKey -> {
+                                                LOGGER.debug("File updated successfully with key: {} for doc ID: {}", storedKey, id);
+                                                return Uni.createFrom().voidItem();
+                                            })
+                                            .onFailure().recoverWithUni(ex -> {
+                                                LOGGER.error("Failed to update file with key: {} for doc ID: {}", doKey, id, ex);
+                                                return Uni.createFrom().failure(new RuntimeException("File update failed", ex));
+                                            });
                                 } else {
                                     mimeTypeToSetUni = Uni.createFrom().item(currentMimeTypeInDb);
                                 }
@@ -344,6 +317,22 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<Integer> archive(UUID uuid, IUser user) {
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), uuid));
+                    }
+
+                    String sql = String.format("UPDATE %s SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
+                            entityData.getTableName());
+
+                    return client.preparedQuery(sql)
+                            .execute(Tuple.of(ZonedDateTime.now().toLocalDateTime(), user.getId(), uuid))
+                            .onItem().transform(RowSet::rowCount);
+                });
+    }
+
     public Uni<Integer> delete(UUID uuid, IUser user) {
         return findById(uuid, user.getId(), true)
                 .onItem().transformToUni(doc -> {
@@ -351,9 +340,10 @@ public class SoundFragmentRepository extends AsyncRepository {
                     Uni<Void> deleteFileUni = Uni.createFrom().voidItem();
 
                     if (doKey != null && !doKey.isBlank()) {
-                        deleteFileUni = digitalOceanSpacesService.deleteFile(doKey)
+                        // Use fileStorage instead of digitalOceanSpacesService directly
+                        deleteFileUni = fileStorage.deleteFile(doKey)
                                 .onFailure().recoverWithUni(e -> {
-                                    LOGGER.error("Failed to delete file {} from DO Spaces for SoundFragment {}. DB record deletion will proceed.", doKey, uuid, e);
+                                    LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", doKey, uuid, e);
                                     return Uni.createFrom().voidItem();
                                 });
                     }
@@ -382,18 +372,25 @@ public class SoundFragmentRepository extends AsyncRepository {
 
         if (downloadFile) {
             final String keyToFetch = doc.getDoKey();
-            return digitalOceanSpacesService.getFile(keyToFetch)
-                    .onItem().transform(filePath -> {
-                        doc.setFilePath(filePath);
-                        return doc;
+            return fileStorage.retrieveFile(keyToFetch)
+                    .onItem().transformToUni(fileBytes -> {
+                        try {
+                            Path tempFile = Files.createTempFile("retrieved_", ".tmp");
+                            Files.write(tempFile, fileBytes, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                            doc.setFilePath(tempFile);
+                            return Uni.createFrom().item(doc);
+                        } catch (IOException e) {
+                            return Uni.createFrom().failure(new RuntimeException("Failed to create temporary file", e));
+                        }
                     })
                     .onFailure().recoverWithUni(e -> {
-                        LOGGER.warn("Failed to fetch file from DO for key {}: {}. SoundFragment will not have filePath.", keyToFetch, e.getMessage());
+                        LOGGER.warn("Failed to fetch file from storage for key {}: {}. SoundFragment will not have filePath.", keyToFetch, e.getMessage());
                         return Uni.createFrom().item(doc);
                     });
         }
         return Uni.createFrom().item(doc);
     }
+
 
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
                                                         Uni<String> mimeTypeUni, Uni<Void> fileUploadCompletionUni) {

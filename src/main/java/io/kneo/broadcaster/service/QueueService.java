@@ -60,7 +60,7 @@ public class QueueService {
     }
 
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, String filePath) {
-        return repository.findById(soundFragmentId, SuperUser.ID)
+        return repository.findById(soundFragmentId, SuperUser.ID, false)
                 .chain(soundFragment -> {
                     if (filePath != null && !filePath.isEmpty()) {
                         try {
@@ -75,7 +75,7 @@ public class QueueService {
                             return Uni.createFrom().failure(e);
                         }
                     } else {
-                        repository.findById(soundFragmentId, SuperUser.ID);
+                        repository.findById(soundFragmentId, SuperUser.ID, false);
                     }
 
                     return getPlaylist(brandName)

@@ -68,7 +68,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
-        return repository.getAllCount(user);
+        return repository.getAllCount(user, false);
     }
 
     public Uni<List<RadioStation>> getAll(final int limit, final int offset)  {

@@ -1,7 +1,11 @@
 package io.kneo.broadcaster.repository.file;
 
+import io.kneo.broadcaster.model.cnst.AccessType;
+import io.kneo.broadcaster.model.cnst.FileStorageType;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Default;
@@ -12,19 +16,19 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @ApplicationScoped
 @Default
-public class DatabaseStorageStrategy implements IFileStorageStrategy {
+public class DatabaseStorage implements IFileStorage {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseStorageStrategy.class);
-    private static final String STORAGE_TYPE = "DATABASE";
+    private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseStorage.class);
 
     private final PgPool client;
 
     @Inject
-    public DatabaseStorageStrategy(PgPool client) {
+    public DatabaseStorage(PgPool client) {
         this.client = client;
     }
 
@@ -40,10 +44,9 @@ public class DatabaseStorageStrategy implements IFileStorageStrategy {
 
     @Override
     public Uni<String> storeFile(String key, byte[] fileContent, String mimeType, String tableName, UUID id) {
-        // Since file_key is not a primary key, we need to handle upserts differently
-        // First try to update, if no rows affected, then insert
         String updateSql = "UPDATE _files SET file_bin = $2, mime_type = $3, parent_table = $4, parent_id = $5, last_mod_date = NOW() WHERE file_key = $1";
-        String insertSql = "INSERT INTO _files (file_key, file_bin, mime_type, parent_table, parent_id, archived, storage_type) VALUES ($1, $2, $3, $4, $5, 0, 'DATABASE')";
+        String insertSql = "INSERT INTO _files (file_key, file_bin, mime_type, parent_table, parent_id, archived, storage_type) " +
+                "VALUES ($1, $2, $3, $4, $5, 0, '" + FileStorageType.DATABASE + "')";
 
         return client.preparedQuery(updateSql)
                 .execute(Tuple.of(key, fileContent, mimeType, tableName, id))
@@ -52,7 +55,6 @@ public class DatabaseStorageStrategy implements IFileStorageStrategy {
                         LOGGER.debug("Successfully updated existing file with key: {}", key);
                         return Uni.createFrom().item(key);
                     } else {
-                        // No rows updated, try insert
                         return client.preparedQuery(insertSql)
                                 .execute(Tuple.of(key, fileContent, mimeType, tableName, id))
                                 .onItem().transform(insertResult -> {
@@ -68,8 +70,9 @@ public class DatabaseStorageStrategy implements IFileStorageStrategy {
     }
 
     @Override
-    public Uni<byte[]> retrieveFile(String key) {
-        String sql = "SELECT file_bin FROM _files WHERE file_key = $1";
+    public Uni<FileMetadata> retrieveFile(String key) {
+        String sql = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, " +
+                "storage_type, mime_type, file_original_name, file_key, file_bin FROM _files WHERE file_key = $1";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(key))
@@ -77,7 +80,24 @@ public class DatabaseStorageStrategy implements IFileStorageStrategy {
                     if (rowSet.rowCount() == 0) {
                         throw new RuntimeException("File not found with key: " + key);
                     }
-                    return rowSet.iterator().next().getBuffer("file_bin").getBytes();
+                    Row row = rowSet.iterator().next();
+                    FileMetadata metadata = new FileMetadata();
+                    metadata.setAccessType(AccessType.AS_DB_FIELD);
+                    metadata.setId(row.getLong("id"));
+                    metadata.setRegDate(row.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
+                    metadata.setLastModifiedDate(row.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
+                    metadata.setParentTable(row.getString("parent_table"));
+                    metadata.setParentId(row.getUUID("parent_id"));
+                    metadata.setArchived(row.getInteger("archived"));
+                    if (row.getLocalDateTime("archived_date") != null) {
+                        metadata.setArchivedDate(row.getLocalDateTime("archived_date"));
+                    }
+                    metadata.setFileStorageType(FileStorageType.valueOf(row.getString("storage_type")));
+                    metadata.setMimeType(row.getString("mime_type"));
+                    metadata.setFileOriginalName(row.getString("file_original_name"));
+                    metadata.setFileKey(row.getString("file_key"));
+                    metadata.setFileBin(row.getBuffer("file_bin").getBytes());
+                    return metadata;
                 })
                 .onFailure().invoke(ex -> LOGGER.error("Failed to retrieve file with key: {}", key, ex))
                 .onFailure().transform(ex -> new RuntimeException("Failed to retrieve file from database", ex));
@@ -102,7 +122,7 @@ public class DatabaseStorageStrategy implements IFileStorageStrategy {
     }
 
     @Override
-    public String getStorageType() {
-        return STORAGE_TYPE;
+    public FileStorageType getStorageType() {
+        return FileStorageType.DATABASE;
     }
 }

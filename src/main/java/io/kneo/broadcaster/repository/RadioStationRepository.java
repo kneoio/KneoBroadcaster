@@ -49,6 +49,19 @@ public class RadioStationRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        return client.query(sql)
+                .execute()
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
     public Uni<RadioStation> findById(UUID id) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
         return client.preparedQuery(sql)
@@ -107,10 +120,6 @@ public class RadioStationRepository extends AsyncRepository {
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
                 .onItem().transform(RowSet::rowCount);
-    }
-
-    public Uni<Integer> getAllCount(IUser user) {
-        return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
     }
 
     private RadioStation from(Row row) {

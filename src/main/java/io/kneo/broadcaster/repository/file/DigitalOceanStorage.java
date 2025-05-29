@@ -1,11 +1,14 @@
 package io.kneo.broadcaster.repository.file;
 
+import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.AccessType;
+import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.service.external.DigitalOceanSpacesService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
-import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.core.file.FileSystem;
 import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -16,22 +19,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @ApplicationScoped
-public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
+public class DigitalOceanStorage implements IFileStorage {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(DigitalOceanStorageStrategy.class);
-    private static final String STORAGE_TYPE = "DIGITAL_OCEAN";
+    private static final Logger LOGGER = LoggerFactory.getLogger(DigitalOceanStorage.class);
 
     private final DigitalOceanSpacesService digitalOceanSpacesService;
     private final Vertx vertx;
-
     private final PgPool client;
 
-
     @Inject
-    public DigitalOceanStorageStrategy(PgPool client, DigitalOceanSpacesService digitalOceanSpacesService, Vertx vertx) {
+    public DigitalOceanStorage(PgPool client, DigitalOceanSpacesService digitalOceanSpacesService, Vertx vertx) {
         this.client = client;
         this.digitalOceanSpacesService = digitalOceanSpacesService;
         this.vertx = vertx;
@@ -52,7 +53,6 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
                                     LOGGER.debug("Successfully updated existing file metadata with key: {}", key);
                                     return Uni.createFrom().item(key);
                                 } else {
-                                    // No rows updated, try insert
                                     return client.preparedQuery(insertSql)
                                             .execute(Tuple.of(key, mimeType, tableName, id))
                                             .onItem().transform(insertResult -> {
@@ -74,12 +74,12 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
             Path tempFile = Files.createTempFile("upload_", ".tmp");
             Files.write(tempFile, fileContent, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
 
-            // First upload to Digital Ocean Spaces
             return digitalOceanSpacesService.uploadFile(key, tempFile.toString(), mimeType)
                     .onItem().transformToUni(v -> {
-                        // After successful upload, save metadata to database
-                        String updateSql = "UPDATE _files SET file_bin = NULL, mime_type = $2, parent_table = $3, parent_id = $4, storage_type = 'DIGITAL_OCEAN', last_mod_date = NOW() WHERE file_key = $1";
-                        String insertSql = "INSERT INTO _files (file_key, file_bin, mime_type, parent_table, parent_id, storage_type, archived) VALUES ($1, NULL, $2, $3, $4, 'DIGITAL_OCEAN', 0)";
+                        String updateSql = "UPDATE _files SET file_bin = NULL, mime_type = $2, parent_table = $3, parent_id = $4, " +
+                                "storage_type = '" + FileStorageType.DIGITAL_OCEAN + "', last_mod_date = NOW() WHERE file_key = $1";
+                        String insertSql = "INSERT INTO _files (file_key, file_bin, mime_type, parent_table, parent_id, storage_type, archived)" +
+                                " VALUES ($1, NULL, $2, $3, $4, '" + FileStorageType.DIGITAL_OCEAN + "', 0)";
 
                         return client.preparedQuery(updateSql)
                                 .execute(Tuple.of(key, mimeType, tableName, id))
@@ -88,7 +88,6 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
                                         LOGGER.debug("Successfully updated existing file metadata with key: {}", key);
                                         return Uni.createFrom().item(key);
                                     } else {
-                                        // No rows updated, try insert
                                         return client.preparedQuery(insertSql)
                                                 .execute(Tuple.of(key, mimeType, tableName, id))
                                                 .onItem().transform(insertResult -> {
@@ -99,7 +98,6 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
                                 });
                     })
                     .eventually(() -> {
-                        // Clean up temporary file
                         FileSystem fs = vertx.fileSystem();
                         return fs.delete(tempFile.toString())
                                 .onFailure().invoke(e -> LOGGER.warn("Failed to delete temporary file '{}': {}",
@@ -115,19 +113,49 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
     }
 
     @Override
-    public Uni<byte[]> retrieveFile(String key) {
-        return digitalOceanSpacesService.getFile(key)
-                .onItem().transformToUni(filePath -> {
-                    if (filePath == null) {
-                        return Uni.createFrom().failure(new IOException("Failed to get file path for key: " + key));
+    public Uni<FileMetadata> retrieveFile(String key) {
+        String metadataSql = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, " +
+                "storage_type, mime_type, file_original_name, file_key FROM *files WHERE file*key = $1";
+
+        return client.preparedQuery(metadataSql)
+                .execute(Tuple.of(key))
+                .onItem().transformToUni(rowSet -> {
+                    if (rowSet.rowCount() == 0) {
+                        return Uni.createFrom().failure(new RuntimeException("File not found with key: " + key));
                     }
 
-                    FileSystem fs = vertx.fileSystem();
-                    return fs.readFile(String.valueOf(filePath))
-                            .onItem().transform(Buffer::getBytes)
-                            .eventually(() -> fs.delete(String.valueOf(filePath))
-                                    .onFailure().invoke(e -> LOGGER.warn("Failed to delete temporary file '{}': {}",
-                                            filePath, e.getMessage())));
+                    Row row = rowSet.iterator().next();
+                    FileMetadata metadata = new FileMetadata();
+                    metadata.setId(row.getLong("id"));
+                    metadata.setAccessType(AccessType.ON_DISC);
+                    metadata.setRegDate(row.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
+                    metadata.setLastModifiedDate(row.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
+                    metadata.setParentTable(row.getString("parent_table"));
+                    metadata.setParentId(row.getUUID("parent_id"));
+                    metadata.setArchived(row.getInteger("archived"));
+                    if (row.getLocalDateTime("archived_date") != null) {
+                        metadata.setArchivedDate(row.getLocalDateTime("archived_date"));
+                    }
+                    metadata.setFileStorageType(FileStorageType.valueOf(row.getString("storage_type")));
+                    metadata.setMimeType(row.getString("mime_type"));
+                    metadata.setFileOriginalName(row.getString("file_original_name"));
+                    metadata.setFileKey(row.getString("file_key"));
+
+                    return digitalOceanSpacesService.getFile(key)
+                            .onItem().transformToUni(filePath -> {
+                                if (filePath == null) {
+                                    return Uni.createFrom().failure(new IOException("Failed to get file path for key: " + key));
+                                }
+
+                                FileSystem fs = vertx.fileSystem();
+                                return fs.readFile(String.valueOf(filePath))
+                                        .onItem().transform(buffer -> {
+                                            //For get_slug we will keep also byte[]
+                                            metadata.setFileBin(buffer.getBytes());
+                                            metadata.setFilePath(filePath);
+                                            return metadata;
+                                        });
+                            });
                 })
                 .onFailure().transform(ex -> {
                     LOGGER.error("Failed to retrieve file with key: {}", key, ex);
@@ -137,10 +165,8 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
 
     @Override
     public Uni<Void> deleteFile(String key) {
-        // First delete from Digital Ocean Spaces
         return digitalOceanSpacesService.deleteFile(key)
                 .onItem().transformToUni(v -> {
-                    // After successful deletion from DO, remove metadata from database
                     String deleteSql = "DELETE FROM _files WHERE file_key = $1";
                     return client.preparedQuery(deleteSql)
                             .execute(Tuple.of(key))
@@ -154,8 +180,9 @@ public class DigitalOceanStorageStrategy implements IFileStorageStrategy {
                     return new RuntimeException("Failed to delete file", ex);
                 }).replaceWithVoid();
     }
+
     @Override
-    public String getStorageType() {
-        return STORAGE_TYPE;
+    public FileStorageType getStorageType() {
+        return FileStorageType.DIGITAL_OCEAN;
     }
 }

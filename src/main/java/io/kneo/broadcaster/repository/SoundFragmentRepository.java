@@ -6,8 +6,8 @@ import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.repository.file.DigitalOceanStorageStrategy;
-import io.kneo.broadcaster.repository.file.IFileStorageStrategy;
+import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
+import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.user.IUser;
@@ -30,10 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -46,13 +43,13 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SOUND_FRAGMENT);
-    private final IFileStorageStrategy fileStorage;
+    private final IFileStorage fileStorage;
 
     @Inject
     public SoundFragmentRepository(PgPool client,
                                    ObjectMapper mapper,
-                                   RLSRepository rlsRepository, DigitalOceanStorageStrategy fileStorage
-                                   ) {
+                                   RLSRepository rlsRepository, DigitalOceanStorage fileStorage
+    ) {
         super(client, mapper, rlsRepository);
         this.fileStorage = fileStorage;
     }
@@ -174,7 +171,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                     String doKey = WebHelper.generateSlugPath(artist, album, title);
 
                     return fileStorage.retrieveFile(doKey)
-                            .onItem().transform(fileBytes -> new FileData(fileBytes, mimeType))
+                            .onItem().transform(fileMetadata -> new FileData(fileMetadata.getFileBin(), mimeType))
                             .onFailure().transform(ex -> {
                                 if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
                                     return ex;
@@ -364,7 +361,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setDoKey(getDoKey(doc));
         doc.setSlugName(row.getString("slug_name"));
-        doc.setMimeType(row.getString("mime_type"));
 
         if (row.getString("description") != null) {
             doc.setDescription(row.getString("description"));
@@ -373,15 +369,10 @@ public class SoundFragmentRepository extends AsyncRepository {
         if (downloadFile) {
             final String keyToFetch = doc.getDoKey();
             return fileStorage.retrieveFile(keyToFetch)
-                    .onItem().transformToUni(fileBytes -> {
-                        try {
-                            Path tempFile = Files.createTempFile("retrieved_", ".tmp");
-                            Files.write(tempFile, fileBytes, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                            doc.setFilePath(tempFile);
-                            return Uni.createFrom().item(doc);
-                        } catch (IOException e) {
-                            return Uni.createFrom().failure(new RuntimeException("Failed to create temporary file", e));
-                        }
+                    .onItem().transformToUni(fileMetadata -> {
+                        doc.setFilePath(fileMetadata.getFilePath());
+                        doc.setFileMetadataList(List.of(fileMetadata));
+                        return Uni.createFrom().item(doc);
                     })
                     .onFailure().recoverWithUni(e -> {
                         LOGGER.warn("Failed to fetch file from storage for key {}: {}. SoundFragment will not have filePath.", keyToFetch, e.getMessage());
@@ -444,7 +435,7 @@ public class SoundFragmentRepository extends AsyncRepository {
             } else {
                 return detectedMimeType;
             }
-        }catch (IOException e){
+        } catch (IOException e) {
             LOGGER.error("Tika could not determine MIME type for file {}. Defaulting to application/octet-stream.", filePath);
             return "application/octet-stream";
         }

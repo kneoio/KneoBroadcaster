@@ -33,6 +33,7 @@ public class SoundFragmentDTO extends AbstractDTO {
     @NotBlank
     private String genre;
     private String album;
+    private String slugName;;
     private List<String> newlyUploaded;
     private List<UploadFileDTO> uploadedFiles;
 

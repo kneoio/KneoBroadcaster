@@ -21,6 +21,7 @@ public class FileMetadata {
     private int archived = 0;
     private LocalDateTime archivedDate;
     private String mimeType;
+    private String slugName;
     private String fileKey;
     private String fileOriginalName;
     private FileStorageType fileStorageType;

@@ -94,9 +94,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 .chain(doc -> mapToDTO(doc, true));
     }
 
-    public Uni<FileData> getFile(UUID fileId, IUser user) {
+    public Uni<FileData> getFile(UUID fileId, String slugName, IUser user) {
         assert repository != null;
-        return repository.getFileById(fileId, user.getId(), false);
+        return repository.getFileById(fileId, slugName, user, false);
     }
 
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle) {
@@ -185,14 +185,18 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             String author = tuple.getItem1();
             String lastModifier = tuple.getItem2();
             List<UploadFileDTO> files = new ArrayList<>();
-            if (exposeFileUrl && doc.getDoKey() != null) {
-                files.add(UploadFileDTO.builder()
-                        .id(doc.getSlugName())
-                        .name(doc.getSlugName())
-                        .status("finished")
-                        .url("/api/soundfragments/files/" + doc.getId() + "/" + doc.getSlugName())
-                        .percentage(100)
-                        .build());
+            if (exposeFileUrl && doc.getFileMetadataList() != null) {
+                doc.getFileMetadataList()
+                        .forEach(meta -> {
+                            files.add(UploadFileDTO.builder()
+                                    .id(meta.getSlugName())
+                                    .name(meta.getFileOriginalName())
+                                    .status("finished")
+                                    .url("/api/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName())
+                                    .percentage(100)
+                                    .build());
+                        });
+
             }
 
 

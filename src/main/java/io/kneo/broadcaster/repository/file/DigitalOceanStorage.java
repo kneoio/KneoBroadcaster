@@ -50,13 +50,11 @@ public class DigitalOceanStorage implements IFileStorage {
                             .execute(Tuple.of(key, mimeType, tableName, id))
                             .onItem().transformToUni(updateResult -> {
                                 if (updateResult.rowCount() > 0) {
-                                    LOGGER.debug("Successfully updated existing file metadata with key: {}", key);
                                     return Uni.createFrom().item(key);
                                 } else {
                                     return client.preparedQuery(insertSql)
                                             .execute(Tuple.of(key, mimeType, tableName, id))
                                             .onItem().transform(insertResult -> {
-                                                LOGGER.debug("Successfully inserted new file metadata with key: {}", key);
                                                 return key;
                                             });
                                 }

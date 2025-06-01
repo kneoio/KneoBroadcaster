@@ -6,8 +6,8 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.repository.exceptions.UploadAbsenceException;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -192,6 +192,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             throwable -> {
                                 if (throwable instanceof DocumentModificationAccessException) {
                                     rc.response().setStatusCode(403).end("Not enough rights to update");
+                                } else if (throwable instanceof UploadAbsenceException) {
+                                    rc.response().setStatusCode(400).end(throwable.getMessage());
                                 } else {
                                     rc.fail(throwable);
                                 }
@@ -234,7 +236,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             return Uni.createFrom().failure(e);
                         }
                     } else {
-                        return service.getFile(UUID.fromString(id), user);
+                        return service.getFile(UUID.fromString(id), requestedFileName, user);
                     }
                 })
                 .subscribe().with(
@@ -269,7 +271,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .chain(user -> Uni.createFrom().emitter(emitter -> {
                     if (user.getId() > 0) {
                         try {
-                            String fileName = WebHelper.generateSlug(uploadedFile.fileName());
+                            String fileName = uploadedFile.fileName();
                             Path destination = Files.createDirectories(Paths.get(uploadDir, user.getUserName(), id)).resolve(fileName);
 
                             Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);

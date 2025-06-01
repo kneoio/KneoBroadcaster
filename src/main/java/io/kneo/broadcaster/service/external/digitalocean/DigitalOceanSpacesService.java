@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.external;
+package io.kneo.broadcaster.service.external.digitalocean;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.DOConfig;

@@ -203,6 +203,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         final List<FileMetadata> filesToProcess = doc.getFileMetadataList();
 
         if (filesToProcess != null && !filesToProcess.isEmpty()) {
+            doc.setSource(SourceType.USERS_UPLOAD);
             filesToProcess.forEach(meta -> {
                 Path filePath = meta.getFilePath();
                 if (filePath == null) {
@@ -270,8 +271,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                                             .filter(meta -> meta.getFilePath() != null)
                                             .map(meta -> {
                                                 String localPath = meta.getFilePath().toString();
-
-                                                if (!Files.exists(Paths.get(localPath))) {
+                                                Path path = Paths.get(localPath);
+                                                if (!Files.exists(path)) {
                                                     return Uni.createFrom().<Void>failure(new UploadAbsenceException("Upload file not found at path: " + localPath));
                                                 }
 
@@ -279,6 +280,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                 meta.setFileKey(doKey);
                                                 String mimeType = detectMimeType(localPath);
                                                 meta.setMimeType(mimeType);
+                                                meta.setFileOriginalName(path.getFileName().toString());
+                                                meta.setSlugName(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()));
 
                                                 return fileStorage.storeFile(doKey, localPath, mimeType, entityData.getTableName(), id)
                                                         .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, id))
@@ -307,15 +310,15 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
                                                 List<Tuple> filesParams = newFiles.stream()
                                                         .map(meta -> Tuple.of(
-                                                                        entityData.getTableName(),
-                                                                        id,
-                                                                        FileStorageType.DIGITAL_OCEAN,
-                                                                        meta.getMimeType(),
-                                                                        meta.getFileOriginalName(),
-                                                                        generateDoKey(doc)
-                                                                )
-                                                                .addValue(meta.getFileBin())
-                                                                .addValue(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()))
+                                                                                entityData.getTableName(),
+                                                                                id,
+                                                                                FileStorageType.DIGITAL_OCEAN,
+                                                                                meta.getMimeType(),
+                                                                                meta.getFileOriginalName(),
+                                                                                meta.getFileKey()
+                                                                        )
+                                                                        .addValue(meta.getFileBin())
+                                                                        .addValue(meta.getSlugName())
                                                         ).collect(Collectors.toList());
                                                 return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
                                             }
@@ -323,7 +326,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                         }).onItem().transformToUni(v -> {
                                             String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                                                             "source=$3, status=$4, type=$5, title=$6, " +
-                                                            "artist=$7, genre=$8, album=$9, slug_name=$10 WHERE id=$12;",
+                                                            "artist=$7, genre=$8, album=$9, slug_name=$10 WHERE id=$11;",
                                                     entityData.getTableName());
 
                                             Tuple params = Tuple.of(user.getId(), nowTime)
@@ -460,7 +463,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         return Uni.createFrom().item(doc);
     }
 
-
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
                                                         Uni<String> mimeTypeUni, Uni<Void> fileUploadCompletionUni) {
         return mimeTypeUni.flatMap(detectedMimeType ->
@@ -494,15 +496,15 @@ public class SoundFragmentRepository extends AsyncRepository {
                                             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
                                     List<Tuple> filesParams = doc.getFileMetadataList().stream()
                                             .map(meta -> Tuple.of(
-                                                            entityData.getTableName(),
-                                                            id,
-                                                            FileStorageType.DIGITAL_OCEAN,
-                                                            meta.getMimeType(),
-                                                            meta.getFileOriginalName(),
-                                                            meta.getFileKey()
-                                                    )
-                                                    .addValue(meta.getFileBin())
-                                                    .addString(meta.getSlugName())
+                                                                    entityData.getTableName(),
+                                                                    id,
+                                                                    FileStorageType.DIGITAL_OCEAN,
+                                                                    meta.getMimeType(),
+                                                                    meta.getFileOriginalName(),
+                                                                    meta.getFileKey()
+                                                            )
+                                                            .addValue(meta.getFileBin())
+                                                            .addString(meta.getSlugName())
                                             ).collect(Collectors.toList());
                                     fileMetadataUni = tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
                                 }
@@ -541,6 +543,6 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     private static String generateDoKey(SoundFragment doc) {
-        return WebHelper.generateSlugPath(doc.getArtist(), doc.getTitle());
+        return WebHelper.generateSlugPath(doc.getGenre().toLowerCase(), doc.getArtist(), doc.getTitle());
     }
 }

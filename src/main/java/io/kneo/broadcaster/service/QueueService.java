@@ -124,7 +124,7 @@ public class QueueService {
             soundFragmentDTO.setTitle(soundFragment.getTitle());
             soundFragmentDTO.setArtist(soundFragment.getArtist());
             soundFragmentDTO.setAlbum(soundFragment.getAlbum());
-            soundFragmentDTO.setSource(SourceType.LOCAL);
+            soundFragmentDTO.setSource(SourceType.USERS_UPLOAD);
 
             return soundFragmentDTO;
         });

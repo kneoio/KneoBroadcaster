@@ -25,7 +25,7 @@ public class QueuePopulator {
         fragment.setTitle(title);
         fragment.setArtist("Artist " + key);
         fragment.setType(PlaylistItemType.SONG);
-        fragment.setSource(SourceType.LOCAL);
+        fragment.setSource(SourceType.USERS_UPLOAD);
         fragment.setStatus(1);
 
         ConcurrentNavigableMap<Long, HlsSegment> segments = new ConcurrentSkipListMap<>();

@@ -22,7 +22,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class SoundFragmentDTO extends AbstractDTO {
     @Builder.Default
-    private SourceType source = SourceType.LOCAL;
+    private SourceType source = SourceType.USERS_UPLOAD;
     private Integer status = -1;
     @NotNull
     private PlaylistItemType type;

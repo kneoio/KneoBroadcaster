@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.manipulation;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SegmentInfo;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -47,6 +48,8 @@ public class AudioSegmentationService {
 
     public ConcurrentLinkedQueue<HlsSegment> slice(SoundFragment soundFragment) {
         ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = new ConcurrentLinkedQueue<>();
+        FileMetadata metadata = soundFragment.getFileMetadataList().get(0);
+
         List<SegmentInfo> segments = segmentAudioFile(soundFragment.getFilePath(), soundFragment.getMetadata(), soundFragment.getId());
 
         for (SegmentInfo segment : segments) {

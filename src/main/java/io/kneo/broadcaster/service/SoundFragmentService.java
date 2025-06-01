@@ -1,10 +1,12 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileData;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.util.WebHelper;
@@ -21,6 +23,7 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,10 +36,13 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
+    private final BroadcasterConfig config;
+    private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService() {
+    protected SoundFragmentService(BroadcasterConfig config) {
         super(null);
+        this.config = config;
         this.repository = null;
         this.radioStationService = null;
     }
@@ -46,11 +52,13 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 UserService userService,
                                 RadioStationService radioStationService,
                                 Validator validator,
-                                SoundFragmentRepository repository) {
+                                SoundFragmentRepository repository, BroadcasterConfig config) {
         super(userRepository, userService);
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
+        uploadDir = config.getPathUploads() + "/sound-fragments-controller";
+        this.config = config;
     }
 
     public Uni<List<SoundFragmentDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -123,7 +131,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-      public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit) {
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit) {
         assert repository != null;
         assert radioStationService != null;
         return radioStationService.findByBrandName(brandName)
@@ -147,14 +155,24 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
-        assert repository != null;
+        FileMetadata fileMetadata = new FileMetadata();
+        if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
+            dto.getNewlyUploaded()
+                    .forEach(fileName -> {
+                        if (id == null) {
+                            fileMetadata.setFilePath(Path.of(uploadDir + "/" + user.getUserName() + "/null/" + fileName));
+                        } else {
+                            fileMetadata.setFilePath(Path.of(uploadDir + "/" + user.getUserName() + "/" + id + "/" + fileName));
+                        }
+                    });
+        }
         SoundFragment entity = buildEntity(dto);
-
+        entity.setFileMetadataList(List.of(fileMetadata));
         if (id == null) {
-            return repository.insert(entity, dto.getNewlyUploaded(), user)
+            return repository.insert(entity, user)
                     .chain(doc -> mapToDTO(doc, true));
         } else {
-            return repository.update(UUID.fromString(id), entity, dto.getNewlyUploaded(), user)
+            return repository.update(UUID.fromString(id), entity, user)
                     .chain(doc -> mapToDTO(doc, true));
         }
     }

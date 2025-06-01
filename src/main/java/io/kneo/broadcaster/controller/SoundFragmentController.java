@@ -42,7 +42,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static java.nio.file.Files.probeContentType;
 import static java.nio.file.Files.readAllBytes;
@@ -184,19 +183,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             getContextUser(rc)
                     .chain(user -> {
-                        if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
-                            dto.setNewlyUploaded(
-                                    dto.getNewlyUploaded().stream()
-                                            .map(fileName -> {
-                                                if (id == null) {
-                                                    return uploadDir + "/" + user.getUserName() + "/null/" + fileName;
-                                                } else {
-                                                    return uploadDir + "/" + user.getUserName() + "/" + id + "/" + fileName;
-                                                }
-                                            })
-                                            .collect(Collectors.toList())
-                            );
-                        }
                         return service.upsert(id, dto, user, LanguageCode.ENG);
                     })
                     .subscribe().with(

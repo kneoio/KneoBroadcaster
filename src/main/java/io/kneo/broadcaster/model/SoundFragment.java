@@ -7,7 +7,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,11 +25,6 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String mimeType;
     private String doKey;
     private String description;
-    @Deprecated
-    /*
-       the path should be taken from metadata directly
-     */
-    private Path filePath;
     //TODO to 2next
     private List<FileMetadata> fileMetadataList;
     private Integer archived;

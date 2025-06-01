@@ -3,7 +3,9 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileData;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
@@ -30,11 +32,15 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SOUND_FRAGMENT;
 
@@ -193,56 +199,55 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<SoundFragment> insert(SoundFragment doc, IUser user) {
-        LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        doc.setDoKey(getDoKey(doc));
-        Uni<String> mimeTypeUni = Uni.createFrom().item((String) null);
-        Uni<Void> uploadUni = Uni.createFrom().voidItem();
-        return executeInsertTransaction(doc, user, nowTime, mimeTypeUni, uploadUni);
-    }
+        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+        final List<FileMetadata> filesToProcess = doc.getFileMetadataList();
 
-    public Uni<SoundFragment> insert(SoundFragment doc, List<String> files, IUser user) {
-        LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        Uni<String> mimeTypeUni = Uni.createFrom().item((String) null);
-
-        String derivedKey = getDoKey(doc);
-        doc.setDoKey(derivedKey);
-        String pathCandidate = null;
-        if (files != null && !files.isEmpty()) {
-            pathCandidate = files.get(0);
+        if (filesToProcess != null && !filesToProcess.isEmpty()) {
+            filesToProcess.forEach(meta -> {
+                Path filePath = meta.getFilePath();
+                meta.setFileOriginalName(filePath.getFileName().toString());
+                String key = getDoKey(doc);
+                meta.setFileKey(key);
+                String mimeType = detectMimeType(filePath.toString());
+                meta.setMimeType(mimeType);
+            });
         }
 
-        String detectedMimeType = null;
-        if (pathCandidate != null && !pathCandidate.trim().isEmpty()) {
-            String actualFileToUploadPath = pathCandidate.trim();
-            detectedMimeType = detectMimeType(actualFileToUploadPath);
-            mimeTypeUni = wrapToUni(detectedMimeType);
+        Uni<String> mainMimeTypeUni;
+        if (filesToProcess != null && !filesToProcess.isEmpty()) {
+            mainMimeTypeUni = Uni.createFrom().item(filesToProcess.get(0).getMimeType());
+        } else {
+            mainMimeTypeUni = Uni.createFrom().item((String) null);
         }
 
-        // First execute the database insert without file upload
-        String finalDetectedMimeType = detectedMimeType;
-        String finalPathCandidate = pathCandidate;
-
-        return executeInsertTransaction(doc, user, nowTime, mimeTypeUni, Uni.createFrom().voidItem())
+        return executeInsertTransaction(doc, user, nowTime, mainMimeTypeUni, Uni.createFrom().voidItem())
                 .onItem().transformToUni(insertedDoc -> {
-                    // Now we have the ID, store the file with parent_table and parent_id
-                    if (finalPathCandidate != null && !finalPathCandidate.trim().isEmpty()) {
-                        return fileStorage.storeFile(derivedKey, finalPathCandidate.trim(), finalDetectedMimeType,
-                                        entityData.getTableName(), insertedDoc.getId())
-                                .onItem().transformToUni(storedKey -> {
-                                    LOGGER.debug("File stored successfully with key: {} for doc ID: {}", storedKey, insertedDoc.getId());
-                                    return Uni.createFrom().item(insertedDoc);
-                                })
+                    if (filesToProcess != null && !filesToProcess.isEmpty()) {
+                        List<Uni<Void>> storeOperations = filesToProcess.stream()
+                                .map(meta -> fileStorage.storeFile(
+                                                        meta.getFileKey(),
+                                                        meta.getFilePath().toString(),
+                                                        meta.getMimeType(),
+                                                        entityData.getTableName(),
+                                                        insertedDoc.getId()
+                                                )
+                                                .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, insertedDoc.getId()))
+                                                .onItem().ignore().andContinueWithNull()
+                                ).collect(Collectors.toList());
+
+                        return Uni.combine().all().unis(storeOperations)
+                                .discardItems()
                                 .onFailure().recoverWithUni(ex -> {
-                                    LOGGER.error("Failed to store file with key: {} for doc ID: {}", derivedKey, insertedDoc.getId(), ex);
+                                    LOGGER.error("One or more files failed to store for doc ID: {}. DB records were created.", insertedDoc.getId(), ex);
                                     return Uni.createFrom().failure(new RuntimeException("File storage failed after sound fragment creation", ex));
-                                });
-                    } else {
-                        return Uni.createFrom().item(insertedDoc);
+                                })
+                                .onItem().transform(ignored -> insertedDoc);
                     }
+                    return Uni.createFrom().item(insertedDoc);
                 });
     }
 
-    public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<String> files, IUser user) {
+    public Uni<SoundFragment> update(UUID id, SoundFragment doc, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[0]) {
@@ -251,39 +256,59 @@ public class SoundFragmentRepository extends AsyncRepository {
 
                     return findById(id, user.getId(), true)
                             .onItem().transformToUni(existingDoc -> {
-                                Uni<String> mimeTypeToSetUni;
-                                final String currentMimeTypeInDb = existingDoc.getMimeType() != null ? existingDoc.getMimeType() : "application/octet-stream";
+                                final List<FileMetadata> newFiles = doc.getFileMetadataList();
+                                Uni<Void> allFilesStoredUni = Uni.createFrom().voidItem();
 
-                                String doKey = getDoKey(doc);
-                                doc.setDoKey(doKey);
-                                Uni<Void> doUploadOperation = Uni.createFrom().voidItem();
+                                if (newFiles != null && !newFiles.isEmpty()) {
+                                    List<Uni<Void>> storeOperations = newFiles.stream().map(meta -> {
+                                        String doKey = getDoKey(doc);
+                                        meta.setFileKey(doKey);
+                                        String localPath = meta.getFilePath().toString();
+                                        String mimeType = detectMimeType(localPath);
+                                        meta.setMimeType(mimeType);
 
-                                if (files != null && !files.isEmpty() && files.get(0) != null) {
-                                    String newFileLocalPath = files.get(0).trim();
-                                    String detectedMimeType = detectMimeType(newFileLocalPath);
-                                    mimeTypeToSetUni = wrapToUni(detectedMimeType);
-                                    //doUploadOperation = digitalOceanSpacesService.uploadFile(doKey, newFileLocalPath, detectedMimeType);
-                                    // In the update method, replace the digitalOceanSpacesService.uploadFile call with:
-                                    doUploadOperation = fileStorage.storeFile(doKey, newFileLocalPath, detectedMimeType,
-                                                    entityData.getTableName(), id)
-                                            .onItem().transformToUni(storedKey -> {
-                                                LOGGER.debug("File updated successfully with key: {} for doc ID: {}", storedKey, id);
-                                                return Uni.createFrom().voidItem();
-                                            })
-                                            .onFailure().recoverWithUni(ex -> {
-                                                LOGGER.error("Failed to update file with key: {} for doc ID: {}", doKey, id, ex);
-                                                return Uni.createFrom().failure(new RuntimeException("File update failed", ex));
-                                            });
-                                } else {
-                                    mimeTypeToSetUni = Uni.createFrom().item(currentMimeTypeInDb);
+                                        return fileStorage.storeFile(doKey, localPath, mimeType, entityData.getTableName(), id)
+                                                .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, id))
+                                                .onFailure().invoke(ex -> LOGGER.error("Failed to store file with key: {}", doKey, ex))
+                                                .onItem().ignore().andContinueWithNull();
+                                    }).collect(Collectors.toList());
+
+                                    allFilesStoredUni = Uni.combine().all().unis(storeOperations)
+                                            .discardItems()
+                                            .onFailure().recoverWithUni(ex -> Uni.createFrom().failure(new RuntimeException("One or more file updates failed", ex)));
                                 }
 
-                                return Uni.combine().all().unis(doUploadOperation.map(v -> doKey), mimeTypeToSetUni).asTuple()
-                                        .onItem().transformToUni(resolvedDataTuple -> {
-                                            String ignoredDoKey = resolvedDataTuple.getItem1();
-                                            String mimeTypeForDb = resolvedDataTuple.getItem2();
+                                return allFilesStoredUni.onItem().transformToUni(ignored -> {
+                                    LocalDateTime nowTime = ZonedDateTime.now(java.time.ZoneOffset.UTC).toLocalDateTime();
 
-                                            LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+                                    return client.withTransaction(tx -> {
+                                        String deleteSql = String.format("DELETE FROM _files WHERE parent_id = $1 AND parent_table = '%s'", entityData.getTableName());
+                                        Uni<Void> deleteUni = tx.preparedQuery(deleteSql).execute(Tuple.of(id)).onItem().ignore().andContinueWithNull();
+
+                                        return deleteUni.onItem().transformToUni(v -> {
+                                            if (newFiles != null && !newFiles.isEmpty()) {
+                                                String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, mime_type, file_original_name, file_key, file_bin) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+                                                List<Tuple> filesParams = newFiles.stream()
+                                                        .map(meta -> Tuple.of(
+                                                                        entityData.getTableName(),
+                                                                        id,
+                                                                        FileStorageType.DIGITAL_OCEAN,
+                                                                        meta.getMimeType(),
+                                                                        meta.getFileOriginalName(),
+                                                                        meta.getFileKey()
+                                                                ).addValue(meta.getFileBin())
+                                                        ).collect(Collectors.toList());
+                                                return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
+                                            }
+                                            return Uni.createFrom().voidItem();
+                                        }).onItem().transformToUni(v -> {
+                                            String mainMimeType;
+                                            if (newFiles != null && !newFiles.isEmpty()) {
+                                                mainMimeType = newFiles.get(0).getMimeType();
+                                            } else {
+                                                mainMimeType = existingDoc.getMimeType();
+                                            }
+
                                             String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                                                             "source=$3, status=$4, type=$5, title=$6, " +
                                                             "artist=$7, genre=$8, album=$9, slug_name=$10, mime_type=$11 WHERE id=$12;",
@@ -298,18 +323,18 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                     .addString(doc.getGenre())
                                                     .addString(doc.getAlbum())
                                                     .addString(doc.getSlugName())
-                                                    .addString(mimeTypeForDb)
+                                                    .addString(mainMimeType)
                                                     .addUUID(id);
 
-                                            return client.withTransaction(tx -> tx.preparedQuery(updateSql)
-                                                    .execute(params)
-                                                    .onItem().transformToUni(rowSet -> {
-                                                        if (rowSet.rowCount() == 0) {
-                                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                                        }
-                                                        return findById(id, user.getId(), true);
-                                                    }));
+                                            return tx.preparedQuery(updateSql).execute(params);
                                         });
+                                    }).onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return findById(id, user.getId(), true);
+                                    });
+                                });
                             });
                 });
     }
@@ -333,18 +358,43 @@ public class SoundFragmentRepository extends AsyncRepository {
     public Uni<Integer> delete(UUID uuid, IUser user) {
         return findById(uuid, user.getId(), true)
                 .onItem().transformToUni(doc -> {
-                    final String doKey = getDoKey(doc);
-                    Uni<Void> deleteFileUni = Uni.createFrom().voidItem();
 
-                    if (doKey != null && !doKey.isBlank()) {
-                        // Use fileStorage instead of digitalOceanSpacesService directly
-                        deleteFileUni = fileStorage.deleteFile(doKey)
-                                .onFailure().recoverWithUni(e -> {
-                                    LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", doKey, uuid, e);
-                                    return Uni.createFrom().voidItem();
+                    String getKeysSql = "SELECT file_key FROM _files WHERE parent_id = $1";
+                    return client.preparedQuery(getKeysSql).execute(Tuple.of(uuid))
+                            .onItem().transformToUni(rows -> {
+                                List<String> keysToDelete = new ArrayList<>();
+                                rows.forEach(row -> {
+                                    String key = row.getString("file_key");
+                                    if (key != null && !key.isBlank()) {
+                                        keysToDelete.add(key);
+                                    }
                                 });
-                    }
-                    return deleteFileUni.onItem().transformToUni(v -> super.delete(uuid, entityData, user));
+
+                                List<Uni<Void>> deleteFileUnis = keysToDelete.stream()
+                                        .map(key -> fileStorage.deleteFile(key)
+                                                .onFailure().recoverWithUni(e -> {
+                                                    LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", key, uuid, e);
+                                                    return Uni.createFrom().voidItem();
+                                                })
+                                        ).collect(Collectors.toList());
+
+                                return Uni.combine().all().unis(deleteFileUnis).discardItems();
+
+                            }).onItem().transformToUni(v -> {
+                                return client.withTransaction(tx -> {
+                                    String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
+                                    String deleteFilesSql = "DELETE FROM _files WHERE parent_id = $1";
+                                    String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
+
+                                    Uni<RowSet<Row>> rlsDelete = tx.preparedQuery(deleteRlsSql).execute(Tuple.of(uuid));
+                                    Uni<RowSet<Row>> filesDelete = tx.preparedQuery(deleteFilesSql).execute(Tuple.of(uuid));
+
+                                    return Uni.combine().all().unis(rlsDelete, filesDelete)
+                                            .discardItems()
+                                            .onItem().transformToUni(ignored -> tx.preparedQuery(deleteDocSql).execute(Tuple.of(uuid)))
+                                            .onItem().transform(RowSet::rowCount);
+                                });
+                            });
                 });
     }
 
@@ -370,7 +420,6 @@ public class SoundFragmentRepository extends AsyncRepository {
             final String keyToFetch = doc.getDoKey();
             return fileStorage.retrieveFile(keyToFetch)
                     .onItem().transformToUni(fileMetadata -> {
-                        doc.setFilePath(fileMetadata.getFilePath());
                         doc.setFileMetadataList(List.of(fileMetadata));
                         return Uni.createFrom().item(doc);
                     })
@@ -386,42 +435,60 @@ public class SoundFragmentRepository extends AsyncRepository {
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
                                                         Uni<String> mimeTypeUni, Uni<Void> fileUploadCompletionUni) {
         return mimeTypeUni.flatMap(detectedMimeType ->
-                        fileUploadCompletionUni.onItem().transformToUni(v -> {
-                            String sql = String.format(
-                                    "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                                            "title, artist, genre, album, slug_name, archived, mime_type) " +
-                                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
-                                    entityData.getTableName()
-                            );
+                fileUploadCompletionUni.onItem().transformToUni(v -> {
+                    String sql = String.format(
+                            "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
+                                    "title, artist, genre, album, slug_name, archived, mime_type) " +
+                                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
+                            entityData.getTableName()
+                    );
 
-                            Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
-                                    .addString(doc.getSource().name())
-                                    .addInteger(doc.getStatus())
-                                    .addString(doc.getType().name())
-                                    .addString(doc.getTitle())
-                                    .addString(doc.getArtist())
-                                    .addString(doc.getGenre())
-                                    .addString(doc.getAlbum())
-                                    .addString(doc.getSlugName())
-                                    .addInteger(0)
-                                    .addValue(detectedMimeType);
+                    Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
+                            .addString(doc.getSource().name())
+                            .addInteger(doc.getStatus())
+                            .addString(doc.getType().name())
+                            .addString(doc.getTitle())
+                            .addString(doc.getArtist())
+                            .addString(doc.getGenre())
+                            .addString(doc.getAlbum())
+                            .addString(doc.getSlugName())
+                            .addInteger(0)
+                            .addValue(detectedMimeType);
 
-                            String readersSql = String.format(
-                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                    entityData.getRlsName()
-                            );
+                    return client.withTransaction(tx -> tx.preparedQuery(sql)
+                            .execute(params)
+                            .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                            .onItem().transformToUni(id -> {
+                                Uni<Void> fileMetadataUni = Uni.createFrom().voidItem();
+                                if (doc.getFileMetadataList() != null && !doc.getFileMetadataList().isEmpty()) {
+                                    String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, mime_type, file_original_name, file_key, file_bin) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+                                    List<Tuple> filesParams = doc.getFileMetadataList().stream()
+                                            .map(meta -> Tuple.of(
+                                                            entityData.getTableName(),
+                                                            id,
+                                                            FileStorageType.DIGITAL_OCEAN,
+                                                            meta.getMimeType(),
+                                                            meta.getFileOriginalName(),
+                                                            meta.getFileKey()
+                                                    ).addValue(meta.getFileBin())
+                                            ).collect(Collectors.toList());
+                                    fileMetadataUni = tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
+                                }
 
-                            return client.withTransaction(tx -> tx.preparedQuery(sql)
-                                    .execute(params)
-                                    .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                                    .onItem().transformToUni(id -> tx.preparedQuery(readersSql)
-                                            .execute(Tuple.of(user.getId(), id, true, true))
-                                            .onItem().transform(ignored -> id)
-                                    )
-                            );
-                        })
-                )
-                .onItem().transformToUni(id -> findById(id, user.getId(), true));
+                                String readersSql = String.format(
+                                        "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
+                                        entityData.getRlsName()
+                                );
+
+                                return fileMetadataUni
+                                        .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
+                                                .execute(Tuple.of(user.getId(), id, true, true))
+                                        )
+                                        .onItem().transform(ignored -> id);
+                            })
+                    );
+                })
+        ).onItem().transformToUni(id -> findById(id, user.getId(), true));
     }
 
     //TODO should be moved to 2next
@@ -441,11 +508,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         }
     }
 
-    private Uni<String> wrapToUni(String detectedMimeType) {
-        return Uni.createFrom().item(detectedMimeType);
-    }
-
     private static String getDoKey(SoundFragment doc) {
-        return WebHelper.generateSlugPath(doc.getArtist(), doc.getAlbum(), doc.getTitle());
+        return WebHelper.generateSlugPath(doc.getArtist(), doc.getTitle());
     }
 }

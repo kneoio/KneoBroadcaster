@@ -3,9 +3,11 @@ package io.kneo.broadcaster.service.manipulation;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.controller.stream.HlsSegment;
-import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SegmentInfo;
+import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.core.model.user.SuperUser;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Setter;
@@ -31,7 +33,7 @@ public class AudioSegmentationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioSegmentationService.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
-
+    private final SoundFragmentService soundFragmentService;
     private final FFmpegProvider ffmpeg;
 
     @Setter
@@ -39,38 +41,48 @@ public class AudioSegmentationService {
     private final String outputDir;
 
     @Inject
-    public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
+    public AudioSegmentationService(SoundFragmentService service, BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
+        this.soundFragmentService = service;
         this.ffmpeg = ffmpeg;
         this.outputDir = broadcasterConfig.getSegmentationOutputDir();
         new File(outputDir).mkdirs();
         segmentDuration = hlsPlaylistConfig.getSegmentDuration();
     }
 
-    public ConcurrentLinkedQueue<HlsSegment> slice(SoundFragment soundFragment) {
-        ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = new ConcurrentLinkedQueue<>();
-        FileMetadata metadata = soundFragment.getFileMetadataList().get(0);
+    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment) {
+        return soundFragmentService.getFile(
+                        soundFragment.getId(),
+                        soundFragment.getFileMetadataList().get(0).getSlugName(),
+                        SuperUser.build()
+                )
+                .onItem().transformToUni(metadata -> {
+                    ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = new ConcurrentLinkedQueue<>();
+                    List<SegmentInfo> segments = segmentAudioFile(metadata.getFilePath(),
+                            soundFragment.getMetadata(),
+                            soundFragment.getId());
 
-        List<SegmentInfo> segments = segmentAudioFile(soundFragment.getFilePath(), soundFragment.getMetadata(), soundFragment.getId());
-
-        for (SegmentInfo segment : segments) {
-            try {
-                byte[] data = Files.readAllBytes(Paths.get(segment.path()));
-                HlsSegment hlsSegment = new HlsSegment(
-                        0,
-                        data,
-                        segment.duration(),
-                        segment.fragmentId(),
-                        segment.metadata(),
-                        System.currentTimeMillis() / 1000 + segment.sequenceIndex()
-                );
-
-                oneFragmentSegments.add(hlsSegment);
-
-            } catch (Exception e) {
-                LOGGER.error("Error adding segment to playlist: {}", segment.path(), e);
-            }
-        }
-        return oneFragmentSegments;
+                    for (SegmentInfo segment : segments) {
+                        try {
+                            byte[] data = Files.readAllBytes(Paths.get(segment.path()));
+                            HlsSegment hlsSegment = new HlsSegment(
+                                    0,
+                                    data,
+                                    segment.duration(),
+                                    segment.fragmentId(),
+                                    segment.metadata(),
+                                    System.currentTimeMillis() / 1000 + segment.sequenceIndex()
+                            );
+                            oneFragmentSegments.add(hlsSegment);
+                        } catch (Exception e) {
+                            LOGGER.error("Error adding segment to playlist: {}", segment.path(), e);
+                        }
+                    }
+                    return Uni.createFrom().item(oneFragmentSegments);
+                })
+                .onFailure().recoverWithUni(throwable -> {
+                    LOGGER.error("Failed to process sound fragment", throwable);
+                    return Uni.createFrom().failure(throwable);
+                });
     }
 
     public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {

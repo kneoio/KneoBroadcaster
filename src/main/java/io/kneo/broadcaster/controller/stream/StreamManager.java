@@ -121,15 +121,15 @@ public class StreamManager implements IStreamManager {
     }
 
     private void feedSegments() {
-        System.out.printf("feedSegments Debug: [START] For %s. liveSegments: %d, pendingQueue: %d.%n",
-                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());
+     /*   System.out.printf("feedSegments Debug: [START] For %s. liveSegments: %d, pendingQueue: %d.%n",
+                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
 
         int drippedCountThisCall = 0;
         if (pendingFragmentSegmentsQueue.isEmpty()) {
-            System.out.printf("feedSegments Debug: [DRIP] Pending queue for %s is empty. No segments to drip to liveSegments this pass.%n", radioStation.getSlugName());
+          //  System.out.printf("feedSegments Debug: [DRIP] Pending queue for %s is empty. No segments to drip to liveSegments this pass.%n", radioStation.getSlugName());
         } else {
-            System.out.printf("feedSegments Debug: [DRIP] For %s. Attempting to drip up to %d segment(s) from pendingQueue (current size %d) to liveSegments (current size %d, drip limit if full %d).%n",
-                    radioStation.getSlugName(), SEGMENTS_TO_DRIP_PER_FEED_CALL, pendingFragmentSegmentsQueue.size(), liveSegments.size(), maxVisibleSegments * 2);
+          /*  System.out.printf("feedSegments Debug: [DRIP] For %s. Attempting to drip up to %d segment(s) from pendingQueue (current size %d) to liveSegments (current size %d, drip limit if full %d).%n",
+                    radioStation.getSlugName(), SEGMENTS_TO_DRIP_PER_FEED_CALL, pendingFragmentSegmentsQueue.size(), liveSegments.size(), maxVisibleSegments * 2);*/
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
                     System.out.printf("feedSegments Debug: [DRIP] liveSegments buffer for %s is full or at limit (%d/%d). Pausing drip-feed for this call.%n",
@@ -148,19 +148,19 @@ public class StreamManager implements IStreamManager {
                 }
             }
             if (drippedCountThisCall > 0) {
-                System.out.printf("feedSegments Debug: [DRIP] Finished dripping for %s. Dripped %d segment(s) in this call.%n", radioStation.getSlugName(), drippedCountThisCall);
+              //  System.out.printf("feedSegments Debug: [DRIP] Finished dripping for %s. Dripped %d segment(s) in this call.%n", radioStation.getSlugName(), drippedCountThisCall);
                 if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    System.out.printf("feedSegments Debug: [STATUS] Radio station %s status set to ON_LINE.%n", radioStation.getSlugName());
+                  //  System.out.printf("feedSegments Debug: [STATUS] Radio station %s status set to ON_LINE.%n", radioStation.getSlugName());
                 }
             } else {
-                System.out.printf("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).%n", radioStation.getSlugName());
+               // System.out.printf("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).%n", radioStation.getSlugName());
             }
         }
 
         if (pendingFragmentSegmentsQueue.size() < PENDING_QUEUE_REFILL_THRESHOLD) {
-            System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s is low (size: %d, threshold: %d). Attempting to fetch new fragment.%n",
-                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);
+         /*   System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s is low (size: %d, threshold: %d). Attempting to fetch new fragment.%n",
+                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);*/
             try {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null && !fragment.getSegments().isEmpty()) {
@@ -168,8 +168,8 @@ public class StreamManager implements IStreamManager {
                     final long[] firstSeqInBatch = {-1L};
                     final long[] lastSeqInBatch = {-1L};
 
-                    System.out.printf("feedSegments Debug: [REFILL] Fetched BrandSoundFragment for %s with %d HLS segments. Assigning sequence numbers...%n",
-                            radioStation.getSlugName(), newSegmentsFromFragment);
+                /*    System.out.printf("feedSegments Debug: [REFILL] Fetched BrandSoundFragment for %s with %d HLS segments. Assigning sequence numbers...%n",
+                            radioStation.getSlugName(), newSegmentsFromFragment);*/
                     fragment.getSegments().forEach(segment -> {
                         long seq = currentSequence.getAndIncrement();
                         if (firstSeqInBatch[0] == -1L) {
@@ -179,42 +179,42 @@ public class StreamManager implements IStreamManager {
                         segment.setSequence(seq);
                         pendingFragmentSegmentsQueue.offer(segment);
                     });
-                    System.out.printf("feedSegments Debug: [REFILL] Added %d new segments (sequences approx %d to %d) to pendingFragmentSegmentsQueue for %s. New pendingQueue size: %d%n",
-                            newSegmentsFromFragment, firstSeqInBatch[0], lastSeqInBatch[0], radioStation.getSlugName(), pendingFragmentSegmentsQueue.size());
+                 /*   System.out.printf("feedSegments Debug: [REFILL] Added %d new segments (sequences approx %d to %d) to pendingFragmentSegmentsQueue for %s. New pendingQueue size: %d%n",
+                            newSegmentsFromFragment, firstSeqInBatch[0], lastSeqInBatch[0], radioStation.getSlugName(), pendingFragmentSegmentsQueue.size());*/
                 } else {
-                    System.out.printf("feedSegments Debug: [REFILL] No new fragment or empty fragment obtained for %s from PlaylistManager.%n", radioStation.getSlugName());
+                  //  System.out.printf("feedSegments Debug: [REFILL] No new fragment or empty fragment obtained for %s from PlaylistManager.%n", radioStation.getSlugName());
                 }
             } catch (Exception e) {
-                LOGGER.error("feedSegments: Error during [REFILL] fetching/processing new fragment for {}: {}", radioStation.getSlugName(), e.getMessage(), e);
+              //  LOGGER.error("feedSegments: Error during [REFILL] fetching/processing new fragment for {}: {}", radioStation.getSlugName(), e.getMessage(), e);
             }
         } else {
-            System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s not low (size: %d, threshold: %d). No refill attempt needed.%n",
-                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);
+          /*  System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s not low (size: %d, threshold: %d). No refill attempt needed.%n",
+                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);*/
         }
-        System.out.printf("feedSegments Debug: [END] For %s. liveSegments: %d, pendingQueue: %d%n",
-                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());
+       /* System.out.printf("feedSegments Debug: [END] For %s. liveSegments: %d, pendingQueue: %d%n",
+                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
     }
 
     private void slideWindow() {
         if (liveSegments.isEmpty()) {
             return;
         }
-        System.out.printf("slideWindow Debug: Checking window for %s. Current segments in liveSegments: %d, Max visible in playlist: %d%n",
-                radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments);
+      /*  System.out.printf("slideWindow Debug: Checking window for %s. Current segments in liveSegments: %d, Max visible in playlist: %d%n",
+                radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments);*/
         int removedCount = 0;
         while (liveSegments.size() > maxVisibleSegments) {
             long removedKey = liveSegments.firstKey();
             liveSegments.pollFirstEntry();
             removedCount++;
-            System.out.printf("slideWindow Debug: Removed segment for %s with sequence %d. liveSegments now: %d%n",
-                    radioStation.getSlugName(), removedKey, liveSegments.size());
+           /* System.out.printf("slideWindow Debug: Removed segment for %s with sequence %d. liveSegments now: %d%n",
+                    radioStation.getSlugName(), removedKey, liveSegments.size());*/
         }
         if (removedCount > 0) {
-            System.out.printf("slideWindow Debug: Finished sliding for %s. Removed %d segment(s). liveSegments now: %d. First key in liveSegments: %s%n",
-                    radioStation.getSlugName(), removedCount, liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());
+           /* System.out.printf("slideWindow Debug: Finished sliding for %s. Removed %d segment(s). liveSegments now: %d. First key in liveSegments: %s%n",
+                    radioStation.getSlugName(), removedCount, liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());*/
         } else {
-            System.out.printf("slideWindow Debug: No segments needed removal for %s during this pass. liveSegments size: %d. First key: %s%n",
-                    radioStation.getSlugName(), liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());
+          /*  System.out.printf("slideWindow Debug: No segments needed removal for %s during this pass. liveSegments size: %d. First key: %s%n",
+                    radioStation.getSlugName(), liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());*/
         }
     }
 

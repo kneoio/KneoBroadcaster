@@ -2,7 +2,6 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandSoundFragment;
-import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
@@ -154,47 +153,70 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<FileData> getFileById(UUID fileId, String slugName, IUser user, boolean includeArchived) {
-        String sql = "SELECT f.file_key " +
-                "FROM _files f " +
-                "JOIN " + entityData.getRlsName() + " rls ON f.parent_id = rls.entity_id " +
-                "WHERE sf.id = $1 AND rls.reader = $2 AND f.file_original_name = $3";
 
-        if (!includeArchived) {
-            sql += " AND (sf.archived IS NULL OR sf.archived = 0)";
-        }
+    public Uni<FileMetadata> getFileById(UUID id, String slugName, IUser user, boolean includeArchived) {
+        LOGGER.debug("Entering getFileById - ID: {}, slugName: {}, user: {}, includeArchived: {}",
+                id, slugName, user != null ? user.getId() : "null", includeArchived);
+
+        String sql = "SELECT f.file_key FROM _files f WHERE f.parent_id = $1 AND f.slug_name = $2";
+        LOGGER.debug("Prepared SQL query: {} with params: id={}, slugName={}", sql, id, slugName);
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(fileId, user.getId(), slugName))
+                .execute(Tuple.of(id, slugName))
+                .onItem().invoke(rows ->
+                        LOGGER.debug("Query returned {} rows", rows.rowCount()))
+                .onFailure().invoke(failure ->
+                        LOGGER.error("Database query failed for ID: {} - Error", id, failure)) // Fixed
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
+                        LOGGER.warn("No file found matching criteria - ID: {}, slugName: {}", id, slugName);
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(
-                                String.format("File not found (ID: %s) or access denied.", fileId)
-                        ));
+                                "File not found (ID: " + id + ") or access denied"));
                     }
+
                     Row row = rows.iterator().next();
-                    String mimeType = row.getString("mime_type");
                     String doKey = row.getString("file_key");
+                    LOGGER.debug("Retrieved file key: {} for ID: {}", doKey, id);
 
                     return fileStorage.retrieveFile(doKey)
-                            .onItem().transform(fileMetadata -> new FileData(fileMetadata.getFileBin(), mimeType))
+                            .onItem().invoke(file ->
+                                    LOGGER.debug("Successfully retrieved file content for key: {}", doKey))
+                            .onFailure().invoke(failure ->
+                                    LOGGER.error("Storage retrieval failed for key: {}", doKey, failure)) // Fixed
                             .onFailure().transform(ex -> {
                                 if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
+                                    LOGGER.warn("File not found in storage - Key: {}", doKey, ex);
                                     return ex;
                                 }
+                                LOGGER.error("Storage retrieval error - Key: {}", doKey, ex); // Fixed
                                 return new FileNotFoundException(
-                                        String.format("Failed to retrieve file content from storage for ID: %s. Derived Key: %s. Cause: %s", fileId, doKey, ex.getMessage())
-                                );
+                                        String.format("Failed to retrieve file (ID: %s, Key: %s) - Cause: %s",
+                                                id, doKey, ex.getMessage()));
                             });
                 })
-                .onFailure(FileNotFoundException.class).recoverWithUni(fnfException -> Uni.createFrom().failure(fnfException))
+                .onFailure(FileNotFoundException.class)
+                .invoke(fnf -> LOGGER.error("File not found flow", fnf)) // Fixed
+                .onFailure().invoke(failure ->
+                        LOGGER.error("Unexpected failure processing ID: {}", id, failure)) // Fixed
                 .onFailure().recoverWithUni(otherException -> {
                     if (otherException instanceof DocumentHasNotFoundException) {
+                        LOGGER.warn("Document not found", otherException);
                         return Uni.createFrom().failure(otherException);
                     }
+                    LOGGER.error("Unexpected error", otherException); // Fixed
                     return Uni.createFrom().failure(new RuntimeException(
-                            String.format("An unexpected error occurred while fetching file data for ID: %s.", fileId), otherException
-                    ));
+                            "Unexpected error fetching file data for ID: " + id, otherException));
+                })
+                .onTermination().invoke((res, fail, cancelled) -> {
+                    if (cancelled) {
+                        LOGGER.warn("Operation cancelled - ID: {}", id);
+                    }
+                    if (fail != null) {
+                        LOGGER.error("Operation failed", fail); // Fixed
+                    }
+                    if (res != null) {
+                        LOGGER.debug("Operation succeeded - ID: {}", id);
+                    }
                 });
     }
 

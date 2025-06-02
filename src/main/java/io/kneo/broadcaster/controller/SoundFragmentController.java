@@ -15,6 +15,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
@@ -35,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,9 +44,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
-
-import static java.nio.file.Files.probeContentType;
-import static java.nio.file.Files.readAllBytes;
 
 @ApplicationScoped
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
@@ -215,32 +214,36 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-
     private void getBySlugName(RoutingContext rc) {
         String id = rc.pathParam("id");
         String requestedFileName = rc.pathParam("slug");
 
         getContextUser(rc)
                 .chain(user -> {
+                    // 1. First try local filesystem
                     Path destinationDir = Paths.get(uploadDir, user.getUserName(), id);
-                    File file = new File(Path.of(destinationDir.toString(), requestedFileName).toUri());
+                    File file = destinationDir.resolve(requestedFileName).toFile();
+
                     if (file.exists()) {
                         try {
-                            byte[] fileBytes = readAllBytes(file.toPath());
-                            String mimeType = probeContentType(file.toPath());
-                            if (mimeType == null) {
-                                mimeType = "application/octet-stream";
-                            }
-                            return Uni.createFrom().item(new FileData(fileBytes, mimeType));
+                            byte[] fileBytes = Files.readAllBytes(file.toPath());
+                            String mimeType = Files.probeContentType(file.toPath());
+                            return Uni.createFrom().item(new FileData(
+                                    fileBytes,
+                                    mimeType != null ? mimeType : "application/octet-stream"
+                            ));
                         } catch (IOException e) {
                             return Uni.createFrom().failure(e);
                         }
-                    } else {
-                        return service.getFile(UUID.fromString(id), requestedFileName, user);
                     }
+
+                    // 2. Fall back to service if not found locally
+                    return service.getFile(UUID.fromString(id), requestedFileName, user)
+                            .onItem().castTo(FileData.class);
                 })
                 .subscribe().with(
-                        fileData -> {
+                        item -> {
+                            FileData fileData = (FileData) item;
                             if (fileData == null || fileData.getData() == null || fileData.getData().length == 0) {
                                 rc.response()
                                         .setStatusCode(404)
@@ -254,7 +257,15 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                     .putHeader("Content-Length", String.valueOf(fileData.getData().length))
                                     .end(Buffer.buffer(fileData.getData()));
                         },
-                        rc::fail
+                        throwable -> {
+                            if (throwable instanceof FileNotFoundException ||
+                                    throwable instanceof DocumentHasNotFoundException) {
+                                rc.response().setStatusCode(404).end("File not found");
+                            } else {
+                                LOGGER.error("File retrieval error", throwable);
+                                rc.fail(500, throwable);
+                            }
+                        }
                 );
     }
 

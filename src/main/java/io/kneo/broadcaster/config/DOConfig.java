@@ -25,4 +25,10 @@ public interface DOConfig {
     @WithName("endpoint")
     @WithDefault("digitaloceanspaces.com")
     String getEndpoint();
+
+    @WithName("orphan.cleaning.disabled")
+    @WithDefault("true")
+    boolean isDeleteDisabled();
+
+
 }

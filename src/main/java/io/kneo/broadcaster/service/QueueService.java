@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -64,35 +65,40 @@ public class QueueService {
                 .chain(soundFragment -> {
                     if (filePath != null && !filePath.isEmpty()) {
                         try {
+                            FileMetadata metadata = soundFragment.getFileMetadataList().get(0);
                             Path mergedPath = audioMergerService.mergeAudioFiles(
                                     Path.of(filePath),
-                                    soundFragment.getFilePath(), 0
+                                    metadata.getFilePath(), 0
                             );
                             soundFragment.setTitle(String.format(" ## %s", soundFragment.getTitle()));
-                            soundFragment.setFilePath(mergedPath);
+                            metadata.setFilePath(mergedPath);
                         } catch (Exception e) {
                             LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
                             return Uni.createFrom().failure(e);
                         }
-                    } else {
-                        repository.findById(soundFragmentId, SuperUser.ID, false);
                     }
 
                     return getPlaylist(brandName)
                             .onItem().transformToUni(radioStation -> {
-                                if (radioStation != null) {
-                                    radioStation.setManagedBy(ManagedBy.AI_AGENT);
-                                    BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                    brandSoundFragment.setId(soundFragment.getId());
-                                    brandSoundFragment.setSoundFragment(soundFragment);
-                                    brandSoundFragment.setQueueNum(10);
-                                    boolean result = radioStation.getPlaylist().getPlaylistManager().addFragmentToSlice(brandSoundFragment);
-                                    LOGGER.info("Added merged song to queue for brand {}: {}", brandName, soundFragment.getTitle());
-                                    return Uni.createFrom().item(result);
-                                } else {
+                                if (radioStation == null) {
                                     LOGGER.warn("RadioStation or Playlist not found for brand: {}", brandName);
                                     return Uni.createFrom().item(false);
                                 }
+
+                                radioStation.setManagedBy(ManagedBy.AI_AGENT);
+                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                brandSoundFragment.setId(soundFragment.getId());
+                                brandSoundFragment.setSoundFragment(soundFragment);
+                                brandSoundFragment.setQueueNum(10);
+
+                                return radioStation.getPlaylist().getPlaylistManager()
+                                        .addFragmentToSlice(brandSoundFragment)
+                                        .onItem().invoke(result -> {
+                                            if (result) {
+                                                LOGGER.info("Added merged song to queue for brand {}: {}",
+                                                        brandName, soundFragment.getTitle());
+                                            }
+                                        });
                             });
                 })
                 .onFailure().recoverWithItem(failure -> {

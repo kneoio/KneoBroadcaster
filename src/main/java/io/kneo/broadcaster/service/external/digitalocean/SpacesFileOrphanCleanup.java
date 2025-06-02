@@ -222,8 +222,14 @@ public class SpacesFileOrphanCleanup {
                         LOGGER.error("Failed to retrieve file keys from database", throwable));
     }
 
+
     private void deleteOrphanFile(String fileKey) {
         try {
+            if (doConfig.isDeleteDisabled()) {
+                LOGGER.info("Deletion disabled by configuration. Would delete orphan file: {}", fileKey);
+                return;
+            }
+
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(doConfig.getBucketName())
                     .key(fileKey)

@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.smallrye.mutiny.Uni;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,26 +79,33 @@ public class PlaylistManager {
         }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
-    public boolean addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
-        readyFragmentsLock.writeLock().lock();
-        try {
-            if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
-                LOGGER.debug("Cannot add fragment - ready queue is full ({} items)",
-                        READY_QUEUE_MAX_SIZE);
-                return false;
-            } else {
-                radioStation.setStatus(RadioStationStatus.ON_LINE_WELL);
-            }
+    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
+        return segmentationService.slice(brandSoundFragment.getSoundFragment())
+                .onItem().transformToUni(segments -> {
+                    readyFragmentsLock.writeLock().lock();
+                    try {
+                        if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
+                            LOGGER.debug("Cannot add fragment - ready queue is full ({} items)",
+                                    READY_QUEUE_MAX_SIZE);
+                            return Uni.createFrom().item(false);
+                        } else {
+                            radioStation.setStatus(RadioStationStatus.ON_LINE_WELL);
+                        }
 
-            brandSoundFragment.setSegments(segmentationService.slice(brandSoundFragment.getSoundFragment()));
-            segmentedAndReadyToBeConsumed.add(brandSoundFragment);
+                        brandSoundFragment.setSegments(segments);
+                        segmentedAndReadyToBeConsumed.add(brandSoundFragment);
 
-            LOGGER.info("Added and sliced fragment for brand {}: {}",
-                    brand, brandSoundFragment.getSoundFragment().getMetadata());
-            return true;
-        } finally {
-            readyFragmentsLock.writeLock().unlock();
-        }
+                        LOGGER.info("Added and sliced fragment for brand {}: {}",
+                                brand, brandSoundFragment.getSoundFragment().getMetadata());
+                        return Uni.createFrom().item(true);
+                    } finally {
+                        readyFragmentsLock.writeLock().unlock();
+                    }
+                })
+                .onFailure().recoverWithItem(throwable -> {
+                    LOGGER.error("Failed to add fragment to slice", throwable);
+                    return false;
+                });
     }
 
     public BrandSoundFragment getNextFragment() {

@@ -5,7 +5,6 @@ import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
-import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
@@ -94,9 +93,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 .chain(doc -> mapToDTO(doc, true));
     }
 
-    public Uni<FileData> getFile(UUID fileId, String slugName, IUser user) {
+    public Uni<FileMetadata> getFile(UUID soundFragmentId, String slugName, IUser user) {
         assert repository != null;
-        return repository.getFileById(fileId, slugName, user, false);
+        return repository.getFileById(soundFragmentId, slugName, user, false);
     }
 
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle) {

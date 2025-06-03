@@ -237,13 +237,13 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         }
                     }
 
-                    // 2. Fall back to service if not found locally
                     return service.getFile(UUID.fromString(id), requestedFileName, user)
-                            .onItem().castTo(FileData.class);
+                            .onItem().transform(fileMetadata -> {
+                                return new FileData(fileMetadata.getFileBin(), fileMetadata.getMimeType());
+                            });
                 })
                 .subscribe().with(
-                        item -> {
-                            FileData fileData = (FileData) item;
+                        fileData -> {
                             if (fileData == null || fileData.getData() == null || fileData.getData().length == 0) {
                                 rc.response()
                                         .setStatusCode(404)

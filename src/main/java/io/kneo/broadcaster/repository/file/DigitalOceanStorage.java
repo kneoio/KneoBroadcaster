@@ -10,6 +10,7 @@ import io.vertx.mutiny.core.file.FileSystem;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
+import io.vertx.pgclient.PgException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -113,7 +114,7 @@ public class DigitalOceanStorage implements IFileStorage {
     @Override
     public Uni<FileMetadata> retrieveFile(String key) {
         String metadataSql = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, " +
-                "storage_type, mime_type, file_original_name, file_key FROM *files WHERE file*key = $1";
+                "storage_type, mime_type, file_original_name, file_key FROM _files WHERE file_key = $1";
 
         return client.preparedQuery(metadataSql)
                 .execute(Tuple.of(key))
@@ -156,8 +157,14 @@ public class DigitalOceanStorage implements IFileStorage {
                             });
                 })
                 .onFailure().transform(ex -> {
-                    LOGGER.error("Failed to retrieve file with key: {}", key, ex);
-                    return new RuntimeException("Failed to retrieve file from Digital Ocean Spaces", ex);
+                    if (ex instanceof PgException) {
+                        LOGGER.error("PostgreSQL error while retrieving file with key: {}. Message: {}, SQL: {}",
+                                key, ex.getMessage(), metadataSql);
+                        return new RuntimeException("Database error while retrieving file", ex);
+                    } else {
+                        LOGGER.error("Failed to retrieve file with key: {}", key, ex);
+                        return new RuntimeException("Failed to retrieve file from storage", ex);
+                    }
                 });
     }
 

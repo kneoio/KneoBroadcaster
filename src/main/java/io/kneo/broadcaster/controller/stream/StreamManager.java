@@ -120,7 +120,7 @@ public class StreamManager implements IStreamManager {
         timerSubscriptions.put("slider", slider);
     }
 
-    private void feedSegments() {
+    public void feedSegments() {
      /*   System.out.printf("feedSegments Debug: [START] For %s. liveSegments: %d, pendingQueue: %d.%n",
                 radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
 

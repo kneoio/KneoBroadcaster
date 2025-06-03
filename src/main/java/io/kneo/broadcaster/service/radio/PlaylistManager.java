@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import lombok.Getter;
 import org.slf4j.Logger;
@@ -152,13 +153,18 @@ public class PlaylistManager {
         }
 
         LOGGER.info("Adding {} fragments for brand {}", fragmentsToRequest, brand);
+
         soundFragmentService.getForBrand(brand, fragmentsToRequest, true)
+                .onItem().transformToMulti(fragments -> Multi.createFrom().iterable(fragments))
+                .onItem().call(this::addFragmentToSlice)
+                .collect().asList()
+
                 .subscribe().with(
-                        fragments -> {
-                            fragments.forEach(this::addFragmentToSlice);
+                        processedItems -> {
+                            LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand);
                         },
                         error -> {
-                            LOGGER.error("Error fetching fragments for brand {}: {}",
+                            LOGGER.error("Error during the reactive processing of fragments for brand {}: {}",
                                     brand, error.getMessage(), error);
                         }
                 );

@@ -141,10 +141,10 @@ public class SpacesFileOrphanCleanup {
                     if (!dbFileKeys.contains(fileKey)) {
                         try {
                             long fileSize = s3Object.size();
-                            deleteOrphanFile(fileKey);
-                            filesDeleted++;
-                            bytesFreed += fileSize;
-                            LOGGER.debug("Deleted orphan file: {} ({} bytes)", fileKey, fileSize);
+                            if (deleteOrphanFile(fileKey)){
+                                filesDeleted++;
+                                bytesFreed += fileSize;
+                            }
                         } catch (Exception e) {
                             LOGGER.error("Failed to delete orphan file: {}", fileKey, e);
                         }
@@ -223,11 +223,11 @@ public class SpacesFileOrphanCleanup {
     }
 
 
-    private void deleteOrphanFile(String fileKey) {
+    private boolean deleteOrphanFile(String fileKey) {
         try {
             if (doConfig.isDeleteDisabled()) {
                 LOGGER.info("Deletion disabled by configuration. Would delete orphan file: {}", fileKey);
-                return;
+                return false;
             }
 
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
@@ -237,6 +237,7 @@ public class SpacesFileOrphanCleanup {
 
             s3Client.deleteObject(deleteRequest);
             LOGGER.debug("Successfully deleted orphan file from Spaces: {}", fileKey);
+            return true;
 
         } catch (Exception e) {
             LOGGER.error("Failed to delete orphan file from Spaces: {}", fileKey, e);

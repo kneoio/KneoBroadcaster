@@ -29,8 +29,8 @@ public class RadioService {
                 );
     }
 
-    public Uni<RadioStation> slide(String brand) {
-        return radioStationPool.initializeStation(brand)
+    public Uni<Void> feed(String brand) {
+        return radioStationPool.feedStation(brand)
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to initialize station for brand: {}", brand, failure)
                 );

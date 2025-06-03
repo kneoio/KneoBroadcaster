@@ -3,6 +3,8 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
+import io.smallrye.mutiny.Uni;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -15,9 +17,6 @@ import jakarta.ws.rs.core.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,12 +27,14 @@ public class QueueController {
     private final QueueService service;
     private final RadioService radioService;
     private final BroadcasterConfig config;
+    private final Vertx vertx; // Added for async file system access
 
     @Inject
-    public QueueController(QueueService service, RadioService radioService, BroadcasterConfig config) {
+    public QueueController(QueueService service, RadioService radioService, BroadcasterConfig config, Vertx vertx) {
         this.service = service;
         this.radioService = radioService;
         this.config = config;
+        this.vertx = vertx; // Injected Vertx instance
     }
 
     public void setupRoutes(Router router) {
@@ -61,47 +62,54 @@ public class QueueController {
         String brand = rc.pathParam("brand");
         String songIdAsString = rc.pathParam("songId");
 
-        final String filePath = determineFilePath(rc, brand);
-
-        service.addToQueue(brand, UUID.fromString(songIdAsString), filePath)
+        // The reactive chain starts here
+        determineFilePath(rc, brand)
+                .onItem().transformToUni(filePath ->
+                        // After file is moved, add to queue. Pass filePath to the final step.
+                        service.addToQueue(brand, UUID.fromString(songIdAsString), filePath)
+                                .onItem().transform(ignored -> filePath)
+                )
                 .subscribe().with(
-                        success -> rc.response()
-                                .setStatusCode(filePath != null ? 201 : 200)
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encode(new JsonObject()
-                                        .put("success", true)
-                                        .put("fileUploaded", filePath != null))),
+                        filePath -> {
+                            // This code executes upon successful completion of the chain
+                            rc.response()
+                                    .setStatusCode(filePath != null ? 201 : 200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(Json.encode(new JsonObject()
+                                            .put("success", true)
+                                            .put("fileUploaded", filePath != null)));
+                        },
                         error -> rc.fail(500, error)
                 );
     }
 
-    private String determineFilePath(RoutingContext rc, String brand) {
+    private Uni<String> determineFilePath(RoutingContext rc, String brand) {
         List<FileUpload> files = rc.fileUploads();
         if (files.isEmpty()) {
-            return null;
+            return Uni.createFrom().item((String) null);
         }
 
         FileUpload file = files.get(0);
-
         String fileName = UUID.randomUUID() + "_" + file.fileName();
         String uploadDir = config.getPathUploads() + "/" + brand;
-        String filePath = uploadDir + "/" + fileName;
+        String newFilePath = uploadDir + "/" + fileName;
 
-        try {
-            Files.createDirectories(Paths.get(uploadDir));
-            Files.move(Paths.get(file.uploadedFileName()), Paths.get(filePath));
-            return filePath;
-        } catch (IOException e) {
-            return null;
-        }
+        var fs = vertx.fileSystem();
+
+        // CORRECTED: Use .completionStage() with Vert.x Future's .toCompletionStage()
+        return Uni.createFrom().completionStage(fs.mkdirs(uploadDir).toCompletionStage())
+                .onItem().transformToUni(v ->
+                        Uni.createFrom().completionStage(fs.move(file.uploadedFileName(), newFilePath).toCompletionStage())
+                )
+                .onItem().transform(v -> newFilePath);
     }
 
     private void action(RoutingContext rc) {
         String brand = rc.pathParam("brand");
         JsonObject jsonObject = rc.body().asJsonObject();
-
         String action = jsonObject.getString("action");
 
+        // The 'action' method logic remains unchanged as it was already reactive.
         if ("start".equalsIgnoreCase(action)) {
             LOGGER.info("Starting radio station for brand: {}", brand);
             radioService.initializeStation(brand)
@@ -121,16 +129,16 @@ public class QueueController {
                                         .end("Failed to start radio station: " + throwable.getMessage());
                             }
                     );
-        } else if ("slide".equalsIgnoreCase(action)) {
-            LOGGER.info("Slide window for brand: {}", brand);
-            radioService.slide(brand)
+        } else if ("feed".equalsIgnoreCase(action)) {
+            LOGGER.info("Feed for brand: {}", brand);
+            radioService.feed(brand)
                     .subscribe().with(
                             station -> {
                                 rc.response()
                                         .putHeader("Content-Type", MediaType.APPLICATION_JSON)
                                         .putHeader("Access-Control-Allow-Origin", "*")
                                         .setStatusCode(200)
-                                        .end("{\"status\":\"" + station.getStatus() + "}");
+                                        .end("{\"status\":\"DONE\"}");
                             },
                             throwable -> {
                                 LOGGER.error("Error sliding for station: {}", throwable.getMessage());
@@ -166,6 +174,4 @@ public class QueueController {
                     .end("Invalid action. Supported actions: 'start'");
         }
     }
-
-
 }

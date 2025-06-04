@@ -86,6 +86,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getAll(limit, offset, false, SuperUser.build());
     }
 
+    public Uni<SoundFragment> getById(UUID uuid, IUser user) {
+        assert repository != null;
+        return repository.findById(uuid, user.getId(), false);
+    }
+
     @Override
     public Uni<SoundFragmentDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;

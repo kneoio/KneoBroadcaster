@@ -10,6 +10,7 @@ import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.AudioMergerService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -35,6 +36,9 @@ public class QueueService {
     @Inject
     AudioMergerService audioMergerService;
 
+    @Inject
+    private SoundFragmentService soundFragmentService;
+
     public Uni<List<SoundFragmentDTO>> getQueueForBrand(String brandName) {
         return getPlaylist(brandName)
                 .onItem().transformToUni(radioStation -> {
@@ -59,44 +63,46 @@ public class QueueService {
     }
 
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, String filePath) {
-        SoundFragment soundFragment = new SoundFragment();
-        return repository.getFileById(soundFragmentId)
-                .chain(metadata -> {
-                    if (filePath != null && !filePath.isEmpty()) {
-                        try {
-                            Path mergedPath = audioMergerService.mergeAudioFiles(
-                                    Path.of(filePath),
-                                    metadata.getFilePath(), 0
-                            );
-                            metadata.setFilePath(mergedPath);
-                            soundFragment.setFileMetadataList(List.of(metadata));
-                            soundFragment.setTitle(String.format(" -- %s", soundFragment.getTitle()));
-                        } catch (Exception e) {
-                            LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
-                            return Uni.createFrom().failure(e);
-                        }
-                    }
-
-                    return getPlaylist(brandName)
-                            .onItem().transformToUni(radioStation -> {
-                                if (radioStation == null) {
-                                    LOGGER.warn("RadioStation {} not found", brandName);
-                                    return Uni.createFrom().item(false);
+        return soundFragmentService.getById(soundFragmentId, SuperUser.build())
+                .chain(soundFragment -> {
+                    return repository.getFileById(soundFragment.getId())
+                            .chain(metadata -> {
+                                if (filePath != null && !filePath.isEmpty()) {
+                                    try {
+                                        Path mergedPath = audioMergerService.mergeAudioFiles(
+                                                Path.of(filePath),
+                                                metadata.getFilePath(), 0
+                                        );
+                                        metadata.setFilePath(mergedPath);
+                                        soundFragment.setFileMetadataList(List.of(metadata));
+                                        soundFragment.setTitle(String.format(" -- %s", soundFragment.getTitle()));
+                                    } catch (Exception e) {
+                                        LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
+                                        return Uni.createFrom().failure(e); // Return a failed Uni on error.
+                                    }
                                 }
 
-                                radioStation.setManagedBy(ManagedBy.AI_AGENT);
-                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                brandSoundFragment.setId(soundFragment.getId());
-                                brandSoundFragment.setSoundFragment(soundFragment);
-                                brandSoundFragment.setQueueNum(10);
-
-                                return radioStation.getPlaylist().getPlaylistManager()
-                                        .addFragmentToSlice(brandSoundFragment)
-                                        .onItem().invoke(result -> {
-                                            if (result) {
-                                                LOGGER.info("Added merged song to queue for brand {}: {}",
-                                                        brandName, soundFragment.getTitle());
+                                return getPlaylist(brandName)
+                                        .onItem().transformToUni(radioStation -> {
+                                            if (radioStation == null) {
+                                                LOGGER.warn("RadioStation {} not found", brandName);
+                                                return Uni.createFrom().item(false);
                                             }
+
+                                            radioStation.setManagedBy(ManagedBy.AI_AGENT);
+                                            BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                            brandSoundFragment.setId(soundFragment.getId());
+                                            brandSoundFragment.setSoundFragment(soundFragment);
+                                            brandSoundFragment.setQueueNum(10);
+
+                                            return radioStation.getPlaylist().getPlaylistManager()
+                                                    .addFragmentToSlice(brandSoundFragment)
+                                                    .onItem().invoke(result -> {
+                                                        if (result) {
+                                                            LOGGER.info("Added merged song to queue for brand {}: {}",
+                                                                    brandName, soundFragment.getTitle());
+                                                        }
+                                                    });
                                         });
                             });
                 })

@@ -96,11 +96,9 @@ public class PlaylistManager {
         }
 
         if (filePath != null) {
-            // Case 1: Path is already populated (e.g., from a fully hydrated object). Use it directly.
             LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
             return this.addFragmentToSlice(brandSoundFragment, filePath);
         } else {
-            // Case 2: Path is null, so we assume it's a lazy-loaded object and fetch the path.
             LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.", brandSoundFragment.getSoundFragment().getMetadata());
             final FileMetadata finalMetadata = metadata;
             assert finalMetadata != null;
@@ -110,7 +108,6 @@ public class PlaylistManager {
                             SuperUser.build()
                     )
                     .onItem().transform(fetchedMetadata -> {
-                        // Update the original object with the fetched path for consistency.
                         finalMetadata.setFilePath(fetchedMetadata.getFilePath());
                         return fetchedMetadata.getFilePath();
                     });
@@ -122,7 +119,7 @@ public class PlaylistManager {
     }
 
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, Path filePath) {
-        return segmentationService.slice(filePath)
+        return segmentationService.slice(brandSoundFragment.getSoundFragment(), filePath)
                 .onItem().transformToUni(segments -> {
                     if (segments.isEmpty()) {
                         LOGGER.warn("Slicing from path {} resulted in zero segments.", filePath);

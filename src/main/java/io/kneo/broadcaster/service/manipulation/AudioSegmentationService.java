@@ -6,7 +6,6 @@ import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.model.SegmentInfo;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -59,23 +58,12 @@ public class AudioSegmentationService {
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice ad-hoc audio file: {}", filePath, e));
     }
 
-    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment) {
-        return soundFragmentService.getFile(
-                        soundFragment.getId(),
-                        soundFragment.getFileMetadataList().get(0).getSlugName(),
-                        SuperUser.build()
-                )
-                .onItem().transformToUni(metadata -> {
-                    List<SegmentInfo> segments = segmentAudioFile(metadata.getFilePath(),
-                            soundFragment.getMetadata(),
-                            soundFragment.getId());
-                    ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = createHlsQueueFromSegments(segments);
-                    return Uni.createFrom().item(oneFragmentSegments);
+    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath) {
+        return Uni.createFrom().item(() -> {
+                    List<SegmentInfo> segments = segmentAudioFile(filePath, soundFragment.getMetadata(), soundFragment.getId());
+                    return createHlsQueueFromSegments(segments);
                 })
-                .onFailure().recoverWithUni(throwable -> {
-                    LOGGER.error("Failed to process sound fragment", throwable);
-                    return Uni.createFrom().failure(throwable);
-                });
+                .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e));
     }
 
     private ConcurrentLinkedQueue<HlsSegment> createHlsQueueFromSegments(List<SegmentInfo> segments) {

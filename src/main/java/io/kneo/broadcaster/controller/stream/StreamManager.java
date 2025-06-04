@@ -6,8 +6,6 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
-// Assume StreamManagerStats class exists and its constructor is updated
-// import io.kneo.broadcaster.model.stats.StreamManagerStats;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
@@ -29,14 +27,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue; // Added import
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class StreamManager implements IStreamManager {
     private static final ZoneId ZONE_ID = ZoneId.of("Europe/Lisbon");
@@ -225,7 +222,7 @@ public class StreamManager implements IStreamManager {
                 : "UNKNOWN_STATION";
 
         if (liveSegments.isEmpty()) {
-            System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=0, Segments=[] (Live segments empty)%n", radioSlugForDebug);
+            //System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=0, Segments=[] (Live segments empty)%n", radioSlugForDebug);
             return "#EXTM3U\n" +
                     "#EXT-X-VERSION:3\n" +
                     "#EXT-X-ALLOW-CACHE:NO\n" +
@@ -268,13 +265,13 @@ public class StreamManager implements IStreamManager {
                             .append(".ts\n");
                 });
 
-        String segmentsLogString = includedSegmentSequences.stream()
+      /*   String segmentsLogString = includedSegmentSequences.stream()
                 .map(String::valueOf)
                 .collect(Collectors.joining(", "));
 
-        System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=%d, Segments=[%s]%n",
+       System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=%d, Segments=[%s]%n",
                 radioSlugForDebug, firstSequenceInWindow, segmentsLogString);
-
+*/
         return playlist.toString();
     }
 

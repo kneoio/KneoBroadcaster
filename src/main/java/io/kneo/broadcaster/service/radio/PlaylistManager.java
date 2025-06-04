@@ -3,17 +3,20 @@ package io.kneo.broadcaster.service.radio;
 import io.kneo.broadcaster.controller.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.PriorityQueue;
@@ -63,7 +66,6 @@ public class PlaylistManager {
     }
 
     public void startSelfManaging() {
-        LOGGER.info("Starting self manging PlaylistManager for brand: {}", brand);
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
@@ -81,30 +83,75 @@ public class PlaylistManager {
     }
 
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
-        return segmentationService.slice(brandSoundFragment.getSoundFragment())
+        Path filePath = null;
+        FileMetadata metadata = null;
+
+        try {
+            metadata = brandSoundFragment.getSoundFragment().getFileMetadataList().get(0);
+            if (metadata != null) {
+                filePath = metadata.getFilePath();
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Could not defensively read file path from BrandSoundFragment, will attempt to fetch. Error: {}", e.getMessage());
+        }
+
+        if (filePath != null) {
+            // Case 1: Path is already populated (e.g., from a fully hydrated object). Use it directly.
+            LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
+            return this.addFragmentToSlice(brandSoundFragment, filePath);
+        } else {
+            // Case 2: Path is null, so we assume it's a lazy-loaded object and fetch the path.
+            LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.", brandSoundFragment.getSoundFragment().getMetadata());
+            final FileMetadata finalMetadata = metadata;
+            assert finalMetadata != null;
+            Uni<Path> pathUni = soundFragmentService.getFile(
+                            brandSoundFragment.getSoundFragment().getId(),
+                            finalMetadata.getSlugName(),
+                            SuperUser.build()
+                    )
+                    .onItem().transform(fetchedMetadata -> {
+                        // Update the original object with the fetched path for consistency.
+                        finalMetadata.setFilePath(fetchedMetadata.getFilePath());
+                        return fetchedMetadata.getFilePath();
+                    });
+
+            return pathUni.onItem().transformToUni(resolvedPath ->
+                    this.addFragmentToSlice(brandSoundFragment, resolvedPath)
+            );
+        }
+    }
+
+    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, Path filePath) {
+        return segmentationService.slice(filePath)
                 .onItem().transformToUni(segments -> {
+                    if (segments.isEmpty()) {
+                        LOGGER.warn("Slicing from path {} resulted in zero segments.", filePath);
+                        return Uni.createFrom().item(false);
+                    }
+
+                    brandSoundFragment.setSegments(segments);
+
                     readyFragmentsLock.writeLock().lock();
                     try {
                         if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
-                            LOGGER.debug("Cannot add fragment - ready queue is full ({} items)",
+                            LOGGER.debug("Cannot add fragment from path - ready queue is full ({} items)",
                                     READY_QUEUE_MAX_SIZE);
                             return Uni.createFrom().item(false);
                         } else {
                             radioStation.setStatus(RadioStationStatus.ON_LINE_WELL);
                         }
 
-                        brandSoundFragment.setSegments(segments);
                         segmentedAndReadyToBeConsumed.add(brandSoundFragment);
 
-                        LOGGER.info("Added and sliced fragment for brand {}: {}",
-                                brand, brandSoundFragment.getSoundFragment().getMetadata());
+                        LOGGER.info("Added and sliced fragment from path for brand {}: {}",
+                                brand, filePath.getFileName().toString());
                         return Uni.createFrom().item(true);
                     } finally {
                         readyFragmentsLock.writeLock().unlock();
                     }
                 })
                 .onFailure().recoverWithItem(throwable -> {
-                    LOGGER.error("Failed to add fragment to slice", throwable);
+                    LOGGER.error("Failed to add fragment to slice from path {}", filePath, throwable);
                     return false;
                 });
     }
@@ -148,7 +195,6 @@ public class PlaylistManager {
 
     private void addFragments(int fragmentsToRequest) {
         if (fragmentsToRequest <= 0) {
-            LOGGER.debug("No fragments needed to be added");
             return;
         }
 
@@ -158,15 +204,9 @@ public class PlaylistManager {
                 .onItem().transformToMulti(fragments -> Multi.createFrom().iterable(fragments))
                 .onItem().call(this::addFragmentToSlice)
                 .collect().asList()
-
                 .subscribe().with(
-                        processedItems -> {
-                            LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand);
-                        },
-                        error -> {
-                            LOGGER.error("Error during the reactive processing of fragments for brand {}: {}",
-                                    brand, error.getMessage(), error);
-                        }
+                        processedItems -> LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand),
+                        error -> LOGGER.error("Error during the reactive processing of fragments for brand {}: {}", brand, error.getMessage(), error)
                 );
     }
 }

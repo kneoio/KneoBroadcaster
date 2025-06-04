@@ -2,7 +2,6 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
-import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -11,7 +10,6 @@ import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.AudioMergerService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -61,17 +59,18 @@ public class QueueService {
     }
 
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, String filePath) {
-        return repository.findById(soundFragmentId, SuperUser.ID, false)
-                .chain(soundFragment -> {
+        SoundFragment soundFragment = new SoundFragment();
+        return repository.getFileById(soundFragmentId)
+                .chain(metadata -> {
                     if (filePath != null && !filePath.isEmpty()) {
                         try {
-                            FileMetadata metadata = soundFragment.getFileMetadataList().get(0);
                             Path mergedPath = audioMergerService.mergeAudioFiles(
                                     Path.of(filePath),
                                     metadata.getFilePath(), 0
                             );
-                            soundFragment.setTitle(String.format(" ## %s", soundFragment.getTitle()));
                             metadata.setFilePath(mergedPath);
+                            soundFragment.setFileMetadataList(List.of(metadata));
+                            soundFragment.setTitle(String.format(" -- %s", soundFragment.getTitle()));
                         } catch (Exception e) {
                             LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
                             return Uni.createFrom().failure(e);
@@ -81,7 +80,7 @@ public class QueueService {
                     return getPlaylist(brandName)
                             .onItem().transformToUni(radioStation -> {
                                 if (radioStation == null) {
-                                    LOGGER.warn("RadioStation or Playlist not found for brand: {}", brandName);
+                                    LOGGER.warn("RadioStation {} not found", brandName);
                                     return Uni.createFrom().item(false);
                                 }
 

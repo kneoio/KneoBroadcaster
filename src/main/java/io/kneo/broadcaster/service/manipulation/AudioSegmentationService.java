@@ -49,6 +49,16 @@ public class AudioSegmentationService {
         segmentDuration = hlsPlaylistConfig.getSegmentDuration();
     }
 
+    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(Path filePath) {
+        return Uni.createFrom().item(() -> {
+                    String fileNameAsMetadata = filePath.getFileName().toString();
+                    UUID generatedFragmentId = UUID.randomUUID();
+                    List<SegmentInfo> segments = segmentAudioFile(filePath, fileNameAsMetadata, generatedFragmentId);
+                    return createHlsQueueFromSegments(segments);
+                })
+                .onFailure().invoke(e -> LOGGER.error("Failed to slice ad-hoc audio file: {}", filePath, e));
+    }
+
     public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment) {
         return soundFragmentService.getFile(
                         soundFragment.getId(),
@@ -56,33 +66,37 @@ public class AudioSegmentationService {
                         SuperUser.build()
                 )
                 .onItem().transformToUni(metadata -> {
-                    ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = new ConcurrentLinkedQueue<>();
                     List<SegmentInfo> segments = segmentAudioFile(metadata.getFilePath(),
                             soundFragment.getMetadata(),
                             soundFragment.getId());
-
-                    for (SegmentInfo segment : segments) {
-                        try {
-                            byte[] data = Files.readAllBytes(Paths.get(segment.path()));
-                            HlsSegment hlsSegment = new HlsSegment(
-                                    0,
-                                    data,
-                                    segment.duration(),
-                                    segment.fragmentId(),
-                                    segment.metadata(),
-                                    System.currentTimeMillis() / 1000 + segment.sequenceIndex()
-                            );
-                            oneFragmentSegments.add(hlsSegment);
-                        } catch (Exception e) {
-                            LOGGER.error("Error adding segment to playlist: {}", segment.path(), e);
-                        }
-                    }
+                    ConcurrentLinkedQueue<HlsSegment> oneFragmentSegments = createHlsQueueFromSegments(segments);
                     return Uni.createFrom().item(oneFragmentSegments);
                 })
                 .onFailure().recoverWithUni(throwable -> {
                     LOGGER.error("Failed to process sound fragment", throwable);
                     return Uni.createFrom().failure(throwable);
                 });
+    }
+
+    private ConcurrentLinkedQueue<HlsSegment> createHlsQueueFromSegments(List<SegmentInfo> segments) {
+        ConcurrentLinkedQueue<HlsSegment> hlsSegments = new ConcurrentLinkedQueue<>();
+        for (SegmentInfo segment : segments) {
+            try {
+                byte[] data = Files.readAllBytes(Paths.get(segment.path()));
+                HlsSegment hlsSegment = new HlsSegment(
+                        0,
+                        data,
+                        segment.duration(),
+                        segment.fragmentId(),
+                        segment.metadata(),
+                        System.currentTimeMillis() / 1000 + segment.sequenceIndex()
+                );
+                hlsSegments.add(hlsSegment);
+            } catch (IOException e) {
+                LOGGER.error("Error reading segment file into byte array: {}", segment.path(), e);
+            }
+        }
+        return hlsSegments;
     }
 
     public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {
@@ -110,7 +124,7 @@ public class AudioSegmentationService {
                     .setInput(audioFilePath.toString())
                     .addOutput(segmentPattern)
                     .setAudioCodec("aac")
-                    .setAudioBitRate(128000) // 128kbps
+                    .setAudioBitRate(128000)
                     .setFormat("segment")
                     .addExtraArgs("-segment_time", String.valueOf(segmentDuration))
                     .addExtraArgs("-segment_format", "mpegts")

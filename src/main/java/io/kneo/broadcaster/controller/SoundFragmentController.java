@@ -220,7 +220,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc)
                 .chain(user -> {
-                    // 1. First try local filesystem
                     Path destinationDir = Paths.get(uploadDir, user.getUserName(), id);
                     File file = destinationDir.resolve(requestedFileName).toFile();
 

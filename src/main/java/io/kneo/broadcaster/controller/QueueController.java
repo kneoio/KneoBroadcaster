@@ -62,16 +62,13 @@ public class QueueController {
         String brand = rc.pathParam("brand");
         String songIdAsString = rc.pathParam("songId");
 
-        // The reactive chain starts here
         determineFilePath(rc, brand)
                 .onItem().transformToUni(filePath ->
-                        // After file is moved, add to queue. Pass filePath to the final step.
                         service.addToQueue(brand, UUID.fromString(songIdAsString), filePath)
                                 .onItem().transform(ignored -> filePath)
                 )
                 .subscribe().with(
                         filePath -> {
-                            // This code executes upon successful completion of the chain
                             rc.response()
                                     .setStatusCode(filePath != null ? 201 : 200)
                                     .putHeader("Content-Type", "application/json")

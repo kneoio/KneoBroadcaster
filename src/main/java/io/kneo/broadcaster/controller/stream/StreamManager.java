@@ -140,10 +140,10 @@ public class StreamManager implements IStreamManager {
                     HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                     liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
                     drippedCountThisCall ++;
-                    System.out.printf("feedSegments Debug: [DRIP] Dripped segment %d to liveSegments for %s. liveSegments now: %d, pendingQueue now: %d%n",
-                            segmentToMakeLive.getSequence(), radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());
+                   /* System.out.printf("feedSegments Debug: [DRIP] Dripped segment %d to liveSegments for %s. liveSegments now: %d, pendingQueue now: %d%n",
+                            segmentToMakeLive.getSequence(), radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
                 } else {
-                    System.out.printf("feedSegments Debug: [DRIP] pendingFragmentSegmentsQueue for %s became empty during drip attempt.%n", radioStation.getSlugName());
+                  //  System.out.printf("feedSegments Debug: [DRIP] pendingFragmentSegmentsQueue for %s became empty during drip attempt.%n", radioStation.getSlugName());
                     break;
                 }
             }

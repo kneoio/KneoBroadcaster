@@ -153,23 +153,25 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    public Uni<FileMetadata> getFileById(UUID id) {
+        String sql = "SELECT f.file_key FROM _files f WHERE f.parent_id = $1";
+        return getFileById(id, sql, Tuple.of(id));
+    }
 
     public Uni<FileMetadata> getFileById(UUID id, String slugName, IUser user, boolean includeArchived) {
-        LOGGER.debug("Entering getFileById - ID: {}, slugName: {}, user: {}, includeArchived: {}",
-                id, slugName, user != null ? user.getId() : "null", includeArchived);
-
         String sql = "SELECT f.file_key FROM _files f WHERE f.parent_id = $1 AND f.slug_name = $2";
-        LOGGER.debug("Prepared SQL query: {} with params: id={}, slugName={}", sql, id, slugName);
+        return getFileById(id, sql, Tuple.of(id, slugName));
+    }
 
+    private Uni<FileMetadata> getFileById(UUID id, String sql, Tuple parameters) {
         return client.preparedQuery(sql)
-                .execute(Tuple.of(id, slugName))
+                .execute(parameters)
                 .onItem().invoke(rows ->
                         LOGGER.debug("Query returned {} rows", rows.rowCount()))
                 .onFailure().invoke(failure ->
                         LOGGER.error("Database query failed for ID: {} - Error", id, failure)) // Fixed
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
-                        LOGGER.warn("No file found matching criteria - ID: {}, slugName: {}", id, slugName);
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(
                                 "File not found (ID: " + id + ") or access denied"));
                     }

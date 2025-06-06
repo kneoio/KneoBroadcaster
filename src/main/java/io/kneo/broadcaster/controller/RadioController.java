@@ -18,6 +18,8 @@ import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+
 @ApplicationScoped
 public class RadioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
@@ -112,7 +114,10 @@ public class RadioController {
                     if (station.getManagedBy() == ManagedBy.ITSELF) {
                         return String.format("Brand: %s, Managed by: %s", brand, station.getManagedBy());
                     } else {
-                        return String.format("Brand: %s, Managed by: %s, DJ: %s", brand, station.getManagedBy(), station.getAiAgent().getName());
+                      return Optional.ofNullable(station)
+                                .map(s -> s.getAiAgent())
+                                .map(agent -> agent.getName())
+                                .orElse("N/A");
                     }
                 })
                 .subscribe().with(

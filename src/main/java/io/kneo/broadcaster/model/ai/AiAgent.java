@@ -13,20 +13,11 @@ public class AiAgent {
     private String name;
     private LanguageCode preferredLang;
     private String mainPrompt;
-    private List<String> preferredVoice;
+    private List<Voice> preferredVoice;
     private List<Tool> enabledTools;
-    private Voice voice;
 
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();
     }
 
-
-    public void addPreferredVoiceName(String voiceName) {
-        this.preferredVoice.add(voiceName);
-    }
-
-    public void removePreferredVoiceName(String voiceName) {
-        this.preferredVoice.remove(voiceName);
-    }
 }

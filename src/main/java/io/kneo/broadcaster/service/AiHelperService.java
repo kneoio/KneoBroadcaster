@@ -21,7 +21,7 @@ public class AiHelperService {
     @Inject
     RadioStationPool radioStationPool;
 
-    public Uni<List<BrandInfo>> getByStatus(List<RadioStationStatus> statuses) {
+    public Uni<List<BrandInfo>> XgetByStatus(List<RadioStationStatus> statuses) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)

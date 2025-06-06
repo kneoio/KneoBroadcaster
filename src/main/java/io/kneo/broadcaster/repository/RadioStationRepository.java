@@ -2,6 +2,7 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -20,6 +21,8 @@ import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
@@ -31,6 +34,7 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.R
 
 @ApplicationScoped
 public class RadioStationRepository extends AsyncRepository {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
     private static final EntityData brandStats = KneoBroadcasterNameResolver.create().getEntityNames(BRAND_STATS);
 
@@ -39,8 +43,16 @@ public class RadioStationRepository extends AsyncRepository {
         super(client, mapper, null);
     }
 
+    private String getSelectAllQuery() {
+        return "SELECT b.*, a.id as agent_id, a.name as agent_name, a.preferred_lang as agent_preferred_lang, " +
+                "a.main_prompt as agent_main_prompt, a.preferred_voice as agent_preferred_voice, " +
+                "a.enabled_tools as agent_enabled_tools, a.voice as agent_voice " +
+                "FROM " + entityData.getTableName() + " b " +
+                "LEFT JOIN kneobroadcaster__ai_agents a ON b.ai_agent_id = a.id";
+    }
+
     public Uni<List<RadioStation>> getAll(int limit, int offset, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
+        String sql = getSelectAllQuery() + (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -62,7 +74,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<RadioStation> findById(UUID id) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
+        String sql = getSelectAllQuery() + " WHERE b.id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
                 .onItem().transform(RowSet::iterator)
@@ -73,7 +85,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<RadioStation> findByBrandName(String name) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
+        String sql = getSelectAllQuery() + " WHERE b.slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))
                 .onItem().transform(RowSet::iterator)
@@ -135,8 +147,34 @@ public class RadioStationRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
         doc.setManagedBy(ManagedBy.valueOf(row.getString("managing_mode")));
-        //JsonObject aiAgentObject = row.getJsonObject("ai_agent");
-        //doc.setAiAgent(aiAgentObject.mapTo(AiAgent.class));
+
+        if (row.getUUID("ai_agent_id") != null) {
+            AiAgent aiAgent = new AiAgent();
+            aiAgent.setName(row.getString("agent_name"));
+            aiAgent.setPreferredLang(LanguageCode.valueOf(row.getString("agent_preferred_lang")));
+            aiAgent.setMainPrompt(row.getString("agent_main_prompt"));
+
+          /*  try {
+                JsonObject preferredVoiceJson = row.getJsonObject("agent_preferred_voice");
+                if (preferredVoiceJson != null) {
+                    aiAgent.setPreferredVoice(mapper.readValue(preferredVoiceJson.encode(), new TypeReference<>() {
+                    }));
+                }
+
+                JsonObject enabledToolsJson = row.getJsonObject("agent_enabled_tools");
+                if (enabledToolsJson != null) {
+                    aiAgent.setEnabledTools(mapper.readValue(enabledToolsJson.encode(), new TypeReference<List<Tool>>() {
+                    }));
+                }
+
+            } catch (JsonProcessingException e) {
+                LOGGER.error("Failed to deserialize AI Agent JSONB fields", e);
+            }*/
+            doc.setAiAgent(aiAgent);
+        } else {
+            doc.setAiAgent(null);
+        }
+
 
         UUID profileId = row.getUUID("profile_id");
         if (profileId != null) {

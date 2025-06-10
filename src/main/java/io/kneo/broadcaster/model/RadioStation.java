@@ -13,9 +13,11 @@ import lombok.Setter;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,15 +29,18 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private IStreamManager playlist;
     private int listenersCount;
     private String slugName;
-    private String primaryLang;
+    private ZoneId timeZone;
     private Integer archived;
     private CountryCode country;
-    private RadioStationStatus status;
     private ManagedBy managedBy = ManagedBy.ITSELF;
+    private String color;
+    private Map<String, Object> schedule;
     private AiAgent aiAgent;
     private UUID profileId;
-
+    //Transient
+    private RadioStationStatus status;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
+
 
     public void setWarmedUp(boolean b) {
         setStatus(RadioStationStatus.ON_LINE);
@@ -61,7 +66,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
         Optional<StatusChangeRecord> lastOnlineTransition = statusHistory.stream()
                 .filter(record -> isAliveStatus(record.getNewStatus()) &&
                         !isAliveStatus(record.getOldStatus()))
-                .reduce((first, second) -> second); // get last element
+                .reduce((first, second) -> second);
 
         if (lastOnlineTransition.isEmpty()) {
             return 0;
@@ -100,4 +105,5 @@ public class RadioStation extends SecureDataEntity<UUID> {
             this.newStatus = newStatus;
         }
     }
+
 }

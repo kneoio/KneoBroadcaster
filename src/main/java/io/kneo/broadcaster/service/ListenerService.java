@@ -98,7 +98,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         }
         // Fetch all radio stations by their IDs
         List<Uni<RadioStationDTO>> radioStationUnis = radioStationIds.stream()
-                .map(id -> radioStationService.getDTO(id, SuperUser.build(), LanguageCode.ENG))
+                .map(id -> radioStationService.getDTO(id, SuperUser.build(), LanguageCode.en))
                 .collect(Collectors.toList());
         return Uni.join().all(radioStationUnis).andFailFast();
     }

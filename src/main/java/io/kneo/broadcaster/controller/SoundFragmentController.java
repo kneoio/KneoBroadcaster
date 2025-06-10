@@ -111,7 +111,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void getById(RoutingContext rc) {
         String id = rc.pathParam("id");
-        LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.ENG.name()));
+        LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
         getContextUser(rc)
                 .chain(user -> {
@@ -182,7 +182,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             getContextUser(rc)
                     .chain(user -> {
-                        return service.upsert(id, dto, user, LanguageCode.ENG);
+                        return service.upsert(id, dto, user, LanguageCode.en);
                     })
                     .subscribe().with(
                             doc -> rc.response()

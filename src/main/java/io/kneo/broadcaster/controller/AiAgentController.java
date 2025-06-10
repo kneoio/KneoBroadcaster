@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.RadioStationDTO;
-import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
-import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.dto.ai.AiAgentDTO;
+import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
+import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -25,23 +25,23 @@ import jakarta.inject.Inject;
 import java.util.UUID;
 
 @ApplicationScoped
-public class RadioStationController extends AbstractSecuredController<RadioStation, RadioStationDTO> {
+public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgentDTO> {
 
     @Inject
-    RadioStationService service;
+    AiAgentService service;
 
-    public RadioStationController() {
+    public AiAgentController() {
         super(null);
     }
 
     @Inject
-    public RadioStationController(UserService userService, RadioStationService service) {
+    public AiAgentController(UserService userService, AiAgentService service) {
         super(userService);
         this.service = service;
     }
 
     public void setupRoutes(Router router) {
-        String basePath = "/api/radiostations";
+        String basePath = "/api/aiagents";
         router.route(basePath + "*").handler(BodyHandler.create());
         router.get(basePath).handler(this::getAll);
         router.get(basePath + "/:id").handler(this::getById);
@@ -59,12 +59,12 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                         service.getAll(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<RadioStationDTO> dtoEntries = new View<>(tuple.getItem2(),
+                    View<AiAgentDTO> dtoEntries = new View<>(tuple.getItem2(),
                             tuple.getItem1(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                             size);
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                    ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
+                    ActionBox actions = AiAgentActionsFactory.getViewActions(user.getActivatedRoles());
                     viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
                     return viewPage;
                 }))
@@ -94,7 +94,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
         JsonObject jsonObject = rc.body().asJsonObject();
-        RadioStationDTO dto = jsonObject.mapTo(RadioStationDTO.class);
+        AiAgentDTO dto = jsonObject.mapTo(AiAgentDTO.class);
 
         getContextUser(rc)
                 .chain(user -> service.upsert(id, dto, user, LanguageCode.en))

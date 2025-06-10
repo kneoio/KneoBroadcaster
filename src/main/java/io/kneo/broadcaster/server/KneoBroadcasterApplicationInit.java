@@ -41,6 +41,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     ListenerController listenerController;
 
     @Inject
+    AiAgentController aiAgentController;
+
+    @Inject
     GenreController genreController;
 
     @Inject
@@ -71,6 +74,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         radioStationController.setupRoutes(router);
         listenerController.setupRoutes(router);
         genreController.setupRoutes(router);
+        aiAgentController.setupRoutes(router);
         logRegisteredRoutes(router);
 
         if (EnvConst.DEV_MODE) {

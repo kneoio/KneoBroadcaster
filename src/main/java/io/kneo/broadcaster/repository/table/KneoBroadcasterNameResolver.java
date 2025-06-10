@@ -11,6 +11,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     public static final String MEMORY = "memory";
     public static final String BRAND_STATS = "brand agent statistics";
     public static final String GENRE = "genre";
+    public static final String AI_AGENT = "ai agent"; // Add this line
 
     private static final String SOUND_FRAGMENT_TABLE_NAME = "kneobroadcaster__sound_fragments";
     private static final String SOUND_FRAGMENT_ACCESS_TABLE_NAME = "kneobroadcaster__sound_fragment_readers";
@@ -21,10 +22,13 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     private static final String RADIO_STATION_ACCESS_TABLE_NAME = "kneobroadcaster__brand_readers";
     private static final String PROFILE_TABLE_NAME = "kneobroadcaster__profiles";
     private static final String PROFILE_ACCESS_TABLE_NAME = "kneobroadcaster__profile_readers";
-    private static final String MEMORY_TABLE_NAME = "kneobroadcaster__memory";
+    private static final String MEMORY_TABLE_NAME = "kneobroadcaster__memories";
     private static final String BRAND_STATS_TABLE_NAME = "kneobroadcaster__brand_agent_stats";
     private static final String GENRE_TABLE_NAME = "kneobroadcaster__genres";
+    private static final String AI_AGENT_TABLE_NAME = "kneobroadcaster__ai_agents"; // Add this line
+    private static final String AI_AGENT_ACCESS_TABLE_NAME = "kneobroadcaster__ai_agent_readers"; // Add this line if you have RLS
 
+    @Override
     public EntityData getEntityNames(String type) {
         return switch (type) {
             case SOUND_FRAGMENT -> new EntityData(
@@ -53,6 +57,10 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
             );
             case GENRE -> new EntityData(
                     GENRE_TABLE_NAME
+            );
+            case AI_AGENT -> new EntityData( // Add this case
+                    AI_AGENT_TABLE_NAME,
+                    AI_AGENT_ACCESS_TABLE_NAME // Include this if you have RLS table, otherwise use the single-parameter constructor
             );
             default -> super.getEntityNames(type);
         };

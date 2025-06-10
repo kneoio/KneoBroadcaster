@@ -2,7 +2,6 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.ai.AiAgent;
@@ -27,7 +26,6 @@ import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.json.JsonException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -206,7 +204,6 @@ public class RadioStationRepository extends AsyncRepository {
                     aiAgent.setPreferredVoice(voices);
                 }
 
-                // Deserialize enabled_tools JSON array
                 JsonArray enabledToolsJson = row.getJsonArray("agent_enabled_tools");
                 if (enabledToolsJson != null) {
                     List<Tool> tools = mapper.readValue(enabledToolsJson.encode(), new TypeReference<List<Tool>>() {});

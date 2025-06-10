@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.ConversationMemoryDTO;
-import io.kneo.broadcaster.model.ConversationMemory;
+import io.kneo.broadcaster.dto.MemoryDTO;
+import io.kneo.broadcaster.model.Memory;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-import io.kneo.broadcaster.repository.ConversationMemoryRepository;
+import io.kneo.broadcaster.repository.MemoryRepository;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -17,31 +17,51 @@ import java.util.stream.Collectors;
 public class MemoryService {
 
     @Inject
-    ConversationMemoryRepository repository;
+    MemoryRepository repository;
 
-    public Uni<List<ConversationMemoryDTO>> getAll(int limit, int offset) {
+    public Uni<List<MemoryDTO>> getAll(final int limit, final int offset, final IUser user) {
+        assert repository != null;
+        return repository.getAll(limit, offset, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<MemoryDTO>> unis = list.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                        return Uni.join().all(unis).andFailFast();
+                    }
+                });
+    }
+
+    public Uni<Integer> getAllCount(final IUser user) {
+        assert repository != null;
+        return repository.getAllCount(user, false);
+    }
+
+    public Uni<List<MemoryDTO>> getAll(int limit, int offset) {
         return repository.getAll(limit, offset, null)
                 .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<List<ConversationMemoryDTO>> getByBrandId(String brand, int limit, int offset) {
+    public Uni<List<MemoryDTO>> getByBrandId(String brand, int limit, int offset) {
         return repository.getByBrandId(brand, limit, offset)
                 .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<ConversationMemoryDTO> getById(UUID id) {
+    public Uni<MemoryDTO> getById(UUID id) {
         return repository.findById(id)
                 .onItem().ifNotNull().transform(this::mapEntityToDto);
     }
 
-    public Uni<List<ConversationMemoryDTO>> getByType(String brand, String type) {
+    public Uni<List<MemoryDTO>> getByType(String brand, String type) {
         return repository.findByType(brand, MemoryType.valueOf(type))
                 .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<ConversationMemoryDTO> upsert(UUID id, ConversationMemoryDTO dto, IUser user) {
-        ConversationMemory entity = mapDtoToEntity(dto);
-        Uni<ConversationMemory> operation;
+    public Uni<MemoryDTO> upsert(UUID id, MemoryDTO dto, IUser user) {
+        Memory entity = mapDtoToEntity(dto);
+        Uni<Memory> operation;
         if (id == null) {
             operation = repository.insert(entity, user);
         } else {
@@ -61,14 +81,14 @@ public class MemoryService {
                 .onItem().transformToUni(count -> Uni.createFrom().voidItem());
     }
 
-    private List<ConversationMemoryDTO> mapEntityListToDtoList(List<ConversationMemory> entities) {
+    private List<MemoryDTO> mapEntityListToDtoList(List<Memory> entities) {
         return entities.stream()
                 .map(this::mapEntityToDto)
                 .collect(Collectors.toList());
     }
 
-    private ConversationMemoryDTO mapEntityToDto(ConversationMemory entity) {
-        ConversationMemoryDTO dto = new ConversationMemoryDTO();
+    private MemoryDTO mapEntityToDto(Memory entity) {
+        MemoryDTO dto = new MemoryDTO();
         dto.setId(entity.getId());
         dto.setBrand(entity.getBrand());
         dto.setMemoryType(entity.getMemoryType());
@@ -76,12 +96,16 @@ public class MemoryService {
         return dto;
     }
 
-    private ConversationMemory mapDtoToEntity(ConversationMemoryDTO dto) {
-        ConversationMemory entity = new ConversationMemory();
+    private Memory mapDtoToEntity(MemoryDTO dto) {
+        Memory entity = new Memory();
         entity.setBrand(dto.getBrand());
         entity.setMemoryType(dto.getMemoryType());
         entity.setContent(dto.getContent());
         return entity;
+    }
+
+    private Uni<MemoryDTO> mapToDTO(Memory doc) {
+        return Uni.createFrom().item (new MemoryDTO());
     }
 
 

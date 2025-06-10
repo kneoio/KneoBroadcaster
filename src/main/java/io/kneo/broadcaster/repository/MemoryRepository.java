@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.broadcaster.model.ConversationMemory;
+import io.kneo.broadcaster.model.Memory;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.user.IUser;
@@ -24,15 +24,15 @@ import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
-public class ConversationMemoryRepository extends AsyncRepository {
+public class MemoryRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(KneoBroadcasterNameResolver.MEMORY);
 
     @Inject
-    public ConversationMemoryRepository(PgPool client, ObjectMapper mapper) {
+    public MemoryRepository(PgPool client, ObjectMapper mapper) {
         super(client, mapper, null);
     }
 
-    public Uni<List<ConversationMemory>> getAll(int limit, int offset, final IUser user) {
+    public Uni<List<Memory>> getAll(int limit, int offset, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
                 (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
         return client.query(sql)
@@ -42,7 +42,20 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<List<ConversationMemory>> getByBrandId(String brand, int limit, int offset) {
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        return client.query(sql)
+                .execute()
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    public Uni<List<Memory>> getByBrandId(String brand, int limit, int offset) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1" +
                 (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
         return client.preparedQuery(sql)
@@ -52,7 +65,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<ConversationMemory> findById(UUID id) {
+    public Uni<Memory> findById(UUID id) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
@@ -63,7 +76,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<ConversationMemory>> findByType(String brand, MemoryType type) {
+    public Uni<List<Memory>> findByType(String brand, MemoryType type) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND memory_type = $2";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brand, type))
@@ -72,7 +85,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<ConversationMemory> insert(ConversationMemory memory, IUser user) {
+    public Uni<Memory> insert(Memory memory, IUser user) {
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (reg_date, author, last_mod_date, last_mod_user,brand, memory_type, content, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id";
@@ -90,7 +103,7 @@ public class ConversationMemoryRepository extends AsyncRepository {
                 .onItem().transformToUni(this::findById);
     }
 
-    public Uni<ConversationMemory> update(UUID id, ConversationMemory memory, IUser user) {
+    public Uni<Memory> update(UUID id, Memory memory, IUser user) {
         String sql = "UPDATE " + entityData.getTableName() +
                 " SET last_mod_date=$1, last_mod_user=$2, memory_type=$3, content=$4, archived=$5 " +
                 "WHERE id=$6";
@@ -129,8 +142,8 @@ public class ConversationMemoryRepository extends AsyncRepository {
         return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
     }
 
-    private ConversationMemory from(Row row) {
-        ConversationMemory memory = new ConversationMemory();
+    private Memory from(Row row) {
+        Memory memory = new Memory();
         setDefaultFields(memory, row);
         memory.setBrand(row.getString("brand"));
         memory.setMemoryType(MemoryType.valueOf(row.getString("memory_type")));

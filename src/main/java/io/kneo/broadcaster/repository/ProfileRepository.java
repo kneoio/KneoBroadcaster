@@ -145,7 +145,7 @@ public class ProfileRepository extends AsyncRepository {
 
         String lang = row.getString("language");
         if (lang != null) {
-            profile.setLanguage(LanguageCode.valueOf(lang.toUpperCase()));
+            profile.setLanguage(LanguageCode.valueOf(lang));
         }
 
         profile.setArchived(row.getInteger("archived"));

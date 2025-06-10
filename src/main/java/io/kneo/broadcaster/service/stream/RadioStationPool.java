@@ -89,9 +89,8 @@ public class RadioStationPool {
                                             config,
                                             soundFragmentService,
                                             segmentationService,
-                                            10 // maxVisibleSegments in StreamManager
+                                            10
                                     );
-                                    // Associate the new playlist with the station object fetched from DB
                                     stationFromDb.setPlaylist(newPlaylist);
 
                                     // Set the station reference on the StreamManager *before* calling initialize

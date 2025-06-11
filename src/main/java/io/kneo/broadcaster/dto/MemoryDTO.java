@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.MemoryType;
+import io.kneo.core.dto.AbstractReferenceDTO;
 import io.vertx.core.json.JsonObject;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class MemoryDTO {
+public class MemoryDTO  extends AbstractReferenceDTO {
     private UUID id;
     @NotNull
     private String brand;

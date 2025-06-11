@@ -107,6 +107,8 @@ public class MemoryService {
     private Uni<MemoryDTO> mapToDTO(Memory doc) {
         return Uni.createFrom().item(() -> {
             MemoryDTO dto = new MemoryDTO();
+            dto.setRegDate(doc.getRegDate());
+            dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setId(doc.getId());
             dto.setBrand(doc.getBrand());
             dto.setMemoryType(doc.getMemoryType());

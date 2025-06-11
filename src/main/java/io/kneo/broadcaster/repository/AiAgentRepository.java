@@ -55,11 +55,9 @@ public class AiAgentRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
-
+        String sql = String.format("SELECT COUNT(*) FROM %s t", entityData.getTableName());
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " WHERE (t.archived IS NULL OR t.archived = 0)";
         }
 
         return client.query(sql)

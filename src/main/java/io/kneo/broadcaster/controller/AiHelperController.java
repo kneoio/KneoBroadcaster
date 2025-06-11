@@ -1,9 +1,12 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.service.AiHelperService;
 import io.kneo.broadcaster.service.MemoryService;
+import io.kneo.core.model.user.SuperUser;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -30,6 +33,7 @@ public class AiHelperController {
         router.route("/api/ai/*").handler(BodyHandler.create());
         router.get("/api/ai/brands/status").handler(this::handleGetBrandsByStatus);
         router.get("/api/ai/memory/:brand/:type").handler(this::handleGetMemoriesByType);
+        router.patch("/api/ai/memory/history/brand/:brand").handler(this::patch);
     }
 
     private void handleGetBrandsByStatus(RoutingContext rc) {
@@ -89,12 +93,24 @@ public class AiHelperController {
                     .setStatusCode(400)
                     .putHeader("Content-Type", "text/plain")
                     .end("Invalid format for 'limit' or 'offset' query parameters.");
-        } catch (Exception e) { // Catching potential NPE or other issues
+        } catch (Exception e) {
             rc.response()
                     .setStatusCode(500)
                     .putHeader("Content-Type", "text/plain")
                     .end("An unexpected error occurred retrieving memories.");
         }
+    }
+
+    private void patch(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        JsonObject jsonObject = rc.body().asJsonObject();
+        SongIntroductionDTO dto = jsonObject.mapTo(SongIntroductionDTO.class);
+
+        memoryService.patch(brand, dto, SuperUser.build())
+                .subscribe().with(
+                        doc -> rc.response().setStatusCode(200).end(),
+                        rc::fail
+                );
     }
 
 }

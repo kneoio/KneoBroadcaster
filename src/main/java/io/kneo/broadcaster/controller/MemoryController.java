@@ -7,19 +7,15 @@ import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.cnst.PayloadType;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
-import java.util.UUID;
 
 @ApplicationScoped
 public class MemoryController  extends AbstractSecuredController<Memory, MemoryDTO> {
@@ -41,7 +37,7 @@ public class MemoryController  extends AbstractSecuredController<Memory, MemoryD
         router.get("/api/memories").handler(this::getAll);
         router.post("/api/memories/:id?").handler(this::upsert);
         router.delete("/api/memories/:id").handler(this::delete);
-        router.delete("/api/memories/brand/:brand").handler(this::deleteMemoriesByBrand);
+        router.delete("/api/memories/brand/:brand").handler(this::deleteByBrand);
     }
 
 
@@ -68,97 +64,36 @@ public class MemoryController  extends AbstractSecuredController<Memory, MemoryD
                 );
     }
 
-
     private void upsert(RoutingContext rc) {
-        String idParam = rc.pathParam("id");
-        UUID id = null;
-        boolean isUpdate = idParam != null;
+        String id = rc.pathParam("id");
+        JsonObject jsonObject = rc.body().asJsonObject();
+        MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
 
-        try {
-            if (isUpdate) {
-                id = UUID.fromString(idParam);
-            }
-
-            JsonObject jsonObject = rc.body().asJsonObject();
-            if (jsonObject == null) {
-                rc.response().setStatusCode(400).putHeader("Content-Type", "text/plain").end("Request body cannot be empty.");
-                return;
-            }
-            MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
-
-            Uni<MemoryDTO> upsertOperation = service.upsert(id, dto, SuperUser.build());
-
-            upsertOperation.subscribe().with(
-                    savedMemory -> rc.response()
-                            .setStatusCode(isUpdate ? 200 : 201)
-                            .putHeader("Content-Type", "application/json")
-                            .end(Json.encode(savedMemory)),
-                    failure -> rc.response()
-                            .setStatusCode(400)
-                            .putHeader("Content-Type", "text/plain")
-                            .end(failure.getMessage())
-            );
-
-        } catch (IllegalArgumentException e) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Invalid ID format. Must be a valid UUID.");
-        } catch (Exception e) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Invalid request data: " + e.getMessage());
-        }
+        getContextUser(rc)
+                .chain(user -> service.upsert(id, dto, user))
+                .subscribe().with(
+                        doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
+                        rc::fail
+                );
     }
 
-    private void deleteMemoriesByBrand(RoutingContext rc) {
-        try {
-            String brand = rc.pathParam("brand");
-
-            service.deleteByBrand(brand)
-                    .subscribe().with(
-                            deletedCount -> {
-                                JsonObject response = new JsonObject()
-                                        .put("deletedCount", deletedCount)
-                                        .put("brand", brand);
-                                rc.response()
-                                        .setStatusCode(200)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(response.encode());
-                            },
-                            failure -> rc.response()
-                                    .setStatusCode(400)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end(failure.getMessage())
-                    );
-        } catch (Exception e) {
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("An unexpected error occurred while deleting memories by brand: " + e.getMessage());
-        }
+    private void deleteByBrand(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        getContextUser(rc)
+                .chain(user -> service.deleteByBrand(brand))
+                .subscribe().with(
+                        count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
+                        rc::fail
+                );
     }
 
     private void delete(RoutingContext rc) {
-        String idParam = rc.pathParam("id");
-        try {
-            UUID id = UUID.fromString(idParam);
-            service.delete(id)
-                    .subscribe().with(
-                            deleted -> rc.response()
-                                    .setStatusCode(204)
-                                    .end(),
-                            failure -> rc.response()
-                                    .setStatusCode(400)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end(failure.getMessage())
-                    );
-        } catch (IllegalArgumentException e) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Invalid UUID format");
-        }
+        String id = rc.pathParam("id");
+        getContextUser(rc)
+                .chain(user -> service.delete(id))
+                .subscribe().with(
+                        count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
+                        rc::fail
+                );
     }
 }

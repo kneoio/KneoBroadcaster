@@ -10,6 +10,7 @@ import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
@@ -20,12 +21,15 @@ import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
 public class MemoryRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(KneoBroadcasterNameResolver.MEMORY);
+
+    private static final int ARCHIVE_THRESHOLD_HOURS = 2;
 
     @Inject
     public MemoryRepository(PgPool client, ObjectMapper mapper) {
@@ -76,7 +80,7 @@ public class MemoryRepository extends AsyncRepository {
     }
 
     public Uni<List<Memory>> findByType(String brand, MemoryType type) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND memory_type = $2";
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND memory_type = $2 AND archived = 0";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brand, type))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -123,6 +127,87 @@ public class MemoryRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<Integer> patch(String brand, String fragmentTitle, String performer, String content, IUser user) {
+        JsonObject newIntroductionItem = new JsonObject()
+                .put("fragmentTitle", fragmentTitle)
+                .put("performer", performer)
+                .put("content", content);
+
+        String selectActiveSql = "SELECT * FROM " + entityData.getTableName() + " WHERE brand = $1 AND archived = 0";
+
+        return client.preparedQuery(selectActiveSql)
+                .execute(Tuple.of(brand))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    Memory existingMemory;
+                    if (iterator.hasNext()) {
+                        existingMemory = from(iterator.next());
+                    } else {
+                        existingMemory = null;
+                    }
+
+                    LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+
+                    if (existingMemory != null) {
+                        long hoursSinceRegistration = ChronoUnit.HOURS.between(existingMemory.getRegDate(), nowTime);
+
+                        if (hoursSinceRegistration < ARCHIVE_THRESHOLD_HOURS) {
+                            JsonObject memoryContent = existingMemory.getContent();
+                            if (memoryContent == null) {
+                                memoryContent = new JsonObject();
+                            }
+                            JsonArray introductions = memoryContent.getJsonArray("introductions");
+                            if (introductions == null) {
+                                introductions = new JsonArray();
+                            }
+                            introductions.add(newIntroductionItem);
+                            memoryContent.put("introductions", introductions);
+                            existingMemory.setContent(memoryContent);
+
+                            String updateSql = "UPDATE " + entityData.getTableName() +
+                                    " SET last_mod_date=$1, last_mod_user=$2, content=$3 " +
+                                    "WHERE id=$4";
+
+                            Tuple params = Tuple.tuple()
+                                    .addLocalDateTime(nowTime)
+                                    .addLong(user.getId())
+                                    .addJsonObject(existingMemory.getContent())
+                                    .addUUID(existingMemory.getId());
+
+                            return client.preparedQuery(updateSql)
+                                    .execute(params)
+                                    .onItem().transform(RowSet::rowCount);
+
+                        } else {
+                            return Uni.createFrom().completionStage(
+                                    client.preparedQuery("UPDATE " + entityData.getTableName() + " SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3")
+                                            .execute(Tuple.of(nowTime, user.getId(), existingMemory.getId()))
+                                            .onItem().ignore().andContinueWithNull()
+                                            .subscribeAsCompletionStage()
+                            ).onItem().transformToUni(v -> {
+                                Memory newMemory = new Memory();
+                                newMemory.setBrand(brand);
+                                newMemory.setMemoryType(MemoryType.CONVERSATION_HISTORY);
+                                newMemory.setContent(new JsonObject().put("introductions", new JsonArray().add(newIntroductionItem)));
+                                newMemory.setArchived(0);
+
+                                return insert(newMemory, user)
+                                        .onItem().transform(insertedMemory -> 1);
+                            });
+                        }
+                    } else {
+                        Memory newMemory = new Memory();
+                        newMemory.setBrand(brand);
+                        newMemory.setMemoryType(MemoryType.CONVERSATION_HISTORY);
+                        newMemory.setContent(new JsonObject().put("introductions", new JsonArray().add(newIntroductionItem)));
+                        newMemory.setArchived(0);
+
+                        return insert(newMemory, user)
+                                .onItem().transform(insertedMemory -> 1);
+                    }
+                });
+    }
+
     public Uni<Integer> delete(UUID id) {
         String sql = "DELETE FROM " + entityData.getTableName() + " WHERE id=$1";
         return client.preparedQuery(sql)
@@ -130,7 +215,7 @@ public class MemoryRepository extends AsyncRepository {
                 .onItem().transform(RowSet::rowCount);
     }
 
-    public Uni<Object> deleteByBrand(String brand) {
+    public Uni<Integer> deleteByBrand(String brand) {
         String sql = "DELETE FROM " + entityData.getTableName() + " WHERE brand=$1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brand))
@@ -151,6 +236,4 @@ public class MemoryRepository extends AsyncRepository {
 
         return memory;
     }
-
-
 }

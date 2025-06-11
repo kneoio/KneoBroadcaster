@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.MemoryDTO;
+import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.model.Memory;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.MemoryRepository;
@@ -51,7 +52,7 @@ public class MemoryService {
 
     public Uni<MemoryDTO> getById(UUID id) {
         return repository.findById(id)
-                .onItem().ifNotNull().transform(this::mapEntityToDto);
+                .onItem().ifNotNull().transform(this::mapToDto);
     }
 
     public Uni<List<MemoryDTO>> getByType(String brand, String type) {
@@ -59,35 +60,36 @@ public class MemoryService {
                 .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<MemoryDTO> upsert(UUID id, MemoryDTO dto, IUser user) {
+    public Uni<MemoryDTO> upsert(String id, MemoryDTO dto, IUser user) {
         Memory entity = mapDtoToEntity(dto);
         Uni<Memory> operation;
         if (id == null) {
             operation = repository.insert(entity, user);
         } else {
-            operation = repository.update(id, entity, user);
+            operation = repository.update(UUID.fromString(id), entity, user);
         }
-        return operation.map(this::mapEntityToDto);
+        return operation.map(this::mapToDto);
     }
 
-
-    public Uni<Void> delete(UUID id) {
-        return repository.delete(id)
-                .onItem().transformToUni(count -> Uni.createFrom().voidItem());
+    public Uni<Integer> patch(String brand, SongIntroductionDTO dto, IUser user) {
+         return repository.patch(brand, dto.getTitle(), dto.getArtist(), dto.getContent(), user);
     }
 
-    public Uni<Object> deleteByBrand(String brand) {
-        return repository.deleteByBrand(brand)
-                .onItem().transformToUni(count -> Uni.createFrom().voidItem());
+    public Uni<Integer> delete(String id) {
+        return repository.delete(UUID.fromString(id));
+    }
+
+    public Uni<Integer> deleteByBrand(String brand) {
+        return repository.deleteByBrand(brand);
     }
 
     private List<MemoryDTO> mapEntityListToDtoList(List<Memory> entities) {
         return entities.stream()
-                .map(this::mapEntityToDto)
+                .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
-    private MemoryDTO mapEntityToDto(Memory entity) {
+    private MemoryDTO mapToDto(Memory entity) {
         MemoryDTO dto = new MemoryDTO();
         dto.setId(entity.getId());
         dto.setBrand(entity.getBrand());
@@ -116,6 +118,4 @@ public class MemoryService {
             return dto;
         });
     }
-
-
 }

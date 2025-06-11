@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.ai.LiveAgentDTO;
-import io.kneo.broadcaster.dto.aihelper.BrandInfo;
+import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -23,13 +23,13 @@ public class AiHelperService {
     @Inject
     RadioStationPool radioStationPool;
 
-    public Uni<List<BrandInfo>> getByStatus(List<RadioStationStatus> statuses) {
+    public Uni<List<BrandInfoDTO>> getByStatus(List<RadioStationStatus> statuses) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
                         .filter(station -> statuses.contains(station.getStatus()))
                         .map(station -> {
-                            BrandInfo brand = new BrandInfo();
+                            BrandInfoDTO brand = new BrandInfoDTO();
                             brand.setRadioStationName(station.getSlugName());
                             brand.setRadioStationStatus(station.getStatus());
                             if (station.getAiAgent() != null) {

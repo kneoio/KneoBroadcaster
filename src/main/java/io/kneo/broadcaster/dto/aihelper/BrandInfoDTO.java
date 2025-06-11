@@ -7,7 +7,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class BrandInfo {
+public class BrandInfoDTO {
     private String radioStationName;
     private RadioStationStatus radioStationStatus;
     private LiveAgentDTO agent;

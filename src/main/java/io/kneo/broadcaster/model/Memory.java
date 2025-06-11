@@ -16,6 +16,6 @@ public class Memory extends DataEntity<UUID> {
     private String brand;
     private MemoryType memoryType;
     private JsonObject content;
-    private boolean archived;
+    private int archived;
 
 }

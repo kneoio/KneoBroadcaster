@@ -43,11 +43,10 @@ public class MemoryRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t ";
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += "WHERE (t.archived IS NULL OR t.archived = 0)";
         }
 
         return client.query(sql)
@@ -95,7 +94,7 @@ public class MemoryRepository extends AsyncRepository {
                 .addString(memory.getBrand())
                 .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
-                .addBoolean(memory.isArchived());
+                .addInteger(memory.getArchived());
 
         return client.preparedQuery(sql)
                 .execute(params)
@@ -113,7 +112,7 @@ public class MemoryRepository extends AsyncRepository {
                 .addLong(user.getId())
                 .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
-                .addBoolean(memory.isArchived())
+                .addInteger(memory.getArchived())
                 .addUUID(id);
 
         return client.preparedQuery(sql)
@@ -148,7 +147,7 @@ public class MemoryRepository extends AsyncRepository {
         memory.setBrand(row.getString("brand"));
         memory.setMemoryType(MemoryType.valueOf(row.getString("memory_type")));
         memory.setContent(row.getJsonObject("content").mapTo(JsonObject.class));
-        memory.setArchived(row.getBoolean("archived"));
+        memory.setArchived(row.getInteger("archived"));
 
         return memory;
     }

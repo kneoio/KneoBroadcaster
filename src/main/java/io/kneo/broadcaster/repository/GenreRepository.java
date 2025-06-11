@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.kneo.officeframe.model.Organization;
-import io.kneo.officeframe.model.TaskType;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
@@ -30,7 +30,7 @@ public class GenreRepository extends AsyncRepository {
     }
 
 
-    public Uni<List<TaskType>> getAll(final int limit, final int offset) {
+    public Uni<List<Genre>> getAll(final int limit, final int offset) {
         return client.query(getBaseSelect(BASE_REQUEST, limit, offset))
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -41,16 +41,16 @@ public class GenreRepository extends AsyncRepository {
         return getAllCount(entityData.getTableName());
     }
 
-    public Uni<TaskType> findById(UUID uuid) {
+    public Uni<Genre> findById(UUID uuid) {
         return findById(uuid, entityData, this::from);
     }
 
-    public Uni<TaskType> findByIdentifier(String identifier) {
+    public Uni<Genre> findByIdentifier(String identifier) {
         return findByIdentifier(identifier, entityData, this::from);
     }
 
-    private TaskType from(Row row) {
-        TaskType doc = new TaskType();
+    private Genre from(Row row) {
+        Genre doc = new Genre();
         setDefaultFields(doc, row);
         doc.setIdentifier(row.getString(COLUMN_IDENTIFIER));
         setLocalizedNames(doc, row);
@@ -60,12 +60,6 @@ public class GenreRepository extends AsyncRepository {
     public UUID insert(Organization node, Long user) {
 
         return node.getId();
-    }
-
-
-    public Organization update(Organization node) {
-
-        return node;
     }
 
     public int delete(Long id) {

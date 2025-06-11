@@ -20,6 +20,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -29,7 +30,8 @@ import java.util.UUID;
 public class MemoryRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(KneoBroadcasterNameResolver.MEMORY);
 
-    private static final int ARCHIVE_THRESHOLD_HOURS = 2;
+    private static final int ARCHIVE_THRESHOLD_HOURS = 24;
+    private static final ZoneId APPLICATION_ZONE = ZoneId.of("Europe/Lisbon"); // Consistent timezone
 
     @Inject
     public MemoryRepository(PgPool client, ObjectMapper mapper) {
@@ -93,8 +95,12 @@ public class MemoryRepository extends AsyncRepository {
                 " (reg_date, author, last_mod_date, last_mod_user,brand, memory_type, content, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id";
 
-        LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
-        Tuple params = Tuple.of(nowTime, user.getId(), nowTime, user.getId())
+        // Get current time as ZonedDateTime for database storage (if column is TIMESTAMP WITH TIME ZONE)
+        // Or if column is TIMESTAMP WITHOUT TIME ZONE, store LocalDateTime derived from ZonedDateTime
+        ZonedDateTime nowTime = ZonedDateTime.now(APPLICATION_ZONE);
+        LocalDateTime nowTimeLocal = nowTime.toLocalDateTime(); // For DB that expects LocalDateTime
+
+        Tuple params = Tuple.of(nowTimeLocal, user.getId(), nowTimeLocal, user.getId()) // Pass LocalDateTime
                 .addString(memory.getBrand())
                 .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
@@ -111,8 +117,13 @@ public class MemoryRepository extends AsyncRepository {
                 " SET last_mod_date=$1, last_mod_user=$2, memory_type=$3, content=$4, archived=$5 " +
                 "WHERE id=$6";
 
+        // Get current time as ZonedDateTime for database storage (if column is TIMESTAMP WITH TIME ZONE)
+        // Or if column is TIMESTAMP WITHOUT TIME ZONE, store LocalDateTime derived from ZonedDateTime
+        ZonedDateTime nowTime = ZonedDateTime.now(APPLICATION_ZONE);
+        LocalDateTime nowTimeLocal = nowTime.toLocalDateTime(); // For DB that expects LocalDateTime
+
         Tuple params = Tuple.tuple()
-                .addLocalDateTime(LocalDateTime.now())
+                .addLocalDateTime(nowTimeLocal) // Pass LocalDateTime
                 .addLong(user.getId())
                 .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
@@ -146,10 +157,15 @@ public class MemoryRepository extends AsyncRepository {
                         existingMemory = null;
                     }
 
-                    LocalDateTime nowTime = ZonedDateTime.now().toLocalDateTime();
+                    // Always get current time as ZonedDateTime for consistent calculations
+                    ZonedDateTime nowZoned = ZonedDateTime.now(APPLICATION_ZONE);
+                    LocalDateTime nowLocalForDb = nowZoned.toLocalDateTime(); // For DB that expects LocalDateTime
 
                     if (existingMemory != null) {
-                        long hoursSinceRegistration = ChronoUnit.HOURS.between(existingMemory.getRegDate(), nowTime);
+                        // Assuming existingMemory.getRegDate() now returns ZonedDateTime based on your error
+                        ZonedDateTime existingMemoryZoned = existingMemory.getRegDate(); // Directly use it if it's ZonedDateTime
+
+                        long hoursSinceRegistration = ChronoUnit.HOURS.between(existingMemoryZoned, nowZoned);
 
                         if (hoursSinceRegistration < ARCHIVE_THRESHOLD_HOURS) {
                             JsonObject memoryContent = existingMemory.getContent();
@@ -169,7 +185,7 @@ public class MemoryRepository extends AsyncRepository {
                                     "WHERE id=$4";
 
                             Tuple params = Tuple.tuple()
-                                    .addLocalDateTime(nowTime)
+                                    .addLocalDateTime(nowLocalForDb) // Pass LocalDateTime to the database
                                     .addLong(user.getId())
                                     .addJsonObject(existingMemory.getContent())
                                     .addUUID(existingMemory.getId());
@@ -181,7 +197,7 @@ public class MemoryRepository extends AsyncRepository {
                         } else {
                             return Uni.createFrom().completionStage(
                                     client.preparedQuery("UPDATE " + entityData.getTableName() + " SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3")
-                                            .execute(Tuple.of(nowTime, user.getId(), existingMemory.getId()))
+                                            .execute(Tuple.of(nowLocalForDb, user.getId(), existingMemory.getId())) // Pass LocalDateTime to the database
                                             .onItem().ignore().andContinueWithNull()
                                             .subscribeAsCompletionStage()
                             ).onItem().transformToUni(v -> {
@@ -228,7 +244,7 @@ public class MemoryRepository extends AsyncRepository {
 
     private Memory from(Row row) {
         Memory memory = new Memory();
-        setDefaultFields(memory, row);
+        setDefaultFields(memory, row); // Assumed to set reg_date as ZonedDateTime
         memory.setBrand(row.getString("brand"));
         memory.setMemoryType(MemoryType.valueOf(row.getString("memory_type")));
         memory.setContent(row.getJsonObject("content").mapTo(JsonObject.class));

@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.GenreDTO;
 import io.kneo.broadcaster.service.GenreService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -59,7 +60,7 @@ public class GenreController extends AbstractSecuredController<TaskType, TaskTyp
                             .onItem().transform(dtoList -> {
                                 ViewPage viewPage = new ViewPage();
                                 viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
-                                View<TaskTypeDTO> dtoEntries = new View<>(dtoList, count, pageNum, maxPage, size);
+                                View<GenreDTO> dtoEntries = new View<>(dtoList, count, pageNum, maxPage, size);
                                 viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                                 return viewPage;
                             });

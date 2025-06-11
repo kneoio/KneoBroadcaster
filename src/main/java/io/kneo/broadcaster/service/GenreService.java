@@ -1,5 +1,7 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.dto.GenreDTO;
+import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.repository.GenreRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -8,8 +10,6 @@ import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.IRESTService;
 import io.kneo.core.service.UserService;
-import io.kneo.officeframe.dto.TaskTypeDTO;
-import io.kneo.officeframe.model.TaskType;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -20,7 +20,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class GenreService extends AbstractService<TaskType, TaskTypeDTO> implements IRESTService<TaskTypeDTO> {
+public class GenreService extends AbstractService<Genre, GenreDTO> implements IRESTService<GenreDTO> {
     private final GenreRepository repository;
 
     @Inject
@@ -29,7 +29,7 @@ public class GenreService extends AbstractService<TaskType, TaskTypeDTO> impleme
         this.repository = repository;
     }
 
-    public Uni<List<TaskTypeDTO>> getAll(final int limit, final int offset, LanguageCode languageCode) {
+    public Uni<List<GenreDTO>> getAll(final int limit, final int offset, LanguageCode languageCode) {
         return repository.getAll(limit, offset)
                 .chain(list -> Uni.join().all(
                         list.stream()
@@ -39,7 +39,7 @@ public class GenreService extends AbstractService<TaskType, TaskTypeDTO> impleme
     }
 
     @Override
-    public Uni<TaskTypeDTO> getDTOByIdentifier(String identifier) {
+    public Uni<GenreDTO> getDTOByIdentifier(String identifier) {
         return repository.findByIdentifier(identifier).chain(this::mapToDTO);
     }
 
@@ -47,25 +47,25 @@ public class GenreService extends AbstractService<TaskType, TaskTypeDTO> impleme
         return repository.getAllCount();
     }
 
-    public Uni<TaskType> getById(UUID uuid) {
+    public Uni<Genre> getById(UUID uuid) {
         return repository.findById(uuid);
     }
 
-    public Uni<TaskType> getByIdentifier(String uuid) {
+    public Uni<Genre> getByIdentifier(String uuid) {
         return repository.findByIdentifier(uuid);
     }
 
     @Override
-    public Uni<TaskTypeDTO> getDTO(UUID uuid, IUser user, LanguageCode language) {
+    public Uni<GenreDTO> getDTO(UUID uuid, IUser user, LanguageCode language) {
         return repository.findById(uuid).chain(this::mapToDTO);
     }
 
-    private Uni<TaskTypeDTO> mapToDTO(TaskType doc) {
+    private Uni<GenreDTO> mapToDTO(Genre doc) {
         return Uni.combine().all().unis(
                 userRepository.getUserName(doc.getAuthor()),
                 userRepository.getUserName(doc.getLastModifier())
         ).asTuple().onItem().transform(tuple ->
-                TaskTypeDTO.builder()
+                GenreDTO.builder()
                         .id(doc.getId())
                         .author(tuple.getItem1())
                         .regDate(doc.getRegDate())
@@ -78,7 +78,7 @@ public class GenreService extends AbstractService<TaskType, TaskTypeDTO> impleme
     }
 
     @Override
-    public Uni<TaskTypeDTO> upsert(String id, TaskTypeDTO dto, IUser user, LanguageCode code) {
+    public Uni<GenreDTO> upsert(String id, GenreDTO dto, IUser user, LanguageCode code) {
         return null;
     }
 
@@ -88,7 +88,7 @@ public class GenreService extends AbstractService<TaskType, TaskTypeDTO> impleme
     }
 
     @Deprecated
-    public Uni<? extends Optional<TaskType>> findById(UUID taskType) {
+    public Uni<? extends Optional<Genre>> findById(UUID Genre) {
         return null;
     }
 }

@@ -89,7 +89,7 @@ public class QueueService {
                                                 return Uni.createFrom().item(false);
                                             }
 
-                                            radioStation.setManagedBy(ManagedBy.AI_AGENT);
+                                            //radioStation.setManagedBy(ManagedBy.AI_AGENT);
                                             BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                             brandSoundFragment.setId(soundFragment.getId());
                                             brandSoundFragment.setSoundFragment(soundFragment);

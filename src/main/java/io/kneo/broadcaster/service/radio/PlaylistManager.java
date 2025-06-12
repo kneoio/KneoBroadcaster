@@ -70,6 +70,7 @@ public class PlaylistManager {
             try {
                 if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
                     int neededFragments = READY_QUEUE_MAX_SIZE - segmentedAndReadyToBeConsumed.size();
+                   // radioStation.setManagedBy(ManagedBy.ITSELF);
                     addFragments(neededFragments);
                 } else {
                     LOGGER.debug("Skipping fragment addition - ready queue is full ({} items)",

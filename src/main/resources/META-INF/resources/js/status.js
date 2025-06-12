@@ -1,12 +1,20 @@
+// js/status.js
+
+// Create a shared namespace for our app's config
+window.radioApp = window.radioApp || {};
+
 document.addEventListener('DOMContentLoaded', () => {
     const backendStatusTextDiv = document.getElementById('backend-status-text');
     const radioPlayerTitleH1 = document.getElementById('radio-player-title');
     const playerContainer = document.querySelector('.player-container');
+    // Get a reference to the wake-up button container
+    const wakeUpContainer = document.querySelector('.wake-up-container');
+
 
     const PARAMETER_NAME = 'radio';
     const STATUS_PATH_SUFFIX = '/radio/status';
     const STATUS_REFRESH_INTERVAL = 15000;
-    const BRAND_NAME = '';
+    const BRAND_NAME = ''; // This can be removed or used as a fallback
 
     if (!backendStatusTextDiv) {
         return;
@@ -15,17 +23,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const dynamicRadioName = urlParams.get(PARAMETER_NAME);
 
+    // Store the name in the shared config object for other scripts to use
+    window.radioApp.radioName = dynamicRadioName;
+
     let STATUS_ENDPOINT = null;
 
-    if (!dynamicRadioName) {
+    // Initially, assume the button should be shown unless a valid radio is found
+    if (!window.radioApp.radioName) {
          const errorMessage = `Error: Missing URL parameter "${PARAMETER_NAME}".`;
          backendStatusTextDiv.textContent = errorMessage;
          backendStatusTextDiv.classList.add('error');
          if (radioPlayerTitleH1) {
              radioPlayerTitleH1.textContent = "Radio Not Found";
          }
+         // Show wake up button if radio name is missing
+         if (wakeUpContainer) {
+             wakeUpContainer.classList.remove('hidden'); // Ensure visible
+         }
     } else {
-         STATUS_ENDPOINT = `${window.location.origin}/${dynamicRadioName}${STATUS_PATH_SUFFIX}`;
+         // Use a relative path, which is cleaner. The browser will handle the domain.
+         STATUS_ENDPOINT = `/${window.radioApp.radioName}${STATUS_PATH_SUFFIX}`;
+         // Temporarily hide the button while fetching status, or if it's expected to be initially hidden
+         if (wakeUpContainer) {
+             wakeUpContainer.classList.add('hidden'); // Assume hidden until status dictates otherwise
+         }
     }
 
     async function fetchBackendStatus() {
@@ -33,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        backendStatusTextDiv.textContent = `Fetching ${BRAND_NAME} status...`;
+        backendStatusTextDiv.textContent = `Fetching status...`;
         backendStatusTextDiv.classList.remove('error');
 
         try {
@@ -42,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 const errorText = await response.text();
                 const errorMessage = `Error ${response.status}: ${errorText.trim() || 'Unknown HTTP Error'}`;
-                backendStatusTextDiv.textContent = `${BRAND_NAME} Status Failed: ${errorMessage}`;
+                backendStatusTextDiv.textContent = `Status Failed: ${errorMessage}`;
                 backendStatusTextDiv.classList.add('error');
                 if (radioPlayerTitleH1) {
                     radioPlayerTitleH1.textContent = "Error Loading Radio";
@@ -53,8 +74,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     playerContainer.style.removeProperty('--dynamic-border-color-alt');
                     playerContainer.style.removeProperty('--dynamic-border-rgb');
                 }
-                console.error("Error fetching status response not OK:", response.status, errorText); // Commented out
+                console.error("Error fetching status response not OK:", response.status, errorText);
+                // Show wake up button on error
+                if (wakeUpContainer) {
+                    wakeUpContainer.classList.remove('hidden'); // Show button
+                }
                 return;
+            }
+
+            // If response is OK (status 200), hide the wake up button
+            if (response.ok) {
+                if (wakeUpContainer) {
+                    wakeUpContainer.classList.add('hidden'); // Hide button
+                }
             }
 
             const statusData = await response.json();
@@ -63,8 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (radioPlayerTitleH1) {
                 radioPlayerTitleH1.textContent = stationName;
             }
-
-            // console.log("Color received from backend:", statusData.color); // Commented out
 
             if (playerContainer && statusData.color && statusData.color.match(/^#[0-9a-fA-F]{6}$/)) {
                 playerContainer.style.borderWidth = '1px';
@@ -95,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerContainer.style.removeProperty('--dynamic-border-color');
                 playerContainer.style.removeProperty('--dynamic-border-color-alt');
                 playerContainer.style.removeProperty('--dynamic-border-rgb');
-                // console.warn("No valid color received from backend or playerContainer not found. Border color not applied dynamically."); // Commented out
             }
 
             let displayMessageParts = [];
@@ -134,8 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
             backendStatusTextDiv.classList.remove('error');
 
         } catch (error) {
-            const errorMessage = `Failed to fetch or parse ${BRAND_NAME} status: ${error.message}`;
-            backendStatusTextDiv.textContent = `${BRAND_NAME} Status Failed: ${errorMessage}`;
+            const errorMessage = `Failed to fetch or parse status: ${error.message}`;
+            backendStatusTextDiv.textContent = `Status Failed: ${errorMessage}`;
             if (radioPlayerTitleH1) {
                 radioPlayerTitleH1.textContent = "Radio Unavailable";
             }
@@ -145,7 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerContainer.style.removeProperty('--dynamic-border-color-alt');
                 playerContainer.style.removeProperty('--dynamic-border-rgb');
             }
-            console.error("Error fetching status:", error); // Commented out
+            console.error("Error fetching status:", error);
+            // Show wake up button on fetch error
+            if (wakeUpContainer) {
+                wakeUpContainer.classList.remove('hidden'); // Show button
+            }
         }
     }
 
@@ -154,5 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(fetchBackendStatus, STATUS_REFRESH_INTERVAL);
     } else if (backendStatusTextDiv && !dynamicRadioName) {
          backendStatusTextDiv.style.display = 'block';
+         // Show wake up button if no radio name is provided
+         if (wakeUpContainer) {
+             wakeUpContainer.classList.remove('hidden'); // Show button
+         }
     }
 });

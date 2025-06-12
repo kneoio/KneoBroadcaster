@@ -41,6 +41,11 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
                 });
     }
 
+    public Uni<Integer> getAllCount(final IUser user) {
+        assert repository != null;
+        return repository.getAllCount(user, false);
+    }
+
     @Override
     public Uni<ProfileDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         return repository.findById(id).chain(this::mapToDTO);

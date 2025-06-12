@@ -106,4 +106,17 @@ public class RadioStation extends SecureDataEntity<UUID> {
         }
     }
 
+    @Override
+    public String toString() {
+        if (managedBy == ManagedBy.ITSELF) {
+            String localizedNameStr = localizedName.get(LanguageCode.en);
+            return String.format("%s, Managed by: %s", localizedNameStr, managedBy);
+        }else {
+            LanguageCode agentPreferredLang = aiAgent.getPreferredLang();
+            String localizedNameStr = localizedName.get(agentPreferredLang);
+            String agentName = aiAgent.getName();
+            return String.format("%s, Managed by: %s,  DJ: %s(%s)", localizedNameStr, managedBy, agentName, agentPreferredLang.name().toUpperCase());
+        }
+    }
+
 }

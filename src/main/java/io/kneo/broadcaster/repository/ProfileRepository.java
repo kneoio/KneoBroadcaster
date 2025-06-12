@@ -44,6 +44,17 @@ public class ProfileRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        String sql = String.format("SELECT COUNT(*) FROM %s t", entityData.getTableName());
+        if (!includeArchived) {
+            sql += " WHERE (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        return client.query(sql)
+                .execute()
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
     public Uni<Profile> findById(UUID id) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
         return client.preparedQuery(sql)

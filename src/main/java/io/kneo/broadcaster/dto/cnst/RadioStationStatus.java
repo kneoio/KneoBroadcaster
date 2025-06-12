@@ -6,5 +6,6 @@ public enum RadioStationStatus {
     ON_LINE,
     ON_LINE_WELL,
     WAITING_FOR_CURATOR,
+    IDLE,
     SYSTEM_ERROR
 }

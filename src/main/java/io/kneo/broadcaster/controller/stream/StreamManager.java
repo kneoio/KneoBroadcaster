@@ -287,7 +287,7 @@ public class StreamManager implements IStreamManager {
             latestRequestedSegment = segmentSequence;
             HlsSegment segment = liveSegments.get(segmentSequence);
 
-            if (segment != null) { // Record timestamp if segment is valid/found
+            if (segment != null) {
                 segmentRequestTimestamps.offer(System.currentTimeMillis());
             }
 
@@ -331,7 +331,7 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void shutdown() {
-        LOGGER.info("Shutting down HLSPlaylist for: {}", radioStation.getSlugName());
+        LOGGER.info("Shutting down StreamManager for: {}", radioStation.getSlugName());
         timerSubscriptions.forEach((key, subscription) -> {
             if (subscription != null) subscription.cancel();
         });
@@ -340,8 +340,8 @@ public class StreamManager implements IStreamManager {
         currentSequence.set(0);
         liveSegments.clear();
         pendingFragmentSegmentsQueue.clear();
-        segmentRequestTimestamps.clear(); // Clear timestamps on shutdown
-        LOGGER.info("HLSPlaylist for {} has been shut down. All queues cleared.", radioStation.getSlugName());
+        segmentRequestTimestamps.clear();
+        LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
         }
@@ -369,13 +369,13 @@ public class StreamManager implements IStreamManager {
             upcomingSegmentSequences = pendingFragmentSegmentsQueue.stream()
                     .map(HlsSegment::getSequence)
                     .limit(numUpcomingSegmentsToShow)
-                    .toList(); // .collect(Collectors.toList()) for older Java versions
+                    .toList();
         }
 
         return new SegmentTimelineDisplay(
                 Collections.unmodifiableList(pastSegmentSequences),
                 Collections.unmodifiableList(visibleSegmentSequences),
-                Collections.unmodifiableList(upcomingSegmentSequences)
+                upcomingSegmentSequences
         );
     }
 }

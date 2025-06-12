@@ -93,7 +93,6 @@ public class QueueController {
 
         var fs = vertx.fileSystem();
 
-        // CORRECTED: Use .completionStage() with Vert.x Future's .toCompletionStage()
         return Uni.createFrom().completionStage(fs.mkdirs(uploadDir).toCompletionStage())
                 .onItem().transformToUni(v ->
                         Uni.createFrom().completionStage(fs.move(file.uploadedFileName(), newFilePath).toCompletionStage())
@@ -105,8 +104,6 @@ public class QueueController {
         String brand = rc.pathParam("brand");
         JsonObject jsonObject = rc.body().asJsonObject();
         String action = jsonObject.getString("action");
-
-        // The 'action' method logic remains unchanged as it was already reactive.
         if ("start".equalsIgnoreCase(action)) {
             LOGGER.info("Starting radio station for brand: {}", brand);
             radioService.initializeStation(brand)

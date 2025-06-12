@@ -1,5 +1,4 @@
 :root {
-    /* Light Theme Variables */
     --bg-color-light: #f0f0f0;
     --text-color-light: #333;
     --container-bg-light: #fff;
@@ -15,7 +14,6 @@
     --time-display-color-light: #555;
 }
 
-/* Apply light theme variables by default */
 body {
     font-family: sans-serif;
     display: flex;
@@ -24,16 +22,15 @@ body {
     justify-content: center;
     min-height: 100vh;
     margin: 0;
-    padding: 20px; /* Add some padding on mobile */
-    padding-top: 60px; /* Add extra padding at the top to prevent content hidden by fixed button */
+    padding: 20px;
+    padding-top: 60px;
     box-sizing: border-box;
 
     background-color: var(--bg-color-light);
-    color: var(--text-color-light); /* Default text color for body */
-    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth theme transition */
+    color: var(--text-color-light);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Dark Theme Variables & Styles */
 body.dark-theme {
     --bg-color-dark: #222;
     --text-color-dark: #eee;
@@ -230,7 +227,6 @@ body.dark-theme .volume-bar {
     opacity: 1;
 }
 
-/* Style the thumb (draggable part) */
 .progress-bar::-webkit-slider-thumb, .volume-bar::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
@@ -268,13 +264,11 @@ body.dark-theme .volume-bar::-moz-range-thumb {
     flex-shrink: 0;
 }
 
-/* Volume Button Text/Icons */
 .volume-button::before { content: '🔊'; }
 .volume-button.muted::before { content: '🔇'; }
 .volume-button.low-volume::before { content: '🔉'; }
 
 
-/* Responsive adjustments */
 @media (max-width: 400px) {
     .controls {
         flex-direction: column;
@@ -300,25 +294,59 @@ body.dark-theme .volume-bar::-moz-range-thumb {
     }
 }
 
-/* Add these styles at the end of your player.css or in a relevant section */
 
 .song-title {
-    margin-top: 10px; /* Adjust as needed */
-    margin-bottom: 15px; /* Add some space before messages/controls */
-    font-size: 1.1em;   /* Make it slightly larger */
+    margin-top: 10px;
+    margin-bottom: 15px;
+    font-size: 1.1em;
     font-weight: bold;
-    color: var(--text-color-light); /* Use theme variable */
-    min-height: 1.3em; /* Prevent layout shift if title is empty briefly */
+    color: var(--text-color-light);
+    min-height: 1.3em;
     text-align: center;
-    word-break: break-word; /* In case of very long titles */
+    word-break: break-word;
     transition: color 0.3s ease;
 }
 
 body.dark-theme .song-title {
-    color: var(--text-color-dark); /* Use theme variable */
+    color: var(--text-color-dark);
 }
 
-/* You might want to adjust the h1 margin if the song title is directly below it */
+
 .player-container h1 {
-    margin-bottom: 5px; /* Reduce space if song title follows directly */
+    margin-bottom: 5px;
+}
+
+.player-container {
+    border: 1px solid transparent;
+    transition: border-color 0.3s ease-in-out;
+}
+
+/* Add this to your existing css/player.css */
+
+.player-container {
+    border: 1px solid transparent;
+    transition: border-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    /* Initialize CSS variables for dynamic pulse */
+    --border-pulse-intensity: 0; /* 0 when not playing or no sound */
+}
+
+@keyframes pulse-border {
+    0% {
+        border-color: var(--dynamic-border-color, #ccc);
+        box-shadow: 0 0 0px 0px rgba(var(--dynamic-border-rgb, 204, 204, 204), 0.7);
+    }
+    50% {
+        /* Scale box-shadow spread and blur based on intensity */
+        box-shadow: 0 0 calc(5px * var(--border-pulse-intensity)) calc(2px * var(--border-pulse-intensity)) rgba(var(--dynamic-border-rgb, 204, 204, 204), 0.4);
+        border-color: var(--dynamic-border-color-alt, #aaa);
+    }
+    100% {
+        border-color: var(--dynamic-border-color, #ccc);
+        box-shadow: 0 0 0px 0px rgba(var(--dynamic-border-rgb, 204, 204, 204), 0.7);
+    }
+}
+
+/* Apply the animation always, but its intensity is controlled by JS via --border-pulse-intensity */
+.player-container {
+    animation: pulse-border 0.8s infinite alternate; /* Faster animation for more responsiveness */
 }

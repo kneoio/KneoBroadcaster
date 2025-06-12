@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.model;
 
 import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.dto.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -37,14 +38,8 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private Map<String, Object> schedule;
     private AiAgent aiAgent;
     private UUID profileId;
-    //Transient
     private RadioStationStatus status;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
-
-
-    public void setWarmedUp(boolean b) {
-        setStatus(RadioStationStatus.ON_LINE);
-    }
 
     public void setStatus(RadioStationStatus newStatus) {
         if (this.status != newStatus) {
@@ -106,17 +101,20 @@ public class RadioStation extends SecureDataEntity<UUID> {
         }
     }
 
-    @Override
-    public String toString() {
-        if (managedBy == ManagedBy.ITSELF) {
-            String localizedNameStr = localizedName.get(LanguageCode.en);
-            return String.format("%s, Managed by: %s", localizedNameStr, managedBy);
-        }else {
-            LanguageCode agentPreferredLang = aiAgent.getPreferredLang();
-            String localizedNameStr = localizedName.get(agentPreferredLang);
-            String agentName = aiAgent.getName();
-            return String.format("%s, Managed by: %s,  DJ: %s(%s)", localizedNameStr, managedBy, agentName, agentPreferredLang.name().toUpperCase());
-        }
-    }
+    public RadioStationStatusDTO toStatusDTO() {
+        String stationName = localizedName.getOrDefault(LanguageCode.en, slugName);
+        String managedByType = managedBy.toString();
+        String dj = null;
+        String djLang = null;
 
+        if (managedBy != ManagedBy.ITSELF && aiAgent != null) {
+            dj = aiAgent.getName();
+            djLang = aiAgent.getPreferredLang().name().toUpperCase();
+        }
+
+        String currentStatus = status != null ? status.name() : "UNKNOWN";
+        String stationCountryCode = country != null ? country.name() : null;
+
+        return new RadioStationStatusDTO(stationName, managedByType, dj, djLang, currentStatus, stationCountryCode, color);
+    }
 }

@@ -2,12 +2,11 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.controller.stream.HlsSegment;
 import io.kneo.broadcaster.controller.stream.IStreamManager;
-import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -34,6 +33,7 @@ public class RadioController {
         router.route(HttpMethod.GET, path + "/stream").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
+        router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -106,21 +106,17 @@ public class RadioController {
     private void getStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand");
         String userAgent = rc.request().getHeader("User-Agent");
+
         service.getPlaylist(brand, userAgent)
                 .onItem().transform(playlist -> {
-                    RadioStation station = playlist.getRadioStation();
-                    if (station.getManagedBy() == ManagedBy.ITSELF) {
-                        return String.format("Brand: %s, Managed by: %s", brand, station.getManagedBy());
-                    } else {
-                      return station.toString();
-                    }
+                    return playlist.getRadioStation().toStatusDTO();
                 })
                 .subscribe().with(
-                        statusContent -> {
+                        statusDto -> {
                             rc.response()
-                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
                                     .setStatusCode(200)
-                                    .end(statusContent);
+                                    .end(Json.encode(statusDto));
                         },
                         throwable -> {
                             if (throwable instanceof RadioStationException) {
@@ -136,5 +132,28 @@ public class RadioController {
                             }
                         }
                 );
+    }
+
+    private void wakeUp(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        LOGGER.info("Wake up radio station for brand: {}", brand);
+        service.initializeStation(brand)
+                .subscribe().with(
+                        station -> {
+                            rc.response()
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .putHeader("Access-Control-Allow-Origin", "*")
+                                    .setStatusCode(200)
+                                    .end();
+                        },
+                        throwable -> {
+                            LOGGER.error("Error wake up radio station: {}", throwable.getMessage());
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to wake up radio station: " + throwable.getMessage());
+                        }
+                );
+
     }
 }

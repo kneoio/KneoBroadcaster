@@ -1,6 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[Player.js] DOMContentLoaded: Initializing Bratan Radio Player script.');
-
     var audio = document.getElementById('audioPlayer');
     var errorMessageDiv = document.getElementById('error-message');
     var streamUrlDisplayDiv = document.getElementById('stream-url-display');
@@ -14,11 +12,18 @@ document.addEventListener('DOMContentLoaded', function() {
     var volumeBar = document.getElementById('volume-bar');
     var themeToggleButton = document.getElementById('theme-toggle');
 
+    var playerContainer = document.querySelector('.player-container');
+
     var audioSrc = null;
     let currentTheme = 'light';
     let retryCount = 0;
     const MAX_RETRIES = 3;
     let hls = null;
+
+    let audioContext;
+    let analyser;
+    let sourceNode;
+    let animationFrameId;
 
     const HLS_BASE_URL = window.location.origin;
     const HLS_PATH_SUFFIX = '/radio/stream.m3u8';
@@ -28,19 +33,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const dynamicRadioName = urlParams.get(PARAMETER_NAME);
 
-    // Theme Toggle Functions
     function enableDarkTheme() {
         document.body.classList.add('dark-theme');
         currentTheme = 'dark';
         localStorage.setItem(THEME_STORAGE_KEY, 'dark');
-        console.info('[Player.js] Theme changed to Dark.');
     }
 
     function enableLightTheme() {
         document.body.classList.remove('dark-theme');
         currentTheme = 'light';
         localStorage.setItem(THEME_STORAGE_KEY, 'light');
-        console.info('[Player.js] Theme changed to Light.');
     }
 
     function toggleTheme() {
@@ -118,7 +120,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loadSourceWithRetry() {
         if (hls) {
-            console.log(`[Player.js] Attempting to load source (retry ${retryCount}/${MAX_RETRIES})`);
             hls.loadSource(audioSrc);
             hls.startLoad();
         }
@@ -142,7 +143,6 @@ document.addEventListener('DOMContentLoaded', function() {
         hls.attachMedia(audio);
 
         hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-            console.log('[Player.js] HLS.js Event: MANIFEST_PARSED. Levels:', data.levels.length);
             retryCount = 0;
             displayMessage(streamUrlDisplayDiv, `Stream loaded. Click the ▶ button to play.`);
             seekBar.max = audio.duration;
@@ -159,12 +159,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         hls.on(Hls.Events.ERROR, function(event, data) {
-            console.error('[Player.js] HLS.js error:', data);
-
             if (data.fatal) {
                 switch(data.type) {
                     case Hls.ErrorTypes.NETWORK_ERROR:
-                        console.log('[Player.js] Fatal network error encountered, trying to recover...');
                         displayMessage(errorMessageDiv, 'Connection lost. Attempting to reconnect...', true);
                         if (retryCount < MAX_RETRIES) {
                             retryCount++;
@@ -174,18 +171,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         break;
                     case Hls.ErrorTypes.MEDIA_ERROR:
-                        console.log('[Player.js] Fatal media error encountered, trying to recover...');
                         displayMessage(errorMessageDiv, 'Playback error. Attempting to recover...', true);
                         hls.recoverMediaError();
                         break;
                     default:
-                        console.error('[Player.js] Unrecoverable error');
                         displayMessage(errorMessageDiv, 'Unrecoverable playback error. Please reload page.', true);
                         break;
                 }
             } else {
                 if (data.details === 'bufferStalledError') {
-                    console.log('[Player.js] Buffer stalled, attempting to recover...');
                     hls.startLoad();
                 }
             }
@@ -194,8 +188,67 @@ document.addEventListener('DOMContentLoaded', function() {
         loadSourceWithRetry();
     }
 
+    // Web Audio API for volume analysis
+    function setupAudioContext() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            sourceNode = audioContext.createMediaElementSource(audio);
+            sourceNode.connect(analyser);
+            analyser.connect(audioContext.destination);
+        }
+        startVolumeAnalysis();
+    }
+
+    function startVolumeAnalysis() {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const bufferLength = analyser.frequencyBinCount;
+
+        function updateVolume() {
+            if (!audioContext || audio.paused || audio.ended) {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                playerContainer.style.setProperty('--border-pulse-intensity', 0); // Reset intensity
+                return;
+            }
+
+            analyser.getByteFrequencyData(dataArray);
+
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                sum += dataArray[i];
+            }
+            let average = sum / bufferLength;
+
+            // Map average (0-255) to a scale (e.g., 0-1) for intensity
+            // Adjust the multiplier to control how sensitive the pulse is
+            let intensity = (average / 255) * 2; // Max intensity can be 2, for example
+
+            // Clamp intensity to a reasonable range
+            intensity = Math.min(Math.max(intensity, 0.1), 1.5); // Minimum pulse when sound is low, max pulse when high
+
+            playerContainer.style.setProperty('--border-pulse-intensity', intensity);
+
+            animationFrameId = requestAnimationFrame(updateVolume);
+        }
+        if (!animationFrameId) { // Only start if not already running
+            animationFrameId = requestAnimationFrame(updateVolume);
+        }
+    }
+
+    function stopVolumeAnalysis() {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        playerContainer.style.setProperty('--border-pulse-intensity', 0); // Reset intensity
+    }
+
+
     if (!dynamicRadioName) {
-        console.warn(`[Player.js] URL parameter "${PARAMETER_NAME}" is MISSING.`);
         displayMessage(errorMessageDiv, `Error: The required URL parameter "${PARAMETER_NAME}" is missing (e.g., ?${PARAMETER_NAME}=nunoscope).`, true);
         audio.style.display = 'none';
         playPauseButton.disabled = true;
@@ -204,60 +257,58 @@ document.addEventListener('DOMContentLoaded', function() {
         volumeButton.disabled = true;
         if(songTitleDisplay) songTitleDisplay.textContent = 'Radio parameter missing';
     } else {
-        console.log(`[Player.js] URL parameter "${PARAMETER_NAME}" found: ${dynamicRadioName}`);
         audioSrc = `${HLS_BASE_URL}/${dynamicRadioName}${HLS_PATH_SUFFIX}`;
         displayMessage(streamUrlDisplayDiv, `Attempting to load stream: ${audioSrc}`);
         if(songTitleDisplay) songTitleDisplay.textContent = 'Loading stream info...';
 
         if (Hls.isSupported()) {
-            console.log('[Player.js] HLS.js is supported. Initializing HLS player.');
             initializeHlsPlayer();
         } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-            console.log('[Player.js] Native HLS playback is supported. Using native player.');
             audio.src = audioSrc;
             displayMessage(streamUrlDisplayDiv, `Stream loaded. Click the ▶ button to play.`);
         } else {
-            console.warn('[Player.js] HLS playback not supported by this browser.');
             displayMessage(errorMessageDiv, 'Error: Your browser does not support HLS streaming.', true);
             playPauseButton.disabled = true;
         }
 
         audio.addEventListener('playing', function() {
-            console.log('[Player.js] Audio event: playing');
             clearMessages();
+            setupAudioContext(); // Setup and start analysis when playing
         });
 
         playPauseButton.addEventListener('click', function() {
             if (audio.paused || audio.ended) {
-                console.log('[Player.js] Play button clicked. Attempting to play.');
                 audio.play().catch(function(error) {
-                    console.error('[Player.js] Play failed after click:', error);
                     displayMessage(errorMessageDiv, 'Could not start playback after click. Try again.', true);
                 });
             } else {
-                console.log('[Player.js] Pause button clicked. Attempting to pause.');
                 audio.pause();
             }
         });
 
         audio.addEventListener('play', function() {
-            console.info('[Player.js] Audio event: play (playback has begun or resumed)');
             updatePlayPauseButton();
+            // We'll manage pulse visibility via CSS based on --border-pulse-intensity
+            // Remove the class-based animation if it was still active
+            if (playerContainer) {
+                playerContainer.classList.remove('playing-pulse');
+            }
+            setupAudioContext(); // Ensure context is running and analysis started
         });
 
         audio.addEventListener('pause', function() {
-            console.info('[Player.js] Audio event: pause');
             updatePlayPauseButton();
             if (!audio.ended) {
                 displayMessage(streamUrlDisplayDiv, `Paused: ${audioSrc}`);
             }
+            stopVolumeAnalysis(); // Stop analysis when paused
         });
 
         audio.addEventListener('ended', function() {
-            console.log('[Player.js] Audio event: ended');
             updatePlayPauseButton();
             displayMessage(streamUrlDisplayDiv, `Stream ended.`);
             if(songTitleDisplay) songTitleDisplay.textContent = 'Stream ended';
+            stopVolumeAnalysis(); // Stop analysis when ended
         });
 
         audio.addEventListener('timeupdate', function() {
@@ -276,14 +327,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         audio.addEventListener('stalled', function() {
-            console.log('[Player.js] Audio stalled event');
             displayMessage(errorMessageDiv, 'Stream stalled. Attempting to recover...', true);
             if (hls) hls.startLoad();
+            stopVolumeAnalysis(); // Stop analysis if stalled
         });
 
         audio.addEventListener('waiting', function() {
-            console.log('[Player.js] Audio waiting event');
             displayMessage(streamUrlDisplayDiv, 'Buffering...', false);
+            stopVolumeAnalysis(); // Stop analysis if waiting (no sound)
         });
 
         seekBar.addEventListener('input', function() {
@@ -292,7 +343,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         seekBar.addEventListener('change', function() {
-            console.log('[Player.js] Seek bar changed (value committed):', seekBar.value);
             seekBar.dragging = false;
             audio.currentTime = seekBar.value;
         });
@@ -305,7 +355,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let lastVolume = 1;
         volumeButton.addEventListener('click', function() {
-            console.log('[Player.js] Volume button clicked.');
             if (audio.muted || audio.volume === 0) {
                 lastVolume = volumeBar.value > 0 ? volumeBar.value : 1;
                 audio.muted = false;
@@ -331,11 +380,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         window.addEventListener('online', function() {
-            console.log('[Player.js] Network connection restored');
             if (audio.paused && retryCount < MAX_RETRIES) {
                 displayMessage(streamUrlDisplayDiv, 'Connection restored. Attempting to play...');
                 if (hls) hls.startLoad();
-                audio.play().catch(e => console.error('[Player.js] Play failed:', e));
+                audio.play().catch(e => {});
             }
         });
     }

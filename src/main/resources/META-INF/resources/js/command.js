@@ -3,6 +3,7 @@
 // The global window.radioApp object is created and populated by status.js
 document.addEventListener('DOMContentLoaded', () => {
     const wakeUpButton = document.getElementById('wake-up-button');
+    const audioPlayer = document.getElementById('audioPlayer');
 
     // Check if the button and the dynamic radio name exist before proceeding
     if (wakeUpButton && window.radioApp && window.radioApp.radioName) {
@@ -34,6 +35,20 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 console.log('Received response data:', data);
+
+                setTimeout(() => {
+                    if (audioPlayer && (audioPlayer.paused || audioPlayer.ended)) {
+                        console.log('Auto-starting audio player after wake up...');
+                        audioPlayer.play().catch(error => {
+                            console.error('Failed to auto-start audio player:', error);
+                            const streamUrlDisplay = document.getElementById('stream-url-display');
+                            if (streamUrlDisplay) {
+                                streamUrlDisplay.textContent = 'Wake up successful! Click play to start listening.';
+                                streamUrlDisplay.style.display = 'block';
+                            }
+                        });
+                    }
+                }, 2000); // Wait 2 seconds for the backend to fully wake up
             })
             .catch(error => {
                 console.error('Error sending wake up signal:', error);

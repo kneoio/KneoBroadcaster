@@ -3,7 +3,6 @@ package io.kneo.broadcaster.model;
 import io.kneo.broadcaster.controller.stream.IStreamManager;
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -36,7 +35,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
     private Map<String, Object> schedule;
-    private AiAgent aiAgent;
+    private UUID aiAgentId;
     private UUID profileId;
     private RadioStationStatus status;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
@@ -107,10 +106,10 @@ public class RadioStation extends SecureDataEntity<UUID> {
         String dj = null;
         String djLang = null;
 
-        if (managedBy != ManagedBy.ITSELF && aiAgent != null) {
+/*        if (managedBy != ManagedBy.ITSELF && aiAgent != null) {
             dj = aiAgent.getName();
             djLang = aiAgent.getPreferredLang().name().toUpperCase();
-        }
+        }*/
 
         String currentStatus = status != null ? status.name() : "UNKNOWN";
         String stationCountryCode = country != null ? country.name() : null;

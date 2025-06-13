@@ -1,15 +1,8 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.RadioStationDTO;
-import io.kneo.broadcaster.dto.ai.AiAgentDTO;
-import io.kneo.broadcaster.dto.ai.ToolDTO;
-import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.ai.Tool;
-import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -93,7 +86,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;
-        return repository.delete(UUID.fromString(id));
+        return repository.delete(UUID.fromString(id), user);
     }
 
     @Override
@@ -117,18 +110,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     }
 
     private Uni<RadioStationDTO> mapToDTO(RadioStation doc) {
-        Uni<ProfileDTO> profileUni;
-        if (doc.getProfileId() != null) {
-            profileUni = profileService.getDTO(doc.getProfileId(), SuperUser.build(), LanguageCode.en);
-        } else {
-            profileUni = Uni.createFrom().item((ProfileDTO) null);
-        }
-
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                radiostationPool.checkStatus(doc.getSlugName()),
-                profileUni
+                radiostationPool.checkStatus(doc.getSlugName())
         ).asTuple().map(tuple -> {
             RadioStationDTO dto = new RadioStationDTO();
             dto.setId(doc.getId());
@@ -139,47 +124,12 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());
-            dto.setProfile(tuple.getItem4());
-
-            if (doc.getAiAgent() != null) {
-                AiAgent aiAgent = doc.getAiAgent();
-                AiAgentDTO aiAgentDTO = new AiAgentDTO();
-                aiAgentDTO.setId(aiAgent.getId());
-                aiAgentDTO.setName(aiAgent.getName());
-                aiAgentDTO.setPreferredLang(aiAgent.getPreferredLang());
-                aiAgentDTO.setMainPrompt(aiAgent.getMainPrompt());
-
-                if (aiAgent.getPreferredVoice() != null) {
-                    List<VoiceDTO> voiceDTOs = aiAgent.getPreferredVoice().stream()
-                            .map(voice -> {
-                                VoiceDTO voiceDTO = new VoiceDTO();
-                                voiceDTO.setId(voice.getId());
-                                voiceDTO.setName(voice.getName());
-                                return voiceDTO;
-                            })
-                            .toList();
-                    aiAgentDTO.setPreferredVoice(voiceDTOs);
-                }
-
-                if (aiAgent.getEnabledTools() != null) {
-                    List<ToolDTO> toolDTOs = aiAgent.getEnabledTools().stream()
-                            .map(tool -> {
-                                ToolDTO toolDTO = new ToolDTO();
-                                toolDTO.setName(tool.getName());
-                                toolDTO.setVariableName(tool.getVariableName());
-                                toolDTO.setDescription(tool.getDescription());
-                                return toolDTO;
-                            })
-                            .toList();
-                    aiAgentDTO.setEnabledTools(toolDTOs);
-                }
-
-                dto.setAiAgent(aiAgentDTO);
-            }
+            dto.setAiAgentId(doc.getAiAgentId());
+            dto.setProfileId(doc.getProfileId());
 
             try {
                 dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
-                dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast "));
+                dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
                 dto.setActionUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/api/queue/action"));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
@@ -197,39 +147,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         entity.setManagedBy(dto.getManagedBy());
         entity.setColor(dto.getColor());
         entity.setTimeZone(dto.getTimeZone());
-
-        AiAgentDTO agentDto = dto.getAiAgent();
-        AiAgent agent = new AiAgent();
-        agent.setName(agentDto.getName());
-        agent.setPreferredLang(agentDto.getPreferredLang());
-        agent.setMainPrompt(agentDto.getMainPrompt());
-
-        if (agentDto.getPreferredVoice() != null && !agentDto.getPreferredVoice().isEmpty()) {
-            List<Voice> voices = agentDto.getPreferredVoice().stream()
-                    .map(voiceDto -> {
-                        Voice voice = new Voice();
-                        voice.setId(voiceDto.getId());
-                        voice.setName(voiceDto.getName());
-                        return voice;
-                    })
-                    .collect(Collectors.toList());
-            agent.setPreferredVoice(voices);
-        }
-
-        if (agentDto.getEnabledTools() != null && !agentDto.getEnabledTools().isEmpty()) {
-            List<Tool> tools = agentDto.getEnabledTools().stream()
-                    .map(toolDto -> {
-                        Tool tool = new Tool();
-                        tool.setName(toolDto.getName());
-                        tool.setVariableName(toolDto.getVariableName());
-                        tool.setDescription(toolDto.getDescription());
-                        return tool;
-                    })
-                    .collect(Collectors.toList());
-            agent.setEnabledTools(tools);
-        }
-
-        entity.setAiAgent(agent);
+        entity.setSlugName(dto.getSlugName());
+        entity.setAiAgentId(dto.getAiAgentId());
+        entity.setProfileId(dto.getProfileId());
         return entity;
     }
 }

@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.dto;
 
-import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.dto.AbstractDTO;
@@ -11,11 +10,12 @@ import lombok.Setter;
 
 import java.net.URL;
 import java.time.ZoneId;
+import java.util.UUID;
 
 @Setter
 @Getter
 @NoArgsConstructor
-public class RadioStationDTO  extends AbstractDTO {
+public class RadioStationDTO extends AbstractDTO {
     private CountryCode country;
     private URL url;
     private ManagedBy managedBy;
@@ -27,7 +27,6 @@ public class RadioStationDTO  extends AbstractDTO {
     private Integer archived;
     private int listenersCount;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
-    private AiAgentDTO aiAgent;
-    private ProfileDTO profile;
-
+    private UUID aiAgentId;
+    private UUID profileId;
 }

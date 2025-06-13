@@ -188,7 +188,6 @@ document.addEventListener('DOMContentLoaded', function() {
         loadSourceWithRetry();
     }
 
-    // Web Audio API for volume analysis
     function setupAudioContext() {
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -222,19 +221,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 sum += dataArray[i];
             }
             let average = sum / bufferLength;
-
-            // Map average (0-255) to a scale (e.g., 0-1) for intensity
-            // Adjust the multiplier to control how sensitive the pulse is
-            let intensity = (average / 255) * 2; // Max intensity can be 2, for example
-
-            // Clamp intensity to a reasonable range
-            intensity = Math.min(Math.max(intensity, 0.1), 1.5); // Minimum pulse when sound is low, max pulse when high
+            let intensity = (average / 255) * 2;
+            intensity = Math.min(Math.max(intensity, 0.1), 1.5);
 
             playerContainer.style.setProperty('--border-pulse-intensity', intensity);
 
             animationFrameId = requestAnimationFrame(updateVolume);
         }
-        if (!animationFrameId) { // Only start if not already running
+        if (!animationFrameId) {
             animationFrameId = requestAnimationFrame(updateVolume);
         }
     }
@@ -288,12 +282,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         audio.addEventListener('play', function() {
             updatePlayPauseButton();
-            // We'll manage pulse visibility via CSS based on --border-pulse-intensity
-            // Remove the class-based animation if it was still active
             if (playerContainer) {
                 playerContainer.classList.remove('playing-pulse');
             }
-            setupAudioContext(); // Ensure context is running and analysis started
+            setupAudioContext();
         });
 
         audio.addEventListener('pause', function() {
@@ -301,14 +293,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!audio.ended) {
                 displayMessage(streamUrlDisplayDiv, `Paused: ${audioSrc}`);
             }
-            stopVolumeAnalysis(); // Stop analysis when paused
+            stopVolumeAnalysis();
         });
 
         audio.addEventListener('ended', function() {
             updatePlayPauseButton();
             displayMessage(streamUrlDisplayDiv, `Stream ended.`);
             if(songTitleDisplay) songTitleDisplay.textContent = 'Stream ended';
-            stopVolumeAnalysis(); // Stop analysis when ended
+            stopVolumeAnalysis();
         });
 
         audio.addEventListener('timeupdate', function() {
@@ -329,12 +321,12 @@ document.addEventListener('DOMContentLoaded', function() {
         audio.addEventListener('stalled', function() {
             displayMessage(errorMessageDiv, 'Stream stalled. Attempting to recover...', true);
             if (hls) hls.startLoad();
-            stopVolumeAnalysis(); // Stop analysis if stalled
+            stopVolumeAnalysis();
         });
 
         audio.addEventListener('waiting', function() {
             displayMessage(streamUrlDisplayDiv, 'Buffering...', false);
-            stopVolumeAnalysis(); // Stop analysis if waiting (no sound)
+            stopVolumeAnalysis();
         });
 
         seekBar.addEventListener('input', function() {

@@ -18,8 +18,6 @@ public class AiAgent  extends SimpleReferenceEntity {
     private String mainPrompt;
     private List<Voice> preferredVoice;
     private List<Tool> enabledTools;
-    private int archived;
-
 
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();

@@ -87,9 +87,7 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
             dto.setName(profile.getName());
             dto.setDescription(profile.getDescription());
             dto.setAllowedGenres(profile.getAllowedGenres());
-            dto.setAnnouncementFrequency(profile.getAnnouncementFrequency());
             dto.setExplicitContent(profile.isExplicitContent());
-            dto.setLanguage(profile.getLanguage());
             dto.setArchived(profile.getArchived());
             return dto;
         });
@@ -100,9 +98,7 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setAllowedGenres(dto.getAllowedGenres());
-        entity.setAnnouncementFrequency(dto.getAnnouncementFrequency());
         entity.setExplicitContent(dto.isExplicitContent());
-        entity.setLanguage(dto.getLanguage());
         entity.setArchived(dto.getArchived());
         return entity;
     }

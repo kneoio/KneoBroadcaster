@@ -105,7 +105,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
         String managedByType = managedBy.toString();
         String dj = null;
         String djLang = null;
-
+        //TODO to fix
 /*        if (managedBy != ManagedBy.ITSELF && aiAgent != null) {
             dj = aiAgent.getName();
             djLang = aiAgent.getPreferredLang().name().toUpperCase();

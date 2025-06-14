@@ -205,7 +205,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         LOGGER.warn("Document not found", otherException);
                         return Uni.createFrom().failure(otherException);
                     }
-                    LOGGER.error("Unexpected error", otherException); // Fixed
+                    LOGGER.error("Unexpected error", otherException);
                     return Uni.createFrom().failure(new RuntimeException(
                             "Unexpected error fetching file data for ID: " + id, otherException));
                 })
@@ -214,7 +214,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         LOGGER.warn("Operation cancelled - ID: {}", id);
                     }
                     if (fail != null) {
-                        LOGGER.error("Operation failed", fail); // Fixed
+                        LOGGER.error("Operation failed", fail);
                     }
                     if (res != null) {
                         LOGGER.debug("Operation succeeded - ID: {}", id);
@@ -441,10 +441,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setAlbum(row.getString("album"));
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
-
-        if (row.getString("description") != null) {
-            doc.setDescription(row.getString("description"));
-        }
 
         if (addAttachedFileMetadata) {
             String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date," +

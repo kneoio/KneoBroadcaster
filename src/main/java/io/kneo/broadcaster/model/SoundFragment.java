@@ -22,9 +22,10 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String genre;
     private String album;
     private String slugName;
-    private String description;
     private Integer archived;
     private List<FileMetadata> fileMetadataList;
+    //TODO we need to use
+    private Object addInfo;
 
     public String getMetadata() {
         return String.format("%s - %s", title, artist);

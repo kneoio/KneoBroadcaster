@@ -45,10 +45,6 @@ public class RadioStationRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    private String getSelectAllQuery() {
-        return "SELECT * FROM " + entityData.getTableName();
-    }
-
     public Uni<List<RadioStation>> getAll(int limit, int offset, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
@@ -79,6 +75,29 @@ public class RadioStationRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
+    public Uni<RadioStation> findById(UUID id, IUser user, boolean includeArchived) {
+        String sql = "SELECT theTable.*, rls.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.id = $2";
+
+        if (!includeArchived) {
+            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+        }
+
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(user.getId(), id))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        Row row = iterator.next();
+                        return Uni.createFrom().item(from(row));
+                    } else {
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                    }
+                });
+    }
+
     public Uni<RadioStation> findById(UUID id, Long userID, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
@@ -102,8 +121,13 @@ public class RadioStationRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<RadioStation> findById(UUID id) {
-        String sql = getSelectAllQuery() + " WHERE id = $1";
+    /**
+     * Finds a radio station by ID without RLS restrictions.
+     * This method should only be used for internal operations where RLS checks are not required.
+     * For user-facing operations, use findById(UUID, IUser, boolean) instead.
+     */
+    public Uni<RadioStation> findByIdInternal(UUID id) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
                 .onItem().transform(RowSet::iterator)
@@ -114,7 +138,7 @@ public class RadioStationRepository extends AsyncRepository {
     }
 
     public Uni<RadioStation> findByBrandName(String name) {
-        String sql = getSelectAllQuery() + " WHERE slug_name = $1";
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))
                 .onItem().transform(RowSet::iterator)
@@ -160,7 +184,7 @@ public class RadioStationRepository extends AsyncRepository {
                             .execute(Tuple.of(user.getId(), id, true, true))
                             .onItem().transform(ignored -> id);
                 })
-        ).onItem().transformToUni(id -> findById(id, user.getId(), true));
+        ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
     public Uni<RadioStation> update(UUID id, RadioStation station, IUser user) {
@@ -198,7 +222,7 @@ public class RadioStationRepository extends AsyncRepository {
                                 if (rowSet.rowCount() == 0) {
                                     return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                 }
-                                return findById(id, user.getId(), true);
+                                return findById(id, user, true);
                             });
                 });
     }

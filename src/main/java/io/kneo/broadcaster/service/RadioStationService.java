@@ -33,21 +33,17 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     RadioStationPool radiostationPool;
 
-    private final ProfileService profileService;
-
     @Inject
     public RadioStationService(
             UserService userService,
             RadioStationRepository repository,
             RadioStationPool radiostationPool,
-            BroadcasterConfig broadcasterConfig,
-            ProfileService profileService
+            BroadcasterConfig broadcasterConfig
     ) {
         super(userService);
         this.repository = repository;
         this.radiostationPool = radiostationPool;
         this.broadcasterConfig = broadcasterConfig;
-        this.profileService = profileService;
     }
 
     public Uni<List<RadioStationDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -74,8 +70,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.getAll(limit, offset, SuperUser.build());
     }
 
-    public Uni<RadioStation> getById(UUID id, IUser user, LanguageCode language) {
-        return repository.findById(id);
+    public Uni<RadioStation> getById(UUID id, IUser user) {
+        return repository.findById(id, user, true);
     }
 
     public Uni<RadioStation> findByBrandName(String name) {
@@ -92,7 +88,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     @Override
     public Uni<RadioStationDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;
-        return repository.findById(id).chain(this::mapToDTO);
+        return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
     public Uni<BrandAgentStats> getStats(String stationName) {

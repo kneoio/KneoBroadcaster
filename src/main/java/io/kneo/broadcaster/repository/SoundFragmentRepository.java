@@ -243,14 +243,7 @@ public class SoundFragmentRepository extends AsyncRepository {
             });
         }
 
-        Uni<String> mainMimeTypeUni;
-        if (filesToProcess != null && !filesToProcess.isEmpty()) {
-            mainMimeTypeUni = Uni.createFrom().item(filesToProcess.get(0).getMimeType());
-        } else {
-            mainMimeTypeUni = Uni.createFrom().item((String) null);
-        }
-
-        return executeInsertTransaction(doc, user, nowTime, mainMimeTypeUni, Uni.createFrom().voidItem())
+        return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem())
                 .onItem().transformToUni(insertedDoc -> {
                     if (filesToProcess != null && !filesToProcess.isEmpty()) {
                         List<Uni<Void>> storeOperations = filesToProcess.stream()
@@ -488,65 +481,62 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
-                                                        Uni<String> mimeTypeUni, Uni<Void> fileUploadCompletionUni) {
-        return mimeTypeUni.flatMap(detectedMimeType ->
-                fileUploadCompletionUni.onItem().transformToUni(v -> {
-                    String sql = String.format(
-                            "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                                    "title, artist, genre, album, slug_name, archived, mime_type) " +
-                                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
-                            entityData.getTableName()
-                    );
+                                                        Uni<Void> fileUploadCompletionUni) {
+        return fileUploadCompletionUni.onItem().transformToUni(v -> {
+            String sql = String.format(
+                    "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
+                            "title, artist, genre, album, slug_name, archived) " +
+                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;",
+                    entityData.getTableName()
+            );
 
-                    Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
-                            .addString(doc.getSource().name())
-                            .addInteger(doc.getStatus())
-                            .addString(doc.getType().name())
-                            .addString(doc.getTitle())
-                            .addString(doc.getArtist())
-                            .addString(doc.getGenre())
-                            .addString(doc.getAlbum())
-                            .addString(doc.getSlugName())
-                            .addInteger(0)
-                            .addValue(detectedMimeType);
+            Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
+                    .addString(doc.getSource().name())
+                    .addInteger(doc.getStatus())
+                    .addString(doc.getType().name())
+                    .addString(doc.getTitle())
+                    .addString(doc.getArtist())
+                    .addString(doc.getGenre())
+                    .addString(doc.getAlbum())
+                    .addString(doc.getSlugName())
+                    .addInteger(0);
 
-                    return client.withTransaction(tx -> tx.preparedQuery(sql)
-                            .execute(params)
-                            .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                            .onItem().transformToUni(id -> {
-                                Uni<Void> fileMetadataUni = Uni.createFrom().voidItem();
-                                if (doc.getFileMetadataList() != null && !doc.getFileMetadataList().isEmpty()) {
-                                    String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, mime_type, file_original_name, file_key, file_bin, slug_name) " +
-                                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
-                                    List<Tuple> filesParams = doc.getFileMetadataList().stream()
-                                            .map(meta -> Tuple.of(
-                                                                    entityData.getTableName(),
-                                                                    id,
-                                                                    FileStorageType.DIGITAL_OCEAN,
-                                                                    meta.getMimeType(),
-                                                                    meta.getFileOriginalName(),
-                                                                    meta.getFileKey()
-                                                            )
-                                                            .addValue(meta.getFileBin())
-                                                            .addString(meta.getSlugName())
-                                            ).collect(Collectors.toList());
-                                    fileMetadataUni = tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
-                                }
+            return client.withTransaction(tx -> tx.preparedQuery(sql)
+                    .execute(params)
+                    .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                    .onItem().transformToUni(id -> {
+                        Uni<Void> fileMetadataUni = Uni.createFrom().voidItem();
+                        if (doc.getFileMetadataList() != null && !doc.getFileMetadataList().isEmpty()) {
+                            String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, mime_type, file_original_name, file_key, file_bin, slug_name) " +
+                                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
+                            List<Tuple> filesParams = doc.getFileMetadataList().stream()
+                                    .map(meta -> Tuple.of(
+                                                            entityData.getTableName(),
+                                                            id,
+                                                            FileStorageType.DIGITAL_OCEAN,
+                                                            meta.getMimeType(),
+                                                            meta.getFileOriginalName(),
+                                                            meta.getFileKey()
+                                                    )
+                                                    .addValue(meta.getFileBin())
+                                                    .addString(meta.getSlugName())
+                                    ).collect(Collectors.toList());
+                            fileMetadataUni = tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
+                        }
 
-                                String readersSql = String.format(
-                                        "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                        entityData.getRlsName()
-                                );
+                        String readersSql = String.format(
+                                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
+                                entityData.getRlsName()
+                        );
 
-                                return fileMetadataUni
-                                        .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
-                                                .execute(Tuple.of(user.getId(), id, true, true))
-                                        )
-                                        .onItem().transform(ignored -> id);
-                            })
-                    );
-                })
-        ).onItem().transformToUni(id -> findById(id, user.getId(), true));
+                        return fileMetadataUni
+                                .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
+                                        .execute(Tuple.of(user.getId(), id, true, true))
+                                )
+                                .onItem().transform(ignored -> id);
+                    })
+            );
+        }).onItem().transformToUni(id -> findById(id, user.getId(), true));
     }
 
     //TODO should be moved to 2next

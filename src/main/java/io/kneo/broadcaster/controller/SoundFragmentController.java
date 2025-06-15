@@ -141,14 +141,24 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         getContextUser(rc)
-                .chain(user -> service.getBrandSoundFragments(brandName, 300)
-                        .map(fragments -> {
-                            int totalCount = fragments.size();
+                .chain(user -> service.getBrandSoundFragments(brandName, 300, user)
+                        .map(allFragments -> {
+                            int totalCount = allFragments.size();
+
+                            int startIndex = (page - 1) * size;
+                            int endIndex = Math.min(startIndex + size, totalCount);
+
+                            java.util.List<BrandSoundFragmentDTO> paginatedFragments =
+                                    allFragments.subList(startIndex, endIndex);
+
                             ViewPage viewPage = new ViewPage();
-                            View<BrandSoundFragmentDTO> dtoEntries = new View<>(fragments,
-                                    totalCount, page,
+                            View<BrandSoundFragmentDTO> dtoEntries = new View<>(
+                                    paginatedFragments,
+                                    totalCount,
+                                    page,
                                     RuntimeUtil.countMaxPage(totalCount, size),
-                                    size);
+                                    size
+                            );
                             viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                             ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
                             viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);

@@ -119,24 +119,25 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset, boolean includeArchived) {
+    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset, boolean includeArchived, IUser user) {
         String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "WHERE bsf.brand_id = $1";
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
         }
 
-        sql += " ORDER BY played_by_brand_count";
+        sql += " ORDER BY t.last_mod_date DESC";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
+                .execute(Tuple.of(brandId, user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
                     Uni<SoundFragment> soundFragmentUni = from(row, true);
@@ -151,6 +152,22 @@ public class SoundFragmentRepository extends AsyncRepository {
                 })
                 .concatenate()
                 .collect().asList();
+    }
+
+    public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user) {
+        String sql = "SELECT COUNT(*) " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, user.getId()))
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
     public Uni<FileMetadata> getFileById(UUID id) {

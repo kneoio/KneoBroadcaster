@@ -108,7 +108,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileById(soundFragmentId);
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle) {
+    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user) {
         assert repository != null;
         assert radioStationService != null;
         LOGGER.debug("Get fragments for brand: {}, quantity: {}, shuffle: {}", brandName, quantity, shuffle);
@@ -123,7 +123,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     if (shuffle) {
                         limit = 0;
                     }
-                    return repository.findForBrand(brandId, limit, 0, false)
+                    return repository.findForBrand(brandId, limit, 0, false, user)
                             .chain(fragments -> {
                                 if (shuffle && fragments != null && !fragments.isEmpty()) {
                                     Collections.shuffle(fragments);
@@ -140,7 +140,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit) {
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, IUser user) {
         assert repository != null;
         assert radioStationService != null;
         return radioStationService.findByBrandName(brandName)
@@ -149,7 +149,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandId, limit, 0, false)
+                    return repository.findForBrand(brandId, limit, 0, false, user)
                             .chain(fragments -> {
                                 List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
                                         .map(this::mapToBrandSoundFragmentDTO)
@@ -207,7 +207,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         });
 
             }
-
 
             return SoundFragmentDTO.builder()
                     .id(doc.getId())

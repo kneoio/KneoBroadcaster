@@ -27,14 +27,14 @@ public class QueueController {
     private final QueueService service;
     private final RadioService radioService;
     private final BroadcasterConfig config;
-    private final Vertx vertx; // Added for async file system access
+    private final Vertx vertx;
 
     @Inject
     public QueueController(QueueService service, RadioService radioService, BroadcasterConfig config, Vertx vertx) {
         this.service = service;
         this.radioService = radioService;
         this.config = config;
-        this.vertx = vertx; // Injected Vertx instance
+        this.vertx = vertx;
     }
 
     public void setupRoutes(Router router) {

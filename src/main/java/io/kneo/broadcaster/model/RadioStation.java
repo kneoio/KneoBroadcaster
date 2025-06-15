@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.model;
 
 import io.kneo.broadcaster.controller.stream.IStreamManager;
-import io.kneo.broadcaster.dto.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.localization.LanguageCode;
@@ -98,22 +97,5 @@ public class RadioStation extends SecureDataEntity<UUID> {
             this.oldStatus = oldStatus;
             this.newStatus = newStatus;
         }
-    }
-
-    public RadioStationStatusDTO toStatusDTO() {
-        String stationName = localizedName.getOrDefault(LanguageCode.en, slugName);
-        String managedByType = managedBy.toString();
-        String dj = null;
-        String djLang = null;
-        //TODO to fix
-/*        if (managedBy != ManagedBy.ITSELF && aiAgent != null) {
-            dj = aiAgent.getName();
-            djLang = aiAgent.getPreferredLang().name().toUpperCase();
-        }*/
-
-        String currentStatus = status != null ? status.name() : "UNKNOWN";
-        String stationCountryCode = country != null ? country.name() : null;
-
-        return new RadioStationStatusDTO(stationName, managedByType, dj, djLang, currentStatus, stationCountryCode, color);
     }
 }

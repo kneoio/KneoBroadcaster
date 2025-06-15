@@ -107,10 +107,7 @@ public class RadioController {
         String brand = rc.pathParam("brand");
         String userAgent = rc.request().getHeader("User-Agent");
 
-        service.getPlaylist(brand, userAgent)
-                .onItem().transform(playlist -> {
-                    return playlist.getRadioStation().toStatusDTO();
-                })
+        service.getStatus(brand, userAgent)
                 .subscribe().with(
                         statusDto -> {
                             rc.response()

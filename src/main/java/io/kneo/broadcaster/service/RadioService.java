@@ -1,10 +1,12 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.dto.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -65,5 +67,49 @@ public class RadioService {
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to record access for brand: {}, userAgent: {}", brand, userAgent, failure)
                 );
+    }
+
+    public RadioStationStatusDTO toStatusDTO(RadioStation radioStation) {
+        if (radioStation == null) {
+            return null;
+        }
+
+        String stationName = radioStation.getLocalizedName()
+                .getOrDefault(LanguageCode.en, radioStation.getSlugName());
+
+        String managedByType = radioStation.getManagedBy() != null
+                ? radioStation.getManagedBy().toString()
+                : null;
+
+        String dj = null;
+        String djLang = null;
+        //TODO to fix
+        /*if (radioStation.getManagedBy() != ManagedBy.ITSELF && radioStation.getAiAgent() != null) {
+            dj = radioStation.getAiAgent().getName();
+            djLang = radioStation.getAiAgent().getPreferredLang().name().toUpperCase();
+        }*/
+
+        String currentStatus = radioStation.getStatus() != null
+                ? radioStation.getStatus().name()
+                : "UNKNOWN";
+
+        String stationCountryCode = radioStation.getCountry() != null
+                ? radioStation.getCountry().name()
+                : null;
+
+        return new RadioStationStatusDTO(
+                stationName,
+                managedByType,
+                dj,
+                djLang,
+                currentStatus,
+                stationCountryCode,
+                radioStation.getColor()
+        );
+    }
+
+    public Uni<RadioStationStatusDTO> getStatus(String brand, String userAgent) {
+        return getPlaylist(brand, userAgent)
+                .onItem().transform(playlist -> toStatusDTO(playlist.getRadioStation()));
     }
 }

@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let displayMessageParts = [];
 
             if (statusData.managedBy) {
-                displayMessageParts.push(`Managed by: ${statusData.managedBy}`);
+                displayMessageParts.push(`Mode: ${statusData.managedBy}`);
             }
 
             if (statusData.countryCode) {

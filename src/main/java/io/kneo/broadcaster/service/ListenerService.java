@@ -1,7 +1,8 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
-import io.kneo.broadcaster.dto.RadioStationDTO;
+import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.localization.LanguageCode;
@@ -14,6 +15,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +24,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerService.class);
     private final ListenersRepository repository;
     private final Validator validator;
     private RadioStationService radioStationService;
@@ -33,19 +37,19 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     @Inject
     public ListenerService(UserRepository userRepository,
-                            UserService userService,
-                            RadioStationService radioStationService,
-                            Validator validator,
-                            ListenersRepository repository) {
+                           UserService userService,
+                           RadioStationService radioStationService,
+                           Validator validator,
+                           ListenersRepository repository) {
         super(userRepository, userService);
         this.radioStationService = radioStationService;
         this.validator = validator;
         this.repository = repository;
     }
 
-    public Uni<List<ListenerDTO>> getAll(final int limit, final int offset) {
+    public Uni<List<ListenerDTO>> getAll(final int limit, final int offset, final IUser user) {
         assert repository != null;
-        return repository.getAll(limit, offset)
+        return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -60,7 +64,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
-        return repository.getAllCount(user);
+        return repository.getAllCount(user, false);
     }
 
     @Override
@@ -71,42 +75,27 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 .chain(this::mapToDTO);
     }
 
-    public Uni<ListenerDTO> getListener(String telegramName) {
+    public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user) {
         assert repository != null;
-        return repository.findByTelegramName(telegramName, SuperUser.ID)
-                .chain(listener -> {
-                    if (listener == null) {
-                        return Uni.createFrom().nullItem();
+        assert radioStationService != null;
+
+        return repository.findForBrand(brandName, limit, offset, user, false)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<BrandListenerDTO>> unis = list.stream()
+                                .map(this::mapToBrandListenerDTO)
+                                .collect(Collectors.toList());
+                        return Uni.join().all(unis).andFailFast();
                     }
-                    // Fetch the listener and their radio stations in parallel
-                    return Uni.combine().all().unis(
-                            mapToDTO(listener), // Map listener to DTO
-                            fetchRadioStations(listener.getRadioStations()) // Fetch radio stations
-                    ).asTuple().map(tuple -> {
-                        ListenerDTO dto = tuple.getItem1();
-                        List<RadioStationDTO> radioStations = tuple.getItem2();
-                        // Set the radio stations in the DTO
-                        dto.setRadioStations(radioStations);
-                        return dto;
-                    });
+
                 });
     }
 
-    private Uni<List<RadioStationDTO>> fetchRadioStations(List<UUID> radioStationIds) {
-        if (radioStationIds == null || radioStationIds.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-        // Fetch all radio stations by their IDs
-        List<Uni<RadioStationDTO>> radioStationUnis = radioStationIds.stream()
-                .map(id -> radioStationService.getDTO(id, SuperUser.build(), LanguageCode.en))
-                .collect(Collectors.toList());
-        return Uni.join().all(radioStationUnis).andFailFast();
-    }
-
-    @Override
-    public Uni<Integer> delete(String id, IUser user) {
+    public Uni<Integer> getCountBrandListeners(final String brand, final IUser user) {
         assert repository != null;
-        return repository.delete(UUID.fromString(id));
+        return repository.findForBrandCount(brand, user, false);
     }
 
     public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, IUser user) {
@@ -114,12 +103,18 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         Listener entity = buildEntity(dto);
 
         if (id == null) {
-            return repository.insert(entity, user.getId())
+            return repository.insert(entity, user)
                     .chain(this::mapToDTO);
         } else {
-            return repository.update(UUID.fromString(id), entity, user.getId())
+            return repository.update(UUID.fromString(id), entity, user)
                     .chain(this::mapToDTO);
         }
+    }
+
+    @Override
+    public Uni<Integer> delete(String id, IUser user) {
+        assert repository != null;
+        return repository.delete(UUID.fromString(id), user);
     }
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {
@@ -151,8 +146,15 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return doc;
     }
 
-    public Uni<Integer> delete(String id) {
-        assert repository != null;
-        return repository.delete(UUID.fromString(id));
+    private Uni<BrandListenerDTO> mapToBrandListenerDTO(BrandListener brandListener) {
+        return mapToDTO(brandListener.getListener())
+                .onItem().transform(soundFragmentDTO -> {
+                    BrandListenerDTO dto = new BrandListenerDTO();
+                    dto.setId(brandListener.getId());
+                    dto.setListenerDTO(soundFragmentDTO);
+                    return dto;
+                });
     }
+
+
 }

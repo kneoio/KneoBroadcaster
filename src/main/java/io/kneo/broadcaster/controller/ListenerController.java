@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.service.ListenerService;
@@ -40,11 +41,10 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         router.route().handler(BodyHandler.create());
         router.route(path + "*").handler(this::addHeaders);
         router.get(path).handler(this::get);
+        router.get(path + "/available-listeners").handler(this::getForBrand);
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
-        router.get(path + "/by-telegram-name/:telegramName").handler(this::getByTelegramName);
-
     }
 
     private void get(RoutingContext rc) {
@@ -53,7 +53,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
         getContextUser(rc)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAll(size, (page - 1) * size),
+                        service.getAll(size, (page - 1) * size, user),
                         service.getAllCount(user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
@@ -86,23 +86,29 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 );
     }
 
-    private void getByTelegramName(RoutingContext rc) {
-        String telegramName = rc.request().getParam("telegramName");
-        FormPage page = new FormPage();
-        page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+    private void getForBrand(RoutingContext rc) {
+        String brandName = rc.request().getParam("brand");
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         getContextUser(rc)
-                .chain(user -> service.getListener(telegramName))
-                .onItem().transform(dto -> {
-                    page.addPayload(PayloadType.DOC_DATA, dto);
-                    return page;
-                })
+                .chain(user -> Uni.combine().all().unis(
+                        service.getBrandListeners(brandName, size, (page - 1) * size, user),
+                        service.getCountBrandListeners(brandName, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<BrandListenerDTO> dtoEntries = new View<>(tuple.getItem1(),
+                            tuple.getItem2(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem2(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    return viewPage;
+                }))
                 .subscribe().with(
-                        formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
                 );
     }
-
 
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
@@ -120,7 +126,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
         getContextUser(rc)
-                .chain(user -> service.delete(id))
+                .chain(user -> service.delete(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail

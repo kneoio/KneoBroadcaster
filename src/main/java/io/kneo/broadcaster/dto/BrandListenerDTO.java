@@ -11,7 +11,7 @@ import java.util.UUID;
 @Getter
 public class BrandListenerDTO {
     private UUID id;
-    @JsonProperty("brandListener")
+    @JsonProperty("listener")
     private ListenerDTO listenerDTO;
     private int playedByBrandCount;
     private LocalDateTime lastTimePlayedByBrand;

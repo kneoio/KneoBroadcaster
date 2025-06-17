@@ -77,6 +77,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
+        router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile);
@@ -141,37 +142,24 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         getContextUser(rc)
-                .chain(user -> service.getBrandSoundFragments(brandName, 300, user)
-                        .map(allFragments -> {
-                            int totalCount = allFragments.size();
-
-                            int startIndex = (page - 1) * size;
-                            int endIndex = Math.min(startIndex + size, totalCount);
-
-                            java.util.List<BrandSoundFragmentDTO> paginatedFragments =
-                                    allFragments.subList(startIndex, endIndex);
-
-                            ViewPage viewPage = new ViewPage();
-                            View<BrandSoundFragmentDTO> dtoEntries = new View<>(
-                                    paginatedFragments,
-                                    totalCount,
-                                    page,
-                                    RuntimeUtil.countMaxPage(totalCount, size),
-                                    size
-                            );
-                            viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                            ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
-                            viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
-                            return viewPage;
-                        }))
+                .chain(user -> Uni.combine().all().unis(
+                        service.getBrandSoundFragments(brandName, size, (page - 1) * size, true, user),
+                        service.getCountBrandSoundFragments(brandName, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<BrandSoundFragmentDTO> dtoEntries = new View<>(tuple.getItem1(),
+                            tuple.getItem2(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem2(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    return viewPage;
+                }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        throwable -> {
-                            LOGGER.error("Failed to fetch fragments for brand: {}", brandName, throwable);
-                            rc.fail(throwable);
-                        }
+                        rc::fail
                 );
     }
+
 
     private void upsert(RoutingContext rc) {
         try {

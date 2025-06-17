@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -13,11 +14,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Getter
 public class BrandSoundFragment {
     private UUID id;
+    private UUID defaultBrandId;
     private int queueNum = 1000;
     private int playedByBrandCount;
     private LocalDateTime playedTime;
     private SoundFragment soundFragment;
     private ConcurrentLinkedQueue<HlsSegment> segments;
+    private List<UUID> representedInBrands;
 
     @Override
     public boolean equals(Object o) {

@@ -12,6 +12,7 @@ import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -20,6 +21,7 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -40,6 +42,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -144,6 +147,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                     return soundFragmentUni.onItem().transform(soundFragment -> {
                         BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                         brandSoundFragment.setId(row.getUUID("id"));
+                        brandSoundFragment.setDefaultBrandId(brandId);
                         brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
                         brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
                         brandSoundFragment.setSoundFragment(soundFragment);
@@ -152,6 +156,27 @@ public class SoundFragmentRepository extends AsyncRepository {
                 })
                 .concatenate()
                 .collect().asList();
+    }
+
+    public Uni<List<UUID>> getBrandsForSoundFragment(UUID soundFragmentId, IUser user) {
+        String sql = "SELECT bsf.brand_id " +
+                "FROM kneobroadcaster__brand_sound_fragments bsf " +
+                "JOIN " + entityData.getRlsName() + " rls ON bsf.sound_fragment_id = rls.entity_id " +
+                "WHERE bsf.sound_fragment_id = $1 AND rls.reader = $2";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(soundFragmentId, user.getId()))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("brand_id"))
+                .collect().asList();
+    }
+
+    public Uni<BrandSoundFragment> populateAllBrands(BrandSoundFragment brandSoundFragment, IUser user) {
+        return getBrandsForSoundFragment(brandSoundFragment.getId(), user)
+                .onItem().transform(brandIds -> {
+                    brandSoundFragment.setRepresentedInBrands(brandIds);
+                    return brandSoundFragment;
+                });
     }
 
     public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user) {
@@ -168,6 +193,38 @@ public class SoundFragmentRepository extends AsyncRepository {
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId, user.getId()))
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    public Uni<BrandSoundFragment> findBrandSoundFragmentById(UUID soundFragmentId, IUser user) {
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand, bsf.brand_id " +
+                "FROM " + entityData.getTableName() + " t " +
+                "LEFT JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE t.id = $1 AND rls.reader = $2 " +
+                "AND (t.archived IS NULL OR t.archived = 0)";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(soundFragmentId, user.getId()))
+                .onItem().transformToUni(rows -> {
+                    if (rows.rowCount() == 0) {
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(soundFragmentId));
+                    }
+
+                    Row row = rows.iterator().next();
+                    return from(row, true)
+                            .onItem().transform(soundFragment -> {
+                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                brandSoundFragment.setId(soundFragment.getId());
+                                brandSoundFragment.setSoundFragment(soundFragment);
+                                Integer playedCount = row.getInteger("played_by_brand_count");
+                                brandSoundFragment.setPlayedByBrandCount(playedCount != null ? playedCount : 0);
+
+                                brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
+                                brandSoundFragment.setDefaultBrandId(row.getUUID("brand_id"));
+
+                                return brandSoundFragment;
+                            });
+                });
     }
 
     public Uni<FileMetadata> getFileById(UUID id) {

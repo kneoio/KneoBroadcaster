@@ -68,13 +68,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().item(List.of());
                     } else {
                         List<Uni<SoundFragmentDTO>> unis = list.stream()
-                                .map(doc -> mapToDTO(doc, false))
+                                .map(doc -> mapToDTO(doc, false, null))
                                 .collect(Collectors.toList());
                         return Uni.join().all(unis).andFailFast();
                     }
                 });
     }
-
 
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
@@ -94,8 +93,31 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     @Override
     public Uni<SoundFragmentDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
-        return repository.findById(uuid, user.getId(), false)
-                .chain(doc -> mapToDTO(doc, true));
+
+        Uni<SoundFragment> soundFragmentUni = repository.findById(uuid, user.getId(), false);
+        Uni<List<UUID>> brandsUni = repository.getBrandsForSoundFragment(uuid, user);
+
+        return Uni.combine().all().unis(soundFragmentUni, brandsUni).asTuple()
+                .chain(tuple -> {
+                    SoundFragment doc = tuple.getItem1();
+                    List<UUID> representedInBrands = tuple.getItem2();
+                    return mapToDTO(doc, true, representedInBrands);
+                });
+    }
+
+
+
+    public Uni<BrandSoundFragmentDTO> getBrandSoundFragmentDTO(UUID uuid, IUser user, LanguageCode code, boolean populateAllBrands) {
+        assert repository != null;
+        return repository.findBrandSoundFragmentById(uuid, user)
+                .chain(doc -> {
+                    if (populateAllBrands) {
+                        return repository.populateAllBrands(doc, user)
+                                .chain(this::mapToBrandSoundFragmentDTO);
+                    } else {
+                        return mapToBrandSoundFragmentDTO(doc);
+                    }
+                });
     }
 
     public Uni<FileMetadata> getFile(UUID soundFragmentId, String slugName, IUser user) {
@@ -140,25 +162,51 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, IUser user) {
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, boolean populateAllBrands, IUser user) {
         assert repository != null;
         assert radioStationService != null;
+
         return radioStationService.findByBrandName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrand(brandId, limit, 0, false, user)
+
+                    return repository.findForBrand(brandId, limit, offset, false, user)
                             .chain(fragments -> {
-                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
-                                        .map(this::mapToBrandSoundFragmentDTO)
-                                        .collect(Collectors.toList());
+                                List<Uni<BrandSoundFragmentDTO>> unis;
+                                if (populateAllBrands) {
+                                    unis = fragments.stream()
+                                            .map(fragment -> repository.populateAllBrands(fragment, user)
+                                                    .chain(this::mapToBrandSoundFragmentDTO))
+                                            .collect(Collectors.toList());
+                                } else {
+                                    unis = fragments.stream()
+                                            .map(this::mapToBrandSoundFragmentDTO)
+                                            .collect(Collectors.toList());
+                                }
                                 return Uni.join().all(unis).andFailFast();
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
                     LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
+                    return Uni.createFrom().failure(failure);
+                });
+    }
+
+    public Uni<Integer> getCountBrandSoundFragments(final String brand, final IUser user) {
+        assert repository != null;
+        return radioStationService.findByBrandName(brand)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.findForBrandCount(brandId, false, user);
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to get fragments count for brand: {}", brand, failure);
                     return Uni.createFrom().failure(failure);
                 });
     }
@@ -179,14 +227,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         entity.setFileMetadataList(List.of(fileMetadata));
         if (id == null) {
             return repository.insert(entity, user)
-                    .chain(doc -> mapToDTO(doc, true));
+                    .chain(doc -> mapToDTO(doc, true, null));
         } else {
             return repository.update(UUID.fromString(id), entity, user)
-                    .chain(doc -> mapToDTO(doc, true));
+                    .chain(doc -> mapToDTO(doc, true, null));
         }
     }
 
-    private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl) {
+    private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl, List<UUID> representedInBrands) {
         return Uni.combine().all().unis(
                 userRepository.getUserName(doc.getAuthor()),
                 userRepository.getUserName(doc.getLastModifier())
@@ -194,6 +242,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             String author = tuple.getItem1();
             String lastModifier = tuple.getItem2();
             List<UploadFileDTO> files = new ArrayList<>();
+
             if (exposeFileUrl && doc.getFileMetadataList() != null) {
                 doc.getFileMetadataList()
                         .forEach(meta -> {
@@ -205,7 +254,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                     .percentage(100)
                                     .build());
                         });
-
             }
 
             return SoundFragmentDTO.builder()
@@ -222,6 +270,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .genre(doc.getGenre())
                     .album(doc.getAlbum())
                     .uploadedFiles(files)
+                    .representedInBrands(representedInBrands)
                     .build();
         });
     }
@@ -249,15 +298,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.archive(UUID.fromString(id), user);
     }
 
-
-    private Uni<BrandSoundFragmentDTO> mapToBrandSoundFragmentDTO(BrandSoundFragment fragment) {
-        return mapToDTO(fragment.getSoundFragment(), false)
+    private Uni<BrandSoundFragmentDTO> mapToBrandSoundFragmentDTO(BrandSoundFragment doc) {
+        return mapToDTO(doc.getSoundFragment(), false, null)
                 .onItem().transform(soundFragmentDTO -> {
                     BrandSoundFragmentDTO dto = new BrandSoundFragmentDTO();
-                    dto.setId(fragment.getId());
+                    dto.setId(doc.getId());
                     dto.setSoundFragmentDTO(soundFragmentDTO);
-                    dto.setPlayedByBrandCount(fragment.getPlayedByBrandCount());
-                    dto.setLastTimePlayedByBrand(fragment.getPlayedTime());
+                    dto.setPlayedByBrandCount(doc.getPlayedByBrandCount());
+                    dto.setLastTimePlayedByBrand(doc.getPlayedTime());
+                    dto.setDefaultBrandId(doc.getDefaultBrandId());
+                    dto.setRepresentedInBrands(doc.getRepresentedInBrands());
                     return dto;
                 });
     }

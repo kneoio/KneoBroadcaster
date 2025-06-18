@@ -52,6 +52,7 @@ public class AiHelperService {
                                         LiveAgentDTO liveAgentDTO = new LiveAgentDTO();
                                         liveAgentDTO.setName(aiAgent.getName());
                                         liveAgentDTO.setMainPrompt(aiAgent.getMainPrompt());
+                                        liveAgentDTO.setFillers(aiAgent.getFillerPrompt());
                                         if (aiAgent.getPreferredVoice() != null && !aiAgent.getPreferredVoice().isEmpty()) {
                                             liveAgentDTO.setPreferredVoice(aiAgent.getPreferredVoice().get(0).getId());
                                         }

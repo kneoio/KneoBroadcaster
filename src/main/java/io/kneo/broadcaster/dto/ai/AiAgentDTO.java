@@ -13,6 +13,7 @@ public class AiAgentDTO extends AbstractDTO {
     private String name;
     private LanguageCode preferredLang;
     private String mainPrompt;
+    private List<String> fillerPrompt;
     private List<VoiceDTO> preferredVoice;
     private List<ToolDTO> enabledTools;
 }

@@ -75,13 +75,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     public void setupRoutes(Router router) {
         String path = "/api/soundfragments";
 
-        // Configure BodyHandler with music file limits
-        router.route().handler(BodyHandler.create()
+        BodyHandler bodyHandler = BodyHandler.create()
                 .setHandleFileUploads(true)
                 .setMergeFormAttributes(true)
                 .setUploadsDirectory(uploadDir)
                 .setDeleteUploadedFilesOnEnd(false)
-                .setBodyLimit(MAX_REQUEST_SIZE_BYTES));
+                .setBodyLimit(MAX_REQUEST_SIZE_BYTES);
 
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
@@ -89,9 +88,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
-        router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
+        router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
     }
 
     private void get(RoutingContext rc) {

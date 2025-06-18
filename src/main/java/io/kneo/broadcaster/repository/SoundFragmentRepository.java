@@ -12,7 +12,6 @@ import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -21,7 +20,6 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -42,7 +40,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -312,7 +309,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                 }
                 meta.setFileOriginalName(filePath.getFileName().toString());
                 meta.setSlugName(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()));
-                meta.setFileKey(generateDoKey(doc));
+                String doKey =  WebHelper.generateSlugPath(doc.getGenre().toLowerCase(), doc.getArtist(), String.valueOf(UUID.randomUUID()));
+                meta.setFileKey(doKey);
                 meta.setMimeType(detectMimeType(filePath.toString()));
             });
         }
@@ -367,15 +365,18 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                     return Uni.createFrom().<Void>failure(new UploadAbsenceException("Upload file not found at path: " + localPath));
                                                 }
 
-                                                String doKey = generateDoKey(doc);
+                                                String doKey = WebHelper.generateSlugPath(doc.getGenre().toLowerCase(), doc.getArtist(), String.valueOf(UUID.randomUUID()));
                                                 meta.setFileKey(doKey);
                                                 String mimeType = detectMimeType(localPath);
                                                 meta.setMimeType(mimeType);
                                                 meta.setFileOriginalName(path.getFileName().toString());
                                                 meta.setSlugName(WebHelper.generateSlug(doc.getArtist(), doc.getTitle()));
 
+                                                LOGGER.info("DEBUG: About to store file - Key: {}, Path: {},  Artist: {}, Title: {}",
+                                                        doKey, localPath, doc.getArtist(), doc.getTitle());
+
                                                 return fileStorage.storeFile(doKey, localPath, mimeType, entityData.getTableName(), id)
-                                                        .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, id))
+                                                        .onItem().invoke(storedKey -> LOGGER.info("DEBUG: File stored with key: {} for doc ID: {}", storedKey, id))
                                                         .onFailure().invoke(ex -> LOGGER.error("Failed to store file with key: {}", doKey, ex))
                                                         .onItem().ignore().andContinueWithNull();
                                             }).collect(Collectors.toList());
@@ -519,7 +520,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         if (addAttachedFileMetadata) {
             String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date," +
                     " storage_type, mime_type, slug_name, file_original_name, file_key, file_bin FROM _files" +
-                    " WHERE parent_table = '" + entityData.getTableName() +"' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
+                    " WHERE parent_table = '" + entityData.getTableName() + "' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
 
             return client.preparedQuery(fileQuery)
                     .execute(Tuple.of(doc.getId()))
@@ -624,9 +625,5 @@ public class SoundFragmentRepository extends AsyncRepository {
             LOGGER.error("Tika could not determine MIME type for file {}. Defaulting to application/octet-stream.", filePath);
             return "application/octet-stream";
         }
-    }
-
-    private static String generateDoKey(SoundFragment doc) {
-        return WebHelper.generateSlugPath(doc.getGenre().toLowerCase(), doc.getArtist(), doc.getTitle());
     }
 }

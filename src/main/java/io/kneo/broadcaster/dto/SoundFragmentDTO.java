@@ -6,7 +6,6 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.dto.AbstractDTO;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -21,7 +20,6 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 public class SoundFragmentDTO extends AbstractDTO {
-    @Builder.Default
     private SourceType source = SourceType.USERS_UPLOAD;
     private Integer status = -1;
     @NotNull

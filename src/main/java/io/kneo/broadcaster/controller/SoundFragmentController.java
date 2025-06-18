@@ -3,11 +3,13 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.exceptions.UploadAbsenceException;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -52,6 +54,10 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private BroadcasterConfig config;
     private String uploadDir;
     private Validator validator;
+    private static final long MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+    private static final long MAX_REQUEST_SIZE_BYTES = 60 * 1024 * 1024; // 60MB
+    private static final int UPLOAD_TIMEOUT_SECONDS = 300; // 5 minutes
+
 
     public SoundFragmentController() {
         super(null);
@@ -68,12 +74,15 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     public void setupRoutes(Router router) {
         String path = "/api/soundfragments";
+
+        // Configure BodyHandler with music file limits
         router.route().handler(BodyHandler.create()
                 .setHandleFileUploads(true)
                 .setMergeFormAttributes(true)
                 .setUploadsDirectory(uploadDir)
-                //.setBodyLimit(100L * 1024 * 1024)
-                .setDeleteUploadedFilesOnEnd(false));
+                .setDeleteUploadedFilesOnEnd(false)
+                .setBodyLimit(MAX_REQUEST_SIZE_BYTES));
+
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
@@ -83,7 +92,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
-
     }
 
     private void get(RoutingContext rc) {
@@ -160,7 +168,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-
     private void upsert(RoutingContext rc) {
         try {
             JsonObject json = rc.body().asJsonObject();
@@ -179,9 +186,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             }
 
             getContextUser(rc)
-                    .chain(user -> {
-                        return service.upsert(id, dto, user, LanguageCode.en);
-                    })
+                    .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                     .subscribe().with(
                             doc -> rc.response()
                                     .setStatusCode(id == null ? 201 : 200)
@@ -212,32 +217,181 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
+    private void uploadFile(RoutingContext rc) {
+        if (rc.fileUploads().isEmpty()) {
+            rc.response().setStatusCode(400).end("No file uploaded");
+            return;
+        }
+
+        String id = rc.pathParam("id");
+        FileUpload uploadedFile = rc.fileUploads().get(0);
+        Path tempFile = Paths.get(uploadedFile.uploadedFileName());
+
+        if (uploadedFile.size() > MAX_FILE_SIZE_BYTES) {
+            rc.response().setStatusCode(413)
+                    .end(String.format("File too large. Maximum size is %d MB for audio files",
+                            MAX_FILE_SIZE_BYTES / 1024 / 1024));
+            return;
+        }
+
+        String originalFileName = uploadedFile.fileName();
+        if (!isValidAudioFile(originalFileName, uploadedFile.contentType())) {
+            rc.response().setStatusCode(415)
+                    .end("Unsupported file type. Only audio files are allowed: " +
+                            String.join(", ", SUPPORTED_AUDIO_EXTENSIONS));
+            return;
+        }
+
+        getContextUser(rc)
+                .chain(user -> {
+                    try {
+                        // SECURITY: Sanitize the filename to prevent path traversal
+                        String safeFileName;
+                        try {
+                            safeFileName = FileSecurityUtils.sanitizeFilename(originalFileName);
+                        } catch (SecurityException e) {
+                            LOGGER.warn("Unsafe filename rejected: {} from user: {}", originalFileName, user.getUserName());
+                            return Uni.createFrom().failure(new IllegalArgumentException("Invalid filename: " + e.getMessage()));
+                        }
+
+
+
+                        // Create user and entity directories securely
+                        Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
+                        String entityIdSafe = id != null ? id : "temp";
+
+                        // Validate entity ID is a valid UUID or "temp"
+                        if (!"temp".equals(entityIdSafe)) {
+                            try {
+                                UUID.fromString(entityIdSafe);
+                            } catch (IllegalArgumentException e) {
+                                LOGGER.warn("Invalid entity ID: {} from user: {}", entityIdSafe, user.getUserName());
+                                return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
+                            }
+                        }
+
+                        Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
+
+                        // SECURITY: Use secure path resolution
+                        Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
+
+                        // Verify the destination is within our expected directory structure
+                        Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
+                        if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
+                            LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
+                                    user.getUserName(), originalFileName);
+                            return Uni.createFrom().failure(new SecurityException("Invalid file path"));
+                        }
+
+                        // Move file to secure location
+                        Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
+                        LOGGER.info("Audio file uploaded: {} ({} MB) for user: {}",
+                                movedTo, uploadedFile.size() / 1024 / 1024, user.getUserName());
+
+                        String fileId = UUID.randomUUID().toString();
+                        UploadFileDTO uploadResponse = UploadFileDTO.builder()
+                                .id(fileId)
+                                .name(safeFileName)
+                                .status("finished")
+                                .url("/api/soundfragments/files/" + entityIdSafe + "/" + safeFileName)
+                                .percentage(100)
+                                .build();
+
+                        return Uni.createFrom().item(uploadResponse);
+
+                    } catch (SecurityException e) {
+                        LOGGER.error("Security violation in file upload: {}", e.getMessage());
+                        return Uni.createFrom().failure(e);
+                    } catch (IOException e) {
+                        LOGGER.error("File operation failed", e);
+                        return Uni.createFrom().failure(e);
+                    }
+                })
+                .subscribe().with(
+                        uploadResponse -> rc.response()
+                                .putHeader("Content-Type", "application/json")
+                                .end(JsonObject.mapFrom(uploadResponse).encode()),
+                        throwable -> {
+                            if (throwable instanceof SecurityException) {
+                                rc.response().setStatusCode(400).end("Security violation: " + throwable.getMessage());
+                            } else if (throwable instanceof IllegalArgumentException) {
+                                rc.response().setStatusCode(400).end("Invalid input: " + throwable.getMessage());
+
+                            } else {
+                                rc.fail(throwable);
+                            }
+                        }
+                );
+    }
+
+    // Update the getBySlugName method with security fixes
     private void getBySlugName(RoutingContext rc) {
         String id = rc.pathParam("id");
         String requestedFileName = rc.pathParam("slug");
 
         getContextUser(rc)
                 .chain(user -> {
-                    Path destinationDir = Paths.get(uploadDir, user.getUserName(), id);
-                    File file = destinationDir.resolve(requestedFileName).toFile();
-
-                    if (file.exists()) {
+                    try {
+                        // SECURITY: Validate entity ID
                         try {
-                            byte[] fileBytes = Files.readAllBytes(file.toPath());
-                            String mimeType = Files.probeContentType(file.toPath());
-                            return Uni.createFrom().item(new FileData(
-                                    fileBytes,
-                                    mimeType != null ? mimeType : "application/octet-stream"
-                            ));
-                        } catch (IOException e) {
-                            return Uni.createFrom().failure(e);
+                            UUID.fromString(id);
+                        } catch (IllegalArgumentException e) {
+                            LOGGER.warn("Invalid entity ID in file request: {} from user: {}", id, user.getUserName());
+                            return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
                         }
-                    }
 
-                    return service.getFile(UUID.fromString(id), requestedFileName, user)
-                            .onItem().transform(fileMetadata -> {
-                                return new FileData(fileMetadata.getFileBin(), fileMetadata.getMimeType());
-                            });
+                        // SECURITY: Sanitize the requested filename
+                        String safeFileName;
+                        try {
+                            safeFileName = FileSecurityUtils.sanitizeFilename(requestedFileName);
+                        } catch (SecurityException e) {
+                            LOGGER.warn("Unsafe filename in file request: {} from user: {}", requestedFileName, user.getUserName());
+                            return Uni.createFrom().failure(new SecurityException("Invalid filename"));
+                        }
+
+                        // Create secure path
+                        Path baseDir = Paths.get(uploadDir, user.getUserName(), id);
+                        Path secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
+
+                        // Double-check the resolved path is within expected bounds
+                        if (!FileSecurityUtils.isPathWithinBase(baseDir, secureFilePath)) {
+                            LOGGER.error("Security violation: Path traversal attempt by user {} for file {}",
+                                    user.getUserName(), requestedFileName);
+                            return Uni.createFrom().failure(new SecurityException("Invalid file path"));
+                        }
+
+                        File file = secureFilePath.toFile();
+
+                        if (file.exists()) {
+                            try {
+                                // Additional security check: ensure file is actually within our directory
+                                Path canonicalFile = file.toPath().toRealPath();
+                                Path canonicalBase = baseDir.toRealPath();
+                                if (!canonicalFile.startsWith(canonicalBase)) {
+                                    LOGGER.error("Security violation: File outside base directory accessed by user {}", user.getUserName());
+                                    return Uni.createFrom().failure(new SecurityException("File access denied"));
+                                }
+
+                                byte[] fileBytes = Files.readAllBytes(canonicalFile);
+                                String mimeType = Files.probeContentType(canonicalFile);
+                                return Uni.createFrom().item(new FileData(
+                                        fileBytes,
+                                        mimeType != null ? mimeType : "application/octet-stream"
+                                ));
+                            } catch (IOException e) {
+                                LOGGER.error("File read error for user {}, file: {}", user.getUserName(), safeFileName, e);
+                                return Uni.createFrom().failure(e);
+                            }
+                        }
+
+                        // If local file doesn't exist, try database/storage
+                        return service.getFile(UUID.fromString(id), safeFileName, user)
+                                .onItem().transform(fileMetadata ->
+                                        new FileData(fileMetadata.getFileBin(), fileMetadata.getMimeType()));
+
+                    } catch (SecurityException | IllegalArgumentException e) {
+                        return Uni.createFrom().failure(e);
+                    }
                 })
                 .subscribe().with(
                         fileData -> {
@@ -249,13 +403,19 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             }
 
                             rc.response()
-                                    .putHeader("Content-Disposition", "attachment; filename=\"" + requestedFileName + "\"")
+                                    .putHeader("Content-Disposition", "attachment; filename=\"" +
+                                            FileSecurityUtils.sanitizeFilename(requestedFileName) + "\"")
                                     .putHeader("Content-Type", fileData.getMimeType())
                                     .putHeader("Content-Length", String.valueOf(fileData.getData().length))
                                     .end(Buffer.buffer(fileData.getData()));
                         },
                         throwable -> {
-                            if (throwable instanceof FileNotFoundException ||
+                            if (throwable instanceof SecurityException) {
+                                LOGGER.warn("Security violation in file access: {}", throwable.getMessage());
+                                rc.response().setStatusCode(403).end("Access denied");
+                            } else if (throwable instanceof IllegalArgumentException) {
+                                rc.response().setStatusCode(400).end("Invalid request");
+                            } else if (throwable instanceof FileNotFoundException ||
                                     throwable instanceof DocumentHasNotFoundException) {
                                 rc.response().setStatusCode(404).end("File not found");
                             } else {
@@ -266,38 +426,35 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-    private void uploadFile(RoutingContext rc) {
-        if (rc.fileUploads().isEmpty()) {
-            rc.fail(400);
-            return;
+    private boolean isValidAudioFile(String filename, String contentType) {
+        if (filename == null || filename.trim().isEmpty()) {
+            return false;
         }
-        String id = rc.pathParam("id");
-        FileUpload uploadedFile = rc.fileUploads().get(0);
-        Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
-        getContextUser(rc)
-                .chain(user -> Uni.createFrom().emitter(emitter -> {
-                    if (user.getId() > 0) {
-                        try {
-                            String fileName = uploadedFile.fileName();
-                            Path destination = Files.createDirectories(Paths.get(uploadDir, user.getUserName(), id)).resolve(fileName);
+        String extension = getFileExtension(filename.toLowerCase());
+        boolean validExtension = SUPPORTED_AUDIO_EXTENSIONS.contains(extension);
 
-                            Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
-                            LOGGER.info("Uploaded file moved to {}", movedTo);
-                            emitter.complete(config.getHost() + "/api/soundfragments/files/" + id + "/" + fileName);
-                        } catch (IOException e) {
-                            emitter.fail(e);
-                        }
-                    } else {
-                        rc.response().setStatusCode(403).end("Unauthorized user");
-                    }
-                }))
-                .subscribe().with(
-                        url -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(new JsonObject().put("fileUrl", url).encode()),
-                        rc::fail
-                );
+        boolean validMimeType = contentType != null &&
+                SUPPORTED_AUDIO_MIME_TYPES.stream().anyMatch(contentType::startsWith);
+
+        return validExtension || validMimeType;
     }
 
+    private String getFileExtension(String filename) {
+        int lastDot = filename.lastIndexOf('.');
+        if (lastDot > 0 && lastDot < filename.length() - 1) {
+            return filename.substring(lastDot + 1);
+        }
+        return "";
+    }
+
+    private static final Set<String> SUPPORTED_AUDIO_EXTENSIONS = Set.of(
+            "mp3", "wav", "flac", "aac", "ogg", "m4a"
+    );
+
+    private static final Set<String> SUPPORTED_AUDIO_MIME_TYPES = Set.of(
+            "audio/mpeg", "audio/wav", "audio/wave", "audio/x-wav",
+            "audio/flac", "audio/x-flac", "audio/aac", "audio/ogg",
+            "audio/mp4", "audio/x-m4a"
+    );
 }

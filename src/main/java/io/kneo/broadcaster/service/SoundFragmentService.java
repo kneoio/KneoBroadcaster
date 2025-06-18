@@ -8,6 +8,9 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
+import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
+import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
+import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -22,7 +25,10 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -35,12 +41,20 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
+    private final LocalFileCleanupService localFileCleanupService;
+    private final TransactionCoordinatorService transactionCoordinator;
+    private final FileOperationLockService lockService;
+    private final DigitalOceanStorage digitalOceanStorage;
     private final BroadcasterConfig config;
     private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService(BroadcasterConfig config) {
+    protected SoundFragmentService(TransactionCoordinatorService transactionCoordinator, FileOperationLockService lockService, DigitalOceanStorage digitalOceanStorage, BroadcasterConfig config) {
         super(null);
+        this.transactionCoordinator = transactionCoordinator;
+        this.lockService = lockService;
+        this.digitalOceanStorage = digitalOceanStorage;
+        this.localFileCleanupService = null;
         this.config = config;
         this.repository = null;
         this.radioStationService = null;
@@ -50,12 +64,18 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public SoundFragmentService(UserRepository userRepository,
                                 UserService userService,
                                 RadioStationService radioStationService,
+                                LocalFileCleanupService localFileCleanupService, FileOperationLockService lockService,
                                 Validator validator,
-                                SoundFragmentRepository repository, BroadcasterConfig config) {
+                                SoundFragmentRepository repository, TransactionCoordinatorService transactionCoordinator, DigitalOceanStorage digitalOceanStorage,
+                                BroadcasterConfig config) {
         super(userRepository, userService);
+        this.localFileCleanupService = localFileCleanupService;
+        this.lockService = lockService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
+        this.transactionCoordinator = transactionCoordinator;
+        this.digitalOceanStorage = digitalOceanStorage;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.config = config;
     }
@@ -104,8 +124,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return mapToDTO(doc, true, representedInBrands);
                 });
     }
-
-
 
     public Uni<BrandSoundFragmentDTO> getBrandSoundFragmentDTO(UUID uuid, IUser user, LanguageCode code, boolean populateAllBrands) {
         assert repository != null;
@@ -212,25 +230,135 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
-        FileMetadata fileMetadata = new FileMetadata();
-        if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
-            dto.getNewlyUploaded()
-                    .forEach(fileName -> {
-                        if (id == null) {
-                            fileMetadata.setFilePath(Path.of(uploadDir + "/" + user.getUserName() + "/null/" + fileName));
-                        } else {
-                            fileMetadata.setFilePath(Path.of(uploadDir + "/" + user.getUserName() + "/" + id + "/" + fileName));
-                        }
-                    });
-        }
         SoundFragment entity = buildEntity(dto);
-        entity.setFileMetadataList(List.of(fileMetadata));
+
+        List<FileMetadata> fileMetadataList = new ArrayList<>();
+        if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
+            for (String fileName : dto.getNewlyUploaded()) {
+
+                // SECURITY: Validate and sanitize filename
+                String safeFileName;
+                try {
+                    safeFileName = FileSecurityUtils.sanitizeFilename(fileName);
+                } catch (SecurityException e) {
+                    LOGGER.error("Security violation: Unsafe filename '{}' from user: {}", fileName, user.getUserName());
+                    return Uni.createFrom().failure(new IllegalArgumentException("Invalid filename: " + fileName));
+                }
+
+                FileMetadata fileMetadata = new FileMetadata();
+                String entityId = id != null ? id : "temp";
+
+                // SECURITY: Validate entity ID
+                if (id != null) {
+                    try {
+                        UUID.fromString(id);
+                    } catch (IllegalArgumentException e) {
+                        LOGGER.error("Security violation: Invalid entity ID '{}' from user: {}", id, user.getUserName());
+                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
+                    }
+                }
+
+                // SECURITY: Use secure path resolution
+                Path baseDir = Paths.get(uploadDir, user.getUserName(), entityId);
+                Path secureFilePath;
+                try {
+                    secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
+                } catch (SecurityException e) {
+                    LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
+                            user.getUserName(), fileName);
+                    return Uni.createFrom().failure(new SecurityException("Invalid file path"));
+                }
+
+                if (!Files.exists(secureFilePath)) {
+                    LOGGER.error("File not found at expected secure path: {} for user: {}", secureFilePath, user.getUserName());
+                    continue;
+                }
+
+                fileMetadata.setFilePath(secureFilePath);
+                fileMetadata.setFileOriginalName(safeFileName); // Use sanitized filename
+                fileMetadata.setSlugName(WebHelper.generateSlug(entity.getArtist(), entity.getTitle()));
+                fileMetadataList.add(fileMetadata);
+            }
+        }
+
+        entity.setFileMetadataList(fileMetadataList);
+
         if (id == null) {
             return repository.insert(entity, user)
-                    .chain(doc -> mapToDTO(doc, true, null));
+                    .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
+                    .chain(doc -> mapToDTO(doc, true, null))
+                    .onFailure().invoke(failure -> {
+                        // Cleanup temp files if entity creation fails
+                        LOGGER.warn("Entity creation failed, cleaning up temp files for user: {}", user.getUserName());
+                        localFileCleanupService.cleanupTempFilesForUser(user.getUserName())
+                                .subscribe().with(
+                                        ignored -> LOGGER.debug("Temp files cleaned up after failure"),
+                                        cleanupError -> LOGGER.warn("Failed to cleanup temp files", cleanupError)
+                                );
+                    });
         } else {
             return repository.update(UUID.fromString(id), entity, user)
-                    .chain(doc -> mapToDTO(doc, true, null));
+                    .chain(doc -> mapToDTO(doc, true, null))
+                    .onFailure().invoke(failure -> {
+                        // Cleanup files if update fails
+                        LOGGER.warn("Entity update failed, cleaning up files for user: {}, entity: {}",
+                                user.getUserName(), id);
+                        localFileCleanupService.cleanupEntityFiles(user.getUserName(), id)
+                                .subscribe().with(
+                                        ignored -> LOGGER.debug("Entity files cleaned up after failure"),
+                                        cleanupError -> LOGGER.warn("Failed to cleanup entity files", cleanupError)
+                                );
+                    });
+        }
+    }
+
+    public Uni<LocalFileCleanupService.CleanupStats> getLocalFileCleanupStats() {
+        return Uni.createFrom().item(localFileCleanupService.getStats());
+    }
+
+    private Uni<SoundFragment> moveFilesForNewEntity(SoundFragment doc, List<FileMetadata> fileMetadataList, IUser user) {
+        if (fileMetadataList.isEmpty()) {
+            return Uni.createFrom().item(doc);
+        }
+
+        try {
+            Path userBaseDir = Paths.get(uploadDir, user.getUserName());
+            Path tempDir = userBaseDir.resolve("temp");
+            Path entityDir = userBaseDir.resolve(doc.getId().toString());
+
+            if (Files.exists(tempDir)) {
+                if (!Files.exists(entityDir)) {
+                    Files.createDirectories(entityDir);
+                }
+
+                for (FileMetadata meta : fileMetadataList) {
+                    String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
+
+                    // SECURITY: Use secure path resolution for both source and destination
+                    Path tempFile = FileSecurityUtils.secureResolve(tempDir, safeFileName);
+                    Path entityFile = FileSecurityUtils.secureResolve(entityDir, safeFileName);
+
+                    if (!FileSecurityUtils.isPathWithinBase(tempDir, tempFile) ||
+                            !FileSecurityUtils.isPathWithinBase(entityDir, entityFile)) {
+                        LOGGER.error("Security violation: Invalid file paths during move operation for user: {}", user.getUserName());
+                        return Uni.createFrom().failure(new SecurityException("Invalid file paths"));
+                    }
+
+                    if (Files.exists(tempFile)) {
+                        Files.move(tempFile, entityFile, StandardCopyOption.REPLACE_EXISTING);
+                        meta.setFilePath(entityFile);
+                        LOGGER.debug("Securely moved file from {} to {} for user: {}", tempFile, entityFile, user.getUserName());
+                    }
+                }
+            }
+
+            return Uni.createFrom().item(doc);
+        } catch (SecurityException e) {
+            LOGGER.error("Security violation during file move for entity: {}, user: {}", doc.getId(), user.getUserName(), e);
+            return Uni.createFrom().failure(e);
+        } catch (Exception e) {
+            LOGGER.error("Failed to move files for entity: {}, user: {}", doc.getId(), user.getUserName(), e);
+            return Uni.createFrom().failure(e);
         }
     }
 
@@ -246,11 +374,13 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             if (exposeFileUrl && doc.getFileMetadataList() != null) {
                 doc.getFileMetadataList()
                         .forEach(meta -> {
+                            // SECURITY: Sanitize filename in URL generation
+                            String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
                             files.add(UploadFileDTO.builder()
                                     .id(meta.getSlugName())
-                                    .name(meta.getFileOriginalName())
+                                    .name(safeFileName)
                                     .status("finished")
-                                    .url("/api/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName())
+                                    .url("/api/soundfragments/files/" + doc.getId() + "/" + safeFileName)
                                     .percentage(100)
                                     .build());
                         });

@@ -24,6 +24,7 @@ public class RadioStationDTO extends AbstractDTO {
     private String slugName;
     private ZoneId timeZone;
     private String color;
+    private String description;
     private Integer archived;
     private int listenersCount;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;

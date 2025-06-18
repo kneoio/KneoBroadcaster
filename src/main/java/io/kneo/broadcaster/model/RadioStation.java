@@ -33,6 +33,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private CountryCode country;
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
+    private String description;
     private Map<String, Object> schedule;
     private UUID aiAgentId;
     private UUID profileId;

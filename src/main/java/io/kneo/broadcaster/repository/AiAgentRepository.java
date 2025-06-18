@@ -174,36 +174,50 @@ public class AiAgentRepository extends AsyncRepository {
     }
 
     private AiAgent from(Row row) {
-        AiAgent agent = new AiAgent();
-        setDefaultFields(agent, row);
-        agent.setArchived(row.getInteger("archived"));
-        agent.setName(row.getString("name"));
-        agent.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
-        agent.setMainPrompt(row.getString("main_prompt"));
+        AiAgent doc = new AiAgent();
+        setDefaultFields(doc, row);
+        doc.setArchived(row.getInteger("archived"));
+        doc.setName(row.getString("name"));
+        doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
+        doc.setMainPrompt(row.getString("main_prompt"));
+        doc.setTalkativity(row.getDouble("talkativity"));
+
+        try {
+            JsonArray preferredVoiceJson = row.getJsonArray("filler_prompt");
+            if (preferredVoiceJson != null) {
+                List<String> prompt = mapper.readValue(preferredVoiceJson.encode(), new TypeReference<List<String>>() {});
+                doc.setFillerPrompt(prompt);
+            } else {
+                doc.setFillerPrompt(new ArrayList<>());
+            }
+        } catch (JsonProcessingException e) {
+            LOGGER.error("Failed to deserialize filler prompt fields for agent: {}", doc.getName(), e);
+            doc.setFillerPrompt(new ArrayList<>());
+        }
 
         try {
             JsonArray preferredVoiceJson = row.getJsonArray("preferred_voice");
             if (preferredVoiceJson != null) {
                 List<Voice> voices = mapper.readValue(preferredVoiceJson.encode(), new TypeReference<List<Voice>>() {});
-                agent.setPreferredVoice(voices);
+                doc.setPreferredVoice(voices);
             } else {
-                agent.setPreferredVoice(new ArrayList<>());
+                doc.setPreferredVoice(new ArrayList<>());
             }
 
             JsonArray enabledToolsJson = row.getJsonArray("enabled_tools");
             if (enabledToolsJson != null) {
                 List<Tool> tools = mapper.readValue(enabledToolsJson.encode(), new TypeReference<List<Tool>>() {});
-                agent.setEnabledTools(tools);
+                doc.setEnabledTools(tools);
             } else {
-                agent.setEnabledTools(new ArrayList<>());
+                doc.setEnabledTools(new ArrayList<>());
             }
 
         } catch (JsonProcessingException e) {
-            LOGGER.error("Failed to deserialize AI Agent JSONB fields for agent: {}", agent.getName(), e);
-            agent.setPreferredVoice(new ArrayList<>());
-            agent.setEnabledTools(new ArrayList<>());
+            LOGGER.error("Failed to deserialize AI Agent JSONB fields for agent: {}", doc.getName(), e);
+            doc.setPreferredVoice(new ArrayList<>());
+            doc.setEnabledTools(new ArrayList<>());
         }
 
-        return agent;
+        return doc;
     }
 }

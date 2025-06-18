@@ -56,6 +56,7 @@ public class AiHelperService {
                                         if (aiAgent.getPreferredVoice() != null && !aiAgent.getPreferredVoice().isEmpty()) {
                                             liveAgentDTO.setPreferredVoice(aiAgent.getPreferredVoice().get(0).getId());
                                         }
+                                        liveAgentDTO.setTalkativity(aiAgent.getTalkativity());
                                         brand.setAgent(liveAgentDTO);
                                         return brand;
                                     });

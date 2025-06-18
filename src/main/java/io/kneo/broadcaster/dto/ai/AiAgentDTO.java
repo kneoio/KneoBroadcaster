@@ -16,4 +16,5 @@ public class AiAgentDTO extends AbstractDTO {
     private List<String> fillerPrompt;
     private List<VoiceDTO> preferredVoice;
     private List<ToolDTO> enabledTools;
+    private double talkativity;
 }

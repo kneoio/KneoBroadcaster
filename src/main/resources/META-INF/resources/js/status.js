@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayMessageParts.push(`Country: ${statusData.countryCode}`);
             }
 
-            if (statusData.managedBy === 'AI_AGENT' && statusData.djName) {
+            if ((statusData.managedBy === 'AI_AGENT' || statusData.managedBy === 'MIX') && statusData.djName) {
                 let djInfo = `DJ: ${statusData.djName}`;
                 if (statusData.djPreferredLang) {
                     djInfo += `(${statusData.djPreferredLang})`;

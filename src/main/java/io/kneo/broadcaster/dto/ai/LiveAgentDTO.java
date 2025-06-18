@@ -13,4 +13,5 @@ public class LiveAgentDTO {
     private List<String> fillers;
     private String mainPrompt;
     private String preferredVoice;
+    private double talkativity;
 }

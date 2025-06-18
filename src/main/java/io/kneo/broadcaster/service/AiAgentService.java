@@ -139,6 +139,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setPreferredLang(agent.getPreferredLang());
             dto.setMainPrompt(agent.getMainPrompt());
             dto.setFillerPrompt(agent.getFillerPrompt());
+            dto.setTalkativity(agent.getTalkativity());
 
             if (agent.getPreferredVoice() != null && !agent.getPreferredVoice().isEmpty()) {
                 List<VoiceDTO> voiceDTOs = agent.getPreferredVoice().stream()

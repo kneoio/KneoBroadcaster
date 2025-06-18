@@ -17,4 +17,5 @@ public class RadioStationStatusDTO {
     private String currentStatus;
     private String countryCode;
     private String color;
+    private String description;
 }

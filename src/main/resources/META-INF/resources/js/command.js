@@ -1,21 +1,18 @@
 // js/command.js
 
-// The global window.radioApp object is created and populated by status.js
 document.addEventListener('DOMContentLoaded', () => {
     const wakeUpButton = document.getElementById('wake-up-button');
     const audioPlayer = document.getElementById('audioPlayer');
 
-    // Check if the button and the dynamic radio name exist before proceeding
     if (wakeUpButton && window.radioApp && window.radioApp.radioName) {
 
-        // Construct the dynamic endpoint
         const WAKEUP_ENDPOINT = `/${window.radioApp.radioName}/radio/wakeup`;
 
         wakeUpButton.addEventListener('click', () => {
             console.log(`Wake up button clicked. Sending PUT request to ${WAKEUP_ENDPOINT}`);
 
             wakeUpButton.classList.add('sending');
-            wakeUpButton.textContent = 'Sending...';
+            wakeUpButton.textContent = 'Waking up...';
             wakeUpButton.disabled = true;
 
             fetch(WAKEUP_ENDPOINT, {
@@ -48,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         });
                     }
-                }, 2000); // Wait 2 seconds for the backend to fully wake up
+                }, 2000);
             })
             .catch(error => {
                 console.error('Error sending wake up signal:', error);
@@ -56,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .finally(() => {
                 setTimeout(() => {
                     wakeUpButton.classList.remove('sending');
-                    wakeUpButton.textContent = 'WAKE UP';
+                    wakeUpButton.textContent = 'Wait a bit ...';
                     wakeUpButton.disabled = false;
                 }, 1000);
             });

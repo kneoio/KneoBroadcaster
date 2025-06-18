@@ -118,6 +118,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setCountry(doc.getCountry());
+            dto.setColor(doc.getColor());
+            dto.setDescription(doc.getDescription());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());
             dto.setAiAgentId(doc.getAiAgentId());
@@ -142,6 +144,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         entity.setArchived(dto.getArchived());
         entity.setManagedBy(dto.getManagedBy());
         entity.setColor(dto.getColor());
+        entity.setDescription(dto.getDescription());
         entity.setTimeZone(dto.getTimeZone());
         entity.setSlugName(dto.getSlugName());
         entity.setAiAgentId(dto.getAiAgentId());

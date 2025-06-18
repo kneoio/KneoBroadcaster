@@ -23,6 +23,9 @@ public class RadioService {
     @Inject
     RadioStationRepository radioStationRepository;
 
+    @Inject
+    AiAgentService aiAgentService;
+
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
@@ -69,47 +72,57 @@ public class RadioService {
                 );
     }
 
-    public RadioStationStatusDTO toStatusDTO(RadioStation radioStation) {
+    public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation) {
         if (radioStation == null) {
-            return null;
+            return Uni.createFrom().nullItem();
         }
 
         String stationName = radioStation.getLocalizedName()
                 .getOrDefault(LanguageCode.en, radioStation.getSlugName());
+        String managedByType = radioStation.getManagedBy().toString();
+        String currentStatus = radioStation.getStatus().name();
+        String stationCountryCode = radioStation.getCountry().name();
 
-        String managedByType = radioStation.getManagedBy() != null
-                ? radioStation.getManagedBy().toString()
-                : null;
 
-        String dj = null;
-        String djLang = null;
-        //TODO to fix
-        /*if (radioStation.getManagedBy() != ManagedBy.ITSELF && radioStation.getAiAgent() != null) {
-            dj = radioStation.getAiAgent().getName();
-            djLang = radioStation.getAiAgent().getPreferredLang().name().toUpperCase();
-        }*/
+        if (radioStation.getAiAgentId() != null) {
+            return aiAgentService.getById(radioStation.getAiAgentId(), null, LanguageCode.en)
+                    .onItem().transform(aiAgent -> new RadioStationStatusDTO(
+                            stationName,
+                            managedByType,
+                            aiAgent.getName(),
+                            aiAgent.getPreferredLang().name().toUpperCase(),
+                            currentStatus,
+                            stationCountryCode,
+                            radioStation.getColor(),
+                            radioStation.getDescription()
+                    ))
+                    .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
+                            stationName,
+                            managedByType,
+                            null,
+                            null,
+                            currentStatus,
+                            stationCountryCode,
+                            radioStation.getColor(),
+                            radioStation.getDescription()
+                    ));
+        }
 
-        String currentStatus = radioStation.getStatus() != null
-                ? radioStation.getStatus().name()
-                : "UNKNOWN";
-
-        String stationCountryCode = radioStation.getCountry() != null
-                ? radioStation.getCountry().name()
-                : null;
-
-        return new RadioStationStatusDTO(
+        return Uni.createFrom().item(new RadioStationStatusDTO(
                 stationName,
                 managedByType,
-                dj,
-                djLang,
+                null,
+                null,
                 currentStatus,
                 stationCountryCode,
-                radioStation.getColor()
-        );
+                radioStation.getColor(),
+                radioStation.getDescription()
+        ));
     }
 
     public Uni<RadioStationStatusDTO> getStatus(String brand, String userAgent) {
         return getPlaylist(brand, userAgent)
-                .onItem().transform(playlist -> toStatusDTO(playlist.getRadioStation()));
+                .onItem().transform(IStreamManager::getRadioStation)
+                .chain(this::toStatusDTO);
     }
 }

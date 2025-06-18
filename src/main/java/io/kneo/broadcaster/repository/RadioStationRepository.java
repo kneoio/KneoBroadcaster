@@ -277,6 +277,7 @@ public class RadioStationRepository extends AsyncRepository {
         doc.setManagedBy(ManagedBy.valueOf(row.getString("managing_mode")));
         doc.setTimeZone(java.time.ZoneId.of(row.getString("time_zone")));
         doc.setColor(row.getString("color"));
+        doc.setDescription(row.getString("description"));
 
         JsonObject scheduleJson = row.getJsonObject("schedule");
         if (scheduleJson != null) {

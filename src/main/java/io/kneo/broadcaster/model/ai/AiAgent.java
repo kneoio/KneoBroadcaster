@@ -19,6 +19,7 @@ public class AiAgent  extends SimpleReferenceEntity {
     private List<String> fillerPrompt;
     private List<Voice> preferredVoice;
     private List<Tool> enabledTools;
+    private double talkativity;
 
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();

@@ -2,9 +2,7 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Profile;
-import io.kneo.broadcaster.model.cnst.AnnouncementFrequency;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -147,18 +145,7 @@ public class ProfileRepository extends AsyncRepository {
             //profile.setAllowedGenres(genres);
         }
 
-        String frequency = row.getString("announcement_frequency");
-        if (frequency != null) {
-            profile.setAnnouncementFrequency(AnnouncementFrequency.valueOf(frequency.toUpperCase()));
-        }
-
         profile.setExplicitContent(row.getBoolean("explicit_content"));
-
-        String lang = row.getString("language");
-        if (lang != null) {
-            profile.setLanguage(LanguageCode.valueOf(lang));
-        }
-
         profile.setArchived(row.getInteger("archived"));
 
         return profile;

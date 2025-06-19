@@ -70,13 +70,10 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     }
 
     public void onStart(@Observes StartupEvent ev) {
-        LOGGER.info("The application is starting...{}", EnvConst.APP_ID);
-        super.setupRoutes(router);
+        soundFragmentController.setupRoutes(router);
         aiHelperController.setupRoutes(router);
         dashboardController.setupRoutes(router);
-        soundFragmentController.setupRoutes(router);
         radioController.setupRoutes(router);
-        // icecastController.setupRoutes(router);
         queueController.setupRoutes(router);
         radioStationController.setupRoutes(router);
         listenerController.setupRoutes(router);
@@ -84,6 +81,8 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         aiAgentController.setupRoutes(router);
         memoryController.setupRoutes(router);
         profileController.setupRoutes(router);
+
+        super.setupRoutes(router);
         logRegisteredRoutes(router);
 
         if (EnvConst.DEV_MODE) {

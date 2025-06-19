@@ -54,9 +54,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private BroadcasterConfig config;
     private String uploadDir;
     private Validator validator;
-    private static final long MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
-    private static final long MAX_REQUEST_SIZE_BYTES = 60 * 1024 * 1024; // 60MB
-    private static final int UPLOAD_TIMEOUT_SECONDS = 300; // 5 minutes
+    private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB for business logic
+    private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L; // 1GB for technical limit
 
 
     public SoundFragmentController() {
@@ -80,7 +79,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .setMergeFormAttributes(true)
                 .setUploadsDirectory(uploadDir)
                 .setDeleteUploadedFilesOnEnd(false)
-                .setBodyLimit(MAX_REQUEST_SIZE_BYTES);
+                .setBodyLimit(BODY_HANDLER_LIMIT);
+
+        BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
 
         router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
@@ -88,7 +89,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
-        router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
+        router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
     }
@@ -222,8 +223,10 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
+
         String id = rc.pathParam("id");
         FileUpload uploadedFile = rc.fileUploads().get(0);
+        LOGGER.info("Received file: {} bytes, limit: {} bytes", uploadedFile.size(), MAX_FILE_SIZE_BYTES);
         Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
         if (uploadedFile.size() > MAX_FILE_SIZE_BYTES) {
@@ -254,12 +257,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         }
 
 
-
-                        // Create user and entity directories securely
                         Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
                         String entityIdSafe = id != null ? id : "temp";
 
-                        // Validate entity ID is a valid UUID or "temp"
                         if (!"temp".equals(entityIdSafe)) {
                             try {
                                 UUID.fromString(entityIdSafe);
@@ -273,16 +273,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
                         // SECURITY: Use secure path resolution
                         Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
-
-                        // Verify the destination is within our expected directory structure
                         Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
                         if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
                             LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
                                     user.getUserName(), originalFileName);
                             return Uni.createFrom().failure(new SecurityException("Invalid file path"));
                         }
-
-                        // Move file to secure location
                         Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
                         LOGGER.info("Audio file uploaded: {} ({} MB) for user: {}",
                                 movedTo, uploadedFile.size() / 1024 / 1024, user.getUserName());
@@ -323,7 +319,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-    // Update the getBySlugName method with security fixes
     private void getBySlugName(RoutingContext rc) {
         String id = rc.pathParam("id");
         String requestedFileName = rc.pathParam("slug");
@@ -347,12 +342,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             LOGGER.warn("Unsafe filename in file request: {} from user: {}", requestedFileName, user.getUserName());
                             return Uni.createFrom().failure(new SecurityException("Invalid filename"));
                         }
-
-                        // Create secure path
                         Path baseDir = Paths.get(uploadDir, user.getUserName(), id);
                         Path secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
-
-                        // Double-check the resolved path is within expected bounds
                         if (!FileSecurityUtils.isPathWithinBase(baseDir, secureFilePath)) {
                             LOGGER.error("Security violation: Path traversal attempt by user {} for file {}",
                                     user.getUserName(), requestedFileName);
@@ -363,7 +354,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
                         if (file.exists()) {
                             try {
-                                // Additional security check: ensure file is actually within our directory
                                 Path canonicalFile = file.toPath().toRealPath();
                                 Path canonicalBase = baseDir.toRealPath();
                                 if (!canonicalFile.startsWith(canonicalBase)) {
@@ -382,8 +372,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 return Uni.createFrom().failure(e);
                             }
                         }
-
-                        // If local file doesn't exist, try database/storage
                         return service.getFile(UUID.fromString(id), safeFileName, user)
                                 .onItem().transform(fileMetadata ->
                                         new FileData(fileMetadata.getFileBin(), fileMetadata.getMimeType()));

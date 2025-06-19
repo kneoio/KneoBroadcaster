@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.controller.stream.HlsSegment;
-import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.service.stream.HlsSegment;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.vertx.core.buffer.Buffer;

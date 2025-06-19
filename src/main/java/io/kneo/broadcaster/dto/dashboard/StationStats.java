@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.dto.dashboard;
 
-import io.kneo.broadcaster.controller.stream.HLSSongStats;
+import io.kneo.broadcaster.service.stream.HLSSongStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;

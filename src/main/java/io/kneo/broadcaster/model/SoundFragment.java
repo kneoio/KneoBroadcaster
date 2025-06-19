@@ -28,7 +28,7 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private Object addInfo;
 
     public String getMetadata() {
-        return String.format("%s - %s", title, artist);
+        return String.format("%s#%s", title, artist);
     }
 
 }

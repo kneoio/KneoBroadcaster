@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.controller.stream;
+package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig; // Import HlsPlaylistConfig
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;

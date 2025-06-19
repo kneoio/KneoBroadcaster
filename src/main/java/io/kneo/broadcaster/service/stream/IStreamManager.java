@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.controller.stream;
+package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.SoundFragmentService;

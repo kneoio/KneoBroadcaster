@@ -1,5 +1,6 @@
-package io.kneo.broadcaster.controller.stream;
+package io.kneo.broadcaster.service.stream;
 
+import io.kneo.broadcaster.model.BrandSoundFragment;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,6 +17,10 @@ public class HlsSegment {
     private final long size;
     private final UUID soundFragmentId;
     private final String songName;
+    @Setter
+    private BrandSoundFragment sourceFragment;
+    @Setter
+    private boolean firstSegmentOfFragment = false;
 
     public HlsSegment(long sequence, byte[] data, int duration, UUID soundFragmentId, String songName, long timestamp) {
         this.sequence = sequence;

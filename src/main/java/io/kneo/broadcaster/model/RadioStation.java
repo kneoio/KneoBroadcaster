@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.localization.LanguageCode;

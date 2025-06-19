@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.radio;
 
-import io.kneo.broadcaster.controller.stream.IStreamManager;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;

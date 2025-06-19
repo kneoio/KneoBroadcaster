@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.StreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.service.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
@@ -42,6 +42,9 @@ public class RadioStationPool {
 
     @Inject
     AudioSegmentationService segmentationService;
+
+    @Inject
+    BrandSoundFragmentUpdateService updateService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
         LOGGER.info("Attempting to initialize station for brand: {}", brandName);
@@ -89,7 +92,8 @@ public class RadioStationPool {
                                             config,
                                             soundFragmentService,
                                             segmentationService,
-                                            10
+                                            10,
+                                            updateService
                                     );
                                     stationFromDb.setPlaylist(newPlaylist);
 

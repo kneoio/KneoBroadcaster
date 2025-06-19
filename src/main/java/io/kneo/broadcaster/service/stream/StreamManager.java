@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.controller.stream;
+package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
@@ -6,11 +6,10 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
+import io.kneo.broadcaster.service.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
-import io.kneo.broadcaster.service.stream.SegmentFeederTimer;
-import io.kneo.broadcaster.service.stream.SliderTimer;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
 import lombok.Setter;
@@ -67,13 +66,18 @@ public class StreamManager implements IStreamManager {
     private final int maxVisibleSegments;
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
-    public StreamManager(
+    private BrandSoundFragment currentPlayingFragment;
+    private final BrandSoundFragmentUpdateService updateService;
+
+    public
+    StreamManager(
             SliderTimer sliderTimer,
             SegmentFeederTimer segmentFeederTimer,
             HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService,
-            int maxVisibleSegments
+            int maxVisibleSegments,
+            BrandSoundFragmentUpdateService updateService
     ) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
@@ -81,6 +85,7 @@ public class StreamManager implements IStreamManager {
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
         this.maxVisibleSegments = maxVisibleSegments;
+        this.updateService = updateService;
     }
 
     @Override
@@ -117,16 +122,12 @@ public class StreamManager implements IStreamManager {
         timerSubscriptions.put("slider", slider);
     }
 
-    public void feedSegments() {
-     /*   System.out.printf("feedSegments Debug: [START] For %s. liveSegments: %d, pendingQueue: %d.%n",
-                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
 
+    public void feedSegments() {
         int drippedCountThisCall = 0;
         if (pendingFragmentSegmentsQueue.isEmpty()) {
-          //  System.out.printf("feedSegments Debug: [DRIP] Pending queue for %s is empty. No segments to drip to liveSegments this pass.%n", radioStation.getSlugName());
+            // Queue is empty
         } else {
-          /*  System.out.printf("feedSegments Debug: [DRIP] For %s. Attempting to drip up to %d segment(s) from pendingQueue (current size %d) to liveSegments (current size %d, drip limit if full %d).%n",
-                    radioStation.getSlugName(), SEGMENTS_TO_DRIP_PER_FEED_CALL, pendingFragmentSegmentsQueue.size(), liveSegments.size(), maxVisibleSegments * 2);*/
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
                     System.out.printf("feedSegments Debug: [DRIP] liveSegments buffer for %s is full or at limit (%d/%d). Pausing drip-feed for this call.%n",
@@ -136,28 +137,24 @@ public class StreamManager implements IStreamManager {
                 if (!pendingFragmentSegmentsQueue.isEmpty()) {
                     HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                     liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
-                    drippedCountThisCall ++;
-                   /* System.out.printf("feedSegments Debug: [DRIP] Dripped segment %d to liveSegments for %s. liveSegments now: %d, pendingQueue now: %d%n",
-                            segmentToMakeLive.getSequence(), radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
+                    drippedCountThisCall++;
+
+                    // Track if this is the first segment of a new fragment
+                    if (segmentToMakeLive.isFirstSegmentOfFragment()) {
+                        handleNewFragmentStarted(segmentToMakeLive);
+                    }
                 } else {
-                  //  System.out.printf("feedSegments Debug: [DRIP] pendingFragmentSegmentsQueue for %s became empty during drip attempt.%n", radioStation.getSlugName());
                     break;
                 }
             }
             if (drippedCountThisCall > 0) {
-              //  System.out.printf("feedSegments Debug: [DRIP] Finished dripping for %s. Dripped %d segment(s) in this call.%n", radioStation.getSlugName(), drippedCountThisCall);
                 if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
-                  //  System.out.printf("feedSegments Debug: [STATUS] Radio station %s status set to ON_LINE.%n", radioStation.getSlugName());
                 }
-            } else {
-               // System.out.printf("feedSegments Debug: [DRIP] No segments were dripped for %s in this call (e.g., liveSegments full or pending became empty before drip).%n", radioStation.getSlugName());
             }
         }
 
         if (pendingFragmentSegmentsQueue.size() < PENDING_QUEUE_REFILL_THRESHOLD) {
-         /*   System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s is low (size: %d, threshold: %d). Attempting to fetch new fragment.%n",
-                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);*/
             try {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null && !fragment.getSegments().isEmpty()) {
@@ -165,31 +162,42 @@ public class StreamManager implements IStreamManager {
                     final long[] firstSeqInBatch = {-1L};
                     final long[] lastSeqInBatch = {-1L};
 
-                /*    System.out.printf("feedSegments Debug: [REFILL] Fetched BrandSoundFragment for %s with %d HLS segments. Assigning sequence numbers...%n",
-                            radioStation.getSlugName(), newSegmentsFromFragment);*/
-                    fragment.getSegments().forEach(segment -> {
+                    // Mark the first segment of this fragment
+                    boolean isFirst = true;
+                    for (HlsSegment segment : fragment.getSegments()) {
                         long seq = currentSequence.getAndIncrement();
                         if (firstSeqInBatch[0] == -1L) {
                             firstSeqInBatch[0] = seq;
                         }
                         lastSeqInBatch[0] = seq;
                         segment.setSequence(seq);
+                        segment.setSourceFragment(fragment); // Add this to HlsSegment
+                        segment.setFirstSegmentOfFragment(isFirst); // Add this to HlsSegment
                         pendingFragmentSegmentsQueue.offer(segment);
-                    });
-                 /*   System.out.printf("feedSegments Debug: [REFILL] Added %d new segments (sequences approx %d to %d) to pendingFragmentSegmentsQueue for %s. New pendingQueue size: %d%n",
-                            newSegmentsFromFragment, firstSeqInBatch[0], lastSeqInBatch[0], radioStation.getSlugName(), pendingFragmentSegmentsQueue.size());*/
-                } else {
-                  //  System.out.printf("feedSegments Debug: [REFILL] No new fragment or empty fragment obtained for %s from PlaylistManager.%n", radioStation.getSlugName());
+                        isFirst = false;
+                    }
                 }
             } catch (Exception e) {
-              //  LOGGER.error("feedSegments: Error during [REFILL] fetching/processing new fragment for {}: {}", radioStation.getSlugName(), e.getMessage(), e);
+                // Error handling
             }
-        } else {
-          /*  System.out.printf("feedSegments Debug: [REFILL] Pending queue for %s not low (size: %d, threshold: %d). No refill attempt needed.%n",
-                    radioStation.getSlugName(), pendingFragmentSegmentsQueue.size(), PENDING_QUEUE_REFILL_THRESHOLD);*/
         }
-       /* System.out.printf("feedSegments Debug: [END] For %s. liveSegments: %d, pendingQueue: %d%n",
-                radioStation.getSlugName(), liveSegments.size(), pendingFragmentSegmentsQueue.size());*/
+    }
+
+    private void handleNewFragmentStarted(HlsSegment segment) {
+        BrandSoundFragment newFragment = segment.getSourceFragment();
+
+        // If we had a previous fragment playing, mark it as completed
+        if (currentPlayingFragment != null && !currentPlayingFragment.equals(newFragment)) {
+            // Previous fragment finished, update its play count
+            updateService.updatePlayedCountAsync(
+                    radioStation.getId(),
+                    currentPlayingFragment.getSoundFragment().getId(),
+                    radioStation.getSlugName()
+            );
+        }
+
+        // Set the new current fragment
+        currentPlayingFragment = newFragment;
     }
 
     private void slideWindow() {
@@ -344,6 +352,14 @@ public class StreamManager implements IStreamManager {
         LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
+        }
+
+        if (currentPlayingFragment != null) {
+            updateService.updatePlayedCountAsync(
+                    radioStation.getId(),
+                    currentPlayingFragment.getSoundFragment().getId(),
+                    radioStation.getSlugName()
+            );
         }
     }
 

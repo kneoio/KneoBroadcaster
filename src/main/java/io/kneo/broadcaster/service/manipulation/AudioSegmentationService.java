@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.manipulation;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.model.SegmentInfo;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -52,7 +52,7 @@ public class AudioSegmentationService {
         return Uni.createFrom().item(() -> {
                     String fileNameAsMetadata = filePath.getFileName().toString();
                     UUID generatedFragmentId = UUID.randomUUID();
-                    List<SegmentInfo> segments = segmentAudioFile(filePath, fileNameAsMetadata, generatedFragmentId);
+                    List<SegmentInfo> segments = segmentAudioFile(filePath, fileNameAsMetadata, "AI" , generatedFragmentId);
                     return createHlsQueueFromSegments(segments);
                 })
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice ad-hoc audio file: {}", filePath, e));
@@ -60,7 +60,7 @@ public class AudioSegmentationService {
 
     public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath) {
         return Uni.createFrom().item(() -> {
-                    List<SegmentInfo> segments = segmentAudioFile(filePath, soundFragment.getMetadata(), soundFragment.getId());
+                    List<SegmentInfo> segments = segmentAudioFile(filePath, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId());
                     return createHlsQueueFromSegments(segments);
                 })
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e));
@@ -87,11 +87,12 @@ public class AudioSegmentationService {
         return hlsSegments;
     }
 
-    public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songMetadata, UUID fragmentId) {
+    public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songTitle, String songArtist, UUID fragmentId) {
         List<SegmentInfo> segments = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         String today = now.format(DATE_FORMATTER);
         String currentHour = now.format(HOUR_FORMATTER);
+        String songMetadata = String.format("%s-%s", songTitle, songArtist);
         String sanitizedSongName = sanitizeFileName(songMetadata);
 
         Path songDir = Paths.get(outputDir, today, currentHour, sanitizedSongName);
@@ -118,6 +119,8 @@ public class AudioSegmentationService {
                     .addExtraArgs("-segment_format", "mpegts")
                     .addExtraArgs("-segment_list", segmentListFile)
                     .addExtraArgs("-segment_list_type", "flat")
+                    .addExtraArgs("-metadata", "title=" + songTitle)
+                    .addExtraArgs("-metadata", "artist=" + songArtist)
                     .done();
 
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());

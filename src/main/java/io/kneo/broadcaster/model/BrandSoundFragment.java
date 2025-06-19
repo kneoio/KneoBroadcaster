@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.service.stream.HlsSegment;
 import lombok.Getter;
 import lombok.Setter;
 

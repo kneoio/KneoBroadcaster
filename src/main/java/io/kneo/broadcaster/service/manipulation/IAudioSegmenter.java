@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.manipulation;
 
-import io.kneo.broadcaster.controller.stream.HlsSegment;
+import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SegmentInfo;
 import java.nio.file.Path;

@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.dashboard;
 
-import io.kneo.broadcaster.controller.stream.IStreamManager;
-import io.kneo.broadcaster.controller.stream.StreamManagerStats;
+import io.kneo.broadcaster.service.stream.IStreamManager;
+import io.kneo.broadcaster.service.stream.StreamManagerStats;
 import io.kneo.broadcaster.dto.dashboard.StationStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.radio.PlaylistManager;

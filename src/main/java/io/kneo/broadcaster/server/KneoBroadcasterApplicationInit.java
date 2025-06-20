@@ -51,7 +51,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
 
 
     @Inject
-    GenreController genreController;
+    ReferencesController genreController;
 
     @Inject
     protected Router router;

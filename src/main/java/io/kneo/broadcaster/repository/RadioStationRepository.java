@@ -57,9 +57,11 @@ public class RadioStationRepository extends AsyncRepository {
 
         return client.query(sql)
                 .execute()
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve radio stations for user: {}", user.getId(), throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
-                .collect().asList();
+                .collect().asList()
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to transform radio stations for user: {}", user.getId(), throwable));
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
@@ -72,6 +74,7 @@ public class RadioStationRepository extends AsyncRepository {
 
         return client.query(sql)
                 .execute()
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to count radio stations for user: {}", user.getId(), throwable))
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
@@ -87,6 +90,7 @@ public class RadioStationRepository extends AsyncRepository {
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(user.getId(), id))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by id: {} for user: {}", id, user.getId(), throwable))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
@@ -110,6 +114,7 @@ public class RadioStationRepository extends AsyncRepository {
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(userID, id))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by id: {} for userID: {}", id, userID, throwable))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
@@ -121,19 +126,18 @@ public class RadioStationRepository extends AsyncRepository {
                 });
     }
 
-    /**
-     * Finds a radio station by ID without RLS restrictions.
-     * This method should only be used for internal operations where RLS checks are not required.
-     * For user-facing operations, use findById(UUID, IUser, boolean) instead.
-     */
     public Uni<RadioStation> findByIdInternal(UUID id) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by id (internal): {}", id, throwable))
                 .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) return from(iterator.next());
-                    throw new DocumentHasNotFoundException(id);
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        return Uni.createFrom().item(from(iterator.next()));
+                    } else {
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                    }
                 });
     }
 
@@ -141,94 +145,120 @@ public class RadioStationRepository extends AsyncRepository {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by brand name: {}", name, throwable))
                 .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) return from(iterator.next());
-                    throw new DocumentHasNotFoundException(name);
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        return Uni.createFrom().item(from(iterator.next()));
+                    } else {
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(name));
+                    }
                 });
     }
 
     public Uni<RadioStation> insert(RadioStation station, IUser user) {
-        String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, slug_name, profile_id, ai_agent_id) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
+        return Uni.createFrom().deferred(() -> {
+            try {
+                String sql = "INSERT INTO " + entityData.getTableName() +
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, slug_name, profile_id, ai_agent_id) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
 
-        OffsetDateTime now = OffsetDateTime.now();
+                OffsetDateTime now = OffsetDateTime.now();
+                JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
 
-        Tuple params = Tuple.tuple()
-                .addLong(user.getId())
-                .addOffsetDateTime(now)
-                .addLong(user.getId())
-                .addOffsetDateTime(now)
-                .addString(station.getCountry().name())
-                .addString(station.getTimeZone().getId())
-                .addString(station.getManagedBy().name())
-                .addString(station.getColor())
-                .addValue(mapper.valueToTree(station.getLocalizedName()))
-                .addValue(station.getSchedule() != null ? mapper.valueToTree(station.getSchedule()) : null)
-                .addString(station.getSlugName())
-                .addUUID(station.getProfileId())
-                .addUUID(station.getAiAgentId());
+                Tuple params = Tuple.tuple()
+                        .addLong(user.getId())
+                        .addOffsetDateTime(now)
+                        .addLong(user.getId())
+                        .addOffsetDateTime(now)
+                        .addString(station.getCountry().name())
+                        .addString(station.getTimeZone().getId())
+                        .addString(station.getManagedBy().name())
+                        .addString(station.getColor())
+                        .addJsonObject(localizedNameJson)
+                        .addValue(JsonObject.of())
+                        .addString(station.getSlugName())
+                        .addUUID(station.getProfileId())
+                        .addUUID(station.getAiAgentId());
 
-        return client.withTransaction(tx -> tx.preparedQuery(sql)
-                .execute(params)
-                .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                .onItem().transformToUni(id -> {
-                    // Insert RLS permissions for the user
-                    String readersSql = String.format(
-                            "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                            entityData.getRlsName()
-                    );
+                return client.withTransaction(tx ->
+                                tx.preparedQuery(sql)
+                                        .execute(params)
+                                        .onFailure().invoke(throwable -> LOGGER.error("Failed to insert radio station for user: {}", user.getId(), throwable))
+                                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                                        .onItem().transformToUni(id -> {
+                                            String readersSql = String.format(
+                                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
+                                                    entityData.getRlsName()
+                                            );
 
-                    return tx.preparedQuery(readersSql)
-                            .execute(Tuple.of(user.getId(), id, true, true))
-                            .onItem().transform(ignored -> id);
-                })
-        ).onItem().transformToUni(id -> findById(id, user, true));
+                                            return tx.preparedQuery(readersSql)
+                                                    .execute(Tuple.of(user.getId(), id, true, true))
+                                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to insert RLS permissions for radio station: {} and user: {}", id, user.getId(), throwable))
+                                                    .onItem().transform(ignored -> id);
+                                        })
+                        ).onFailure().invoke(throwable -> LOGGER.error("Transaction failed for radio station insert for user: {}", user.getId(), throwable))
+                        .onItem().transformToUni(id -> findById(id, user, true));
+            } catch (Exception e) {
+                LOGGER.error("Failed to prepare insert parameters for radio station, user: {}", user.getId(), e);
+                return Uni.createFrom().failure(e);
+            }
+        });
     }
 
     public Uni<RadioStation> update(UUID id, RadioStation station, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
-                    }
+        return Uni.createFrom().deferred(() -> {
+            try {
+                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update radio station: {} by user: {}", id, user.getId(), throwable))
+                        .onItem().transformToUni(permissions -> {
+                            if (!permissions[0]) {
+                                return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
+                            }
 
-                    String sql = "UPDATE " + entityData.getTableName() +
-                            " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, schedule=$6, " +
-                            "slug_name=$7, profile_id=$8, ai_agent_id=$9, last_mod_user=$10, last_mod_date=$11, archived=$12 " +
-                            "WHERE id=$13";
+                            String sql = "UPDATE " + entityData.getTableName() +
+                                    " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, schedule=$6, " +
+                                    "slug_name=$7, profile_id=$8, ai_agent_id=$9, last_mod_user=$10, last_mod_date=$11, archived=$12 " +
+                                    "WHERE id=$13";
 
-                    OffsetDateTime now = OffsetDateTime.now();
+                            OffsetDateTime now = OffsetDateTime.now();
+                            JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
 
-                    Tuple params = Tuple.tuple()
-                            .addString(station.getCountry().name())
-                            .addString(station.getTimeZone().getId())
-                            .addString(station.getManagedBy().name())
-                            .addString(station.getColor())
-                            .addValue(mapper.valueToTree(station.getLocalizedName()))
-                            .addValue(station.getSchedule() != null ? mapper.valueToTree(station.getSchedule()) : null)
-                            .addString(station.getSlugName())
-                            .addUUID(station.getProfileId())
-                            .addUUID(station.getAiAgentId())
-                            .addLong(user.getId())
-                            .addOffsetDateTime(now)
-                            .addInteger(station.getArchived())
-                            .addUUID(id);
+                            Tuple params = Tuple.tuple()
+                                    .addString(station.getCountry().name())
+                                    .addString(station.getTimeZone().getId())
+                                    .addString(station.getManagedBy().name())
+                                    .addString(station.getColor())
+                                    .addValue(localizedNameJson)
+                                    .addValue(station.getSchedule() != null ? mapper.valueToTree(station.getSchedule()) : null)
+                                    .addString(station.getSlugName())
+                                    .addUUID(station.getProfileId())
+                                    .addUUID(station.getAiAgentId())
+                                    .addLong(user.getId())
+                                    .addOffsetDateTime(now)
+                                    .addInteger(station.getArchived())
+                                    .addUUID(id);
 
-                    return client.preparedQuery(sql)
-                            .execute(params)
-                            .onItem().transformToUni(rowSet -> {
-                                if (rowSet.rowCount() == 0) {
-                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                }
-                                return findById(id, user, true);
-                            });
-                });
+                            return client.preparedQuery(sql)
+                                    .execute(params)
+                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update radio station: {} by user: {}", id, user.getId(), throwable))
+                                    .onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return findById(id, user, true);
+                                    });
+                        });
+            } catch (Exception e) {
+                LOGGER.error("Failed to prepare update parameters for radio station: {} by user: {}", id, user.getId(), e);
+                return Uni.createFrom().failure(e);
+            }
+        });
     }
 
     public Uni<Integer> archive(UUID uuid, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for archive radio station: {} by user: {}", uuid, user.getId(), throwable))
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[0]) {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), uuid));
@@ -239,14 +269,16 @@ public class RadioStationRepository extends AsyncRepository {
 
                     return client.preparedQuery(sql)
                             .execute(Tuple.of(OffsetDateTime.now(), user.getId(), uuid))
+                            .onFailure().invoke(throwable -> LOGGER.error("Failed to archive radio station: {} by user: {}", uuid, user.getId(), throwable))
                             .onItem().transform(RowSet::rowCount);
                 });
     }
 
     public Uni<Integer> delete(UUID id, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for delete radio station: {} by user: {}", id, user.getId(), throwable))
                 .onItem().transformToUni(permissions -> {
-                    if (!permissions[1]) { // Check can_delete permission
+                    if (!permissions[1]) {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have delete permission", user.getUserName(), id));
                     }
 
@@ -254,10 +286,58 @@ public class RadioStationRepository extends AsyncRepository {
                         String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
                         String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
 
-                        return tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
-                                .onItem().transformToUni(ignored -> tx.preparedQuery(deleteDocSql).execute(Tuple.of(id)))
+                        return tx.preparedQuery(deleteRlsSql)
+                                .execute(Tuple.of(id))
+                                .onFailure().invoke(throwable -> LOGGER.error("Failed to delete RLS permissions for radio station: {} by user: {}", id, user.getId(), throwable))
+                                .onItem().transformToUni(ignored ->
+                                        tx.preparedQuery(deleteDocSql)
+                                                .execute(Tuple.of(id))
+                                                .onFailure().invoke(throwable -> LOGGER.error("Failed to delete radio station: {} by user: {}", id, user.getId(), throwable))
+                                )
                                 .onItem().transform(RowSet::rowCount);
-                    });
+                    }).onFailure().invoke(throwable -> LOGGER.error("Transaction failed for radio station delete: {} by user: {}", id, user.getId(), throwable));
+                });
+    }
+
+    public Uni<Void> upsertStationAccess(String stationName, String userAgent) {
+        String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent) " +
+                "VALUES ($1, 1, $2, $3) ON CONFLICT (station_name) DO UPDATE SET access_count = " + brandStats.getTableName() + ".access_count + 1, " +
+                "last_access_time = $2, user_agent = $3;";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName, OffsetDateTime.now(), userAgent))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access for: {}", stationName, throwable))
+                .replaceWithVoid();
+    }
+
+    public Uni<BrandAgentStats> findStationStatsByStationName(String stationName) {
+        String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " + brandStats.getTableName() + " WHERE station_name = $1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find station stats for: {}", stationName, throwable))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transform(iterator -> {
+                    if (iterator.hasNext()) {
+                        return fromStatsRow(iterator.next());
+                    } else {
+                        return null;
+                    }
+                });
+    }
+
+    public Uni<OffsetDateTime> findLastAccessTimeByBrand(String stationName) {
+        String sql = "SELECT last_access_time FROM " + brandStats.getTableName() + " WHERE station_name = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find last access time for: {}", stationName, throwable))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transform(iterator -> {
+                    if (iterator.hasNext()) {
+                        return iterator.next().getOffsetDateTime("last_access_time");
+                    } else {
+                        return null;
+                    }
                 });
     }
 
@@ -281,7 +361,7 @@ public class RadioStationRepository extends AsyncRepository {
 
         JsonObject scheduleJson = row.getJsonObject("schedule");
         if (scheduleJson != null) {
-            doc.setSchedule(scheduleJson.getMap());
+           // doc.setSchedule(scheduleJson.getMap());
         }
 
         UUID aiAgentId = row.getUUID("ai_agent_id");
@@ -295,45 +375,6 @@ public class RadioStationRepository extends AsyncRepository {
         }
 
         return doc;
-    }
-
-    public Uni<Void> upsertStationAccess(String stationName, String userAgent) {
-        String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent) " +
-                "VALUES ($1, 1, $2, $3) ON CONFLICT (station_name) DO UPDATE SET access_count = " + brandStats.getTableName() + ".access_count + 1, " +
-                "last_access_time = $2, user_agent = $3;";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName, OffsetDateTime.now(), userAgent))
-                .replaceWithVoid();
-    }
-
-    public Uni<BrandAgentStats> findStationStatsByStationName(String stationName) {
-        String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " + brandStats.getTableName() + " WHERE station_name = $1";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) {
-                        return fromStatsRow(iterator.next());
-                    } else {
-                        return null;
-                    }
-                });
-    }
-
-    public Uni<OffsetDateTime> findLastAccessTimeByBrand(String stationName) {
-        String sql = "SELECT last_access_time FROM " + brandStats.getTableName() + " WHERE station_name = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) {
-                        return iterator.next().getOffsetDateTime("last_access_time");
-                    } else {
-                        return null;
-                    }
-                });
     }
 
     private BrandAgentStats fromStatsRow(Row row) {

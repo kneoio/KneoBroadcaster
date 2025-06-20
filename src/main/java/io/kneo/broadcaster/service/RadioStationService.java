@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -117,6 +118,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setLocalizedName(doc.getLocalizedName());
             dto.setCountry(doc.getCountry());
             dto.setColor(doc.getColor());
             dto.setDescription(doc.getDescription());
@@ -126,9 +128,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setProfileId(doc.getProfileId());
 
             try {
-                dto.setUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
+                dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
-                dto.setActionUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/api/queue/action"));
+                dto.setMixplaUrl(new URL(broadcasterConfig.getHost() + "/index.html?radio=" + dto.getSlugName()));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
@@ -140,13 +142,15 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     private RadioStation buildEntity(RadioStationDTO dto) {
         RadioStation entity = new RadioStation();
+        entity.setLocalizedName(dto.getLocalizedName());
         entity.setCountry(dto.getCountry());
         entity.setArchived(dto.getArchived());
         entity.setManagedBy(dto.getManagedBy());
         entity.setColor(dto.getColor());
         entity.setDescription(dto.getDescription());
         entity.setTimeZone(dto.getTimeZone());
-        entity.setSlugName(dto.getSlugName());
+        entity.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
+        entity.setDescription(dto.getDescription());
         entity.setAiAgentId(dto.getAiAgentId());
         entity.setProfileId(dto.getProfileId());
         return entity;

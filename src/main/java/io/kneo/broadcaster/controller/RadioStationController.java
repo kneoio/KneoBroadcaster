@@ -21,11 +21,14 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
 
 @ApplicationScoped
 public class RadioStationController extends AbstractSecuredController<RadioStation, RadioStationDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationController.class);
 
     @Inject
     RadioStationService service;
@@ -70,7 +73,10 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        rc::fail
+                        throwable -> {
+                            LOGGER.error("Failed to get all radio stations", throwable);
+                            rc.fail(throwable);
+                        }
                 );
     }
 
@@ -87,7 +93,10 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
-                        rc::fail
+                        throwable -> {
+                            LOGGER.error("Failed to get radio station by id: {}", id, throwable);
+                            rc.fail(throwable);
+                        }
                 );
     }
 
@@ -100,7 +109,10 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                 .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
-                        rc::fail
+                        throwable -> {
+                            LOGGER.error("Failed to upsert radio station with id: {}", id, throwable);
+                            rc.fail(throwable);
+                        }
                 );
     }
 
@@ -110,7 +122,10 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                 .chain(user -> service.delete(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
-                        rc::fail
+                        throwable -> {
+                            LOGGER.error("Failed to delete radio station with id: {}", id, throwable);
+                            rc.fail(throwable);
+                        }
                 );
     }
 }

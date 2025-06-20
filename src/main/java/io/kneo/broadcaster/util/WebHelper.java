@@ -1,7 +1,10 @@
 package io.kneo.broadcaster.util;
 
+import io.kneo.core.localization.LanguageCode;
+
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -9,7 +12,6 @@ import java.util.stream.Collectors;
 public class WebHelper {
     private static final Pattern NON_LATIN = Pattern.compile("[^\\w-]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s");
-
 
     public static String generateSlug(String title, String artist) {
         if (title == null) title = "";
@@ -50,5 +52,21 @@ public class WebHelper {
                 .map(WebHelper::generateSlug)
                 .filter(slug -> !slug.isEmpty())
                 .collect(Collectors.joining("/"));
+    }
+
+    public static String generateSlug(EnumMap<LanguageCode, String> localizedName) {
+        if (localizedName == null || localizedName.isEmpty()) {
+            return "";
+        }
+
+        String name = localizedName.get(LanguageCode.en);
+        if (name == null || name.trim().isEmpty()) {
+            name = localizedName.values().stream()
+                    .filter(value -> value != null && !value.trim().isEmpty())
+                    .findFirst()
+                    .orElse("");
+        }
+
+        return generateSlug(name);
     }
 }

@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.scheduler.ScheduleWrapper;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -34,7 +35,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
     private String description;
-    private Map<String, Object> schedule;
+    private Map<String, ScheduleWrapper> schedule;
     private UUID aiAgentId;
     private UUID profileId;
     private RadioStationStatus status;

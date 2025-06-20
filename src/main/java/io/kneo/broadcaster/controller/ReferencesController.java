@@ -2,18 +2,15 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.GenreDTO;
 import io.kneo.broadcaster.service.GenreService;
-import io.kneo.core.controller.AbstractSecuredController;
+import io.kneo.core.controller.BaseController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
 import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.repository.exception.UserNotFoundException;
-import io.kneo.core.service.UserService;
+import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.util.RuntimeUtil;
-import io.kneo.officeframe.dto.TaskTypeDTO;
-import io.kneo.officeframe.model.TaskType;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -26,19 +23,10 @@ import java.util.UUID;
 import static io.kneo.core.util.RuntimeUtil.countMaxPage;
 
 @ApplicationScoped
-public class GenreController extends AbstractSecuredController<TaskType, TaskTypeDTO> {
+public class ReferencesController extends BaseController {
 
     @Inject
     GenreService service;
-
-    public GenreController() {
-        super(null);
-    }
-
-    public GenreController(UserService userService, GenreService service) {
-        super(userService);
-        this.service = service;
-    }
 
     public void setupRoutes(Router router) {
         router.route(HttpMethod.GET, "/api/genres").handler(this::getAll);
@@ -75,21 +63,14 @@ public class GenreController extends AbstractSecuredController<TaskType, TaskTyp
         FormPage page = new FormPage();
         page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
 
-        getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(rc.pathParam("id")), user, resolveLanguage(rc)))
+        service.getDTO(UUID.fromString(rc.pathParam("id")), AnonymousUser.build(), resolveLanguage(rc))
                 .onItem().transform(dto -> {
                     page.addPayload(PayloadType.DOC_DATA, dto);
                     return page;
                 })
                 .subscribe().with(
                         formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
-                        error -> {
-                            if (error instanceof UserNotFoundException) {
-                                rc.response().setStatusCode(404).end("User not found");
-                            } else {
-                                rc.fail(error);
-                            }
-                        }
+                        error -> rc.fail(error)
                 );
     }
 

@@ -158,29 +158,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        hls.on(Hls.Events.FRAG_LOADING, function(event, data) {
+            if (data.frag) {
+                console.log('Requesting segment: ' + data.frag.url);
+            }
+        });
+
         hls.on(Hls.Events.ERROR, function(event, data) {
             if (data.fatal) {
                 switch(data.type) {
                     case Hls.ErrorTypes.NETWORK_ERROR:
-                        displayMessage(errorMessageDiv, 'Connection lost. Attempting to reconnect...', true);
+                        console.error('HLS network error:', data);
                         if (retryCount < MAX_RETRIES) {
                             retryCount++;
+                            displayMessage(errorMessageDiv, `Network error, retrying... (${retryCount}/${MAX_RETRIES})`, true);
                             setTimeout(loadSourceWithRetry, 2000 * retryCount);
                         } else {
-                            displayMessage(errorMessageDiv, 'Failed to reconnect after multiple attempts. Please reload page.', true);
+                            displayMessage(errorMessageDiv, 'Failed to load stream after multiple retries.', true);
                         }
                         break;
                     case Hls.ErrorTypes.MEDIA_ERROR:
-                        displayMessage(errorMessageDiv, 'Playback error. Attempting to recover...', true);
+                        console.error('HLS media error:', data);
                         hls.recoverMediaError();
                         break;
                     default:
-                        displayMessage(errorMessageDiv, 'Unrecoverable playback error. Please reload page.', true);
+                        console.error('An unrecoverable HLS error occurred', data);
+                        hls.destroy();
+                        hls = null;
                         break;
-                }
-            } else {
-                if (data.details === 'bufferStalledError') {
-                    hls.startLoad();
                 }
             }
         });

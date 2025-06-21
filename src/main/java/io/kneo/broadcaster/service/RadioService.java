@@ -80,6 +80,12 @@ public class RadioService {
                 );
     }
 
+    public Uni<RadioStationStatusDTO> getStatus(String brand, String userAgent) {
+        return getPlaylist(brand, userAgent)
+                .onItem().transform(IStreamManager::getRadioStation)
+                .chain(this::toStatusDTO);
+    }
+
     public Uni<List<RadioStationStatusDTO>> getStations(String userAgent) {
         return Uni.combine().all().unis(
                 getOnlineStations(),
@@ -90,7 +96,7 @@ public class RadioService {
 
             List<String> onlineBrands = onlineStations.stream()
                     .map(RadioStation::getSlugName)
-                    .toList();
+                    .collect(Collectors.toList());
 
             List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
                     .map(this::toStatusDTO)
@@ -177,5 +183,4 @@ public class RadioService {
                 radioStation.getDescription()
         ));
     }
-
 }

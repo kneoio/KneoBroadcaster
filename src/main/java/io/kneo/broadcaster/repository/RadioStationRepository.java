@@ -160,8 +160,8 @@ public class RadioStationRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, slug_name, profile_id, ai_agent_id) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, slug_name, description, profile_id, ai_agent_id) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -178,6 +178,7 @@ public class RadioStationRepository extends AsyncRepository {
                         .addJsonObject(localizedNameJson)
                         .addValue(JsonObject.of())
                         .addString(station.getSlugName())
+                        .addString(station.getDescription())
                         .addUUID(station.getProfileId())
                         .addUUID(station.getAiAgentId());
 
@@ -218,8 +219,8 @@ public class RadioStationRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, schedule=$6, " +
-                                    "slug_name=$7, profile_id=$8, ai_agent_id=$9, last_mod_user=$10, last_mod_date=$11, archived=$12 " +
-                                    "WHERE id=$13";
+                                    "slug_name=$7, description=$8, profile_id=$9, ai_agent_id=$10, last_mod_user=$11, last_mod_date=$12, archived=$13 " +
+                                    "WHERE id=$14";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -232,6 +233,7 @@ public class RadioStationRepository extends AsyncRepository {
                                     .addValue(localizedNameJson)
                                     .addValue(station.getSchedule() != null ? mapper.valueToTree(station.getSchedule()) : null)
                                     .addString(station.getSlugName())
+                                    .addString(station.getDescription())
                                     .addUUID(station.getProfileId())
                                     .addUUID(station.getAiAgentId())
                                     .addLong(user.getId())
@@ -361,7 +363,7 @@ public class RadioStationRepository extends AsyncRepository {
 
         JsonObject scheduleJson = row.getJsonObject("schedule");
         if (scheduleJson != null) {
-           // doc.setSchedule(scheduleJson.getMap());
+            // doc.setSchedule(scheduleJson.getMap());
         }
 
         UUID aiAgentId = row.getUUID("ai_agent_id");

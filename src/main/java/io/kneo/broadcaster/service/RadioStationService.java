@@ -121,6 +121,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setCountry(doc.getCountry());
             dto.setColor(doc.getColor());
+            dto.setTimeZone(doc.getTimeZone());
             dto.setDescription(doc.getDescription());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());

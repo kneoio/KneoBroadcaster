@@ -34,6 +34,7 @@ public class RadioController {
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
         router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
+        router.route(HttpMethod.GET, "/radio/stations").handler(this::getStations);
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -152,5 +153,27 @@ public class RadioController {
                         }
                 );
 
+    }
+
+    private void getStations(RoutingContext rc) {
+        String userAgent = rc.request().getHeader("User-Agent");
+
+        service.getStations(userAgent)
+                .subscribe().with(
+                        stations -> {
+                            rc.response()
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .putHeader("Access-Control-Allow-Origin", "*")
+                                    .setStatusCode(200)
+                                    .end(Json.encode(stations));
+                        },
+                        throwable -> {
+                            LOGGER.error("Error getting stations list: {}", throwable.getMessage());
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to get stations list: " + throwable.getMessage());
+                        }
+                );
     }
 }

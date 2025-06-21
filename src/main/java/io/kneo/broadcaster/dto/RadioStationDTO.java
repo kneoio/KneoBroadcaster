@@ -5,6 +5,7 @@ import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.officeframe.cnst.CountryCode;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -20,11 +21,14 @@ import java.util.UUID;
 public class RadioStationDTO extends AbstractDTO {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private String slugName;
+    @NotBlank
     private CountryCode country;
+    @NotBlank
     private ManagedBy managedBy;
     private URL hlsUrl;
     private URL iceCastUrl;
     private URL mixplaUrl;
+    @NotBlank
     private ZoneId timeZone;
     private String color;
     private String description;

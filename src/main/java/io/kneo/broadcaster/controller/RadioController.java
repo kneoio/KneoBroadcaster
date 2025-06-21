@@ -30,11 +30,14 @@ public class RadioController {
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
-        router.route(HttpMethod.GET, path + "/stream").handler(this::getPlaylist);
+        router.route(HttpMethod.GET, path + "/stream").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
         router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
+
         router.route(HttpMethod.GET, "/radio/stations").handler(this::getStations);
+
+        LOGGER.info("RadioController setupRoutes completed - added /radio/stations route");
     }
 
     private void getPlaylist(RoutingContext rc) {

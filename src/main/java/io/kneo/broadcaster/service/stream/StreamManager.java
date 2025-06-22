@@ -158,11 +158,9 @@ public class StreamManager implements IStreamManager {
             try {
                 BrandSoundFragment fragment = playlistManager.getNextFragment();
                 if (fragment != null && !fragment.getSegments().isEmpty()) {
-                    int newSegmentsFromFragment = fragment.getSegments().size();
                     final long[] firstSeqInBatch = {-1L};
                     final long[] lastSeqInBatch = {-1L};
 
-                    // Mark the first segment of this fragment
                     boolean isFirst = true;
                     for (HlsSegment segment : fragment.getSegments()) {
                         long seq = currentSequence.getAndIncrement();
@@ -171,8 +169,8 @@ public class StreamManager implements IStreamManager {
                         }
                         lastSeqInBatch[0] = seq;
                         segment.setSequence(seq);
-                        segment.setSourceFragment(fragment); // Add this to HlsSegment
-                        segment.setFirstSegmentOfFragment(isFirst); // Add this to HlsSegment
+                        segment.setSourceFragment(fragment);
+                        segment.setFirstSegmentOfFragment(isFirst);
                         pendingFragmentSegmentsQueue.offer(segment);
                         isFirst = false;
                     }

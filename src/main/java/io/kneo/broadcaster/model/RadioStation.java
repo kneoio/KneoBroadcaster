@@ -1,9 +1,10 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.model.scheduler.ScheduleWrapper;
-import io.kneo.broadcaster.service.stream.IStreamManager;
+import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.scheduler.ScheduleWrapper;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import io.kneo.officeframe.cnst.CountryCode;
@@ -39,6 +40,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private UUID aiAgentId;
     private UUID profileId;
     private RadioStationStatus status;
+    private AiAgentStatus aiAgentStatus;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
 
     public void setStatus(RadioStationStatus newStatus) {

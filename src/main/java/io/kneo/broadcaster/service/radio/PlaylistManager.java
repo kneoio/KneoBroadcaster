@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.radio;
 
+import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
@@ -137,6 +138,7 @@ public class PlaylistManager {
                             return Uni.createFrom().item(false);
                         } else {
                             radioStation.setStatus(RadioStationStatus.ON_LINE_WELL);
+                            radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
                         }
 
                         segmentedAndReadyToBeConsumed.add(brandSoundFragment);
@@ -162,6 +164,7 @@ public class PlaylistManager {
                 moveFragmentToProcessedList(nextFragment);
                 if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
+                    radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
                 }
                 return nextFragment;
             }

@@ -146,6 +146,8 @@ public class RadioService {
         String managedByType = radioStation.getManagedBy().toString();
         String currentStatus = radioStation.getStatus() != null ?
                 radioStation.getStatus().name() : "OFF_LINE";
+        String agentStatus = radioStation.getAiAgentStatus() != null ?
+                radioStation.getAiAgentStatus().name() : "UNKNOWN";
         String stationCountryCode = radioStation.getCountry().name();
 
         if (radioStation.getAiAgentId() != null) {
@@ -155,6 +157,7 @@ public class RadioService {
                             managedByType,
                             aiAgent.getName(),
                             aiAgent.getPreferredLang().name().toUpperCase(),
+                            agentStatus,
                             currentStatus,
                             stationCountryCode,
                             radioStation.getColor(),
@@ -165,6 +168,7 @@ public class RadioService {
                             managedByType,
                             null,
                             null,
+                            agentStatus,
                             currentStatus,
                             stationCountryCode,
                             radioStation.getColor(),
@@ -177,6 +181,7 @@ public class RadioService {
                 managedByType,
                 null,
                 null,
+                agentStatus,
                 currentStatus,
                 stationCountryCode,
                 radioStation.getColor(),

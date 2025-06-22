@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -89,7 +89,7 @@ public class QueueService {
                                                 return Uni.createFrom().item(false);
                                             }
 
-                                            //radioStation.setManagedBy(ManagedBy.AI_AGENT);
+                                            radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
                                             BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                             brandSoundFragment.setId(soundFragment.getId());
                                             brandSoundFragment.setSoundFragment(soundFragment);

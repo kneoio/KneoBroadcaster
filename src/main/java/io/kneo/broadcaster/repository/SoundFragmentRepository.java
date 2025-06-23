@@ -258,22 +258,23 @@ public class SoundFragmentRepository extends AsyncRepository {
                             .onItem().invoke(file ->
                                     LOGGER.debug("Successfully retrieved file content for key: {}", doKey))
                             .onFailure().invoke(failure ->
-                                    LOGGER.error("Storage retrieval failed for key: {}", doKey, failure)) // Fixed
+                                    LOGGER.error("Storage retrieval failed for key: {}", doKey, failure))
                             .onFailure().transform(ex -> {
                                 if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
                                     LOGGER.warn("File not found in storage - Key: {}", doKey, ex);
                                     return ex;
                                 }
-                                LOGGER.error("Storage retrieval error - Key: {}", doKey, ex); // Fixed
+                                LOGGER.error("Storage retrieval error - Key: {}", doKey, ex);
+                                //TODO it might happen , we need to mark it as archived=2 (corrupted)
                                 return new FileNotFoundException(
                                         String.format("Failed to retrieve file (ID: %s, Key: %s) - Cause: %s",
                                                 id, doKey, ex.getMessage()));
                             });
                 })
                 .onFailure(FileNotFoundException.class)
-                .invoke(fnf -> LOGGER.error("File not found flow", fnf)) // Fixed
+                .invoke(fnf -> LOGGER.error("File not found flow", fnf))
                 .onFailure().invoke(failure ->
-                        LOGGER.error("Unexpected failure processing ID: {}", id, failure)) // Fixed
+                        LOGGER.error("Unexpected failure processing ID: {}", id, failure))
                 .onFailure().recoverWithUni(otherException -> {
                     if (otherException instanceof DocumentHasNotFoundException) {
                         LOGGER.warn("Document not found", otherException);

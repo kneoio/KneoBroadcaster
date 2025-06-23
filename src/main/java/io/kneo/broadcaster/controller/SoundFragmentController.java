@@ -17,12 +17,15 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -38,14 +41,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
@@ -57,6 +62,11 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB for business logic
     private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L; // 1GB for technical limit
 
+    // Progress tracking
+    private final ConcurrentHashMap<String, UploadProgress> uploadProgressMap = new ConcurrentHashMap<>();
+
+    @Inject
+    private Vertx vertx;
 
     public SoundFragmentController() {
         super(null);
@@ -69,6 +79,44 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         this.config = config;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.validator = validator;
+    }
+
+    // Progress tracking data class
+    public static class UploadProgress {
+        private String uploadId;
+        private long totalSize;
+        private long uploadedBytes;
+        private int percentage;
+        private String status; // "started", "processing", "completed", "failed"
+        private String errorMessage;
+        private LocalDateTime startTime;
+
+        public UploadProgress() {}
+
+        public UploadProgress(String uploadId, long totalSize) {
+            this.uploadId = uploadId;
+            this.totalSize = totalSize;
+            this.uploadedBytes = 0;
+            this.percentage = 0;
+            this.status = "started";
+            this.startTime = LocalDateTime.now();
+        }
+
+        // Getters and setters
+        public String getUploadId() { return uploadId; }
+        public void setUploadId(String uploadId) { this.uploadId = uploadId; }
+        public long getTotalSize() { return totalSize; }
+        public void setTotalSize(long totalSize) { this.totalSize = totalSize; }
+        public long getUploadedBytes() { return uploadedBytes; }
+        public void setUploadedBytes(long uploadedBytes) { this.uploadedBytes = uploadedBytes; }
+        public int getPercentage() { return percentage; }
+        public void setPercentage(int percentage) { this.percentage = percentage; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getErrorMessage() { return errorMessage; }
+        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+        public LocalDateTime getStartTime() { return startTime; }
+        public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
     }
 
     public void setupRoutes(Router router) {
@@ -92,6 +140,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
+        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
     }
 
     private void get(RoutingContext rc) {
@@ -223,9 +272,10 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-
         String id = rc.pathParam("id");
         FileUpload uploadedFile = rc.fileUploads().get(0);
+        String uploadId = UUID.randomUUID().toString();
+
         LOGGER.info("Received file: {} bytes, limit: {} bytes", uploadedFile.size(), MAX_FILE_SIZE_BYTES);
         Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
@@ -244,63 +294,34 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
+        // Initialize progress tracking
+        UploadProgress progress = new UploadProgress(uploadId, uploadedFile.size());
+        uploadProgressMap.put(uploadId, progress);
+
         getContextUser(rc)
                 .chain(user -> {
-                    try {
-                        // SECURITY: Sanitize the filename to prevent path traversal
-                        String safeFileName;
-                        try {
-                            safeFileName = FileSecurityUtils.sanitizeFilename(originalFileName);
-                        } catch (SecurityException e) {
-                            LOGGER.warn("Unsafe filename rejected: {} from user: {}", originalFileName, user.getUserName());
-                            return Uni.createFrom().failure(new IllegalArgumentException("Invalid filename: " + e.getMessage()));
-                        }
+                    // Process file with progress tracking asynchronously
+                    processFileWithProgressReactive(uploadedFile, uploadId, id, user, originalFileName)
+                            .subscribe().with(
+                                    success -> {
+                                        // File processing completed successfully
+                                        LOGGER.info("File processing completed for uploadId: {}", uploadId);
+                                    },
+                                    error -> {
+                                        LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
+                                        updateProgress(uploadId, 0, 0, "failed", error.getMessage());
+                                    }
+                            );
 
+                    // Return upload ID immediately
+                    UploadFileDTO uploadResponse = UploadFileDTO.builder()
+                            .id(uploadId)
+                            .name(originalFileName)
+                            .status("processing")
+                            .percentage(0)
+                            .build();
 
-                        Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
-                        String entityIdSafe = id != null ? id : "temp";
-
-                        if (!"temp".equals(entityIdSafe)) {
-                            try {
-                                UUID.fromString(entityIdSafe);
-                            } catch (IllegalArgumentException e) {
-                                LOGGER.warn("Invalid entity ID: {} from user: {}", entityIdSafe, user.getUserName());
-                                return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
-                            }
-                        }
-
-                        Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
-
-                        // SECURITY: Use secure path resolution
-                        Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
-                        Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
-                        if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
-                            LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
-                                    user.getUserName(), originalFileName);
-                            return Uni.createFrom().failure(new SecurityException("Invalid file path"));
-                        }
-                        Path movedTo = Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
-                        LOGGER.info("Audio file uploaded: {} ({} MB) for user: {}",
-                                movedTo, uploadedFile.size() / 1024 / 1024, user.getUserName());
-
-                        String fileId = UUID.randomUUID().toString();
-                        UploadFileDTO uploadResponse = UploadFileDTO.builder()
-                                .id(fileId)
-                                .name(safeFileName)
-                                .status("finished")
-                                .url("/api/soundfragments/files/" + entityIdSafe + "/" + safeFileName)
-                                .percentage(100)
-                                .build();
-
-                        return Uni.createFrom().item(uploadResponse);
-
-                    } catch (SecurityException e) {
-                        LOGGER.error("Security violation in file upload: {}", e.getMessage());
-                        return Uni.createFrom().failure(e);
-                    } catch (IOException e) {
-                        LOGGER.error("File operation failed", e);
-                        return Uni.createFrom().failure(e);
-                    }
+                    return Uni.createFrom().item(uploadResponse);
                 })
                 .subscribe().with(
                         uploadResponse -> rc.response()
@@ -311,12 +332,115 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 rc.response().setStatusCode(400).end("Security violation: " + throwable.getMessage());
                             } else if (throwable instanceof IllegalArgumentException) {
                                 rc.response().setStatusCode(400).end("Invalid input: " + throwable.getMessage());
-
                             } else {
                                 rc.fail(throwable);
                             }
                         }
                 );
+    }
+
+    private Uni<Void> processFileWithProgressReactive(FileUpload uploadedFile, String uploadId, String entityId,
+                                                      IUser user, String originalFileName) {
+        return Uni.createFrom().item(() -> {
+            updateProgress(uploadId, 0, 0, "processing", null);
+
+            // SECURITY: Sanitize the filename to prevent path traversal
+            String safeFileName;
+            try {
+                safeFileName = FileSecurityUtils.sanitizeFilename(originalFileName);
+            } catch (SecurityException e) {
+                LOGGER.warn("Unsafe filename rejected: {} from user: {}", originalFileName, user.getUserName());
+                throw new IllegalArgumentException("Invalid filename: " + e.getMessage());
+            }
+
+            try {
+                Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
+                String entityIdSafe = entityId != null ? entityId : "temp";
+
+                if (!"temp".equals(entityIdSafe)) {
+                    try {
+                        UUID.fromString(entityIdSafe);
+                    } catch (IllegalArgumentException e) {
+                        LOGGER.warn("Invalid entity ID: {} from user: {}", entityIdSafe, user.getUserName());
+                        throw new IllegalArgumentException("Invalid entity ID");
+                    }
+                }
+
+                Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
+
+                // SECURITY: Use secure path resolution
+                Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
+                Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
+                if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
+                    LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
+                            user.getUserName(), originalFileName);
+                    throw new SecurityException("Invalid file path");
+                }
+
+                Path tempFile = Paths.get(uploadedFile.uploadedFileName());
+                long totalSize = uploadedFile.size();
+                long processedBytes = 0;
+
+                // Process file in chunks with progress updates
+                try (FileInputStream fis = new FileInputStream(tempFile.toFile())) {
+                    byte[] buffer = new byte[8192]; // 8KB chunks
+                    int bytesRead;
+
+                    Files.createDirectories(destination.getParent());
+                    try (var fos = Files.newOutputStream(destination)) {
+                        while ((bytesRead = fis.read(buffer)) != -1) {
+                            fos.write(buffer, 0, bytesRead);
+                            processedBytes += bytesRead;
+
+                            // Update progress
+                            int percentage = (int) ((processedBytes * 100) / totalSize);
+                            updateProgress(uploadId, percentage, processedBytes, "processing", null);
+                        }
+                    }
+                }
+
+                LOGGER.info("Audio file uploaded: {} ({} MB) for user: {}",
+                        destination, uploadedFile.size() / 1024 / 1024, user.getUserName());
+
+                // Complete upload
+                updateProgress(uploadId, 100, totalSize, "completed", null);
+
+                return (Void) null;
+            } catch (Exception e) {
+                updateProgress(uploadId, 0, 0, "failed", e.getMessage());
+                throw new RuntimeException(e);
+            }
+        }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
+    }
+
+    private void updateProgress(String uploadId, int percentage, long bytes, String status, String error) {
+        UploadProgress progress = uploadProgressMap.get(uploadId);
+        if (progress != null) {
+            progress.setPercentage(percentage);
+            progress.setUploadedBytes(bytes);
+            progress.setStatus(status);
+            progress.setErrorMessage(error);
+        }
+    }
+
+    private void getUploadProgress(RoutingContext rc) {
+        String uploadId = rc.pathParam("uploadId");
+        UploadProgress progress = uploadProgressMap.get(uploadId);
+
+        if (progress == null) {
+            rc.response().setStatusCode(404).end("Upload not found");
+            return;
+        }
+
+        // Clean up completed uploads after some time
+        if ("completed".equals(progress.getStatus()) || "failed".equals(progress.getStatus())) {
+            // Remove from map after 5 minutes to prevent memory leaks
+            vertx.setTimer(300000, timerId -> uploadProgressMap.remove(uploadId));
+        }
+
+        rc.response()
+                .putHeader("Content-Type", "application/json")
+                .end(JsonObject.mapFrom(progress).encode());
     }
 
     private void getBySlugName(RoutingContext rc) {

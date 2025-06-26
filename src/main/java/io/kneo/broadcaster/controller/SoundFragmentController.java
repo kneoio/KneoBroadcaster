@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -331,27 +332,11 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }
 
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-                long totalSize = uploadedFile.size();
-                long processedBytes = 0;
+                Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
 
-                try (FileInputStream fis = new FileInputStream(tempFile.toFile())) {
-                    byte[] buffer = new byte[8192];
-                    int bytesRead;
-
-                    Files.createDirectories(destination.getParent());
-                    try (var fos = Files.newOutputStream(destination)) {
-                        while ((bytesRead = fis.read(buffer)) != -1) {
-                            fos.write(buffer, 0, bytesRead);
-                            processedBytes += bytesRead;
-
-                            int percentage = (int) ((processedBytes * 100) / totalSize);
-                            updateUploadProgress(uploadId, percentage, "uploading", null, null);
-                        }
-                    }
-                }
-
-                LOGGER.info("Audio file uploaded: {} ({} MB) for user: {}",
-                        destination, uploadedFile.size() / 1024 / 1024, user.getUserName());
+                LOGGER.info("Moved uploaded file {} ({} MB) to {} for user: {}",
+                        originalFileName, uploadedFile.size() / 1024 / 1024, 
+                        destination, user.getUserName());
 
                 String fileUrl = String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
                 updateUploadProgress(uploadId, 100, "finished", fileUrl, destination.toString());
@@ -408,6 +393,50 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc)
                 .chain(user -> {
                     try {
+                        // Handle temp directory case
+                        if ("temp".equals(id)) {
+                            String safeFileName;
+                            try {
+                                safeFileName = FileSecurityUtils.sanitizeFilename(requestedFileName);
+                            } catch (SecurityException e) {
+                                LOGGER.warn("Unsafe filename in temp file request: {} from user: {}", requestedFileName, user.getUserName());
+                                return Uni.createFrom().failure(new SecurityException("Invalid filename"));
+                            }
+                            
+                            Path baseDir = Paths.get(uploadDir, user.getUserName(), "temp");
+                            Path secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
+                            if (!FileSecurityUtils.isPathWithinBase(baseDir, secureFilePath)) {
+                                LOGGER.error("Security violation: Path traversal attempt by user {} for temp file {}",
+                                        user.getUserName(), requestedFileName);
+                                return Uni.createFrom().failure(new SecurityException("Invalid file path"));
+                            }
+
+                            File file = secureFilePath.toFile();
+                            if (file.exists()) {
+                                try {
+                                    Path canonicalFile = file.toPath().toRealPath();
+                                    Path canonicalBase = baseDir.toRealPath();
+                                    if (!canonicalFile.startsWith(canonicalBase)) {
+                                        LOGGER.error("Security violation: Temp file outside base directory accessed by user {}", user.getUserName());
+                                        return Uni.createFrom().failure(new SecurityException("File access denied"));
+                                    }
+
+                                    byte[] fileBytes = Files.readAllBytes(canonicalFile);
+                                    String mimeType = Files.probeContentType(canonicalFile);
+                                    return Uni.createFrom().item(new FileData(
+                                            fileBytes,
+                                            mimeType != null ? mimeType : "application/octet-stream"
+                                    ));
+                                } catch (IOException e) {
+                                    LOGGER.error("Temp file read error for user {}, file: {}", user.getUserName(), safeFileName, e);
+                                    return Uni.createFrom().failure(e);
+                                }
+                            } else {
+                                return Uni.createFrom().failure(new FileNotFoundException("Temp file not found: " + safeFileName));
+                            }
+                        }
+                        
+                        // Handle UUID directory case
                         try {
                             UUID.fromString(id);
                         } catch (IllegalArgumentException e) {

@@ -138,7 +138,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
-
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId, user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -560,8 +559,8 @@ public class SoundFragmentRepository extends AsyncRepository {
         return fileUploadCompletionUni.onItem().transformToUni(v -> {
             String sql = String.format(
                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                            "title, artist, genre, album, slug_name, archived) " +
-                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;",
+                            "title, artist, genre, album, slug_name) " +
+                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id;",
                     entityData.getTableName()
             );
 
@@ -573,8 +572,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                     .addString(doc.getArtist())
                     .addString(doc.getGenre())
                     .addString(doc.getAlbum())
-                    .addString(doc.getSlugName())
-                    .addInteger(0);
+                    .addString(doc.getSlugName());
 
             return client.withTransaction(tx -> tx.preparedQuery(sql)
                     .execute(params)
@@ -594,7 +592,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                             meta.getFileKey()
                                                     )
                                                     .addValue(meta.getFileBin())
-                                                    .addString(meta.getSlugName())
+                                                    .addValue(meta.getSlugName())
                                     ).collect(Collectors.toList());
                             fileMetadataUni = tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
                         }

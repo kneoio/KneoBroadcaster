@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,14 +55,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
     SoundFragmentService service;
-    private BroadcasterConfig config;
     private String uploadDir;
     private Validator validator;
-    private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB for business logic
-    private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L; // 1GB for technical limit
+    private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+    private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
 
-    // Progress tracking
-    private final ConcurrentHashMap<String, UploadProgress> uploadProgressMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, UploadFileDTO> uploadProgressMap = new ConcurrentHashMap<>();
 
     @Inject
     private Vertx vertx;
@@ -76,47 +73,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     public SoundFragmentController(UserService userService, SoundFragmentService service, BroadcasterConfig config, Validator validator) {
         super(userService);
         this.service = service;
-        this.config = config;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.validator = validator;
-    }
-
-    // Progress tracking data class
-    public static class UploadProgress {
-        private String uploadId;
-        private long totalSize;
-        private long uploadedBytes;
-        private int percentage;
-        private String status; // "started", "processing", "completed", "failed"
-        private String errorMessage;
-        private LocalDateTime startTime;
-
-        public UploadProgress() {}
-
-        public UploadProgress(String uploadId, long totalSize) {
-            this.uploadId = uploadId;
-            this.totalSize = totalSize;
-            this.uploadedBytes = 0;
-            this.percentage = 0;
-            this.status = "started";
-            this.startTime = LocalDateTime.now();
-        }
-
-        // Getters and setters
-        public String getUploadId() { return uploadId; }
-        public void setUploadId(String uploadId) { this.uploadId = uploadId; }
-        public long getTotalSize() { return totalSize; }
-        public void setTotalSize(long totalSize) { this.totalSize = totalSize; }
-        public long getUploadedBytes() { return uploadedBytes; }
-        public void setUploadedBytes(long uploadedBytes) { this.uploadedBytes = uploadedBytes; }
-        public int getPercentage() { return percentage; }
-        public void setPercentage(int percentage) { this.percentage = percentage; }
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
-        public String getErrorMessage() { return errorMessage; }
-        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-        public LocalDateTime getStartTime() { return startTime; }
-        public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
     }
 
     public void setupRoutes(Router router) {
@@ -294,34 +252,31 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-        // Initialize progress tracking
-        UploadProgress progress = new UploadProgress(uploadId, uploadedFile.size());
-        uploadProgressMap.put(uploadId, progress);
+        UploadFileDTO uploadDto = UploadFileDTO.builder()
+                .id(uploadId)
+                .name(originalFileName)
+                .status("uploading")
+                .percentage(0)
+                .type(uploadedFile.contentType())
+                .batchId(id)
+                .build();
+
+        uploadProgressMap.put(uploadId, uploadDto);
 
         getContextUser(rc)
                 .chain(user -> {
-                    // Process file with progress tracking asynchronously
                     processFileWithProgressReactive(uploadedFile, uploadId, id, user, originalFileName)
                             .subscribe().with(
                                     success -> {
-                                        // File processing completed successfully
                                         LOGGER.info("File processing completed for uploadId: {}", uploadId);
                                     },
                                     error -> {
                                         LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
-                                        updateProgress(uploadId, 0, 0, "failed", error.getMessage());
+                                        updateUploadProgress(uploadId, 0, "error", null, null);
                                     }
                             );
 
-                    // Return upload ID immediately
-                    UploadFileDTO uploadResponse = UploadFileDTO.builder()
-                            .id(uploadId)
-                            .name(originalFileName)
-                            .status("processing")
-                            .percentage(0)
-                            .build();
-
-                    return Uni.createFrom().item(uploadResponse);
+                    return Uni.createFrom().item(uploadDto);
                 })
                 .subscribe().with(
                         uploadResponse -> rc.response()
@@ -342,9 +297,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private Uni<Void> processFileWithProgressReactive(FileUpload uploadedFile, String uploadId, String entityId,
                                                       IUser user, String originalFileName) {
         return Uni.createFrom().item(() -> {
-            updateProgress(uploadId, 0, 0, "processing", null);
+            updateUploadProgress(uploadId, 0, "uploading", null, null);
 
-            // SECURITY: Sanitize the filename to prevent path traversal
             String safeFileName;
             try {
                 safeFileName = FileSecurityUtils.sanitizeFilename(originalFileName);
@@ -368,7 +322,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
                 Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
 
-                // SECURITY: Use secure path resolution
                 Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
                 Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
                 if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
@@ -381,9 +334,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 long totalSize = uploadedFile.size();
                 long processedBytes = 0;
 
-                // Process file in chunks with progress updates
                 try (FileInputStream fis = new FileInputStream(tempFile.toFile())) {
-                    byte[] buffer = new byte[8192]; // 8KB chunks
+                    byte[] buffer = new byte[8192];
                     int bytesRead;
 
                     Files.createDirectories(destination.getParent());
@@ -392,9 +344,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             fos.write(buffer, 0, bytesRead);
                             processedBytes += bytesRead;
 
-                            // Update progress
                             int percentage = (int) ((processedBytes * 100) / totalSize);
-                            updateProgress(uploadId, percentage, processedBytes, "processing", null);
+                            updateUploadProgress(uploadId, percentage, "uploading", null, null);
                         }
                     }
                 }
@@ -402,39 +353,46 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 LOGGER.info("Audio file uploaded: {} ({} MB) for user: {}",
                         destination, uploadedFile.size() / 1024 / 1024, user.getUserName());
 
-                // Complete upload
-                updateProgress(uploadId, 100, totalSize, "completed", null);
+                String fileUrl = String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
+                updateUploadProgress(uploadId, 100, "finished", fileUrl, destination.toString());
 
                 return (Void) null;
             } catch (Exception e) {
-                updateProgress(uploadId, 0, 0, "failed", e.getMessage());
+                updateUploadProgress(uploadId, 0, "error", null, null);
                 throw new RuntimeException(e);
             }
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
     }
 
-    private void updateProgress(String uploadId, int percentage, long bytes, String status, String error) {
-        UploadProgress progress = uploadProgressMap.get(uploadId);
-        if (progress != null) {
-            progress.setPercentage(percentage);
-            progress.setUploadedBytes(bytes);
-            progress.setStatus(status);
-            progress.setErrorMessage(error);
+    private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath) {
+        UploadFileDTO dto = uploadProgressMap.get(uploadId);
+        if (dto != null) {
+            UploadFileDTO updatedDto = UploadFileDTO.builder()
+                    .id(dto.getId())
+                    .name(dto.getName())
+                    .status(status)
+                    .percentage(percentage)
+                    .url(url)
+                    .batchId(dto.getBatchId())
+                    .type(dto.getType())
+                    .fullPath(fullPath)
+                    .thumbnailUrl(dto.getThumbnailUrl())
+                    .build();
+
+            uploadProgressMap.put(uploadId, updatedDto);
         }
     }
 
     private void getUploadProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");
-        UploadProgress progress = uploadProgressMap.get(uploadId);
+        UploadFileDTO progress = uploadProgressMap.get(uploadId);
 
         if (progress == null) {
             rc.response().setStatusCode(404).end("Upload not found");
             return;
         }
 
-        // Clean up completed uploads after some time
-        if ("completed".equals(progress.getStatus()) || "failed".equals(progress.getStatus())) {
-            // Remove from map after 5 minutes to prevent memory leaks
+        if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
             vertx.setTimer(300000, timerId -> uploadProgressMap.remove(uploadId));
         }
 
@@ -450,7 +408,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc)
                 .chain(user -> {
                     try {
-                        // SECURITY: Validate entity ID
                         try {
                             UUID.fromString(id);
                         } catch (IllegalArgumentException e) {
@@ -458,7 +415,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
                         }
 
-                        // SECURITY: Sanitize the requested filename
                         String safeFileName;
                         try {
                             safeFileName = FileSecurityUtils.sanitizeFilename(requestedFileName);

@@ -9,13 +9,13 @@ import java.util.regex.Pattern;
 
 public class FileSecurityUtils {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileSecurityUtils.class);
-    private static final Pattern SAFE_FILENAME_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\-\\s()\\[\\]]+$");
+    private static final Pattern SAFE_FILENAME_PATTERN = Pattern.compile("^[^/\\\\:\\*\\?\"<>\\|\\x00-\\x1F\\x7F-\\x9F]+$");
     private static final int MAX_FILENAME_LENGTH = 255;
 
     private static final Pattern[] BLOCKED_PATTERNS = {
-            Pattern.compile("^\\.+$"), // Only dots (., .., ...)
-            Pattern.compile("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\..*)?$", Pattern.CASE_INSENSITIVE), // Windows reserved names
-            Pattern.compile(".*\\.(exe|bat|cmd|scr|pif|vbs|js|jar|com|dll)$", Pattern.CASE_INSENSITIVE) // Executable extensions
+            Pattern.compile("^\\.+$"),
+            Pattern.compile("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\..*)?$", Pattern.CASE_INSENSITIVE),
+            Pattern.compile(".*\\.(exe|bat|cmd|scr|pif|vbs|js|jar|com|dll)$", Pattern.CASE_INSENSITIVE)
     };
 
     public static String sanitizeFilename(String filename) {
@@ -27,12 +27,11 @@ public class FileSecurityUtils {
         sanitized = sanitized.replaceAll("[:\\*\\?\"<>\\|]", "");
         sanitized = sanitized.trim();
         if (sanitized.length() > MAX_FILENAME_LENGTH) {
-            // Keep the extension if possible
             String extension = "";
             int dotIndex = sanitized.lastIndexOf('.');
             if (dotIndex > 0 && dotIndex < sanitized.length() - 1) {
                 extension = sanitized.substring(dotIndex);
-                if (extension.length() > 10) { // Reasonable extension length
+                if (extension.length() > 10) {
                     extension = "";
                 }
             }
@@ -58,6 +57,7 @@ public class FileSecurityUtils {
             LOGGER.warn("Filename '{}' contains unsafe characters", filename);
             return false;
         }
+
         for (Pattern pattern : BLOCKED_PATTERNS) {
             if (pattern.matcher(filename).matches()) {
                 LOGGER.warn("Filename '{}' matches blocked pattern: {}", filename, pattern.pattern());
@@ -80,7 +80,7 @@ public class FileSecurityUtils {
             Path normalizedPath = resolvedPath.normalize();
             Path canonicalBase = baseDirectory.toRealPath();
             Path canonicalResolved = normalizedPath.toRealPath();
-            if (!canonicalResolved.startsWith(canonicalBase)) {
+            if (!isPathWithinBase(canonicalBase, canonicalResolved)) {
                 throw new SecurityException(
                         String.format("Path traversal attempt detected. File '%s' would resolve outside base directory '%s'",
                                 filename, baseDirectory));
@@ -91,7 +91,7 @@ public class FileSecurityUtils {
         } catch (IOException e) {
             Path resolvedPath = baseDirectory.resolve(secureFilename).normalize();
 
-            if (!resolvedPath.startsWith(baseDirectory.normalize())) {
+            if (!isPathWithinBase(baseDirectory.normalize(), resolvedPath)) {
                 throw new SecurityException(
                         String.format("Path traversal attempt detected. File '%s' would resolve outside base directory '%s'",
                                 filename, baseDirectory));
@@ -107,7 +107,6 @@ public class FileSecurityUtils {
             Path canonicalTarget = targetPath.toRealPath();
             return canonicalTarget.startsWith(canonicalBase);
         } catch (IOException e) {
-            // Fallback to normalized path checking
             return targetPath.normalize().startsWith(basePath.normalize());
         }
     }

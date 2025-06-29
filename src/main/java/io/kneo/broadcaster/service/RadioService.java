@@ -7,6 +7,7 @@ import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -86,7 +87,7 @@ public class RadioService {
                 .chain(this::toStatusDTO);
     }
 
-    public Uni<List<RadioStationStatusDTO>> getStations(String userAgent) {
+    public Uni<List<RadioStationStatusDTO>> getStations() {
         return Uni.combine().all().unis(
                 getOnlineStations(),
                 radioStationService.getAll(1000, 0)
@@ -96,7 +97,7 @@ public class RadioService {
 
             List<String> onlineBrands = onlineStations.stream()
                     .map(RadioStation::getSlugName)
-                    .collect(Collectors.toList());
+                    .toList();
 
             List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
                     .map(this::toStatusDTO)
@@ -131,10 +132,30 @@ public class RadioService {
         );
     }
 
-    private Uni<List<RadioStation>> getOnlineStations() {
-        Collection<RadioStation> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
-        return Uni.createFrom().item(new ArrayList<>(onlineStationsSnapshot));
+    public Uni<List<RadioStationStatusDTO>> getAllStations() {
+        return radioStationService.getAll(5, 0, SuperUser.build())
+                .chain(stations -> {
+                    if (stations.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<RadioStationStatusDTO>> statusUnis = stations.stream()
+                                .map(station -> Uni.createFrom().item(new RadioStationStatusDTO(
+                                        station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName()),
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        station.getCountry().name(),
+                                        station.getColor(),
+                                        station.getDescription()
+                                )))
+                                .collect(Collectors.toList());
+                        return Uni.join().all(statusUnis).andFailFast();
+                    }
+                });
     }
+
 
     public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation) {
         if (radioStation == null) {
@@ -187,5 +208,10 @@ public class RadioService {
                 radioStation.getColor(),
                 radioStation.getDescription()
         ));
+    }
+
+    private Uni<List<RadioStation>> getOnlineStations() {
+        Collection<RadioStation> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
+        return Uni.createFrom().item(new ArrayList<>(onlineStationsSnapshot));
     }
 }

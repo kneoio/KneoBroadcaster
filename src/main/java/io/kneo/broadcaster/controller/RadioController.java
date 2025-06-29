@@ -36,6 +36,7 @@ public class RadioController {
         router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::getStations);
+        router.route(HttpMethod.GET, "/radio/all-stations").handler(this::getAllStations);
 
         LOGGER.info("RadioController setupRoutes completed - added /radio/stations route");
     }
@@ -159,9 +160,7 @@ public class RadioController {
     }
 
     private void getStations(RoutingContext rc) {
-        String userAgent = rc.request().getHeader("User-Agent");
-
-        service.getStations(userAgent)
+        service.getStations()
                 .subscribe().with(
                         stations -> {
                             rc.response()
@@ -176,6 +175,26 @@ public class RadioController {
                                     .setStatusCode(500)
                                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                                     .end("Failed to get stations list: " + throwable.getMessage());
+                        }
+                );
+    }
+
+    private void getAllStations(RoutingContext rc) {
+        service.getAllStations()
+                .subscribe().with(
+                        stations -> {
+                            rc.response()
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .putHeader("Access-Control-Allow-Origin", "*")
+                                    .setStatusCode(200)
+                                    .end(Json.encode(stations));
+                        },
+                        throwable -> {
+                            LOGGER.error("Error getting all stations: {}", throwable.getMessage());
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to get all stations: " + throwable.getMessage());
                         }
                 );
     }

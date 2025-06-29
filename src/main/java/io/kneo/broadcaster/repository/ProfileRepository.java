@@ -141,8 +141,6 @@ public class ProfileRepository extends AsyncRepository {
             for (int i = 0; i < genresJson.size(); i++) {
                 genres.add(genresJson.getString(i));
             }
-            //TODO genre now is reference
-            //profile.setAllowedGenres(genres);
         }
 
         profile.setExplicitContent(row.getBoolean("explicit_content"));

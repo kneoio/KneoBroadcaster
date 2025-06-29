@@ -236,7 +236,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
             for (String fileName : dto.getNewlyUploaded()) {
 
-                // SECURITY: Validate and sanitize filename
                 String safeFileName;
                 try {
                     safeFileName = FileSecurityUtils.sanitizeFilename(fileName);
@@ -248,7 +247,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 FileMetadata fileMetadata = new FileMetadata();
                 String entityId = id != null ? id : "temp";
 
-                // SECURITY: Validate entity ID
                 if (id != null) {
                     try {
                         UUID.fromString(id);
@@ -257,8 +255,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
                     }
                 }
-
-                // SECURITY: Use secure path resolution
                 Path baseDir = Paths.get(uploadDir, user.getUserName(), entityId);
                 Path secureFilePath;
                 try {
@@ -275,7 +271,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 }
 
                 fileMetadata.setFilePath(secureFilePath);
-                fileMetadata.setFileOriginalName(safeFileName); // Use sanitized filename
+                fileMetadata.setFileOriginalName(safeFileName);
                 fileMetadata.setSlugName(WebHelper.generateSlug(entity.getArtist(), entity.getTitle()));
                 fileMetadataList.add(fileMetadata);
             }
@@ -288,7 +284,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
                     .chain(doc -> mapToDTO(doc, true, null))
                     .onFailure().invoke(failure -> {
-                        // Cleanup temp files if entity creation fails
                         LOGGER.warn("Entity creation failed, cleaning up temp files for user: {}", user.getUserName());
                         localFileCleanupService.cleanupTempFilesForUser(user.getUserName())
                                 .subscribe().with(
@@ -300,7 +295,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             return repository.update(UUID.fromString(id), entity, user)
                     .chain(doc -> mapToDTO(doc, true, null))
                     .onFailure().invoke(failure -> {
-                        // Cleanup files if update fails
                         LOGGER.warn("Entity update failed, cleaning up files for user: {}, entity: {}",
                                 user.getUserName(), id);
                         localFileCleanupService.cleanupEntityFiles(user.getUserName(), id)
@@ -310,6 +304,26 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 );
                     });
         }
+    }
+
+    public Uni<List<SoundFragmentDTO>> search(String searchTerm, final int limit, final int offset, final IUser user) {
+        assert repository != null;
+        return repository.search(searchTerm, limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<SoundFragmentDTO>> unis = list.stream()
+                                .map(doc -> mapToDTO(doc, false, null))
+                                .collect(Collectors.toList());
+                        return Uni.join().all(unis).andFailFast();
+                    }
+                });
+    }
+
+    public Uni<Integer> getSearchCount(String searchTerm, final IUser user) {
+        assert repository != null;
+        return repository.getSearchCount(searchTerm, false, user);
     }
 
     public Uni<LocalFileCleanupService.CleanupStats> getLocalFileCleanupStats() {
@@ -374,7 +388,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             if (exposeFileUrl && doc.getFileMetadataList() != null) {
                 doc.getFileMetadataList()
                         .forEach(meta -> {
-                            // SECURITY: Sanitize filename in URL generation
+                            //TODO do we need sanitaztion here ?
                             String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
                             files.add(UploadFileDTO.builder()
                                     .id(meta.getSlugName())

@@ -43,7 +43,7 @@ public class GenreService extends AbstractService<Genre, GenreDTO> implements IR
         return repository.findByIdentifier(identifier).chain(this::mapToDTO);
     }
 
-    public Uni<Integer> getAllCount() {
+    public Uni<Integer> getAllCount(IUser user) {
         return repository.getAllCount();
     }
 

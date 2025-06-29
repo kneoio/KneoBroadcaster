@@ -38,7 +38,7 @@ public class ReferencesController extends BaseController {
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "0"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
-        service.getAllCount()
+        service.getAllCount(AnonymousUser.build())
                 .onItem().transformToUni(count -> {
                     int maxPage = countMaxPage(count, size);
                     int pageNum = (page == 0) ? 1 : page;

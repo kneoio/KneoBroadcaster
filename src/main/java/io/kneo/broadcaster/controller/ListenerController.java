@@ -116,7 +116,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         ListenerDTO dto = jsonObject.mapTo(ListenerDTO.class);
 
         getContextUser(rc)
-                .chain(user -> service.upsert(id, dto, getUser(rc) ))
+                .chain(user -> service.upsert(id, dto, user))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
                         rc::fail

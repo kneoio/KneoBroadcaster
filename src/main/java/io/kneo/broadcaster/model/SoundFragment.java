@@ -24,7 +24,6 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String slugName;
     private Integer archived;
     private List<FileMetadata> fileMetadataList;
-    //TODO we need to use
     private Object addInfo;
 
     public String getMetadata() {

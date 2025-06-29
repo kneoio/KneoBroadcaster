@@ -41,13 +41,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,6 +94,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
+        router.route(HttpMethod.GET, path + "/search").handler(this::search);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
@@ -136,6 +137,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         SoundFragmentDTO dto = new SoundFragmentDTO();
                         dto.setAuthor(user.getUserName());
                         dto.setLastModifier(user.getUserName());
+                        dto.setNewlyUploaded(List.of());
+                        dto.setUploadedFiles(List.of());
+                        dto.setRepresentedInBrands(List.of());
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)
@@ -168,6 +172,37 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             RuntimeUtil.countMaxPage(tuple.getItem2(), size),
                             size);
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    return viewPage;
+                }))
+                .subscribe().with(
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                        rc::fail
+                );
+    }
+
+    private void search(RoutingContext rc) {
+        String searchTerm = rc.request().getParam("q");
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
+
+        if (searchTerm == null || searchTerm.trim().isEmpty()) {
+            rc.response().setStatusCode(400).end("Search term 'q' parameter is required");
+            return;
+        }
+
+        getContextUser(rc)
+                .chain(user -> Uni.combine().all().unis(
+                        service.getSearchCount(searchTerm, user),
+                        service.search(searchTerm, size, (page - 1) * size, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<SoundFragmentDTO> dtoEntries = new View<>(tuple.getItem2(),
+                            tuple.getItem1(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
+                    viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
                     return viewPage;
                 }))
                 .subscribe().with(

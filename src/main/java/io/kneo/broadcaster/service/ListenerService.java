@@ -111,6 +111,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         }
     }
 
+    public Uni<Integer> archive(String id, IUser user) {
+        assert repository != null;
+        return repository.archive(UUID.fromString(id), user);
+    }
+
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;

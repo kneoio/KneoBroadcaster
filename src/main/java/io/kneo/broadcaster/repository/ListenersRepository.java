@@ -159,7 +159,7 @@ public class ListenersRepository extends AsyncRepository {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nick_name, slug_name, archived) " +
+                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
         Tuple params = Tuple.tuple()
@@ -179,7 +179,6 @@ public class ListenersRepository extends AsyncRepository {
                         .execute(params)
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                         .onItem().transformToUni(id -> {
-                            // Insert RLS permissions
                             String rlsSql = String.format(
                                     "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
                                     entityData.getRlsName()
@@ -194,7 +193,7 @@ public class ListenersRepository extends AsyncRepository {
     public Uni<Listener> update(UUID id, Listener listener, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) { // can_edit permission
+                    if (!permissions[0]) {
                         return Uni.createFrom().failure(new DocumentModificationAccessException(
                                 "User does not have edit permission", user.getUserName(), id));
                     }
@@ -202,7 +201,7 @@ public class ListenersRepository extends AsyncRepository {
                     LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET country=$1, loc_name=$2, nick_name=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6 " +
+                            " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6 " +
                             "WHERE id=$7";
 
                     Tuple params = Tuple.tuple()
@@ -226,20 +225,7 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Integer> archive(UUID id, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) { // can_edit permission
-                        return Uni.createFrom().failure(new DocumentModificationAccessException(
-                                "User does not have edit permission", user.getUserName(), id));
-                    }
-
-                    String sql = String.format("UPDATE %s SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
-                            entityData.getTableName());
-
-                    return client.preparedQuery(sql)
-                            .execute(Tuple.of(ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime(), user.getId(), id))
-                            .onItem().transform(RowSet::rowCount);
-                });
+        return archive(id, entityData, user);
     }
 
     public Uni<Integer> delete(UUID id, IUser user) {
@@ -268,7 +254,6 @@ public class ListenersRepository extends AsyncRepository {
     private Uni<Listener> from(Row row) {
         Listener doc = new Listener();
         setDefaultFields(doc, row);
-        doc.setId(row.getUUID("id"));
         doc.setUserId(row.getLong("user_id"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
 

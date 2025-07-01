@@ -339,12 +339,10 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    // Modified insert method - silently keep only first file for SoundFragments
     public Uni<SoundFragment> insert(SoundFragment doc, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
         final List<FileMetadata> originalFiles = doc.getFileMetadataList();
 
-        // SILENTLY KEEP ONLY FIRST FILE FOR SOUND FRAGMENTS
         final List<FileMetadata> filesToProcess = (originalFiles != null && !originalFiles.isEmpty())
                 ? List.of(originalFiles.get(0))
                 : null;
@@ -364,8 +362,6 @@ public class SoundFragmentRepository extends AsyncRepository {
             String doKey = WebHelper.generateSlugPath(doc.getGenre().toLowerCase(), doc.getArtist(), String.valueOf(UUID.randomUUID()));
             meta.setFileKey(doKey);
             meta.setMimeType(detectMimeType(filePath.toString()));
-
-            // Update doc with single file list
             doc.setFileMetadataList(filesToProcess);
         }
 
@@ -391,7 +387,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    // Modified update method - silently keep only first file for SoundFragments
     public Uni<SoundFragment> update(UUID id, SoundFragment doc, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
@@ -403,7 +398,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                             .onItem().transformToUni(existingDoc -> {
                                 final List<FileMetadata> originalFiles = doc.getFileMetadataList();
 
-                                // SILENTLY KEEP ONLY FIRST FILE FOR SOUND FRAGMENTS
                                 final List<FileMetadata> newFiles = (originalFiles != null && !originalFiles.isEmpty())
                                         ? List.of(originalFiles.get(0))
                                         : null;
@@ -493,20 +487,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<Integer> archive(UUID uuid, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), uuid));
-                    }
-
-                    String sql = String.format("UPDATE %s SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
-                            entityData.getTableName());
-
-                    return client.preparedQuery(sql)
-                            .execute(Tuple.of(ZonedDateTime.now().toLocalDateTime(), user.getId(), uuid))
-                            .onItem().transform(RowSet::rowCount);
-                });
+    public Uni<Integer> archive(UUID id, IUser user) {
+        return archive(id, entityData, user);
     }
 
     public Uni<Integer> delete(UUID uuid, IUser user) {

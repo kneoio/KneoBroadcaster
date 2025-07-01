@@ -126,10 +126,11 @@ public class ListenerController extends AbstractSecuredController<Listener, List
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
         getContextUser(rc)
-                .chain(user -> service.delete(id, user))
+                .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail
                 );
     }
+
 }

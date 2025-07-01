@@ -106,6 +106,11 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         }
     }
 
+    public Uni<Integer> archive(String id, IUser user) {
+        assert repository != null;
+        return repository.archive(UUID.fromString(id), user);
+    }
+
     private Uni<RadioStationDTO> mapToDTO(RadioStation doc) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),

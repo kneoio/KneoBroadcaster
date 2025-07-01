@@ -258,22 +258,8 @@ public class RadioStationRepository extends AsyncRepository {
         });
     }
 
-    public Uni<Integer> archive(UUID uuid, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for archive radio station: {} by user: {}", uuid, user.getId(), throwable))
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), uuid));
-                    }
-
-                    String sql = String.format("UPDATE %s SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
-                            entityData.getTableName());
-
-                    return client.preparedQuery(sql)
-                            .execute(Tuple.of(OffsetDateTime.now(), user.getId(), uuid))
-                            .onFailure().invoke(throwable -> LOGGER.error("Failed to archive radio station: {} by user: {}", uuid, user.getId(), throwable))
-                            .onItem().transform(RowSet::rowCount);
-                });
+    public Uni<Integer> archive(UUID id, IUser user) {
+        return archive(id, entityData, user);
     }
 
     public Uni<Integer> delete(UUID id, IUser user) {

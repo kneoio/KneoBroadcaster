@@ -119,13 +119,10 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
         getContextUser(rc)
-                .chain(user -> service.delete(id, user))
+                .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
-                        throwable -> {
-                            LOGGER.error("Failed to delete radio station with id: {}", id, throwable);
-                            rc.fail(throwable);
-                        }
+                        rc::fail
                 );
     }
 }

@@ -95,12 +95,10 @@ public class MemoryRepository extends AsyncRepository {
                 " (reg_date, author, last_mod_date, last_mod_user,brand, memory_type, content, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id";
 
-        // Get current time as ZonedDateTime for database storage (if column is TIMESTAMP WITH TIME ZONE)
-        // Or if column is TIMESTAMP WITHOUT TIME ZONE, store LocalDateTime derived from ZonedDateTime
         ZonedDateTime nowTime = ZonedDateTime.now(APPLICATION_ZONE);
-        LocalDateTime nowTimeLocal = nowTime.toLocalDateTime(); // For DB that expects LocalDateTime
+        LocalDateTime nowTimeLocal = nowTime.toLocalDateTime();
 
-        Tuple params = Tuple.of(nowTimeLocal, user.getId(), nowTimeLocal, user.getId()) // Pass LocalDateTime
+        Tuple params = Tuple.of(nowTimeLocal, user.getId(), nowTimeLocal, user.getId())
                 .addString(memory.getBrand())
                 .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))
@@ -117,13 +115,11 @@ public class MemoryRepository extends AsyncRepository {
                 " SET last_mod_date=$1, last_mod_user=$2, memory_type=$3, content=$4, archived=$5 " +
                 "WHERE id=$6";
 
-        // Get current time as ZonedDateTime for database storage (if column is TIMESTAMP WITH TIME ZONE)
-        // Or if column is TIMESTAMP WITHOUT TIME ZONE, store LocalDateTime derived from ZonedDateTime
         ZonedDateTime nowTime = ZonedDateTime.now(APPLICATION_ZONE);
-        LocalDateTime nowTimeLocal = nowTime.toLocalDateTime(); // For DB that expects LocalDateTime
+        LocalDateTime nowTimeLocal = nowTime.toLocalDateTime();
 
         Tuple params = Tuple.tuple()
-                .addLocalDateTime(nowTimeLocal) // Pass LocalDateTime
+                .addLocalDateTime(nowTimeLocal)
                 .addLong(user.getId())
                 .addString(memory.getMemoryType().toString())
                 .addJsonObject(JsonObject.mapFrom(memory.getContent()))

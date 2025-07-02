@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.ListenersRepository;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -133,6 +134,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setUserId(doc.getUserId());
             dto.setCountry(doc.getCountry());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
@@ -144,10 +146,17 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     private Listener buildEntity(ListenerDTO dto) {
         Listener doc = new Listener();
+        doc.setUserId(dto.getUserId());
         doc.setCountry(dto.getCountry());
-        doc.setSlugName(dto.getSlugName());
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
+        doc.setNickName(dto.getNickName());
+        if (dto.getNickName().get(LanguageCode.en) == null) {
+            doc.setSlugName(WebHelper.generateSlug(dto.getLocalizedName().get(LanguageCode.en)));
+        } else {
+            doc.setSlugName(WebHelper.generateSlug(dto.getNickName().get(LanguageCode.en)));
+        }
+
         return doc;
     }
 

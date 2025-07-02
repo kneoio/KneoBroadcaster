@@ -22,7 +22,6 @@ public class ListenerDTO extends AbstractReferenceDTO {
     long userId;
     @NotBlank
     private CountryCode country;
-    private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;

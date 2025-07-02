@@ -11,6 +11,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -21,7 +22,10 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -29,15 +33,17 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
 
     @Inject
     ProfileService service;
+    private Validator validator;
 
     public ProfileController() {
         super(null);
     }
 
     @Inject
-    public ProfileController(UserService userService, ProfileService service) {
+    public ProfileController(UserService userService, ProfileService service, Validator validator) {
         super(userService);
         this.service = service;
+        this.validator = validator;
     }
 
     public void setupRoutes(Router router) {
@@ -92,16 +98,40 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
     }
 
     private void upsert(RoutingContext rc) {
-        String id = rc.pathParam("id");
-        JsonObject jsonObject = rc.body().asJsonObject();
-        ProfileDTO dto = jsonObject.mapTo(ProfileDTO.class);
+        try {
+            JsonObject json = rc.body().asJsonObject();
+            if (json == null) {
+                rc.response().setStatusCode(400).end("Request body must be a valid JSON object");
+                return;
+            }
 
-        getContextUser(rc)
-                .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
-                .subscribe().with(
-                        doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
-                        rc::fail
-                );
+            ProfileDTO dto = json.mapTo(ProfileDTO.class);
+            String id = rc.pathParam("id");
+
+            Set<ConstraintViolation<ProfileDTO>> violations = validator.validate(dto);
+            if (!violations.isEmpty()) {
+                handleValidationErrors(rc, violations);
+                return;
+            }
+
+            getContextUser(rc)
+                    .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
+                    .subscribe().with(
+                            doc -> rc.response()
+                                    .setStatusCode(id == null ? 201 : 200)
+                                    .end(JsonObject.mapFrom(doc).encode()),
+                            throwable -> {
+                                if (throwable instanceof DocumentModificationAccessException) {
+                                    rc.response().setStatusCode(403).end("Not enough rights to update");
+                                } else {
+                                    rc.fail(throwable);
+                                }
+                            }
+                    );
+
+        } catch (Exception e) {
+            rc.response().setStatusCode(400).end("Invalid JSON payload");
+        }
     }
 
     private void delete(RoutingContext rc) {

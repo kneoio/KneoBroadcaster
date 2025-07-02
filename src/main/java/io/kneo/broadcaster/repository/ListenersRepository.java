@@ -161,16 +161,18 @@ public class ListenersRepository extends AsyncRepository {
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+        JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
+        JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
 
         Tuple params = Tuple.tuple()
-                .addLong(user.getId())
-                .addLong(user.getId())
-                .addLocalDateTime(nowTime)
+                .addLong(listener.getUserId())
                 .addLong(user.getId())
                 .addLocalDateTime(nowTime)
-                .addString(listener.getCountry() != null ? listener.getCountry().name() : "UNK")
-                .addValue(mapper.valueToTree(listener.getLocalizedName()))
-                .addValue(mapper.valueToTree(listener.getNickName()))
+                .addLong(user.getId())
+                .addLocalDateTime(nowTime)
+                .addString(listener.getCountry() != null ? listener.getCountry().name() : CountryCode.PT.name())
+                .addJsonObject(localizedNameJson)
+                .addJsonObject(localizedNickNameJson)
                 .addString(listener.getSlugName())
                 .addInteger(0);
 
@@ -191,37 +193,50 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> update(UUID id, Listener listener, IUser user) {
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException(
-                                "User does not have edit permission", user.getUserName(), id));
-                    }
+        return Uni.createFrom().deferred(() -> {
+            try {
+                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update listener: {} by user: {}", id, user.getId(), throwable))
+                        .onItem().transformToUni(permissions -> {
+                            if (!permissions[0]) {
+                                return Uni.createFrom().failure(new DocumentModificationAccessException(
+                                        "User does not have edit permission", user.getUserName(), id));
+                            }
 
-                    LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+                            LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+                            JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
+                            JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
 
-                    String sql = "UPDATE " + entityData.getTableName() +
-                            " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6 " +
-                            "WHERE id=$7";
+                            String sql = "UPDATE " + entityData.getTableName() +
+                                    " SET user_id=$1, country=$2, loc_name=$3, nickname=$4, slug_name=$5, last_mod_user=$6, last_mod_date=$7, archived=$8 " +
+                                    "WHERE id=$9";
 
-                    Tuple params = Tuple.tuple()
-                            .addString(listener.getCountry() != null ? listener.getCountry().name() : "UNK")
-                            .addValue(mapper.valueToTree(listener.getLocalizedName()))
-                            .addValue(mapper.valueToTree(listener.getNickName()))
-                            .addString(listener.getSlugName())
-                            .addLong(user.getId())
-                            .addLocalDateTime(nowTime)
-                            .addUUID(id);
+                            Tuple params = Tuple.tuple()
+                                    .addLong(listener.getUserId())
+                                    .addString(listener.getCountry().name())
+                                    .addJsonObject(localizedNameJson)
+                                    .addJsonObject(localizedNickNameJson)
+                                    .addString(listener.getSlugName())
+                                    .addLong(user.getId())
+                                    .addLocalDateTime(nowTime)
+                                    .addInteger(listener.getArchived())
+                                    .addUUID(id);
 
-                    return client.preparedQuery(sql)
-                            .execute(params)
-                            .onItem().transformToUni(rowSet -> {
-                                if (rowSet.rowCount() == 0) {
-                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                }
-                                return findById(id, user.getId(), true);
-                            });
-                });
+                            return client.preparedQuery(sql)
+                                    .execute(params)
+                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update listener: {} by user: {}", id, user.getId(), throwable))
+                                    .onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return findById(id, user.getId(), true);
+                                    });
+                        });
+            } catch (Exception e) {
+                LOGGER.error("Failed to prepare update parameters for listener: {} by user: {}", id, user.getId(), e);
+                return Uni.createFrom().failure(e);
+            }
+        });
     }
 
     public Uni<Integer> archive(UUID id, IUser user) {
@@ -256,6 +271,7 @@ public class ListenersRepository extends AsyncRepository {
         setDefaultFields(doc, row);
         doc.setUserId(row.getLong("user_id"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
+        doc.setSlugName(row.getString("slug_name"));
 
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {

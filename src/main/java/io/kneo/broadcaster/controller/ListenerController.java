@@ -10,10 +10,12 @@ import io.kneo.core.dto.cnst.PayloadType;
 import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -23,6 +25,7 @@ import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
+import java.util.EnumMap;
 import java.util.Set;
 import java.util.UUID;
 
@@ -77,17 +80,31 @@ public class ListenerController extends AbstractSecuredController<Listener, List
     }
 
     private void getById(RoutingContext rc) {
-        FormPage page = new FormPage();
-        page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+        String id = rc.pathParam("id");
 
         getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(rc.pathParam("id")), user, resolveLanguage(rc)))
-                .onItem().transform(dto -> {
-                    page.addPayload(PayloadType.DOC_DATA, dto);
-                    return page;
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        ListenerDTO dto = new ListenerDTO();
+                        dto.setAuthor(user.getUserName());
+                        dto.setLastModifier(user.getUserName());
+                        dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
+                        dto.getLocalizedName().put(LanguageCode.en, "");
+                        dto.setNickName(new EnumMap<>(LanguageCode.class));
+                        dto.getNickName().put(LanguageCode.en, "");
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))
+                            .map(doc -> Tuple2.of(doc, user));
                 })
                 .subscribe().with(
-                        formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
+                        tuple -> {
+                            ListenerDTO doc = tuple.getItem1();
+                            FormPage page = new FormPage();
+                            page.addPayload(PayloadType.DOC_DATA, doc);
+                            page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
+                        },
                         rc::fail
                 );
     }

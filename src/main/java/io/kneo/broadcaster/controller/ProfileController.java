@@ -15,6 +15,7 @@ import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -85,9 +86,17 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
         getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(id), user, languageCode))
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        ProfileDTO dto = new ProfileDTO();
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return service.getDTO(UUID.fromString(id), user, languageCode)
+                            .map(doc -> Tuple2.of(doc, user));
+                })
                 .subscribe().with(
-                        profile -> {
+                        tuple -> {
+                            ProfileDTO profile = tuple.getItem1();
                             FormPage page = new FormPage();
                             page.addPayload(PayloadType.DOC_DATA, profile);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());

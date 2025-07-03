@@ -11,6 +11,7 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.model.user.UndefinedUser;
+import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -126,7 +127,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     .chain(existingUser -> {
                         if (existingUser.getId() != UndefinedUser.ID) {
                             return Uni.createFrom().failure(
-                                    new IllegalArgumentException("User with login '" + slugName + "' already exists"));
+                                    new UserAlreadyExistsException(slugName));
                         }
 
                         UserDTO listenerUserDTO = new UserDTO();

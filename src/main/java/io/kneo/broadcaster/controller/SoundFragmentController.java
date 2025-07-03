@@ -7,7 +7,6 @@ import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.repository.exceptions.UploadAbsenceException;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -19,7 +18,6 @@ import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
-import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -35,7 +33,6 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -186,7 +183,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         if (searchTerm == null || searchTerm.trim().isEmpty()) {
-            rc.response().setStatusCode(400).end("Search term 'q' parameter is required");
+            rc.fail(400, new IllegalArgumentException("Search term 'q' parameter is required"));
             return;
         }
 
@@ -213,40 +210,26 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void upsert(RoutingContext rc) {
         try {
-            JsonObject json = rc.body().asJsonObject();
-            if (json == null) {
-                rc.response().setStatusCode(400).end("Request body must be a valid JSON object");
-                return;
-            }
+            if (!validateJsonBody(rc)) return;
 
-            SoundFragmentDTO dto = json.mapTo(SoundFragmentDTO.class);
+            SoundFragmentDTO dto = rc.body().asJsonObject().mapTo(SoundFragmentDTO.class);
             String id = rc.pathParam("id");
 
-            Set<ConstraintViolation<SoundFragmentDTO>> violations = validator.validate(dto);
-            if (!violations.isEmpty()) {
-                handleValidationErrors(rc, violations);
-                return;
-            }
+            if (!validateDTO(rc, dto, validator)) return;
 
             getContextUser(rc)
                     .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                     .subscribe().with(
-                            doc -> rc.response()
-                                    .setStatusCode(id == null ? 201 : 200)
-                                    .end(JsonObject.mapFrom(doc).encode()),
-                            throwable -> {
-                                if (throwable instanceof DocumentModificationAccessException) {
-                                    rc.response().setStatusCode(403).end("Not enough rights to update");
-                                } else if (throwable instanceof UploadAbsenceException) {
-                                    rc.response().setStatusCode(400).end(throwable.getMessage());
-                                } else {
-                                    rc.fail(throwable);
-                                }
-                            }
+                            doc -> sendUpsertResponse(rc, doc, id),
+                            throwable -> handleUpsertFailure(rc, throwable)
                     );
 
         } catch (Exception e) {
-            rc.response().setStatusCode(400).end("Invalid JSON payload");
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
         }
     }
 
@@ -262,7 +245,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void uploadFile(RoutingContext rc) {
         if (rc.fileUploads().isEmpty()) {
-            rc.response().setStatusCode(400).end("No file uploaded");
+            rc.fail(400, new IllegalArgumentException("No file uploaded"));
             return;
         }
 
@@ -274,17 +257,15 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
         if (uploadedFile.size() > MAX_FILE_SIZE_BYTES) {
-            rc.response().setStatusCode(413)
-                    .end(String.format("File too large. Maximum size is %d MB for audio files",
-                            MAX_FILE_SIZE_BYTES / 1024 / 1024));
+            rc.fail(413, new IllegalArgumentException(String.format("File too large. Maximum size is %d MB for audio files",
+                    MAX_FILE_SIZE_BYTES / 1024 / 1024)));
             return;
         }
 
         String originalFileName = uploadedFile.fileName();
         if (!isValidAudioFile(originalFileName, uploadedFile.contentType())) {
-            rc.response().setStatusCode(415)
-                    .end("Unsupported file type. Only audio files are allowed: " +
-                            String.join(", ", SUPPORTED_AUDIO_EXTENSIONS));
+            rc.fail(415, new IllegalArgumentException("Unsupported file type. Only audio files are allowed: " +
+                    String.join(", ", SUPPORTED_AUDIO_EXTENSIONS)));
             return;
         }
 
@@ -320,9 +301,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 .end(JsonObject.mapFrom(uploadResponse).encode()),
                         throwable -> {
                             if (throwable instanceof SecurityException) {
-                                rc.response().setStatusCode(400).end("Security violation: " + throwable.getMessage());
+                                rc.fail(400, new SecurityException("Security violation: " + throwable.getMessage()));
                             } else if (throwable instanceof IllegalArgumentException) {
-                                rc.response().setStatusCode(400).end("Invalid input: " + throwable.getMessage());
+                                rc.fail(400, new IllegalArgumentException("Invalid input: " + throwable.getMessage()));
                             } else {
                                 rc.fail(throwable);
                             }
@@ -370,7 +351,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
 
                 LOGGER.info("Moved uploaded file {} ({} MB) to {} for user: {}",
-                        originalFileName, uploadedFile.size() / 1024 / 1024, 
+                        originalFileName, uploadedFile.size() / 1024 / 1024,
                         destination, user.getUserName());
 
                 String fileUrl = String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
@@ -408,7 +389,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         UploadFileDTO progress = uploadProgressMap.get(uploadId);
 
         if (progress == null) {
-            rc.response().setStatusCode(404).end("Upload not found");
+            rc.fail(404, new IllegalArgumentException("Upload not found"));
             return;
         }
 
@@ -437,7 +418,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 LOGGER.warn("Unsafe filename in temp file request: {} from user: {}", requestedFileName, user.getUserName());
                                 return Uni.createFrom().failure(new SecurityException("Invalid filename"));
                             }
-                            
+
                             Path baseDir = Paths.get(uploadDir, user.getUserName(), "temp");
                             Path secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
                             if (!FileSecurityUtils.isPathWithinBase(baseDir, secureFilePath)) {
@@ -470,7 +451,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 return Uni.createFrom().failure(new FileNotFoundException("Temp file not found: " + safeFileName));
                             }
                         }
-                        
+
                         // Handle UUID directory case
                         try {
                             UUID.fromString(id);
@@ -527,9 +508,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .subscribe().with(
                         fileData -> {
                             if (fileData == null || fileData.getData() == null || fileData.getData().length == 0) {
-                                rc.response()
-                                        .setStatusCode(404)
-                                        .end("File content not available");
+                                rc.fail(404, new IllegalArgumentException("File content not available"));
                                 return;
                             }
 
@@ -542,15 +521,13 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         },
                         throwable -> {
                             if (throwable instanceof SecurityException) {
-                                LOGGER.warn("Security violation in file access: {}", throwable.getMessage());
-                                rc.response().setStatusCode(403).end("Access denied");
+                                rc.fail(403, new SecurityException("Security violation: " + throwable.getMessage()));
                             } else if (throwable instanceof IllegalArgumentException) {
-                                rc.response().setStatusCode(400).end("Invalid request");
+                                rc.fail(400, throwable);
                             } else if (throwable instanceof FileNotFoundException ||
                                     throwable instanceof DocumentHasNotFoundException) {
-                                rc.response().setStatusCode(404).end("File not found");
+                                rc.fail(404, throwable);
                             } else {
-                                LOGGER.error("File retrieval error", throwable);
                                 rc.fail(500, throwable);
                             }
                         }

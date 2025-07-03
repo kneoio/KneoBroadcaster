@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
+import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -14,6 +14,7 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -21,6 +22,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.Validator;
 
 import java.util.UUID;
 
@@ -29,15 +31,17 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
 
     @Inject
     AiAgentService service;
+    private Validator validator;
 
     public AiAgentController() {
         super(null);
     }
 
     @Inject
-    public AiAgentController(UserService userService, AiAgentService service) {
+    public AiAgentController(UserService userService, AiAgentService service, Validator validator) {
         super(userService);
         this.service = service;
+        this.validator = validator;
     }
 
     public void setupRoutes(Router router) {
@@ -79,9 +83,17 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
         getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(id), user, languageCode))
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        AiAgentDTO dto = new AiAgentDTO();
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return service.getDTO(UUID.fromString(id), user, languageCode)
+                            .map(doc -> Tuple2.of(doc, user));
+                })
                 .subscribe().with(
-                        owner -> {
+                        tuple -> {
+                            AiAgentDTO owner = tuple.getItem1();
                             FormPage page = new FormPage();
                             page.addPayload(PayloadType.DOC_DATA, owner);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
@@ -92,16 +104,28 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
     }
 
     private void upsert(RoutingContext rc) {
-        String id = rc.pathParam("id");
-        JsonObject jsonObject = rc.body().asJsonObject();
-        AiAgentDTO dto = jsonObject.mapTo(AiAgentDTO.class);
+        try {
+            if (!validateJsonBody(rc)) return;
 
-        getContextUser(rc)
-                .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
-                .subscribe().with(
-                        doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
-                        rc::fail
-                );
+            AiAgentDTO dto = rc.body().asJsonObject().mapTo(AiAgentDTO.class);
+            String id = rc.pathParam("id");
+
+            if (!validateDTO(rc, dto, validator)) return;
+
+            getContextUser(rc)
+                    .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
+                    .subscribe().with(
+                            doc -> sendUpsertResponse(rc, doc, id),
+                            throwable -> handleUpsertFailure(rc, throwable)
+                    );
+
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
     }
 
     private void delete(RoutingContext rc) {

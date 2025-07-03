@@ -11,7 +11,6 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -22,11 +21,9 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
 import java.util.EnumMap;
-import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -86,10 +83,6 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 .chain(user -> {
                     if ("new".equals(id)) {
                         ListenerDTO dto = new ListenerDTO();
-                        dto.setAuthor(user.getUserName());
-                        dto.setLastModifier(user.getUserName());
-                        dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
-                        dto.getLocalizedName().put(LanguageCode.en, "");
                         dto.setNickName(new EnumMap<>(LanguageCode.class));
                         dto.getNickName().put(LanguageCode.en, "");
                         return Uni.createFrom().item(Tuple2.of(dto, user));
@@ -135,38 +128,26 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
     private void upsert(RoutingContext rc) {
         try {
-            JsonObject json = rc.body().asJsonObject();
-            if (json == null) {
-                rc.response().setStatusCode(400).end("Request body must be a valid JSON object");
-                return;
-            }
+            if (!validateJsonBody(rc)) return;
 
-            ListenerDTO dto = json.mapTo(ListenerDTO.class);
+            ListenerDTO dto = rc.body().asJsonObject().mapTo(ListenerDTO.class);
             String id = rc.pathParam("id");
 
-            Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
-            if (!violations.isEmpty()) {
-                handleValidationErrors(rc, violations);
-                return;
-            }
+            if (!validateDTO(rc, dto, validator)) return;
 
             getContextUser(rc)
                     .chain(user -> service.upsert(id, dto, user))
                     .subscribe().with(
-                            doc -> rc.response()
-                                    .setStatusCode(id == null ? 201 : 200)
-                                    .end(JsonObject.mapFrom(doc).encode()),
-                            throwable -> {
-                                if (throwable instanceof DocumentModificationAccessException) {
-                                    rc.response().setStatusCode(403).end("Not enough rights to update");
-                                } else {
-                                    rc.fail(throwable);
-                                }
-                            }
+                            doc -> sendUpsertResponse(rc, doc, id),
+                            throwable -> handleUpsertFailure(rc, throwable)
                     );
 
         } catch (Exception e) {
-            rc.response().setStatusCode(400).end("Invalid JSON payload");
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
         }
     }
 

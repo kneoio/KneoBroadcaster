@@ -6,20 +6,23 @@ import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.util.WebHelper;
+import io.kneo.core.dto.document.UserDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.UserRepository;
+import io.kneo.core.model.user.UndefinedUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,12 +40,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     @Inject
-    public ListenerService(UserRepository userRepository,
-                           UserService userService,
+    public ListenerService(UserService userService,
                            RadioStationService radioStationService,
                            Validator validator,
                            ListenersRepository repository) {
-        super(userRepository, userService);
+        super(userService);
         this.radioStationService = radioStationService;
         this.validator = validator;
         this.repository = repository;
@@ -101,12 +103,48 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, IUser user) {
         assert repository != null;
-        Listener entity = buildEntity(dto);
+        assert validator != null;
+        Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
+        if (!violations.isEmpty()) {
+            String errorMessage = violations.stream()
+                    .map(ConstraintViolation::getMessage)
+                    .collect(Collectors.joining(", "));
+            return Uni.createFrom().failure(new IllegalArgumentException("Validation failed: " + errorMessage));
+        }
 
         if (id == null) {
-            return repository.insert(entity, user)
-                    .chain(this::mapToDTO);
+            String slugName;
+            if (dto.getNickName().get(LanguageCode.en) != null && !dto.getNickName().get(LanguageCode.en).isEmpty()) {
+                slugName = WebHelper.generateSlug(dto.getNickName().get(LanguageCode.en));
+            } else {
+                slugName = WebHelper.generateSlug(dto.getLocalizedName().get(LanguageCode.en));
+            }
+
+            dto.setSlugName(slugName);
+
+            return userService.findByLogin(slugName)
+                    .chain(existingUser -> {
+                        if (existingUser.getId() != UndefinedUser.ID) {
+                            return Uni.createFrom().failure(
+                                    new IllegalArgumentException("User with login '" + slugName + "' already exists"));
+                        }
+
+                        UserDTO listenerUserDTO = new UserDTO();
+                        listenerUserDTO.setLogin(slugName);
+                        return userService.add(listenerUserDTO, true);
+                    })
+                    .chain(userId -> {
+                        dto.setUserId(userId);
+                        Listener entity = buildEntity(dto);
+                        return repository.insert(entity, user);
+                    })
+                    .chain(this::mapToDTO)
+                    .onFailure().invoke(throwable -> {
+                        LOGGER.error("Failed to create listener with slugName: {}", slugName, throwable);
+                    });
         } else {
+            //TODO if slugName change it is not handle
+            Listener entity = buildEntity(dto);
             return repository.update(UUID.fromString(id), entity, user)
                     .chain(this::mapToDTO);
         }
@@ -125,8 +163,8 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {
         return Uni.combine().all().unis(
-                userRepository.getUserName(doc.getAuthor()),
-                userRepository.getUserName(doc.getLastModifier())
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
         ).asTuple().map(tuple -> {
             ListenerDTO dto = new ListenerDTO();
             dto.setId(doc.getId());
@@ -151,12 +189,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setNickName(dto.getNickName());
-        if (dto.getNickName().get(LanguageCode.en) == null) {
-            doc.setSlugName(WebHelper.generateSlug(dto.getLocalizedName().get(LanguageCode.en)));
-        } else {
-            doc.setSlugName(WebHelper.generateSlug(dto.getNickName().get(LanguageCode.en)));
-        }
-
+        doc.setSlugName(dto.getSlugName());
         return doc;
     }
 

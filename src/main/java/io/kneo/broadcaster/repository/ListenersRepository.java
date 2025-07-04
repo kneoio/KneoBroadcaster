@@ -134,6 +134,19 @@ public class ListenersRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    public Uni<List<UUID>> getBrandsForListener(UUID listenerId, Long userId) {
+        String sql = "SELECT lb.brand_id " +
+                "FROM kneobroadcaster__listener_brands lb " +
+                "JOIN " + entityData.getRlsName() + " rls ON lb.listener_id = rls.entity_id " +
+                "WHERE lb.listener_id = $1 AND rls.reader = $2";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(listenerId, userId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("brand_id"))
+                .collect().asList();
+    }
+
     public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived) {
         String sql = "SELECT COUNT(l.id) " +
                 "FROM " + entityData.getTableName() + " l " +

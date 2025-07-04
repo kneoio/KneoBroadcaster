@@ -134,7 +134,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     .chain(userId -> {
                         Listener entity = buildEntity(dto);
                         entity.setUserId(userId);
-                        return repository.insert(entity, dto.getRadioStations(), user);
+                        return repository.insert(entity, dto.getListenerOf(), user);
                     })
                     .chain(this::mapToDTO)
                     .onFailure().invoke(throwable -> {
@@ -143,7 +143,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         } else {
             //TODO if slugName change it is not handle
             Listener entity = buildEntity(dto);
-            return repository.update(UUID.fromString(id), entity, dto.getRadioStations(), user)
+            return repository.update(UUID.fromString(id), entity, dto.getListenerOf(), user)
                     .chain(this::mapToDTO);
         }
     }
@@ -160,9 +160,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {
+        assert repository != null;
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
-                userService.getUserName(doc.getLastModifier())
+                userService.getUserName(doc.getLastModifier()),
+                repository.getBrandsForListener(doc.getId(), doc.getAuthor())
         ).asTuple().map(tuple -> {
             ListenerDTO dto = new ListenerDTO();
             dto.setId(doc.getId());
@@ -176,6 +178,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setArchived(doc.getArchived());
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setNickName(doc.getNickName());
+            dto.setListenerOf(tuple.getItem3());
             return dto;
         });
     }

@@ -30,6 +30,6 @@ public class ListenerDTO extends AbstractReferenceDTO {
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
-    private List<UUID> radioStations;
+    private List<UUID> listenerOf;
 
 }

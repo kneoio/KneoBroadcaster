@@ -23,6 +23,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
+import io.vertx.mutiny.sqlclient.SqlClient;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -339,7 +340,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<SoundFragment> insert(SoundFragment doc, IUser user) {
+    public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
         final List<FileMetadata> originalFiles = doc.getFileMetadataList();
 
@@ -365,7 +366,7 @@ public class SoundFragmentRepository extends AsyncRepository {
             doc.setFileMetadataList(filesToProcess);
         }
 
-        return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem())
+        return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem(), representedInBrands)
                 .onItem().transformToUni(insertedDoc -> {
                     if (filesToProcess != null && !filesToProcess.isEmpty()) {
                         FileMetadata meta = filesToProcess.get(0);
@@ -387,7 +388,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<SoundFragment> update(UUID id, SoundFragment doc, IUser user) {
+    public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<UUID> representedInBrands, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[0]) {
@@ -442,7 +443,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                 String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
                                                         "mime_type, file_original_name, file_key, file_bin, slug_name) " +
                                                         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
-                                                // Process only the single file
                                                 FileMetadata meta = newFiles.get(0);
                                                 Tuple fileParams = Tuple.of(
                                                                 entityData.getTableName(),
@@ -457,6 +457,9 @@ public class SoundFragmentRepository extends AsyncRepository {
                                                 return tx.preparedQuery(filesSql).execute(fileParams).onItem().ignore().andContinueWithNull();
                                             }
                                             return Uni.createFrom().voidItem();
+                                        }).onItem().transformToUni(v -> {
+                                            // Update brand associations
+                                            return updateBrandAssociations(tx, id, representedInBrands, user);
                                         }).onItem().transformToUni(v -> {
                                             String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                                                             "source=$3, status=$4, type=$5, title=$6, " +
@@ -484,6 +487,52 @@ public class SoundFragmentRepository extends AsyncRepository {
                                     });
                                 });
                             });
+                });
+    }
+
+    private Uni<Void> updateBrandAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> representedInBrands, IUser user) {
+        if (representedInBrands == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String getCurrentBrandsSql = "SELECT brand_id FROM kneobroadcaster__brand_sound_fragments WHERE sound_fragment_id = $1";
+
+        return tx.preparedQuery(getCurrentBrandsSql)
+                .execute(Tuple.of(soundFragmentId))
+                .onItem().transformToUni(currentRows -> {
+                    List<UUID> currentBrands = new ArrayList<>();
+                    currentRows.forEach(row -> currentBrands.add(row.getUUID("brand_id")));
+
+                    List<UUID> brandsToAdd = representedInBrands.stream()
+                            .filter(brand -> !currentBrands.contains(brand))
+                            .toList();
+
+                    List<UUID> brandsToRemove = currentBrands.stream()
+                            .filter(brand -> !representedInBrands.contains(brand))
+                            .toList();
+
+                    Uni<Void> removeUni = Uni.createFrom().voidItem();
+                    if (!brandsToRemove.isEmpty()) {
+                        String deleteBrandsSql = "DELETE FROM kneobroadcaster__brand_sound_fragments WHERE sound_fragment_id = $1 AND brand_id = ANY($2)";
+                        UUID[] brandsToRemoveArray = brandsToRemove.toArray(new UUID[0]);
+                        removeUni = tx.preparedQuery(deleteBrandsSql)
+                                .execute(Tuple.of(soundFragmentId, brandsToRemoveArray))
+                                .onItem().ignore().andContinueWithNull();
+                    }
+
+                    Uni<Void> addUni = Uni.createFrom().voidItem();
+                    if (!brandsToAdd.isEmpty()) {
+                        String insertBrandsSql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) VALUES ($1, $2, 0, NULL)";
+                        List<Tuple> insertParams = brandsToAdd.stream()
+                                .map(brandId -> Tuple.of(brandId, soundFragmentId))
+                                .collect(Collectors.toList());
+
+                        addUni = tx.preparedQuery(insertBrandsSql)
+                                .executeBatch(insertParams)
+                                .onItem().ignore().andContinueWithNull();
+                    }
+
+                    return Uni.combine().all().unis(removeUni, addUni).discardItems();
                 });
     }
 
@@ -582,7 +631,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     private Uni<SoundFragment> executeInsertTransaction(SoundFragment doc, IUser user, LocalDateTime regDate,
-                                                        Uni<Void> fileUploadCompletionUni) {
+                                                        Uni<Void> fileUploadCompletionUni, List<UUID> representedInBrands) {
         return fileUploadCompletionUni.onItem().transformToUni(v -> {
             String sql = String.format(
                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
@@ -633,9 +682,25 @@ public class SoundFragmentRepository extends AsyncRepository {
                                 .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
                                         .execute(Tuple.of(user.getId(), id, true, true))
                                 )
+                                .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user))
                                 .onItem().transform(ignored -> id);
                     })
             );
         }).onItem().transformToUni(id -> findById(id, user.getId(), true));
+    }
+
+    private Uni<Void> insertBrandAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> representedInBrands, IUser user) {
+        if (representedInBrands == null || representedInBrands.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String insertBrandsSql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) VALUES ($1, $2, 0, NULL)";
+        List<Tuple> insertParams = representedInBrands.stream()
+                .map(brandId -> Tuple.of(brandId, soundFragmentId))
+                .collect(Collectors.toList());
+
+        return tx.preparedQuery(insertBrandsSql)
+                .executeBatch(insertParams)
+                .onItem().ignore().andContinueWithNull();
     }
 }

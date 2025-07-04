@@ -280,7 +280,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         entity.setFileMetadataList(fileMetadataList);
 
         if (id == null) {
-            return repository.insert(entity, user)
+            return repository.insert(entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
                     .chain(doc -> mapToDTO(doc, true, null))
                     .onFailure().invoke(failure -> {
@@ -292,7 +292,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 );
                     });
         } else {
-            return repository.update(UUID.fromString(id), entity, user)
+            return repository.update(UUID.fromString(id), entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> mapToDTO(doc, true, null))
                     .onFailure().invoke(failure -> {
                         LOGGER.warn("Entity update failed, cleaning up files for user: {}, entity: {}",

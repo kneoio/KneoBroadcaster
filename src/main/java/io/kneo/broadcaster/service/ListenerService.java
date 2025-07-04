@@ -9,7 +9,6 @@ import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.dto.document.UserDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.model.user.UndefinedUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.AbstractService;
@@ -74,8 +73,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     @Override
     public Uni<ListenerDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
-        user = SuperUser.build();
-        return repository.findById(uuid, user.getId())
+        return repository.findById(uuid, user, false)
                 .chain(this::mapToDTO);
     }
 

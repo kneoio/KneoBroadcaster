@@ -47,7 +47,7 @@ public class ListenersRepository extends AsyncRepository {
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         sql += " ORDER BY t.last_mod_date DESC";
@@ -69,7 +69,7 @@ public class ListenersRepository extends AsyncRepository {
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         return client.query(sql)
@@ -77,7 +77,7 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<Listener> findById(UUID uuid, Long userID, boolean includeArchived) {
+    public Uni<Listener> findById(UUID uuid, IUser user, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
@@ -88,20 +88,16 @@ public class ListenersRepository extends AsyncRepository {
         }
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(userID, uuid))
+                .execute(Tuple.of(user.getId(), uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         return from(iterator.next());
                     } else {
-                        LOGGER.warn("No {} found with id: {}, user: {} ", LISTENER, uuid, userID);
+                        LOGGER.warn("No {} found with id: {}, user: {} ", LISTENER, uuid, user.getId());
                         throw new DocumentHasNotFoundException(uuid);
                     }
                 });
-    }
-
-    public Uni<Listener> findById(UUID uuid, Long userID) {
-        return findById(uuid, userID, false);
     }
 
     public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived) {
@@ -192,7 +188,7 @@ public class ListenersRepository extends AsyncRepository {
                                     .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
                                     .onItem().transform(ignored -> id);
                         })
-        ).onItem().transformToUni(id -> findById(id, user.getId(), true));
+        ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
     private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, IUser user, LocalDateTime nowTime) {
@@ -249,7 +245,7 @@ public class ListenersRepository extends AsyncRepository {
                                             }
                                             return updateBrandAssociations(tx, id, representedInBrands, user, nowTime);
                                         });
-                            }).onItem().transformToUni(ignored -> findById(id, user.getId(), true));
+                            }).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
             } catch (Exception e) {
                 LOGGER.error("Failed to prepare update parameters for listener: {} by user: {}", id, user.getId(), e);

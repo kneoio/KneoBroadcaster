@@ -83,8 +83,8 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 .chain(user -> {
                     if ("new".equals(id)) {
                         ListenerDTO dto = new ListenerDTO();
-                        dto.setNickName(new EnumMap<>(LanguageCode.class));
-                        dto.getNickName().put(LanguageCode.en, "");
+                        dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
+                        dto.getLocalizedName().put(LanguageCode.en, "");
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))

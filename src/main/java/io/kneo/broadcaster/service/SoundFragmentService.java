@@ -12,6 +12,7 @@ import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
 import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.WebHelper;
+import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -455,4 +456,15 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return dto;
                 });
     }
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
+    }
+
 }

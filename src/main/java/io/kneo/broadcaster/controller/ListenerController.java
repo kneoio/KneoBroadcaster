@@ -15,6 +15,7 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -51,6 +52,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
+        router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
     }
 
     private void get(RoutingContext rc) {
@@ -161,4 +163,36 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 );
     }
 
+
+
+    private void getDocumentAccess(RoutingContext rc) {
+        String id = rc.pathParam("id");
+
+        try {
+            UUID documentId = UUID.fromString(id);
+
+            getContextUser(rc)
+                    .chain(user -> service.getDocumentAccess(documentId, user))
+                    .subscribe().with(
+                            accessList -> {
+                                JsonObject response = new JsonObject();
+                                response.put("documentId", id);
+                                response.put("accessList", accessList);
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(response.encode());
+                            },
+                            throwable -> {
+                                if (throwable instanceof IllegalArgumentException) {
+                                    rc.fail(400, throwable);
+                                } else {
+                                    rc.fail(500, throwable);
+                                }
+                            }
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
+        }
+    }
 }

@@ -11,6 +11,7 @@ import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
+import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -702,5 +703,9 @@ public class SoundFragmentRepository extends AsyncRepository {
         return tx.preparedQuery(insertBrandsSql)
                 .executeBatch(insertParams)
                 .onItem().ignore().andContinueWithNull();
+    }
+
+    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+        return getDocumentAccessInfo(documentId, entityData);
     }
 }

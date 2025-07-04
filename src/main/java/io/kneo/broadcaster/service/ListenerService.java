@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.util.WebHelper;
+import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.dto.document.UserDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -201,6 +202,17 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     dto.setListenerDTO(soundFragmentDTO);
                     return dto;
                 });
+    }
+
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
     }
 
 

@@ -98,6 +98,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
         router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
+        router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
     }
 
     private void get(RoutingContext rc) {
@@ -565,4 +566,37 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             "audio/flac", "audio/x-flac", "audio/aac", "audio/ogg",
             "audio/mp4", "audio/x-m4a"
     );
+
+
+    private void getDocumentAccess(RoutingContext rc) {
+        String id = rc.pathParam("id");
+
+        try {
+            UUID documentId = UUID.fromString(id);
+
+            getContextUser(rc)
+                    .chain(user -> service.getDocumentAccess(documentId, user))
+                    .subscribe().with(
+                            accessList -> {
+                                JsonObject response = new JsonObject();
+                                response.put("documentId", id);
+                                response.put("accessList", accessList);
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(response.encode());
+                            },
+                            throwable -> {
+                                if (throwable instanceof IllegalArgumentException) {
+                                    rc.fail(400, throwable);
+                                } else {
+                                    rc.fail(500, throwable);
+                                }
+                            }
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
+        }
+    }
+
 }

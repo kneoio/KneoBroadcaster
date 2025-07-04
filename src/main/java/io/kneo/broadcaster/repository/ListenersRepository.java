@@ -5,6 +5,7 @@ import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -370,5 +371,10 @@ public class ListenersRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
 
         return Uni.createFrom().item(doc);
+    }
+
+
+    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+        return getDocumentAccessInfo(documentId, entityData);
     }
 }

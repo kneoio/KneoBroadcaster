@@ -25,9 +25,11 @@ import jakarta.inject.Inject;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.LISTENER;
 
@@ -155,7 +157,7 @@ public class ListenersRepository extends AsyncRepository {
     }
 
 
-    public Uni<Listener> insert(Listener listener, IUser user) {
+    public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
@@ -187,12 +189,28 @@ public class ListenersRepository extends AsyncRepository {
                             );
                             return tx.preparedQuery(rlsSql)
                                     .execute(Tuple.of(user.getId(), id, true, true))
+                                    .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
                                     .onItem().transform(ignored -> id);
                         })
         ).onItem().transformToUni(id -> findById(id, user.getId(), true));
     }
 
-    public Uni<Listener> update(UUID id, Listener listener, IUser user) {
+    private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, IUser user, LocalDateTime nowTime) {
+        if (representedInBrands == null || representedInBrands.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
+        List<Tuple> insertParams = representedInBrands.stream()
+                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                .collect(Collectors.toList());
+
+        return tx.preparedQuery(insertBrandsSql)
+                .executeBatch(insertParams)
+                .onItem().ignore().andContinueWithNull();
+    }
+
+    public Uni<Listener> update(UUID id, Listener listener, List<UUID> representedInBrands, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
@@ -207,36 +225,87 @@ public class ListenersRepository extends AsyncRepository {
                             JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
                             JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
 
-                            String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET user_id=$1, country=$2, loc_name=$3, nickname=$4, slug_name=$5, last_mod_user=$6, last_mod_date=$7, archived=$8 " +
-                                    "WHERE id=$9";
+                            return client.withTransaction(tx -> {
+                                String sql = "UPDATE " + entityData.getTableName() +
+                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6, archived=$7 " +
+                                        "WHERE id=$8";
 
-                            Tuple params = Tuple.tuple()
-                                    .addLong(listener.getUserId())
-                                    .addString(listener.getCountry().name())
-                                    .addJsonObject(localizedNameJson)
-                                    .addJsonObject(localizedNickNameJson)
-                                    .addString(listener.getSlugName())
-                                    .addLong(user.getId())
-                                    .addLocalDateTime(nowTime)
-                                    .addInteger(listener.getArchived())
-                                    .addUUID(id);
+                                Tuple params = Tuple.tuple()
+                                        .addString(listener.getCountry().name())
+                                        .addJsonObject(localizedNameJson)
+                                        .addJsonObject(localizedNickNameJson)
+                                        .addString(listener.getSlugName())
+                                        .addLong(user.getId())
+                                        .addLocalDateTime(nowTime)
+                                        .addInteger(listener.getArchived())
+                                        .addUUID(id);
 
-                            return client.preparedQuery(sql)
-                                    .execute(params)
-                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update listener: {} by user: {}", id, user.getId(), throwable))
-                                    .onItem().transformToUni(rowSet -> {
-                                        if (rowSet.rowCount() == 0) {
-                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                        }
-                                        return findById(id, user.getId(), true);
-                                    });
+                                return tx.preparedQuery(sql)
+                                        .execute(params)
+                                        .onFailure().invoke(throwable -> LOGGER.error("Failed to update listener: {} by user: {}", id, user.getId(), throwable))
+                                        .onItem().transformToUni(rowSet -> {
+                                            if (rowSet.rowCount() == 0) {
+                                                return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                            }
+                                            return updateBrandAssociations(tx, id, representedInBrands, user, nowTime);
+                                        });
+                            }).onItem().transformToUni(ignored -> findById(id, user.getId(), true));
                         });
             } catch (Exception e) {
                 LOGGER.error("Failed to prepare update parameters for listener: {} by user: {}", id, user.getId(), e);
                 return Uni.createFrom().failure(e);
             }
         });
+    }
+
+    private Uni<Void> updateBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, IUser user, LocalDateTime nowTime) {
+        if (representedInBrands == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        // First, get current brand associations
+        String getCurrentBrandsSql = "SELECT brand_id FROM kneobroadcaster__listener_brands WHERE listener_id = $1";
+
+        return tx.preparedQuery(getCurrentBrandsSql)
+                .execute(Tuple.of(listenerId))
+                .onItem().transformToUni(currentRows -> {
+                    List<UUID> currentBrands = new ArrayList<>();
+                    currentRows.forEach(row -> currentBrands.add(row.getUUID("brand_id")));
+
+                    // Calculate brands to add and remove
+                    List<UUID> brandsToAdd = representedInBrands.stream()
+                            .filter(brand -> !currentBrands.contains(brand))
+                            .toList();
+
+                    List<UUID> brandsToRemove = currentBrands.stream()
+                            .filter(brand -> !representedInBrands.contains(brand))
+                            .toList();
+
+                    // Remove brands that are no longer associated
+                    Uni<Void> removeUni = Uni.createFrom().voidItem();
+                    if (!brandsToRemove.isEmpty()) {
+                        String deleteBrandsSql = "DELETE FROM kneobroadcaster__listener_brands WHERE listener_id = $1 AND brand_id = ANY($2)";
+                        UUID[] brandsToRemoveArray = brandsToRemove.toArray(new UUID[0]);
+                        removeUni = tx.preparedQuery(deleteBrandsSql)
+                                .execute(Tuple.of(listenerId, brandsToRemoveArray))
+                                .onItem().ignore().andContinueWithNull();
+                    }
+
+                    // Add new brand associations
+                    Uni<Void> addUni = Uni.createFrom().voidItem();
+                    if (!brandsToAdd.isEmpty()) {
+                        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
+                        List<Tuple> insertParams = brandsToAdd.stream()
+                                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                                .collect(Collectors.toList());
+
+                        addUni = tx.preparedQuery(insertBrandsSql)
+                                .executeBatch(insertParams)
+                                .onItem().ignore().andContinueWithNull();
+                    }
+
+                    return Uni.combine().all().unis(removeUni, addUni).discardItems();
+                });
     }
 
     public Uni<Integer> archive(UUID id, IUser user) {

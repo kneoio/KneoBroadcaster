@@ -113,16 +113,15 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             return Uni.createFrom().failure(new IllegalArgumentException("Validation failed: " + errorMessage));
         }
 
+        String slugName;
+        if (dto.getNickName().get(LanguageCode.en) != null && !dto.getNickName().get(LanguageCode.en).isEmpty()) {
+            slugName = WebHelper.generateSlug(dto.getNickName().get(LanguageCode.en));
+        } else {
+            slugName = WebHelper.generateSlug(dto.getLocalizedName().get(LanguageCode.en));
+        }
+        dto.setSlugName(slugName);
+
         if (id == null) {
-            String slugName;
-            if (dto.getNickName().get(LanguageCode.en) != null && !dto.getNickName().get(LanguageCode.en).isEmpty()) {
-                slugName = WebHelper.generateSlug(dto.getNickName().get(LanguageCode.en));
-            } else {
-                slugName = WebHelper.generateSlug(dto.getLocalizedName().get(LanguageCode.en));
-            }
-
-            dto.setSlugName(slugName);
-
             return userService.findByLogin(slugName)
                     .chain(existingUser -> {
                         if (existingUser.getId() != UndefinedUser.ID) {
@@ -135,9 +134,9 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         return userService.add(listenerUserDTO, true);
                     })
                     .chain(userId -> {
-                        dto.setUserId(userId);
                         Listener entity = buildEntity(dto);
-                        return repository.insert(entity, user);
+                        entity.setUserId(userId);
+                        return repository.insert(entity, dto.getRadioStations(), user);
                     })
                     .chain(this::mapToDTO)
                     .onFailure().invoke(throwable -> {
@@ -146,7 +145,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         } else {
             //TODO if slugName change it is not handle
             Listener entity = buildEntity(dto);
-            return repository.update(UUID.fromString(id), entity, user)
+            return repository.update(UUID.fromString(id), entity, dto.getRadioStations(), user)
                     .chain(this::mapToDTO);
         }
     }
@@ -185,7 +184,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     private Listener buildEntity(ListenerDTO dto) {
         Listener doc = new Listener();
-        doc.setUserId(dto.getUserId());
         doc.setCountry(dto.getCountry());
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());

@@ -45,9 +45,13 @@ public class RadioStationRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<RadioStation>> getAll(int limit, int offset, final IUser user) {
+    public Uni<List<RadioStation>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
 
         sql += " ORDER BY t.last_mod_date DESC";
 

@@ -4,12 +4,15 @@ import io.kneo.broadcaster.dto.MemoryDTO;
 import io.kneo.broadcaster.model.Memory;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
+import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
+import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -17,8 +20,10 @@ import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.UUID;
+
 @ApplicationScoped
-public class MemoryController  extends AbstractSecuredController<Memory, MemoryDTO> {
+public class MemoryController extends AbstractSecuredController<Memory, MemoryDTO> {
 
     private MemoryService service;
 
@@ -35,11 +40,11 @@ public class MemoryController  extends AbstractSecuredController<Memory, MemoryD
     public void setupRoutes(Router router) {
         router.route("/api/*").handler(BodyHandler.create());
         router.get("/api/memories").handler(this::getAll);
+        router.get("/api/memories/:id").handler(this::getById);
         router.post("/api/memories/:id?").handler(this::upsert);
         router.delete("/api/memories/:id").handler(this::delete);
         router.delete("/api/memories/brand/:brand").handler(this::deleteByBrand);
     }
-
 
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
@@ -60,6 +65,30 @@ public class MemoryController  extends AbstractSecuredController<Memory, MemoryD
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                        rc::fail
+                );
+    }
+
+    private void getById(RoutingContext rc) {
+        String id = rc.pathParam("id");
+
+        getContextUser(rc)
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        MemoryDTO dto = new MemoryDTO();
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))
+                            .map(doc -> Tuple2.of(doc, user));
+                })
+                .subscribe().with(
+                        tuple -> {
+                            MemoryDTO doc = tuple.getItem1();
+                            FormPage page = new FormPage();
+                            page.addPayload(PayloadType.DOC_DATA, doc);
+                            page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
+                        },
                         rc::fail
                 );
     }

@@ -31,7 +31,7 @@ public class MemoryRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(KneoBroadcasterNameResolver.MEMORY);
 
     private static final int ARCHIVE_THRESHOLD_HOURS = 24;
-    private static final ZoneId APPLICATION_ZONE = ZoneId.of("Europe/Lisbon"); // Consistent timezone
+    private static final ZoneId APPLICATION_ZONE = ZoneId.of("Europe/Lisbon");
 
     @Inject
     public MemoryRepository(PgPool client, ObjectMapper mapper) {
@@ -52,7 +52,7 @@ public class MemoryRepository extends AsyncRepository {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t ";
 
         if (!includeArchived) {
-            sql += "WHERE (t.archived IS NULL OR t.archived = 0)";
+            sql += "WHERE t.archived = 0";
         }
 
         return client.query(sql)
@@ -153,13 +153,11 @@ public class MemoryRepository extends AsyncRepository {
                         existingMemory = null;
                     }
 
-                    // Always get current time as ZonedDateTime for consistent calculations
                     ZonedDateTime nowZoned = ZonedDateTime.now(APPLICATION_ZONE);
-                    LocalDateTime nowLocalForDb = nowZoned.toLocalDateTime(); // For DB that expects LocalDateTime
+                    LocalDateTime nowLocalForDb = nowZoned.toLocalDateTime();
 
                     if (existingMemory != null) {
-                        // Assuming existingMemory.getRegDate() now returns ZonedDateTime based on your error
-                        ZonedDateTime existingMemoryZoned = existingMemory.getRegDate(); // Directly use it if it's ZonedDateTime
+                        ZonedDateTime existingMemoryZoned = existingMemory.getRegDate();
 
                         long hoursSinceRegistration = ChronoUnit.HOURS.between(existingMemoryZoned, nowZoned);
 
@@ -181,7 +179,7 @@ public class MemoryRepository extends AsyncRepository {
                                     "WHERE id=$4";
 
                             Tuple params = Tuple.tuple()
-                                    .addLocalDateTime(nowLocalForDb) // Pass LocalDateTime to the database
+                                    .addLocalDateTime(nowLocalForDb)
                                     .addLong(user.getId())
                                     .addJsonObject(existingMemory.getContent())
                                     .addUUID(existingMemory.getId());
@@ -234,18 +232,14 @@ public class MemoryRepository extends AsyncRepository {
                 .onItem().transform(RowSet::rowCount);
     }
 
-    public Uni<Integer> getAllCount(IUser user) {
-        return getAllCount(user.getId(), entityData.getTableName(), entityData.getRlsName());
-    }
 
     private Memory from(Row row) {
         Memory memory = new Memory();
-        setDefaultFields(memory, row); // Assumed to set reg_date as ZonedDateTime
+        setDefaultFields(memory, row);
         memory.setBrand(row.getString("brand"));
         memory.setMemoryType(MemoryType.valueOf(row.getString("memory_type")));
         memory.setContent(row.getJsonObject("content").mapTo(JsonObject.class));
         memory.setArchived(row.getInteger("archived"));
-
         return memory;
     }
 }

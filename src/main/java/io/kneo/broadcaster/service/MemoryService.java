@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.model.Memory;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.MemoryRepository;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -50,7 +51,7 @@ public class MemoryService {
                 .map(this::mapEntityListToDtoList);
     }
 
-    public Uni<MemoryDTO> getById(UUID id) {
+    public Uni<MemoryDTO> getDTO(UUID id, IUser user, LanguageCode code) {
         return repository.findById(id)
                 .onItem().ifNotNull().transform(this::mapToDto);
     }
@@ -92,6 +93,10 @@ public class MemoryService {
     private MemoryDTO mapToDto(Memory entity) {
         MemoryDTO dto = new MemoryDTO();
         dto.setId(entity.getId());
+        dto.setRegDate(entity.getRegDate());
+        //dto.setAuthor(entity.getAuthor());
+        dto.setLastModifiedDate(entity.getLastModifiedDate());
+        //dto.setLastModifier(entity.getLastModifier());
         dto.setBrand(entity.getBrand());
         dto.setMemoryType(entity.getMemoryType());
         dto.setContent(entity.getContent());

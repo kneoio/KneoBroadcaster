@@ -6,6 +6,7 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
+import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -28,13 +29,24 @@ public class ProfileRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(PROFILE);
 
     @Inject
-    public ProfileRepository(PgPool client, ObjectMapper mapper) {
-        super(client, mapper, null);
+    public ProfileRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+        super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<Profile>> getAll(int limit, int offset, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName() +
-                (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
+    public Uni<List<Profile>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                " WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (!includeArchived) {
+            sql += " AND t.archived = 0";
+        }
+
+        sql += " ORDER BY t.last_mod_date DESC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -43,11 +55,11 @@ public class ProfileRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = String.format("SELECT COUNT(*) FROM %s t", entityData.getTableName());
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                " WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
         if (!includeArchived) {
-            sql += " WHERE (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
-
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));

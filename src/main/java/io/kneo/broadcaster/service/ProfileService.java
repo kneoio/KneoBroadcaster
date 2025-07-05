@@ -28,7 +28,7 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
     }
 
     public Uni<List<ProfileDTO>> getAll(final int limit, final int offset, final IUser user) {
-        return repository.getAll(limit, offset, user)
+        return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());

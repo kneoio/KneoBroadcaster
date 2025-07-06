@@ -10,7 +10,6 @@ import lombok.Setter;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AudienceContext {
+    private String name;
     private String description;
-    private String mood;
-    private String timeOfDay;
 }

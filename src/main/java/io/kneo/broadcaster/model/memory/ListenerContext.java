@@ -11,5 +11,6 @@ import lombok.Setter;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ListenerContext {
     private String name;
+    private String nickname;
     private String location;
 }

@@ -86,7 +86,6 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
             dto.setLastModifiedDate(profile.getLastModifiedDate());
             dto.setName(profile.getName());
             dto.setDescription(profile.getDescription());
-            dto.setAllowedGenres(profile.getAllowedGenres());
             dto.setExplicitContent(profile.isExplicitContent());
             dto.setArchived(profile.getArchived());
             return dto;
@@ -97,7 +96,6 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
         Profile entity = new Profile();
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
-        entity.setAllowedGenres(dto.getAllowedGenres());
         entity.setExplicitContent(dto.isExplicitContent());
         entity.setArchived(dto.getArchived());
         return entity;

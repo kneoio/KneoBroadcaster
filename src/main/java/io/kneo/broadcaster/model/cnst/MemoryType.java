@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model.cnst;
 
 public enum MemoryType {
-    AUDIENCE_CONTEXT,
+    ENVIRONMENT_PROFILE,
     LISTENER_CONTEXTS,
     CONVERSATION_HISTORY,
     EVENT,

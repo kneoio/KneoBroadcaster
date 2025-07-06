@@ -50,7 +50,7 @@ public class RadioStationRepository extends AsyncRepository {
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         sql += " ORDER BY t.last_mod_date DESC";
@@ -73,7 +73,7 @@ public class RadioStationRepository extends AsyncRepository {
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         return client.query(sql)
@@ -89,7 +89,7 @@ public class RadioStationRepository extends AsyncRepository {
                 "WHERE rls.reader = $1 AND theTable.id = $2";
 
         if (!includeArchived) {
-            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+            sql += " AND theTable.archived = 0";
         }
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
@@ -113,7 +113,7 @@ public class RadioStationRepository extends AsyncRepository {
                 "WHERE rls.reader = $1 AND theTable.id = $2";
 
         if (!includeArchived) {
-            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+            sql += " AND theTable.archived = 0";
         }
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))

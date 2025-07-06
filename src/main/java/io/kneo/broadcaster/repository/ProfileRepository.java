@@ -10,7 +10,6 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonArray;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -18,7 +17,6 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,7 +56,7 @@ public class ProfileRepository extends AsyncRepository {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 " WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
         if (!includeArchived) {
-            sql += " AND t.archived = 0";
+            sql += " AND t.archived = 0)";
         }
         return client.query(sql)
                 .execute()
@@ -89,16 +87,14 @@ public class ProfileRepository extends AsyncRepository {
 
     public Uni<Profile> insert(Profile profile) {
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (name, description, allowed_genres, announcement_frequency, explicit_content, language) " +
-                "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id";
+                " (name, description, announcement_frequency, explicit_content) " +
+                "VALUES ($1, $2, $3, $4) RETURNING id";
 
         Tuple params = Tuple.tuple()
                 .addString(profile.getName())
                 .addString(profile.getDescription())
-                .addValue(mapper.valueToTree(profile.getAllowedGenres()))
                 .addString(profile.getAnnouncementFrequency().name().toLowerCase())
-                .addBoolean(profile.isExplicitContent())
-                .addString(profile.getLanguage() != null ? profile.getLanguage().name() : null);
+                .addBoolean(profile.isExplicitContent());
 
         return client.preparedQuery(sql)
                 .execute(params)
@@ -108,17 +104,15 @@ public class ProfileRepository extends AsyncRepository {
 
     public Uni<Profile> update(UUID id, Profile profile) {
         String sql = "UPDATE " + entityData.getTableName() +
-                " SET name=$1, description=$2, allowed_genres=$3, " +
-                "announcement_frequency=$4, explicit_content=$5, language=$6 " +
-                "WHERE id=$7";
+                " SET name=$1, description=$2, " +
+                "announcement_frequency=$3, explicit_content=$4 " +
+                "WHERE id=$5";
 
         Tuple params = Tuple.tuple()
                 .addString(profile.getName())
                 .addString(profile.getDescription())
-                .addValue(mapper.valueToTree(profile.getAllowedGenres()))
                 .addString(profile.getAnnouncementFrequency().name().toLowerCase())
                 .addBoolean(profile.isExplicitContent())
-                .addString(profile.getLanguage() != null ? profile.getLanguage().name() : null)
                 .addUUID(id);
 
         return client.preparedQuery(sql)
@@ -146,15 +140,6 @@ public class ProfileRepository extends AsyncRepository {
 
         profile.setName(row.getString("name"));
         profile.setDescription(row.getString("description"));
-
-        JsonArray genresJson = row.getJsonArray("allowed_genres");
-        if (genresJson != null) {
-            List<String> genres = new ArrayList<>();
-            for (int i = 0; i < genresJson.size(); i++) {
-                genres.add(genresJson.getString(i));
-            }
-        }
-
         profile.setExplicitContent(row.getBoolean("explicit_content"));
         profile.setArchived(row.getInteger("archived"));
 

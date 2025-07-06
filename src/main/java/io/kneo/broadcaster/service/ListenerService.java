@@ -78,6 +78,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 .chain(this::mapToDTO);
     }
 
+    public Uni<List<BrandListener>> getBrandListenersEntities(String brandName, int limit, final int offset, IUser user) {
+        assert repository != null;
+        return repository.findForBrand(brandName, limit, offset, user, false);
+    }
+
     public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user) {
         assert repository != null;
         assert radioStationService != null;

@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.broadcaster.model.Memory;
+import io.kneo.broadcaster.model.memory.Memory;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.user.IUser;
@@ -191,7 +191,7 @@ public class MemoryRepository extends AsyncRepository {
                         } else {
                             return Uni.createFrom().completionStage(
                                     client.preparedQuery("UPDATE " + entityData.getTableName() + " SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3")
-                                            .execute(Tuple.of(nowLocalForDb, user.getId(), existingMemory.getId())) // Pass LocalDateTime to the database
+                                            .execute(Tuple.of(nowLocalForDb, user.getId(), existingMemory.getId()))
                                             .onItem().ignore().andContinueWithNull()
                                             .subscribeAsCompletionStage()
                             ).onItem().transformToUni(v -> {
@@ -231,7 +231,6 @@ public class MemoryRepository extends AsyncRepository {
                 .execute(Tuple.of(brand))
                 .onItem().transform(RowSet::rowCount);
     }
-
 
     private Memory from(Row row) {
         Memory memory = new Memory();

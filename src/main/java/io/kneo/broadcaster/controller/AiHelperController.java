@@ -83,7 +83,7 @@ public class AiHelperController {
 
     private void handleGetMemoriesByType(RoutingContext rc) {
         parseMemoryParameters(rc)
-                .chain(params -> memoryService.getByType(params.brand, params.type))
+                .chain(params -> memoryService.getByType(params.brand, params.type, SuperUser.build()))
                 .subscribe().with(
                         memories -> rc.response()
                                 .putHeader("Content-Type", "application/json")

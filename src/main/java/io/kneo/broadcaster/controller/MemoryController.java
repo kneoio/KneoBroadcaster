@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.MemoryDTO;
-import io.kneo.broadcaster.model.Memory;
+import io.kneo.broadcaster.dto.memory.MemoryDTO;
+import io.kneo.broadcaster.model.memory.Memory;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -23,7 +23,7 @@ import jakarta.inject.Inject;
 import java.util.UUID;
 
 @ApplicationScoped
-public class MemoryController extends AbstractSecuredController<Memory, MemoryDTO> {
+public class MemoryController extends AbstractSecuredController<Memory, MemoryDTO<?>> {
 
     private MemoryService service;
 
@@ -56,7 +56,7 @@ public class MemoryController extends AbstractSecuredController<Memory, MemoryDT
                         service.getAll(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<MemoryDTO> dtoEntries = new View<>(tuple.getItem2(),
+                    View<MemoryDTO<?>> dtoEntries = new View<>(tuple.getItem2(),
                             tuple.getItem1(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                             size);
@@ -75,7 +75,7 @@ public class MemoryController extends AbstractSecuredController<Memory, MemoryDT
         getContextUser(rc)
                 .chain(user -> {
                     if ("new".equals(id)) {
-                        MemoryDTO dto = new MemoryDTO();
+                        MemoryDTO<?> dto = new MemoryDTO<>();
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))
@@ -83,7 +83,7 @@ public class MemoryController extends AbstractSecuredController<Memory, MemoryDT
                 })
                 .subscribe().with(
                         tuple -> {
-                            MemoryDTO doc = tuple.getItem1();
+                            MemoryDTO<?> doc = tuple.getItem1();
                             FormPage page = new FormPage();
                             page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
@@ -96,7 +96,7 @@ public class MemoryController extends AbstractSecuredController<Memory, MemoryDT
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
         JsonObject jsonObject = rc.body().asJsonObject();
-        MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
+        MemoryDTO<?> dto = jsonObject.mapTo(MemoryDTO.class);
 
         getContextUser(rc)
                 .chain(user -> service.upsert(id, dto, user))

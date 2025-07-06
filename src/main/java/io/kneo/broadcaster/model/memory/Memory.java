@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.model.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.MemoryType;

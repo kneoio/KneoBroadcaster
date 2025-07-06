@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -223,8 +224,8 @@ public class RadioStationRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, schedule=$6, " +
-                                    "slug_name=$7, description=$8, profile_id=$9, ai_agent_id=$10, last_mod_user=$11, last_mod_date=$12, archived=$13 " +
-                                    "WHERE id=$14";
+                                    "slug_name=$7, description=$8, profile_id=$9, ai_agent_id=$10, last_mod_user=$11, last_mod_date=$12 " +
+                                    "WHERE id=$13";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -242,7 +243,6 @@ public class RadioStationRepository extends AsyncRepository {
                                     .addUUID(station.getAiAgentId())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
-                                    .addInteger(station.getArchived())
                                     .addUUID(id);
 
                             return client.preparedQuery(sql)
@@ -380,5 +380,10 @@ public class RadioStationRepository extends AsyncRepository {
         stats.setLastAccessTime(row.getOffsetDateTime("last_access_time"));
         stats.setUserAgent(row.getString("user_agent"));
         return stats;
+    }
+
+
+    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+        return getDocumentAccessInfo(documentId, entityData);
     }
 }

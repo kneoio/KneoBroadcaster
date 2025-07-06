@@ -7,6 +7,7 @@ import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.WebHelper;
+import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -20,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -126,7 +128,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setCountry(doc.getCountry());
             dto.setColor(doc.getColor());
-            dto.setTimeZone(doc.getTimeZone());
+            dto.setTimeZone(doc.getTimeZone().getId());
             dto.setDescription(doc.getDescription());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());
@@ -154,11 +156,22 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         entity.setManagedBy(dto.getManagedBy());
         entity.setColor(dto.getColor());
         entity.setDescription(dto.getDescription());
-        entity.setTimeZone(dto.getTimeZone());
+        entity.setTimeZone(ZoneId.of(dto.getTimeZone()));
         entity.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
         entity.setDescription(dto.getDescription());
         entity.setAiAgentId(dto.getAiAgentId());
         entity.setProfileId(dto.getProfileId());
         return entity;
+    }
+
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
     }
 }

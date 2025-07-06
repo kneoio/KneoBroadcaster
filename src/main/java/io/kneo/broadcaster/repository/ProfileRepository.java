@@ -56,7 +56,7 @@ public class ProfileRepository extends AsyncRepository {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 " WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
         if (!includeArchived) {
-            sql += " AND t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
         return client.query(sql)
                 .execute()

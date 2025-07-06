@@ -103,11 +103,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         return repository.delete(UUID.fromString(id));
     }
 
-    public Uni<Integer> softDelete(String id, IUser user) {
-        assert repository != null;
-        return repository.softDelete(UUID.fromString(id), user);
-    }
-
     @Override
     public Uni<AiAgentDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;

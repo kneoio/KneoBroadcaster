@@ -6,12 +6,13 @@ import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.officeframe.cnst.CountryCode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.net.URL;
-import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.UUID;
 
@@ -21,15 +22,16 @@ import java.util.UUID;
 public class RadioStationDTO extends AbstractDTO {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private String slugName;
-    @NotBlank
+    @NotNull
     private CountryCode country;
-    @NotBlank
+    @NotNull
     private ManagedBy managedBy;
     private URL hlsUrl;
     private URL iceCastUrl;
     private URL mixplaUrl;
     @NotBlank
-    private ZoneId timeZone;
+    @Pattern(regexp = "^[A-Za-z]+/[A-Za-z_]+$", message = "Invalid timezone format")
+    private String timeZone;
     private String color;
     private String description;
     private Integer archived;

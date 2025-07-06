@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.memory.AudienceContext;
+import io.kneo.broadcaster.model.memory.ConversationHistory;
 import io.kneo.broadcaster.model.memory.ListenerContext;
 import io.kneo.broadcaster.model.memory.Memory;
 import io.kneo.broadcaster.repository.MemoryRepository;
@@ -11,6 +12,7 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -68,8 +70,22 @@ public class MemoryService {
     public Uni<List<MemoryDTO<?>>> getByType(String brand, String type, IUser user) {
         MemoryType memoryType = MemoryType.valueOf(type);
 
-        if (memoryType == MemoryType.LISTENER_CONTEXTS) {
-            return listenerService.getBrandListenersEntities(brand, 1000, 0, user)
+        return switch (memoryType) {
+            case CONVERSATION_HISTORY -> repository.findByType(brand, memoryType)
+                    .map(list -> {
+                        if (list.isEmpty()) {
+                            List<ConversationHistory> conversations = List.of();
+                            Memory entity = new Memory();
+                            entity.setBrand(brand);
+                            entity.setMemoryType(MemoryType.CONVERSATION_HISTORY);
+                            entity.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray(conversations)));
+                            return List.of(mapToDTO(entity));
+                        }
+                        return list.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                    });
+            case LISTENER_CONTEXTS -> listenerService.getBrandListenersEntities(brand, 1000, 0, user)
                     .map(brandListeners -> {
                         List<ListenerContext> listeners = brandListeners.stream()
                                 .map(bl -> {
@@ -87,12 +103,11 @@ public class MemoryService {
                         Memory entity = new Memory();
                         entity.setBrand(brand);
                         entity.setMemoryType(MemoryType.LISTENER_CONTEXTS);
-                        entity.setContent(new JsonArray(listeners));
+                        entity.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray(listeners)));
 
                         return List.of(mapToDTO(entity));
                     });
-        } else if (memoryType == MemoryType.ENVIRONMENT_PROFILE) {
-            return radioStationService.findByBrandName(brand)
+            case AUDIENCE_CONTEXT -> radioStationService.findByBrandName(brand)
                     .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
                     .map(profile -> {
                         AudienceContext audienceContext = new AudienceContext();
@@ -100,16 +115,12 @@ public class MemoryService {
                         audienceContext.setDescription(profile.getDescription());
                         Memory entity = new Memory();
                         entity.setBrand(brand);
-                        entity.setMemoryType(MemoryType.ENVIRONMENT_PROFILE);
-                        entity.setContent(new JsonArray().add(audienceContext));
+                        entity.setMemoryType(MemoryType.AUDIENCE_CONTEXT);
+                        entity.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray().add(audienceContext)));
                         return List.of(mapToDTO(entity));
                     });
-        } else {
-            return repository.findByType(brand, memoryType)
-                    .map(list -> list.stream()
-                            .map(this::mapToDTO)
-                            .collect(Collectors.toList()));
-        }
+            default -> throw new IllegalArgumentException("Unsupported memory type: " + memoryType);
+        };
     }
 
     public Uni<MemoryDTO<?>> upsert(String id, MemoryDTO<?> dto, IUser user) {
@@ -139,7 +150,7 @@ public class MemoryService {
         Memory entity = new Memory();
         entity.setBrand(dto.getBrand());
         entity.setMemoryType(dto.getMemoryType());
-        entity.setContent((JsonArray) dto.getContent());
+        entity.setContent((JsonObject) dto.getContent());
         return entity;
     }
 

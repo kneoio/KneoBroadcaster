@@ -112,8 +112,8 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getName())
                 .addString(agent.getPreferredLang().name())
                 .addString(agent.getMainPrompt())
-                .addValue(agent.getPreferredVoice() != null ? mapper.valueToTree(agent.getPreferredVoice()) : null)
-                .addValue(agent.getEnabledTools() != null ? mapper.valueToTree(agent.getEnabledTools()) : null);
+                .addJsonArray(agent.getPreferredVoice() != null ? JsonArray.of(agent.getPreferredVoice().toArray()) : null)
+                .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : null);
 
         return client.preparedQuery(sql)
                 .execute(params)
@@ -136,8 +136,8 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getName())
                 .addString(agent.getPreferredLang().name())
                 .addString(agent.getMainPrompt())
-                .addValue(agent.getPreferredVoice() != null ? mapper.valueToTree(agent.getPreferredVoice()) : null)
-                .addValue(agent.getEnabledTools() != null ? mapper.valueToTree(agent.getEnabledTools()) : null)
+                .addJsonArray(agent.getPreferredVoice() != null ? JsonArray.of(agent.getPreferredVoice().toArray()) : null)
+                .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : null)
                 .addUUID(id);
 
         return client.preparedQuery(sql)
@@ -152,15 +152,6 @@ public class AiAgentRepository extends AsyncRepository {
         String sql = "DELETE FROM " + entityData.getTableName() + " WHERE id=$1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(id))
-                .onItem().transform(RowSet::rowCount);
-    }
-
-    public Uni<Integer> softDelete(UUID id, IUser user) {
-        String sql = "UPDATE " + entityData.getTableName() +
-                " SET archived=true, last_mod_user=$1, last_mod_date=$2 WHERE id=$3";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(user.getId(), OffsetDateTime.now(), id))
                 .onItem().transform(RowSet::rowCount);
     }
 

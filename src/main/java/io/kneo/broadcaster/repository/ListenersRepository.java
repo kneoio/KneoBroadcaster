@@ -237,8 +237,8 @@ public class ListenersRepository extends AsyncRepository {
 
                             return client.withTransaction(tx -> {
                                 String sql = "UPDATE " + entityData.getTableName() +
-                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6, archived=$7 " +
-                                        "WHERE id=$8";
+                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6 " +
+                                        "WHERE id=$7";
 
                                 Tuple params = Tuple.tuple()
                                         .addString(listener.getCountry().name())
@@ -247,7 +247,6 @@ public class ListenersRepository extends AsyncRepository {
                                         .addString(listener.getSlugName())
                                         .addLong(user.getId())
                                         .addLocalDateTime(nowTime)
-                                        .addInteger(listener.getArchived())
                                         .addUUID(id);
 
                                 return tx.preparedQuery(sql)

@@ -154,7 +154,7 @@ public class MemoryRepository extends AsyncRepository {
                     }
 
                     ZonedDateTime nowZoned = ZonedDateTime.now(APPLICATION_ZONE);
-                    LocalDateTime nowLocalForDb = nowZoned.toLocalDateTime();
+                    LocalDateTime now = nowZoned.toLocalDateTime();
 
                     if (existingMemory != null) {
                         ZonedDateTime existingMemoryZoned = existingMemory.getRegDate();
@@ -179,7 +179,7 @@ public class MemoryRepository extends AsyncRepository {
                                     "WHERE id=$4";
 
                             Tuple params = Tuple.tuple()
-                                    .addLocalDateTime(nowLocalForDb)
+                                    .addLocalDateTime(now)
                                     .addLong(user.getId())
                                     .addJsonObject(existingMemory.getContent())
                                     .addUUID(existingMemory.getId());
@@ -191,7 +191,7 @@ public class MemoryRepository extends AsyncRepository {
                         } else {
                             return Uni.createFrom().completionStage(
                                     client.preparedQuery("UPDATE " + entityData.getTableName() + " SET archived = 1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3")
-                                            .execute(Tuple.of(nowLocalForDb, user.getId(), existingMemory.getId()))
+                                            .execute(Tuple.of(now, user.getId(), existingMemory.getId()))
                                             .onItem().ignore().andContinueWithNull()
                                             .subscribeAsCompletionStage()
                             ).onItem().transformToUni(v -> {

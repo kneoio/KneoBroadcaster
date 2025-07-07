@@ -9,11 +9,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Event {
+public class RadioEvent {
     private String type; // "achievement", "birthday", "morning_wake_up", etc.
     private String timestamp;
     private String description;
-    private String listenerName;
-    private String location;
     private String priority; // "low", "medium", "high"
 }

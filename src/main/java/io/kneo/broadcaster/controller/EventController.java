@@ -1,21 +1,18 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.ProfileDTO;
-import io.kneo.broadcaster.dto.actions.ProfileActionsFactory;
-import io.kneo.broadcaster.model.Profile;
-import io.kneo.broadcaster.service.ProfileService;
+import io.kneo.broadcaster.dto.EventDTO;
+import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.service.EventService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
 import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -24,53 +21,52 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @ApplicationScoped
-public class ProfileController extends AbstractSecuredController<Profile, ProfileDTO> {
-
-    @Inject
-    ProfileService service;
+public class EventController extends AbstractSecuredController<Event, EventDTO> {
+    private EventService service;
     private Validator validator;
 
-    public ProfileController() {
+    public EventController() {
         super(null);
     }
 
     @Inject
-    public ProfileController(UserService userService, ProfileService service, Validator validator) {
+    public EventController(UserService userService, EventService service, Validator validator) {
         super(userService);
         this.service = service;
         this.validator = validator;
     }
 
     public void setupRoutes(Router router) {
-        String path = "/api/profiles";
-        router.route(path + "*").handler(BodyHandler.create());
-        router.get(path).handler(this::getAll);
+        String path = "/api/events";
+        router.route().handler(BodyHandler.create());
+        router.route(path + "*").handler(this::addHeaders);
+        router.get(path).handler(this::get);
+        router.get(path + "/brand").handler(this::getForBrand);
         router.get(path + "/:id").handler(this::getById);
-        router.route(HttpMethod.POST, path + "/:id?").handler(this::upsert);
+        router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
-        router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
+        router.get(path + "/:id/access").handler(this::getDocumentAccess);
     }
 
-    private void getAll(RoutingContext rc) {
+    private void get(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         getContextUser(rc)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllCount(user),
-                        service.getAll(size, (page - 1) * size, user)
+                        service.getAll(size, (page - 1) * size, user),
+                        service.getAllCount(user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<ProfileDTO> dtoEntries = new View<>(tuple.getItem2(),
-                            tuple.getItem1(), page,
-                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                    View<EventDTO> dtoEntries = new View<>(tuple.getItem1(),
+                            tuple.getItem2(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem2(), size),
                             size);
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                    ActionBox actions = ProfileActionsFactory.getViewActions(user.getActivatedRoles());
-                    viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
                     return viewPage;
                 }))
                 .subscribe().with(
@@ -81,25 +77,50 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
 
     private void getById(RoutingContext rc) {
         String id = rc.pathParam("id");
-        LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
         getContextUser(rc)
                 .chain(user -> {
                     if ("new".equals(id)) {
-                        ProfileDTO dto = new ProfileDTO();
+                        EventDTO dto = new EventDTO();
+                        dto.setTimestampEvent(LocalDateTime.now());
+                        dto.setPriority("medium");
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
-                    return service.getDTO(UUID.fromString(id), user, languageCode)
+                    return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))
                             .map(doc -> Tuple2.of(doc, user));
                 })
                 .subscribe().with(
                         tuple -> {
-                            ProfileDTO profile = tuple.getItem1();
+                            EventDTO doc = tuple.getItem1();
                             FormPage page = new FormPage();
-                            page.addPayload(PayloadType.DOC_DATA, profile);
+                            page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
+                        rc::fail
+                );
+    }
+
+    private void getForBrand(RoutingContext rc) {
+        String brandSlugName = rc.request().getParam("brand");
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
+
+        getContextUser(rc)
+                .chain(user -> Uni.combine().all().unis(
+                        service.getForBrand(brandSlugName, size, (page - 1) * size, user),
+                        service.getCountForBrand(brandSlugName, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<EventDTO> dtoEntries = new View<>(tuple.getItem1(),
+                            tuple.getItem2(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem2(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    return viewPage;
+                }))
+                .subscribe().with(
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
                 );
     }
@@ -108,13 +129,13 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
         try {
             if (!validateJsonBody(rc)) return;
 
-            ProfileDTO dto = rc.body().asJsonObject().mapTo(ProfileDTO.class);
+            EventDTO dto = rc.body().asJsonObject().mapTo(EventDTO.class);
             String id = rc.pathParam("id");
 
             if (!validateDTO(rc, dto, validator)) return;
 
             getContextUser(rc)
-                    .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
+                    .chain(user -> service.upsert(id, dto, user))
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
                             throwable -> handleUpsertFailure(rc, throwable)
@@ -132,7 +153,7 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
         getContextUser(rc)
-                .chain(user -> service.delete(id, user))
+                .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail

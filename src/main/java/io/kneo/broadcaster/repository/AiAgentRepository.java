@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -210,5 +211,9 @@ public class AiAgentRepository extends AsyncRepository {
         }
 
         return doc;
+    }
+
+    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+        return getDocumentAccessInfo(documentId, entityData);
     }
 }

@@ -15,7 +15,6 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -45,12 +44,13 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
     }
 
     public void setupRoutes(Router router) {
-        String basePath = "/api/aiagents";
-        router.route(basePath + "*").handler(BodyHandler.create());
-        router.get(basePath).handler(this::getAll);
-        router.get(basePath + "/:id").handler(this::getById);
-        router.route(HttpMethod.POST, basePath + "/:id?").handler(this::upsert);
-        router.delete(basePath + "/:id").handler(this::delete);
+        String path = "/api/aiagents";
+        router.route(path + "*").handler(BodyHandler.create());
+        router.get(path).handler(this::getAll);
+        router.get(path + "/:id").handler(this::getById);
+        router.post(path + "/:id?").handler(this::upsert);
+        router.delete(path + "/:id").handler(this::delete);
+        router.get(path + "/:id/access").handler(this::getDocumentAccess);
     }
 
     private void getAll(RoutingContext rc) {
@@ -136,5 +136,36 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail
                 );
+    }
+
+    private void getDocumentAccess(RoutingContext rc) {
+        String id = rc.pathParam("id");
+
+        try {
+            UUID documentId = UUID.fromString(id);
+
+            getContextUser(rc)
+                    .chain(user -> service.getDocumentAccess(documentId, user))
+                    .subscribe().with(
+                            accessList -> {
+                                JsonObject response = new JsonObject();
+                                response.put("documentId", id);
+                                response.put("accessList", accessList);
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(response.encode());
+                            },
+                            throwable -> {
+                                if (throwable instanceof IllegalArgumentException) {
+                                    rc.fail(400, throwable);
+                                } else {
+                                    rc.fail(500, throwable);
+                                }
+                            }
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
+        }
     }
 }

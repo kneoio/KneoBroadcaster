@@ -12,4 +12,5 @@ import lombok.Setter;
 public class AudienceContext {
     private String name;
     private String description;
+    private String currentMoment;
 }

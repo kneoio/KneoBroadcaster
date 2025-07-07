@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.repository.ProfileRepository;
+import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.AbstractService;
@@ -100,4 +101,16 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
         entity.setArchived(dto.getArchived());
         return entity;
     }
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
+    }
+
+
 }

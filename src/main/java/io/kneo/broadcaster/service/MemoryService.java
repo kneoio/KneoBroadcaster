@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.memory.ConversationHistory;
 import io.kneo.broadcaster.model.memory.ListenerContext;
 import io.kneo.broadcaster.model.memory.Memory;
 import io.kneo.broadcaster.repository.MemoryRepository;
+import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -113,6 +114,8 @@ public class MemoryService {
                         AudienceContext audienceContext = new AudienceContext();
                         audienceContext.setName(profile.getName());
                         audienceContext.setDescription(profile.getDescription());
+                        //TODO need to consider timezone
+                        audienceContext.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
                         Memory entity = new Memory();
                         entity.setBrand(brand);
                         entity.setMemoryType(MemoryType.AUDIENCE_CONTEXT);

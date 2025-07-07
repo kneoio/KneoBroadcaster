@@ -15,7 +15,6 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -52,7 +51,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
-        router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
+        router.get(path + "/:id/access").handler(this::getDocumentAccess);
     }
 
     private void get(RoutingContext rc) {

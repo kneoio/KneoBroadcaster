@@ -7,6 +7,7 @@ import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.AiAgentRepository;
+import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -201,4 +202,16 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
 
         return entity;
     }
+
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
+    }
+
 }

@@ -49,6 +49,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     @Inject
     ProfileController profileController;
 
+    @Inject
+    EventController eventController;
+
 
     @Inject
     ReferencesController genreController;
@@ -81,6 +84,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         aiAgentController.setupRoutes(router);
         memoryController.setupRoutes(router);
         profileController.setupRoutes(router);
+        eventController.setupRoutes(router);
 
         super.setupRoutes(router);
         logRegisteredRoutes(router);

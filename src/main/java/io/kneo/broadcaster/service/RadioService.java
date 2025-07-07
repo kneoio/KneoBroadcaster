@@ -52,7 +52,7 @@ public class RadioService {
 
     public Uni<RadioStation> stopStation(String brand) {
         LOGGER.info("Stop brand: {}", brand);
-        return radioStationPool.stop(brand)
+        return radioStationPool.stopAndRemove(brand)
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to stop station for brand: {}", brand, failure)
                 );

@@ -147,7 +147,6 @@ public class RadioStationPool {
                 radioStation.getPlaylist().shutdown();
             }
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
-            // Consider if station status needs to be updated in the database here
             return Uni.createFrom().item(radioStation);
         } else {
             LOGGER.warn("Station {} not found in pool during stopAndRemove.", brandName);
@@ -161,24 +160,6 @@ public class RadioStationPool {
 
     public Optional<RadioStation> getStation(String slugName) {
         return Optional.ofNullable(pool.get(slugName));
-    }
-
-    public Uni<RadioStation> stop(String brandName) {
-        LOGGER.info("Attempting to stop station: {}", brandName);
-        RadioStation radioStation = pool.get(brandName);
-        if (radioStation == null) {
-            LOGGER.warn("Attempted to stop station {} not found in active pool.", brandName);
-            return Uni.createFrom().nullItem();
-        }
-
-        if (radioStation.getPlaylist() != null &&
-                (radioStation.getStatus() == RadioStationStatus.ON_LINE || radioStation.getStatus() == RadioStationStatus.WARMING_UP)) {
-            LOGGER.info("Shutting down playlist for station {}.", brandName);
-            radioStation.getPlaylist().shutdown();
-        }
-        radioStation.setStatus(RadioStationStatus.OFF_LINE);
-        LOGGER.info("Station {} status set to OFF_LINE. It remains in the pool in this state.", brandName);
-        return Uni.createFrom().item(radioStation);
     }
 
     public Uni<BroadcastingStats> checkStatus(String name) {

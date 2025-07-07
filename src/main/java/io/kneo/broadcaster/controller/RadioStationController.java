@@ -3,6 +3,7 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -14,6 +15,7 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -23,6 +25,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.EnumMap;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -85,11 +88,22 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
         getContextUser(rc)
-                .chain(user -> service.getDTO(UUID.fromString(id), user, languageCode))
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        RadioStationDTO dto = new RadioStationDTO();
+                        dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
+                        dto.getLocalizedName().put(LanguageCode.en, "");
+                        dto.setManagedBy(ManagedBy.MIX);
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return service.getDTO(UUID.fromString(id), user, languageCode)
+                            .map(doc -> Tuple2.of(doc, user));
+                })
                 .subscribe().with(
-                        owner -> {
+                        tuple -> {
+                            RadioStationDTO doc = tuple.getItem1();
                             FormPage page = new FormPage();
-                            page.addPayload(PayloadType.DOC_DATA, owner);
+                            page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },

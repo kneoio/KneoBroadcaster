@@ -15,11 +15,11 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
 @Getter
 @SuperBuilder
 @NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ListenerDTO extends AbstractReferenceDTO {
     long userId;
 

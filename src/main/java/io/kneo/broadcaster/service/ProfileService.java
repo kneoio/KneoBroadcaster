@@ -60,19 +60,20 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
         return repository.findByName(name);
     }
 
-    @Override
-    public Uni<Integer> delete(String id, IUser user) {
-        return repository.delete(UUID.fromString(id));
-    }
-
     public Uni<ProfileDTO> upsert(String id, ProfileDTO dto, IUser user, LanguageCode code) {
         Profile entity = buildEntity(dto);
         if (id == null) {
-            return repository.insert(entity).chain(this::mapToDTO);
+            return repository.insert(entity, user).chain(this::mapToDTO);
         } else {
-            return repository.update(UUID.fromString(id), entity).chain(this::mapToDTO);
+            return repository.update(UUID.fromString(id), entity, user).chain(this::mapToDTO);
         }
     }
+
+    @Override
+    public Uni<Integer> delete(String id, IUser user) {
+        return repository.delete(UUID.fromString(id), user);
+    }
+
 
     private Uni<ProfileDTO> mapToDTO(Profile profile) {
         return Uni.combine().all().unis(
@@ -88,7 +89,6 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
             dto.setName(profile.getName());
             dto.setDescription(profile.getDescription());
             dto.setExplicitContent(profile.isExplicitContent());
-            dto.setArchived(profile.getArchived());
             return dto;
         });
     }
@@ -98,7 +98,6 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setExplicitContent(dto.isExplicitContent());
-        entity.setArchived(dto.getArchived());
         return entity;
     }
 

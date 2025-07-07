@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.dto.AbstractDTO;
@@ -19,6 +20,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class RadioStationDTO extends AbstractDTO {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private String slugName;

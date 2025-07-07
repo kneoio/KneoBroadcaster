@@ -14,11 +14,11 @@ import lombok.experimental.SuperBuilder;
 import java.util.List;
 import java.util.UUID;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
 @Getter
 @SuperBuilder
 @NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class SoundFragmentDTO extends AbstractDTO {
     private SourceType source = SourceType.USERS_UPLOAD;
     private Integer status = -1;

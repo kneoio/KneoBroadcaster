@@ -12,6 +12,8 @@ import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
+import io.kneo.core.repository.exception.DocumentModificationAccessException;
+import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -38,16 +40,24 @@ public class AiAgentRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(AI_AGENT);
 
     @Inject
-    public AiAgentRepository(PgPool client, ObjectMapper mapper) {
-        super(client, mapper, null);
+    public AiAgentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+        super(client, mapper, rlsRepository);
     }
 
-    private String getSelectAllQuery() {
-        return "SELECT * FROM " + entityData.getTableName();
-    }
+    public Uni<List<AiAgent>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
-    public Uni<List<AiAgent>> getAll(int limit, int offset, final IUser user) {
-        String sql = getSelectAllQuery() + (limit > 0 ? " LIMIT " + limit + " OFFSET " + offset : "");
+        if (!includeArchived) {
+            sql += " AND t.archived = 0";
+        }
+
+        sql += " ORDER BY t.last_mod_date DESC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -56,9 +66,11 @@ public class AiAgentRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = String.format("SELECT COUNT(*) FROM %s t", entityData.getTableName());
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
         if (!includeArchived) {
-            sql += " WHERE (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         return client.query(sql)
@@ -66,100 +78,177 @@ public class AiAgentRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<AiAgent> findById(UUID id) {
-        String sql = getSelectAllQuery() + " WHERE id = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(id))
+    public Uni<AiAgent> findById(UUID uuid, IUser user, boolean includeArchived) {
+        String sql = "SELECT theTable.*, rls.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.id = $2";
+
+        if (!includeArchived) {
+            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+        }
+
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(user.getId(), uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) return from(iterator.next());
-                    throw new DocumentHasNotFoundException(id);
+                    if (iterator.hasNext()) {
+                        return from(iterator.next());
+                    } else {
+                        LOGGER.warn("No {} found with id: {}, user: {} ", AI_AGENT, uuid, user.getId());
+                        throw new DocumentHasNotFoundException(uuid);
+                    }
                 });
     }
 
-    public Uni<AiAgent> findByName(String name) {
-        String sql = getSelectAllQuery() + " WHERE name = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(name))
+    public Uni<AiAgent> findByName(String name, IUser user) {
+        String sql = "SELECT theTable.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.name = $2 AND theTable.archived = 0";
+
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(user.getId(), name))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) return from(iterator.next());
-                    throw new DocumentHasNotFoundException(name);
+                    if (iterator.hasNext()) {
+                        return from(iterator.next());
+                    } else {
+                        LOGGER.warn("No {} found with name: {}, user: {} ", AI_AGENT, name, user.getId());
+                        throw new DocumentHasNotFoundException(name);
+                    }
                 });
     }
 
-    public Uni<List<AiAgent>> findByPreferredLang(LanguageCode lang) {
-        String sql = getSelectAllQuery() + " WHERE preferred_lang = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(lang.name()))
+    public Uni<List<AiAgent>> findByPreferredLang(LanguageCode lang, IUser user) {
+        String sql = "SELECT theTable.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.preferred_lang = $2 AND theTable.archived = 0";
+
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(user.getId(), lang.name()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
     }
 
     public Uni<AiAgent> insert(AiAgent agent, IUser user) {
-        String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, archived, name, preferred_lang, main_prompt, preferred_voice, enabled_tools) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+        OffsetDateTime nowTime = OffsetDateTime.now();
 
-        OffsetDateTime now = OffsetDateTime.now();
+        String sql = "INSERT INTO " + entityData.getTableName() +
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, main_prompt, " +
+                "filler_prompt, preferred_voice, enabled_tools, talkativity) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
 
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
-                .addOffsetDateTime(now)
+                .addOffsetDateTime(nowTime)
                 .addLong(user.getId())
-                .addOffsetDateTime(now)
-                .addInteger(agent.getArchived())
+                .addOffsetDateTime(nowTime)
                 .addString(agent.getName())
                 .addString(agent.getPreferredLang().name())
                 .addString(agent.getMainPrompt())
-                .addJsonArray(agent.getPreferredVoice() != null ? JsonArray.of(agent.getPreferredVoice().toArray()) : null)
-                .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : null);
+                .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
+                .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
+                .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
+                .addDouble(agent.getTalkativity());
 
-        return client.preparedQuery(sql)
-                .execute(params)
-                .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                .onItem().transformToUni(this::findById);
+        return client.withTransaction(tx ->
+                tx.preparedQuery(sql)
+                        .execute(params)
+                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                        .onItem().transformToUni(id -> {
+                            String rlsSql = String.format(
+                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
+                                    entityData.getRlsName()
+                            );
+                            return tx.preparedQuery(rlsSql)
+                                    .execute(Tuple.of(user.getId(), id, true, true))
+                                    .onItem().transform(ignored -> id);
+                        })
+        ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
     public Uni<AiAgent> update(UUID id, AiAgent agent, IUser user) {
-        String sql = "UPDATE " + entityData.getTableName() +
-                " SET last_mod_user=$1, last_mod_date=$2, archived=$3, name=$4, preferred_lang=$5, " +
-                "main_prompt=$6, preferred_voice=$7, enabled_tools=$8 " +
-                "WHERE id=$9";
+        return Uni.createFrom().deferred(() -> {
+            try {
+                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update ai agent: {} by user: {}", id, user.getId(), throwable))
+                        .onItem().transformToUni(permissions -> {
+                            if (!permissions[0]) {
+                                return Uni.createFrom().failure(new DocumentModificationAccessException(
+                                        "User does not have edit permission", user.getUserName(), id));
+                            }
 
-        OffsetDateTime now = OffsetDateTime.now();
+                            OffsetDateTime nowTime = OffsetDateTime.now();
 
-        Tuple params = Tuple.tuple()
-                .addLong(user.getId())
-                .addOffsetDateTime(now)
-                .addInteger(agent.getArchived())
-                .addString(agent.getName())
-                .addString(agent.getPreferredLang().name())
-                .addString(agent.getMainPrompt())
-                .addJsonArray(agent.getPreferredVoice() != null ? JsonArray.of(agent.getPreferredVoice().toArray()) : null)
-                .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : null)
-                .addUUID(id);
+                            String sql = "UPDATE " + entityData.getTableName() +
+                                    " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
+                                    "main_prompt=$5, filler_prompt=$6, preferred_voice=$7, enabled_tools=$8, talkativity=$9 " +
+                                    "WHERE id=$10";
 
-        return client.preparedQuery(sql)
-                .execute(params)
-                .onItem().transformToUni(rowSet -> {
-                    if (rowSet.rowCount() == 0) throw new DocumentHasNotFoundException(id);
-                    return findById(id);
+                            Tuple params = Tuple.tuple()
+                                    .addLong(user.getId())
+                                    .addOffsetDateTime(nowTime)
+                                    .addString(agent.getName())
+                                    .addString(agent.getPreferredLang().name())
+                                    .addString(agent.getMainPrompt())
+                                    .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
+                                    .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
+                                    .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
+                                    .addDouble(agent.getTalkativity())
+                                    .addUUID(id);
+
+                            return client.preparedQuery(sql)
+                                    .execute(params)
+                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update ai agent: {} by user: {}", id, user.getId(), throwable))
+                                    .onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return findById(id, user, true);
+                                    });
+                        });
+            } catch (Exception e) {
+                LOGGER.error("Failed to prepare update parameters for ai agent: {} by user: {}", id, user.getId(), e);
+                return Uni.createFrom().failure(e);
+            }
+        });
+    }
+
+    public Uni<Integer> archive(UUID id, IUser user) {
+        return archive(id, entityData, user);
+    }
+
+    public Uni<Integer> delete(UUID id, IUser user) {
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[1]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException(
+                                "User does not have delete permission", user.getUserName(), id));
+                    }
+
+                    return client.withTransaction(tx -> {
+                        String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
+                        String deleteEntitySql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
+
+                        return tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
+                                .onItem().transformToUni(ignored ->
+                                        tx.preparedQuery(deleteEntitySql).execute(Tuple.of(id)))
+                                .onItem().transform(RowSet::rowCount);
+                    });
                 });
     }
 
-    public Uni<Integer> delete(UUID id) {
-        String sql = "DELETE FROM " + entityData.getTableName() + " WHERE id=$1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(id))
-                .onItem().transform(RowSet::rowCount);
-    }
+    public Uni<List<AiAgent>> findActiveAgents(IUser user) {
+        String sql = "SELECT theTable.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.archived = 0";
 
-    public Uni<List<AiAgent>> findActiveAgents() {
-        String sql = getSelectAllQuery() + " WHERE archived = false";
-        return client.query(sql)
-                .execute()
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
@@ -175,9 +264,9 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setTalkativity(row.getDouble("talkativity"));
 
         try {
-            JsonArray preferredVoiceJson = row.getJsonArray("filler_prompt");
-            if (preferredVoiceJson != null) {
-                List<String> prompt = mapper.readValue(preferredVoiceJson.encode(), new TypeReference<List<String>>() {});
+            JsonArray fillerPromptJson = row.getJsonArray("filler_prompt");
+            if (fillerPromptJson != null) {
+                List<String> prompt = mapper.readValue(fillerPromptJson.encode(), new TypeReference<List<String>>() {});
                 doc.setFillerPrompt(prompt);
             } else {
                 doc.setFillerPrompt(new ArrayList<>());

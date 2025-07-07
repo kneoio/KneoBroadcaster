@@ -2,6 +2,8 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
+import io.kneo.broadcaster.dto.ai.ToolDTO;
+import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -23,6 +25,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -31,6 +34,13 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
     @Inject
     AiAgentService service;
     private Validator validator;
+    public static final List<String> DEFAULT_FILLER_PROMPTS = List.of(
+            "Eerie mood music with smooth transition, 4-6 seconds",
+            "Eerie ambient music with gentle fade out, 4-6 seconds",
+            "Huge epic braam with natural decay, 4-6 seconds",
+            "Deep epic braam with gradual fade, 4-6 seconds",
+            "Massive cinematic braam with soft ending, 4-6 seconds"
+    );
 
     public AiAgentController() {
         super(null);
@@ -86,6 +96,41 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                 .chain(user -> {
                     if ("new".equals(id)) {
                         AiAgentDTO dto = new AiAgentDTO();
+                        VoiceDTO voice1 = new VoiceDTO();
+                        voice1.setId("nPczCjzI2devNBz1zQrb");
+                        voice1.setName("Brain");
+                        VoiceDTO voice2 = new VoiceDTO();
+                        voice2.setId("CwhRBWXzGAHq8TQ4Fs17");
+                        voice2.setName("Roger");
+                        dto.setPreferredVoice(List.of(voice1, voice2));
+                        ToolDTO tool1 = new ToolDTO();
+                        tool1.setName("song title");
+                        tool1.setDescription("Represent song title");
+                        tool1.setVariableName("song_title");
+                        ToolDTO tool2 = new ToolDTO();
+                        tool2.setName("artist");
+                        tool2.setDescription("Represent artist");
+                        tool2.setVariableName("artist");
+                        ToolDTO tool3 = new ToolDTO();
+                        tool3.setName("listeners");
+                        tool3.setDescription("Listeners of the radio station");
+                        tool3.setVariableName("listeners");
+                        ToolDTO tool4 = new ToolDTO();
+                        tool4.setName("context");
+                        tool4.setDescription("Context of the audience");
+                        tool4.setVariableName("context");
+                        ToolDTO tool5 = new ToolDTO();
+                        tool5.setName("history");
+                        tool5.setDescription("History of the previous announcements");
+                        tool5.setVariableName("history");
+                        ToolDTO tool6 = new ToolDTO();
+                        tool6.setName("messages");
+                        tool6.setDescription("Can catch a message from Mixpla");
+                        tool6.setVariableName("message");
+                        dto.setEnabledTools(List.of(tool1, tool2, tool3, tool4, tool5, tool6));
+                        dto.setTalkativity(0.3);
+                        dto.setFillerPrompt(DEFAULT_FILLER_PROMPTS);
+                        dto.setMainPrompt("You are a radio DJ for {brand}. Introduce {song_title} by {artist} to our audience, including listeners like {listeners}. Factor in the current context: {context}. Important constraint: Keep introduction extremely concise (10-30 words) - longer introductions cannot be used. Your introduction should connect naturally with previous interactions. Previous interactions context: {history}");
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)

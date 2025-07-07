@@ -40,7 +40,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
 
     public Uni<List<AiAgentDTO>> getAll(final int limit, final int offset, final IUser user) {
         assert repository != null;
-        return repository.getAll(limit, offset, user)
+        return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -59,55 +59,24 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
     }
 
     public Uni<List<AiAgent>> getAll(final int limit, final int offset) {
-        return repository.getAll(limit, offset, SuperUser.build());
+        return repository.getAll(limit, offset, false, SuperUser.build());
     }
 
     public Uni<AiAgent> getById(UUID id, IUser user, LanguageCode language) {
-        return repository.findById(id);
+        return repository.findById(id, user, false);
     }
 
-    public Uni<AiAgent> findByName(String name) {
-        return repository.findByName(name);
-    }
-
-    public Uni<List<AiAgentDTO>> findByPreferredLang(LanguageCode lang, IUser user) {
-        return repository.findByPreferredLang(lang)
-                .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<AiAgentDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
-                                .collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
-                });
-    }
-
-    public Uni<List<AiAgentDTO>> getActiveAgents(IUser user) {
-        return repository.findActiveAgents()
-                .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<AiAgentDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
-                                .collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
-                });
-    }
 
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;
-        return repository.delete(UUID.fromString(id));
+        return repository.delete(UUID.fromString(id), user);
     }
 
     @Override
     public Uni<AiAgentDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;
-        return repository.findById(id).chain(this::mapToDTO);
+        return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
     public Uni<AiAgentDTO> upsert(String id, AiAgentDTO dto, IUser user, LanguageCode code) {
@@ -173,8 +142,9 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         entity.setName(dto.getName());
         entity.setPreferredLang(dto.getPreferredLang());
         entity.setMainPrompt(dto.getMainPrompt());
+        entity.setFillerPrompt(dto.getFillerPrompt());
+        entity.setTalkativity(dto.getTalkativity());
 
-        // Build preferred voices
         if (dto.getPreferredVoice() != null && !dto.getPreferredVoice().isEmpty()) {
             List<Voice> voices = dto.getPreferredVoice().stream()
                     .map(voiceDto -> {

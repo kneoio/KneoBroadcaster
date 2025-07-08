@@ -172,7 +172,7 @@ public class RadioService {
         String stationCountryCode = radioStation.getCountry().name();
 
         if (radioStation.getAiAgentId() != null) {
-            return aiAgentService.getById(radioStation.getAiAgentId(), null, LanguageCode.en)
+            return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                     .onItem().transform(aiAgent -> new RadioStationStatusDTO(
                             stationName,
                             managedByType,

@@ -206,7 +206,7 @@ public class RadioController {
             return;
         }
 
-        if (referer != null && referer.contains("kneo.io/mixpla") && clientId != null && clientId.equals("mixpla-web")) {
+        if (referer != null && referer.equals("https://kneo.io/") && clientId != null && clientId.equals("mixpla-web")) {
             rc.next();
             return;
         }

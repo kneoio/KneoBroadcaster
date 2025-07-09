@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.dto.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.vertx.core.json.JsonObject;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,8 +10,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ConversationHistoryDTO {
-    private String timestamp;
-    private String content;
-    private String type;
+public class ConversationHistoryDTO extends MemoryDTO<JsonObject> {
+    // Conversation history is stored in the content field as JsonObject
+    // Additional conversation-specific fields can be added here if needed
 }

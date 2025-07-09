@@ -2,8 +2,9 @@ package io.kneo.broadcaster.dto.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-import io.kneo.core.dto.AbstractReferenceDTO;
+
 import jakarta.validation.constraints.NotNull;
+import java.time.ZonedDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class MemoryDTO<T> extends AbstractReferenceDTO {
+public class MemoryDTO<T> {
     private UUID id;
     @NotNull
     private String brand;
@@ -22,4 +23,6 @@ public class MemoryDTO<T> extends AbstractReferenceDTO {
     private MemoryType memoryType;
     @NotNull
     T content;
+    private ZonedDateTime regDate;
+    private ZonedDateTime lastModifiedDate;
 }

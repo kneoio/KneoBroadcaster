@@ -5,6 +5,7 @@ import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -118,7 +119,11 @@ public class ProfileRepository extends AsyncRepository {
                             );
                             return tx.preparedQuery(rlsSql)
                                     .execute(Tuple.of(user.getId(), id, true, true))
-                                    .onItem().transform(ignored -> id);
+                                    .onItem().transformToUni(ignored ->
+                                            tx.preparedQuery(rlsSql)
+                                                    .execute(Tuple.of(SuperUser.ID, id, true, true))
+                                                    .onItem().transform(ignored2 -> id)
+                                    );
                         })
         ).onItem().transformToUni(this::findById);
     }

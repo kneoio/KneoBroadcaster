@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
-import io.kneo.broadcaster.model.memory.Memory;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -23,7 +22,7 @@ import jakarta.inject.Inject;
 import java.util.UUID;
 
 @ApplicationScoped
-public class MemoryController extends AbstractSecuredController<Memory, MemoryDTO<?>> {
+public class MemoryController extends AbstractSecuredController<Object, MemoryDTO<?>> {
 
     private MemoryService service;
 

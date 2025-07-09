@@ -7,6 +7,7 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -199,8 +200,12 @@ public class ListenersRepository extends AsyncRepository {
                             );
                             return tx.preparedQuery(rlsSql)
                                     .execute(Tuple.of(user.getId(), id, true, true))
-                                    .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
-                                    .onItem().transform(ignored -> id);
+                                    .onItem().transformToUni(ignored ->
+                                            tx.preparedQuery(rlsSql)
+                                                    .execute(Tuple.of(SuperUser.ID, id, true, true))
+                                                    .onItem().transformToUni(ignored2 -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
+                                                    .onItem().transform(ignored3 -> id)
+                                    );
                         })
         ).onItem().transformToUni(id -> findById(id, user, true));
     }

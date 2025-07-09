@@ -107,7 +107,7 @@ public class MemoryService {
                                     if (nickname != null) {
                                         context.setNickname(nickname);
                                     }
-                                    context.setLocation(bl.getListener().getCountry().name());
+                                    context.setLocation(bl.getListener().getCountry().getCountryName());
                                     return context;
                                 })
                                 .collect(Collectors.toList());

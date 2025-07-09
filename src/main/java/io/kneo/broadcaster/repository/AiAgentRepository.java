@@ -158,15 +158,10 @@ public class AiAgentRepository extends AsyncRepository {
                 tx.preparedQuery(sql)
                         .execute(params)
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id -> {
-                            String rlsSql = String.format(
-                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                    entityData.getRlsName()
-                            );
-                            return tx.preparedQuery(rlsSql)
-                                    .execute(Tuple.of(user.getId(), id, true, true))
-                                    .onItem().transform(ignored -> id);
-                        })
+                        .onItem().transformToUni(id ->
+                                insertRLSPermissions(tx, id, entityData, user)
+                                        .onItem().transform(ignored -> id)
+                        )
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 

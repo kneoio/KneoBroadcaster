@@ -8,6 +8,7 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -201,7 +202,12 @@ public class RadioStationRepository extends AsyncRepository {
                                             return tx.preparedQuery(readersSql)
                                                     .execute(Tuple.of(user.getId(), id, true, true))
                                                     .onFailure().invoke(throwable -> LOGGER.error("Failed to insert RLS permissions for radio station: {} and user: {}", id, user.getId(), throwable))
-                                                    .onItem().transform(ignored -> id);
+                                                    .onItem().transformToUni(ignored ->
+                                                            tx.preparedQuery(readersSql)
+                                                                    .execute(Tuple.of(SuperUser.ID, id, true, true))
+                                                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to insert SuperUser RLS permissions for radio station: {}", id, throwable))
+                                                                    .onItem().transform(ignored2 -> id)
+                                                    );
                                         })
                         ).onFailure().invoke(throwable -> LOGGER.error("Transaction failed for radio station insert for user: {}", user.getId(), throwable))
                         .onItem().transformToUni(id -> findById(id, user, true));

@@ -13,6 +13,7 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -682,6 +683,9 @@ public class SoundFragmentRepository extends AsyncRepository {
                         return fileMetadataUni
                                 .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
                                         .execute(Tuple.of(user.getId(), id, true, true))
+                                )
+                                .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
+                                        .execute(Tuple.of(SuperUser.ID, id, true, true))
                                 )
                                 .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user))
                                 .onItem().transform(ignored -> id);

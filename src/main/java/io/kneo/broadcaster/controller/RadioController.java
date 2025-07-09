@@ -197,11 +197,11 @@ public class RadioController {
     }
 
     private void validateMixplaAccess(RoutingContext rc) {
-        String userAgent = rc.request().getHeader("User-Agent");
         String referer = rc.request().getHeader("Referer");
         String clientId = rc.request().getHeader("X-Client-ID");
+        String mixplaApp = rc.request().getHeader("X-Mixpla-App");
 
-        if (userAgent != null && isValidMixplaUserAgent(userAgent)) {
+        if (mixplaApp != null && isValidMixplaApp(mixplaApp)) {
             rc.next();
             return;
         }
@@ -218,19 +218,19 @@ public class RadioController {
                 .end("Access denied");
     }
 
-    private boolean isValidMixplaUserAgent(String userAgent) {
-        if (!userAgent.startsWith("Mixpla/")) {
+    private boolean isValidMixplaApp(String mixplaApp) {
+        if (!mixplaApp.startsWith("Mixpla/")) {
             return false;
         }
 
-        String version = userAgent.substring(7);
+        String version = mixplaApp.substring(7);
         for (String supportedVersion : SUPPORTED_MIXPLA_VERSIONS) {
             if (supportedVersion.equals(version)) {
                 return true;
             }
         }
 
-        LOGGER.warn("Unsupported Mixpla version: {}", version);
+        LOGGER.warn("Unsupported Mixpla app version: {}", version);
         return false;
     }
 }

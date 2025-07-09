@@ -144,7 +144,6 @@ public class RadioController {
                         station -> {
                             rc.response()
                                     .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                    .putHeader("Access-Control-Allow-Origin", "*")
                                     .setStatusCode(200)
                                     .end();
                         },
@@ -165,7 +164,6 @@ public class RadioController {
                         stations -> {
                             rc.response()
                                     .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                    .putHeader("Access-Control-Allow-Origin", "*")
                                     .setStatusCode(200)
                                     .end(Json.encode(stations));
                         },
@@ -185,7 +183,6 @@ public class RadioController {
                         stations -> {
                             rc.response()
                                     .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                    .putHeader("Access-Control-Allow-Origin", "*")
                                     .setStatusCode(200)
                                     .end(Json.encode(stations));
                         },

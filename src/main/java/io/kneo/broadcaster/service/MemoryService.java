@@ -17,8 +17,11 @@ import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -36,31 +39,83 @@ public class MemoryService {
     @Inject
     RadioStationService radioStationService;
 
+    private final ConcurrentMap<String, List<Memory>> instantMessages = new ConcurrentHashMap<>();
+
     public Uni<List<MemoryDTO<?>>> getAll(final int limit, final int offset, final IUser user) {
         assert repository != null;
         return repository.getAll(limit, offset, user)
-                .map(list -> list.stream()
-                        .map(this::mapToDTO)
-                        .collect(Collectors.toList()));
+                .map(list -> {
+                    List<MemoryDTO<?>> dbMemories = list.stream()
+                            .map(this::mapToDTO)
+                            .collect(Collectors.toList());
+                            
+                    List<MemoryDTO<?>> allMemories = new ArrayList<>(dbMemories);
+                    
+                    instantMessages.forEach((brand, memories) -> {
+                        List<MemoryDTO<?>> instantMessageDTOs = memories.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                        allMemories.addAll(instantMessageDTOs);
+                    });
+                    
+                    return allMemories;
+                });
     }
 
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
-        return repository.getAllCount(user, false);
+        return repository.getAllCount(user, false)
+                .map(dbCount -> {
+                    int instantMessageCount = instantMessages.values().stream()
+                            .mapToInt(List::size)
+                            .sum();
+                    return dbCount + instantMessageCount;
+                });
     }
 
     public Uni<List<MemoryDTO<?>>> getAll(int limit, int offset) {
         return repository.getAll(limit, offset, null)
-                .map(list -> list.stream()
-                        .map(this::mapToDTO)
-                        .collect(Collectors.toList()));
+                .map(list -> {
+                    List<MemoryDTO<?>> dbMemories = list.stream()
+                            .map(this::mapToDTO)
+                            .collect(Collectors.toList());
+                            
+                    List<MemoryDTO<?>> allMemories = new ArrayList<>(dbMemories);
+                    
+                    instantMessages.forEach((brand, memories) -> {
+                        List<MemoryDTO<?>> instantMessageDTOs = memories.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                        allMemories.addAll(instantMessageDTOs);
+                    });
+                    
+                    return allMemories.stream()
+                            .skip(offset)
+                            .limit(limit)
+                            .collect(Collectors.toList());
+                });
     }
 
     public Uni<List<MemoryDTO<?>>> getByBrandId(String brand, int limit, int offset) {
         return repository.getByBrandId(brand, limit, offset)
-                .map(list -> list.stream()
-                        .map(this::mapToDTO)
-                        .collect(Collectors.toList()));
+                .map(list -> {
+                    List<MemoryDTO<?>> dbMemories = list.stream()
+                            .map(this::mapToDTO)
+                            .collect(Collectors.toList());
+                            
+                    List<MemoryDTO<?>> allMemories = new ArrayList<>(dbMemories);
+                    
+                    List<Memory> brandMessages = instantMessages.getOrDefault(brand, List.of());
+                    List<MemoryDTO<?>> instantMessageDTOs = brandMessages.stream()
+                            .map(this::mapToDTO)
+                            .collect(Collectors.toList());
+                    allMemories.addAll(instantMessageDTOs);
+                    
+                    return allMemories.stream()
+                            .skip(offset)
+                            .limit(limit)
+                            .collect(Collectors.toList());
+                });
     }
 
     public Uni<MemoryDTO<?>> getDTO(UUID id, IUser user, LanguageCode code) {
@@ -114,7 +169,6 @@ public class MemoryService {
                         AudienceContext audienceContext = new AudienceContext();
                         audienceContext.setName(profile.getName());
                         audienceContext.setDescription(profile.getDescription());
-                        //TODO need to consider timezone
                         audienceContext.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
                         Memory entity = new Memory();
                         entity.setBrand(brand);
@@ -122,19 +176,43 @@ public class MemoryService {
                         entity.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray().add(audienceContext)));
                         return List.of(mapToDTO(entity));
                     });
+            case INSTANT_MESSAGE -> {
+                List<Memory> messages = instantMessages.getOrDefault(brand, List.of());
+                if (messages.isEmpty()) {
+                    Memory entity = new Memory();
+                    entity.setBrand(brand);
+                    entity.setMemoryType(MemoryType.INSTANT_MESSAGE);
+                    entity.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray()));
+                    yield Uni.createFrom().item(List.of(mapToDTO(entity)));
+                }
+                yield Uni.createFrom().item(messages.stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList()));
+            }
             default -> throw new IllegalArgumentException("Unsupported memory type: " + memoryType);
         };
     }
 
     public Uni<MemoryDTO<?>> upsert(String id, MemoryDTO<?> dto, IUser user) {
-        Memory entity = buildEntity(dto);
-        Uni<Memory> operation;
-        if (id == null) {
-            operation = repository.insert(entity, user);
+        if (dto.getMemoryType() == MemoryType.INSTANT_MESSAGE) {
+            return storeInstantMessage(dto.getBrand(), (JsonObject) dto.getContent())
+                    .onItem().transform(v -> {
+                        Memory memory = new Memory();
+                        memory.setBrand(dto.getBrand());
+                        memory.setMemoryType(MemoryType.INSTANT_MESSAGE);
+                        memory.setContent((JsonObject) dto.getContent());
+                        return mapToDTO(memory);
+                    });
         } else {
-            operation = repository.update(UUID.fromString(id), entity, user);
+            Memory entity = buildEntity(dto);
+            Uni<Memory> operation;
+            if (id == null) {
+                operation = repository.insert(entity, user);
+            } else {
+                operation = repository.update(UUID.fromString(id), entity, user);
+            }
+            return operation.map(this::mapToDTO);
         }
-        return operation.map(this::mapToDTO);
     }
 
     public Uni<Integer> patch(String brand, SongIntroductionDTO dto, IUser user) {
@@ -147,6 +225,38 @@ public class MemoryService {
 
     public Uni<Integer> deleteByBrand(String brand) {
         return repository.deleteByBrand(brand);
+    }
+
+    public Uni<Void> storeInstantMessage(String brand, JsonObject message) {
+        return Uni.createFrom().voidItem()
+                .invoke(() -> {
+                    Memory memory = new Memory();
+                    memory.setBrand(brand);
+                    memory.setMemoryType(MemoryType.INSTANT_MESSAGE);
+                    memory.setContent(message);
+                    
+                    instantMessages.compute(brand, (key, messages) -> {
+                        List<Memory> messageList = messages != null ? 
+                                new ArrayList<>(messages) : 
+                                new ArrayList<>();
+                        messageList.add(memory);
+                        return messageList;
+                    });
+                });
+    }
+
+    public Uni<List<Memory>> retrieveAndRemoveInstantMessages(String brand) {
+        return Uni.createFrom().item(() -> {
+            List<Memory> messages = instantMessages.remove(brand);
+            return messages != null ? messages : List.of();
+        });
+    }
+
+    public Uni<List<Memory>> peekInstantMessages(String brand) {
+        return Uni.createFrom().item(() -> {
+            List<Memory> messages = instantMessages.get(brand);
+            return messages != null ? new ArrayList<>(messages) : List.of();
+        });
     }
 
     private Memory buildEntity(MemoryDTO<?> dto) {

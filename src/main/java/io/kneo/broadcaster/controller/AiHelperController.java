@@ -37,6 +37,7 @@ public class AiHelperController {
         router.route("/api/ai/*").handler(BodyHandler.create());
         router.get("/api/ai/brands/status").handler(this::getBrandsByStatus);
         router.get("/api/ai/memory/:brand/:type").handler(this::getMemoriesByType);
+        router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
         router.patch("/api/ai/memory/history/brand/:brand").handler(this::patch);
     }
 
@@ -164,5 +165,30 @@ public class AiHelperController {
     }
 
     private record PatchParams(String brand, SongIntroductionDTO dto) {
+    }
+    
+    private void consumeInstantMessages(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        if (brand == null || brand.trim().isEmpty()) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Brand parameter is required");
+            return;
+        }
+        
+        memoryService.retrieveAndRemoveInstantMessages(brand)
+                .subscribe().with(
+                        messages -> rc.response()
+                                .putHeader("Content-Type", "application/json")
+                                .end(Json.encode(messages)),
+                        throwable -> {
+                            LOGGER.error("Error consuming instant messages for brand: " + brand, throwable);
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end("An error occurred while retrieving instant messages");
+                        }
+                );
     }
 }

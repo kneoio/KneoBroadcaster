@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 public class RadioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
     private final RadioService service;
+    private static final String[] SUPPORTED_MIXPLA_VERSIONS = {"2.4.6", "2.4.7", "2.5.0", "2.5.1"};
 
     @Inject
     public RadioController(RadioService service) {
@@ -35,10 +36,9 @@ public class RadioController {
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
         router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
 
-        router.route(HttpMethod.GET, "/radio/stations").handler(this::getStations);
-        router.route(HttpMethod.GET, "/radio/all-stations").handler(this::getAllStations);
+        router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
+        router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
 
-        LOGGER.info("RadioController setupRoutes completed - added /radio/stations route");
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -194,5 +194,43 @@ public class RadioController {
                                     .end("Failed to get all stations: " + throwable.getMessage());
                         }
                 );
+    }
+
+    private void validateMixplaAccess(RoutingContext rc) {
+        String userAgent = rc.request().getHeader("User-Agent");
+        String referer = rc.request().getHeader("Referer");
+        String clientId = rc.request().getHeader("X-Client-ID");
+
+        if (userAgent != null && isValidMixplaUserAgent(userAgent)) {
+            rc.next();
+            return;
+        }
+
+        if (referer != null && referer.contains("kneo.io/mixpla") && clientId != null && clientId.equals("mixpla-web")) {
+            rc.next();
+            return;
+        }
+
+        LOGGER.warn("Invalid Mixpla access from IP: {}", rc.request().remoteAddress());
+        rc.response()
+                .setStatusCode(403)
+                .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                .end("Access denied");
+    }
+
+    private boolean isValidMixplaUserAgent(String userAgent) {
+        if (!userAgent.startsWith("Mixpla/")) {
+            return false;
+        }
+
+        String version = userAgent.substring(7);
+        for (String supportedVersion : SUPPORTED_MIXPLA_VERSIONS) {
+            if (supportedVersion.equals(version)) {
+                return true;
+            }
+        }
+
+        LOGGER.warn("Unsupported Mixpla version: {}", version);
+        return false;
     }
 }

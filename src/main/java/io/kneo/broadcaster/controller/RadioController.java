@@ -205,8 +205,10 @@ public class RadioController {
             rc.next();
             return;
         }
-
-        if (referer != null && referer.equals("https://kneo.io/") && clientId != null && clientId.equals("mixpla-web")) {
+        //TODO differnet
+        if (referer != null &&
+                (referer.equals("https://kneo.io/") || referer.equals("http://localhost:8090/"))  &&
+                clientId != null && clientId.equals("mixpla-web")) {
             rc.next();
             return;
         }

@@ -12,14 +12,5 @@ import lombok.Setter;
 public class InstantMessageDTO {
     private String content;
     private String sender;
-    private String timestamp;
-    private String location;
-    private String reactionPriority;
 }
-
-// MemoryDTO<Map<String, LocationDTO>> listeners;
-// MemoryDTO<AudienceContextDTO> audienceContext;
-// MemoryDTO<List<ConversationHistoryDTO>> conversationHistory;
-// MemoryDTO<List<EventDTO>> events;
-// MemoryDTO<List<InstantMessageDTO>> instantMessages;
 

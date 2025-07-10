@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.memory.ListenerContext;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -79,79 +80,90 @@ public class MemoryService {
         });
     }
 
-    public Uni<List<MemoryDTO<?>>> getByType(String brand, String type, IUser user) {
-        MemoryType memoryType = MemoryType.valueOf(type);
+    public Uni<JsonObject> getByType(String brand, String... types) {
+        JsonObject result = new JsonObject();
+        List<Uni<Void>> uniList = new ArrayList<>();
 
-        return switch (memoryType) {
-            case CONVERSATION_HISTORY -> Uni.createFrom().item(() -> {
-                ConcurrentMap<MemoryType, List<MemoryDTO<?>>> brandMap = memories.get(brand);
-                if (brandMap == null) {
-                    MemoryDTO<JsonObject> emptyMemory = new MemoryDTO<>();
-                    emptyMemory.setBrand(brand);
-                    emptyMemory.setMemoryType(MemoryType.CONVERSATION_HISTORY);
-                    emptyMemory.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray()));
-                    emptyMemory.setRegDate(ZonedDateTime.now());
-                    emptyMemory.setLastModifiedDate(ZonedDateTime.now());
-                    return List.of(emptyMemory);
+        for (String type : types) {
+            MemoryType memoryType = MemoryType.valueOf(type);
+
+            switch (memoryType) {
+                case CONVERSATION_HISTORY -> {
+                    ConcurrentMap<MemoryType, List<MemoryDTO<?>>> brandMap = memories.get(brand);
+                    if (brandMap != null) {
+                        List<MemoryDTO<?>> memories = brandMap.get(MemoryType.CONVERSATION_HISTORY);
+                        if (memories != null) {
+                            JsonArray introductions = new JsonArray();
+                            memories.forEach(memory -> {
+                                JsonObject content = (JsonObject) memory.getContent();
+                                if (content.containsKey("introductions")) {
+                                    JsonArray memoryIntroductions = content.getJsonArray("introductions");
+                                    memoryIntroductions.forEach(introductions::add);
+                                }
+                            });
+                            result.put("introductions", introductions);
+                        }
+                    }
+                    if (!result.containsKey("introductions")) {
+                        result.put("introductions", new JsonArray());
+                    }
                 }
-                List<MemoryDTO<?>> memories = brandMap.get(MemoryType.CONVERSATION_HISTORY);
-                return memories != null ? memories : List.of();
-            });
-            case LISTENER_CONTEXTS -> listenerService.getBrandListenersEntities(brand, 1000, 0, user)
-                    .map(brandListeners -> {
-                        List<ListenerContext> listeners = brandListeners.stream()
-                                .map(bl -> {
-                                    ListenerContext context = new ListenerContext();
-                                    context.setName(bl.getListener().getLocalizedName().get(LanguageCode.en));
-                                    String nickname = bl.getListener().getNickName().get(LanguageCode.en);
-                                    if (nickname != null) {
-                                        context.setNickname(nickname);
-                                    }
-                                    context.setLocation(bl.getListener().getCountry().getCountryName());
-                                    return context;
-                                })
-                                .collect(Collectors.toList());
+                case LISTENER_CONTEXTS -> {
+                    Uni<Void> listenerUni = listenerService.getBrandListenersEntities(brand, 1000, 0, SuperUser.build())
+                            .map(brandListeners -> {
+                                List<ListenerContext> listeners = brandListeners.stream()
+                                        .map(bl -> {
+                                            ListenerContext context = new ListenerContext();
+                                            context.setName(bl.getListener().getLocalizedName().get(LanguageCode.en));
+                                            String nickname = bl.getListener().getNickName().get(LanguageCode.en);
+                                            if (nickname != null) {
+                                                context.setNickname(nickname);
+                                            }
+                                            context.setLocation(bl.getListener().getCountry().getCountryName());
+                                            return context;
+                                        })
+                                        .collect(Collectors.toList());
 
-                        MemoryDTO<JsonObject> memoryDTO = new MemoryDTO<>();
-                        memoryDTO.setBrand(brand);
-                        memoryDTO.setMemoryType(MemoryType.LISTENER_CONTEXTS);
-                        memoryDTO.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray(listeners)));
-                        memoryDTO.setRegDate(ZonedDateTime.now());
-                        memoryDTO.setLastModifiedDate(ZonedDateTime.now());
-
-                        return List.of(memoryDTO);
-                    });
-            case AUDIENCE_CONTEXT -> radioStationService.findByBrandName(brand)
-                    .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
-                    .map(profile -> {
-                        AudienceContext audienceContext = new AudienceContext();
-                        audienceContext.setName(profile.getName());
-                        audienceContext.setDescription(profile.getDescription());
-                        audienceContext.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
-                        MemoryDTO<JsonObject> memoryDTO = new MemoryDTO<>();
-                        memoryDTO.setBrand(brand);
-                        memoryDTO.setMemoryType(MemoryType.AUDIENCE_CONTEXT);
-                        memoryDTO.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray().add(audienceContext)));
-                        memoryDTO.setRegDate(ZonedDateTime.now());
-                        memoryDTO.setLastModifiedDate(ZonedDateTime.now());
-                        return List.of(memoryDTO);
-                    });
-            case INSTANT_MESSAGE -> {
-                ConcurrentMap<MemoryType, List<MemoryDTO<?>>> brandMap = memories.get(brand);
-                if (brandMap == null) {
-                    MemoryDTO<JsonObject> emptyMemory = new MemoryDTO<>();
-                    emptyMemory.setBrand(brand);
-                    emptyMemory.setMemoryType(MemoryType.INSTANT_MESSAGE);
-                    emptyMemory.setContent(new JsonObject().put(memoryType.getValue(), new JsonArray()));
-                    emptyMemory.setRegDate(ZonedDateTime.now());
-                    emptyMemory.setLastModifiedDate(ZonedDateTime.now());
-                    yield Uni.createFrom().item(List.of(emptyMemory));
+                                result.put("listeners", new JsonArray(listeners));
+                                return null;
+                            });
+                    uniList.add(listenerUni);
                 }
-                List<MemoryDTO<?>> messages = brandMap.get(MemoryType.INSTANT_MESSAGE);
-                yield Uni.createFrom().item(messages != null ? messages : List.of());
+                case AUDIENCE_CONTEXT -> {
+                    Uni<Void> audienceUni = radioStationService.findByBrandName(brand)
+                            .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
+                            .map(profile -> {
+                                AudienceContext audienceContext = new AudienceContext();
+                                audienceContext.setName(profile.getName());
+                                audienceContext.setDescription(profile.getDescription());
+                                audienceContext.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
+
+                                result.put("environment", new JsonArray().add(audienceContext));
+                                return null;
+                            });
+                    uniList.add(audienceUni);
+                }
+                case INSTANT_MESSAGE -> {
+                    ConcurrentMap<MemoryType, List<MemoryDTO<?>>> brandMap = memories.get(brand);
+                    if (brandMap != null) {
+                        List<MemoryDTO<?>> messages = brandMap.get(MemoryType.INSTANT_MESSAGE);
+                        if (messages != null && !messages.isEmpty()) {
+                            MemoryDTO<?> latestMessage = messages.get(messages.size() - 1);
+                            result.put("message", latestMessage.getContent());
+                        }
+                    }
+                    if (!result.containsKey("message")) {
+                        result.put("message", new JsonObject());
+                    }
+                }
             }
-            default -> throw new IllegalArgumentException("Unsupported memory type: " + memoryType);
-        };
+        }
+
+        if (uniList.isEmpty()) {
+            return Uni.createFrom().item(result);
+        }
+
+        return Uni.combine().all().unis(uniList).combinedWith(results -> result);
     }
 
     public Uni<MemoryDTO<?>> upsert(String id, MemoryDTO<?> dto, IUser user) {
@@ -236,8 +248,6 @@ public class MemoryService {
         });
     }
 
-
-
     public Uni<List<MemoryDTO<?>>> retrieveAndRemoveInstantMessages(String brand) {
         return Uni.createFrom().item(() -> {
             ConcurrentMap<MemoryType, List<MemoryDTO<?>>> brandMap = memories.get(brand);
@@ -259,8 +269,6 @@ public class MemoryService {
             return List.of();
         });
     }
-
-
 
     private List<MemoryDTO<?>> flattenMemories() {
         List<MemoryDTO<?>> allMemories = new ArrayList<>();

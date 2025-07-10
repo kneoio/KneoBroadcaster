@@ -163,7 +163,7 @@ public class MemoryService {
             return Uni.createFrom().item(result);
         }
 
-        return Uni.combine().all().unis(uniList).combinedWith(results -> result);
+        return Uni.combine().all().unis(uniList).with(results -> result);
     }
 
     public Uni<MemoryDTO<?>> upsert(String id, MemoryDTO<?> dto, IUser user) {
@@ -183,7 +183,7 @@ public class MemoryService {
                     List<MemoryDTO<?>> memoryList = list != null ?
                             new LinkedList<>(list) : new LinkedList<>();
                     if (dto.getMemoryType() == MemoryType.INSTANT_MESSAGE) {
-                        memoryList.clear(); // Remove all existing messages
+                        memoryList.clear();
                     }
 
                     memoryList.add(dto);
@@ -200,7 +200,7 @@ public class MemoryService {
         });
     }
 
-    public Uni<Integer> patch(String brand, SongIntroductionDTO dto, IUser user) {
+    public Uni<Integer> updateHistory(String brand, SongIntroductionDTO dto, IUser user) {
         return Uni.createFrom().item(() -> {
             MemoryDTO<JsonObject> memory = new MemoryDTO<>();
             memory.setId(UUID.randomUUID());
@@ -267,6 +267,17 @@ public class MemoryService {
                 return messages != null ? new ArrayList<>(messages) : List.of();
             }
             return List.of();
+        });
+    }
+
+    public Uni<Integer> resetInstantMessages(String brand) {
+        return Uni.createFrom().item(() -> {
+            ConcurrentMap<MemoryType, List<MemoryDTO<?>>> brandMap = memories.get(brand);
+            if (brandMap != null) {
+                List<MemoryDTO<?>> removedMessages = brandMap.remove(MemoryType.INSTANT_MESSAGE);
+                return removedMessages != null ? removedMessages.size() : 0;
+            }
+            return 0;
         });
     }
 

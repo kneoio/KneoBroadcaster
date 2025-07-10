@@ -38,7 +38,8 @@ public class AiHelperController {
         router.get("/api/ai/brands/status").handler(this::getBrandsByStatus);
         router.get("/api/ai/memory/:brand").handler(this::getMemoriesByType);
         router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
-        router.patch("/api/ai/memory/history/brand/:brand").handler(this::patch);
+        router.patch("/api/ai/memory/history/brand/:brand").handler(this::patchHistory);
+        router.patch("/api/ai/memory/messages/reset/:brand").handler(this::resetInstantMessages);
     }
 
     private void getBrandsByStatus(RoutingContext rc) {
@@ -125,25 +126,9 @@ public class AiHelperController {
                 );
     }
 
-    private Uni<MemoryParams> parseMemoryParameters(RoutingContext rc) {
-        return Uni.createFrom().item(() -> {
-            String brand = rc.pathParam("brand");
-            String type = rc.pathParam("type");
-
-            if (brand == null || brand.trim().isEmpty()) {
-                throw new IllegalArgumentException("Brand parameter is required");
-            }
-            if (type == null || type.trim().isEmpty()) {
-                throw new IllegalArgumentException("Type parameter is required");
-            }
-
-            return new MemoryParams(brand, type);
-        });
-    }
-
-    private void patch(RoutingContext rc) {
+    private void patchHistory(RoutingContext rc) {
         parsePatchParameters(rc)
-                .chain(params -> memoryService.patch(params.brand, params.dto, SuperUser.build()))
+                .chain(params -> memoryService.updateHistory(params.brand, params.dto, SuperUser.build()))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(200).end(),
                         throwable -> {
@@ -180,9 +165,6 @@ public class AiHelperController {
         });
     }
 
-    private record MemoryParams(String brand, String type) {
-    }
-
     private record PatchParams(String brand, SongIntroductionDTO dto) {
     }
 
@@ -207,6 +189,31 @@ public class AiHelperController {
                                     .setStatusCode(500)
                                     .putHeader("Content-Type", "text/plain")
                                     .end("An error occurred while retrieving instant messages");
+                        }
+                );
+    }
+
+    private void resetInstantMessages(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        if (brand == null || brand.trim().isEmpty()) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Brand parameter is required");
+            return;
+        }
+
+        memoryService.resetInstantMessages(brand)
+                .subscribe().with(
+                        removedCount -> rc.response()
+                                .putHeader("Content-Type", "application/json")
+                                .end(Json.encode(new JsonObject().put("removedCount", removedCount))),
+                        throwable -> {
+                            LOGGER.error("Error resetting instant messages for brand: {}", brand, throwable);
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end("An error occurred while resetting instant messages");
                         }
                 );
     }

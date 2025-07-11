@@ -3,6 +3,7 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -37,8 +38,8 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.R
 
 
 @ApplicationScoped
-public class RadioStationRepository extends AsyncRepository {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
+public class RadioStationRepository extends AsyncRepository implements SchedulableRepository<RadioStation>{
+private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
     private static final EntityData brandStats = KneoBroadcasterNameResolver.create().getEntityNames(BRAND_STATS);
 
@@ -182,7 +183,7 @@ public class RadioStationRepository extends AsyncRepository {
                         .addString(station.getManagedBy().name())
                         .addString(station.getColor())
                         .addJsonObject(localizedNameJson)
-                        .addValue(JsonObject.of())
+                        .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getSchedule())))
                         .addString(station.getSlugName())
                         .addString(station.getDescription())
                         .addUUID(station.getProfileId())
@@ -242,7 +243,7 @@ public class RadioStationRepository extends AsyncRepository {
                                     .addString(station.getManagedBy().name())
                                     .addString(station.getColor())
                                     .addValue(localizedNameJson)
-                                    .addValue(station.getSchedule() != null ? mapper.valueToTree(station.getSchedule()) : null)
+                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getSchedule())))
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())
                                     .addUUID(station.getProfileId())
@@ -339,6 +340,20 @@ public class RadioStationRepository extends AsyncRepository {
                 });
     }
 
+    @Override
+    public Uni<List<RadioStation>> findActiveScheduled() {
+        String sql = "SELECT * FROM " + entityData.getTableName() +
+                " WHERE archived = 0 AND schedule IS NOT NULL";
+
+        return client.query(sql)
+                .execute()
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled radio stations", throwable))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .select().where(RadioStation::isScheduleActive)
+                .collect().asList();
+    }
+
     private RadioStation from(Row row) {
         RadioStation doc = new RadioStation();
         setDefaultFields(doc, row);
@@ -357,9 +372,18 @@ public class RadioStationRepository extends AsyncRepository {
         doc.setColor(row.getString("color"));
         doc.setDescription(row.getString("description"));
 
+
         JsonObject scheduleJson = row.getJsonObject("schedule");
         if (scheduleJson != null) {
-            // doc.setSchedule(scheduleJson.getMap());
+            try {
+                JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
+                if (scheduleData != null) {
+                    Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
+                    doc.setSchedule(schedule);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Failed to parse schedule JSON for radio station: {}", row.getUUID("id"), e);
+            }
         }
 
         UUID aiAgentId = row.getUUID("ai_agent_id");

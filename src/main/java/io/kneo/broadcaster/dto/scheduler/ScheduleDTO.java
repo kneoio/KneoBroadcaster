@@ -1,12 +1,13 @@
-package io.kneo.broadcaster.model.scheduler;
+package io.kneo.broadcaster.dto.scheduler;
 
 import lombok.Getter;
 import lombok.Setter;
+
 import java.util.List;
 
 @Setter
 @Getter
-public class Schedule {
+public class ScheduleDTO {
     private String timezone;
-    private List<Task> tasks;
+    private List<TaskDTO> tasks;
 }

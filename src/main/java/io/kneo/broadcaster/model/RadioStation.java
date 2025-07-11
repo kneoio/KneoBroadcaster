@@ -3,7 +3,8 @@ package io.kneo.broadcaster.model;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.scheduler.ScheduleWrapper;
+import io.kneo.broadcaster.model.scheduler.Schedulable;
+import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -18,14 +19,13 @@ import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 @Setter
 @Getter
 @NoArgsConstructor
-public class RadioStation extends SecureDataEntity<UUID> {
+public class RadioStation extends SecureDataEntity<UUID> implements Schedulable {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private IStreamManager playlist;
     private int listenersCount;
@@ -36,7 +36,7 @@ public class RadioStation extends SecureDataEntity<UUID> {
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
     private String description;
-    private Map<String, ScheduleWrapper> schedule;
+    private Schedule schedule;
     private UUID aiAgentId;
     private UUID profileId;
     private RadioStationStatus status;

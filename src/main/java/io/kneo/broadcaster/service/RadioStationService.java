@@ -2,7 +2,17 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.RadioStationDTO;
+import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
+import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
+import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
+import io.kneo.broadcaster.dto.scheduler.TaskDTO;
+import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.scheduler.OnceTrigger;
+import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
+import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Task;
+import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -135,6 +145,52 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setAiAgentId(doc.getAiAgentId());
             dto.setProfileId(doc.getProfileId());
 
+            if (doc.getSchedule() != null) {
+                ScheduleDTO scheduleDTO = new ScheduleDTO();
+                Schedule schedule = doc.getSchedule();
+                scheduleDTO.setTimezone(schedule.getTimezone());
+
+                if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
+                    List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
+                        TaskDTO taskDTO = new TaskDTO();
+                        taskDTO.setType(task.getType());
+                        taskDTO.setTarget(task.getTarget());
+                        taskDTO.setTriggerType(task.getTriggerType());
+
+                        if (task.getOnceTrigger() != null) {
+                            OnceTriggerDTO onceTriggerDTO = new OnceTriggerDTO();
+                            onceTriggerDTO.setStartTime(task.getOnceTrigger().getStartTime());
+                            onceTriggerDTO.setDuration(task.getOnceTrigger().getDuration());
+                            onceTriggerDTO.setWeekdays(task.getOnceTrigger().getWeekdays());
+                            taskDTO.setOnceTrigger(onceTriggerDTO);
+                        }
+
+                        if (task.getTimeWindowTrigger() != null) {
+                            TimeWindowTriggerDTO timeWindowTriggerDTO = new TimeWindowTriggerDTO();
+                            timeWindowTriggerDTO.setStartTime(task.getTimeWindowTrigger().getStartTime());
+                            timeWindowTriggerDTO.setEndTime(task.getTimeWindowTrigger().getEndTime());
+                            timeWindowTriggerDTO.setWeekdays(task.getTimeWindowTrigger().getWeekdays());
+                            taskDTO.setTimeWindowTrigger(timeWindowTriggerDTO);
+                        }
+
+                        if (task.getPeriodicTrigger() != null) {
+                            PeriodicTriggerDTO periodicTriggerDTO = new PeriodicTriggerDTO();
+                            periodicTriggerDTO.setStartTime(task.getPeriodicTrigger().getStartTime());
+                            periodicTriggerDTO.setEndTime(task.getPeriodicTrigger().getEndTime());
+                            periodicTriggerDTO.setInterval(task.getPeriodicTrigger().getInterval());
+                            periodicTriggerDTO.setWeekdays(task.getPeriodicTrigger().getWeekdays());
+                            taskDTO.setPeriodicTrigger(periodicTriggerDTO);
+                        }
+
+                        return taskDTO;
+                    }).collect(Collectors.toList());
+
+                    scheduleDTO.setTasks(taskDTOs);
+                }
+
+                dto.setSchedule(scheduleDTO);
+            }
+
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
@@ -158,9 +214,58 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         entity.setDescription(dto.getDescription());
         entity.setTimeZone(ZoneId.of(dto.getTimeZone()));
         entity.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
-        entity.setDescription(dto.getDescription());
         entity.setAiAgentId(dto.getAiAgentId());
         entity.setProfileId(dto.getProfileId());
+
+        if (dto.getSchedule() != null) {
+            Schedule schedule = new Schedule();
+            ScheduleDTO scheduleDTO = dto.getSchedule();
+            schedule.setTimezone(scheduleDTO.getTimezone());
+
+            if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
+                List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
+                    Task task = new Task();
+                    task.setType(taskDTO.getType());
+                    task.setTarget(taskDTO.getTarget());
+                    task.setTriggerType(taskDTO.getTriggerType());
+
+                    if (taskDTO.getOnceTrigger() != null) {
+                        OnceTrigger onceTrigger = new OnceTrigger();
+                        OnceTriggerDTO onceTriggerDTO = taskDTO.getOnceTrigger();
+                        onceTrigger.setStartTime(onceTriggerDTO.getStartTime());
+                        onceTrigger.setDuration(onceTriggerDTO.getDuration());
+                        onceTrigger.setWeekdays(onceTriggerDTO.getWeekdays());
+                        task.setOnceTrigger(onceTrigger);
+                    }
+
+                    if (taskDTO.getTimeWindowTrigger() != null) {
+                        TimeWindowTrigger timeWindowTrigger = new TimeWindowTrigger();
+                        TimeWindowTriggerDTO timeWindowTriggerDTO = taskDTO.getTimeWindowTrigger();
+                        timeWindowTrigger.setStartTime(timeWindowTriggerDTO.getStartTime());
+                        timeWindowTrigger.setEndTime(timeWindowTriggerDTO.getEndTime());
+                        timeWindowTrigger.setWeekdays(timeWindowTriggerDTO.getWeekdays());
+                        task.setTimeWindowTrigger(timeWindowTrigger);
+                    }
+
+                    if (taskDTO.getPeriodicTrigger() != null) {
+                        PeriodicTrigger periodicTrigger = new PeriodicTrigger();
+                        PeriodicTriggerDTO periodicTriggerDTO = taskDTO.getPeriodicTrigger();
+                        periodicTrigger.setStartTime(periodicTriggerDTO.getStartTime());
+                        periodicTrigger.setEndTime(periodicTriggerDTO.getEndTime());
+                        periodicTrigger.setInterval(periodicTriggerDTO.getInterval());
+                        periodicTrigger.setWeekdays(periodicTriggerDTO.getWeekdays());
+                        task.setPeriodicTrigger(periodicTrigger);
+                    }
+
+                    return task;
+                }).collect(Collectors.toList());
+
+                schedule.setTasks(tasks);
+            }
+
+            entity.setSchedule(schedule);
+        }
+
         return entity;
     }
 

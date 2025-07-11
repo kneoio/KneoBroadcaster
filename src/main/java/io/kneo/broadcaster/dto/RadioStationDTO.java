@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -36,8 +37,8 @@ public class RadioStationDTO extends AbstractDTO {
     private String timeZone;
     private String color;
     private String description;
+    private ScheduleDTO schedule;
     private Integer archived;
-    private int listenersCount;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
     private UUID aiAgentId;
     private UUID profileId;

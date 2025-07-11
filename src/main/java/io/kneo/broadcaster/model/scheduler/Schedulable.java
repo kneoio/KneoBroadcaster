@@ -6,7 +6,4 @@ public interface Schedulable {
     Schedule getSchedule();
     UUID getId();
 
-    default boolean isScheduleActive() {
-        return getSchedule() != null && getSchedule().getTasks() != null && !getSchedule().getTasks().isEmpty();
-    }
 }

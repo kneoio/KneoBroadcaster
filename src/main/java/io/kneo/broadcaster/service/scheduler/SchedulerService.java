@@ -55,7 +55,7 @@ public class SchedulerService {
     }
 
     private Uni<Void> processEntitySchedule(Schedulable entity) {
-        if (!entity.isScheduleActive()) {
+        if (!entity.getSchedule().isEnabled()) {
             return Uni.createFrom().voidItem();
         }
 
@@ -80,7 +80,6 @@ public class SchedulerService {
     }
 
     private boolean isTaskDue(Task task, String currentTime, String currentDay, LocalDateTime now) {
-        // Check if task applies to current day
         if (hasWeekdayFilter(task) && !isCurrentDayIncluded(task, currentDay)) {
             return false;
         }

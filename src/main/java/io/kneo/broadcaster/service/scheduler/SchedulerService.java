@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -37,24 +36,22 @@ public class SchedulerService {
                 .every(CHECK_INTERVAL)
                 .onOverflow().drop()
                 .subscribe().with(
-                        this::processAllSchedules,
+                        tick -> {
+                            LOGGER.debug("Processing schedules at tick: {}", tick);
+
+                            repositoryRegistry.getRepositories().forEach(repository ->
+                                    repository.findActiveScheduled()
+                                            .onItem().transformToMulti(Multi.createFrom()::iterable)
+                                            .onItem().call(this::processEntitySchedule)
+                                            .collect().asList()
+                                            .subscribe().with(
+                                                    results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
+                                                    throwable -> LOGGER.error("Failed to process schedules", throwable)
+                                            )
+                            );
+                        },
                         throwable -> LOGGER.error("Scheduler execution failed", throwable)
                 );
-    }
-
-    private void processAllSchedules(Long tick) {
-        LOGGER.debug("Processing schedules at tick: {}", tick);
-
-        repositoryRegistry.getRepositories().forEach(repository ->
-                repository.findActiveScheduled()
-                        .onItem().transformToMulti(Multi.createFrom()::iterable)
-                        .onItem().call(this::processEntitySchedule)
-                        .collect().asList()
-                        .subscribe().with(
-                                results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
-                                throwable -> LOGGER.error("Failed to process schedules", throwable)
-                        )
-        );
     }
 
     private Uni<Void> processEntitySchedule(Schedulable entity) {
@@ -62,7 +59,7 @@ public class SchedulerService {
             return Uni.createFrom().voidItem();
         }
 
-        LocalDateTime now = LocalDateTime.now(ZoneId.of(entity.getSchedule().getTimezone()));
+        LocalDateTime now = LocalDateTime.now(entity.getSchedule().getTimeZone());
         String currentTime = now.format(DateTimeFormatter.ofPattern("HH:mm"));
         String currentDay = now.getDayOfWeek().name();
 
@@ -182,3 +179,4 @@ public class SchedulerService {
                                 task.getType(), entity.getId(), throwable));
     }
 }
+

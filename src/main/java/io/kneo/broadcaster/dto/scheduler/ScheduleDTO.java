@@ -8,6 +8,6 @@ import java.util.List;
 @Setter
 @Getter
 public class ScheduleDTO {
-    private String timezone;
+    private boolean isEnabled;
     private List<TaskDTO> tasks;
 }

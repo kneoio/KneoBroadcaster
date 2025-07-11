@@ -137,7 +137,7 @@ public class PlaylistManager {
                                     READY_QUEUE_MAX_SIZE);
                             return Uni.createFrom().item(false);
                         } else {
-                            radioStation.setStatus(RadioStationStatus.ON_LINE_WELL);
+                            radioStation.setStatus(RadioStationStatus.ON_LINE);
                             radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
                         }
 

@@ -85,7 +85,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     }
 
     private boolean isAliveStatus(RadioStationStatus status) {
-        return status == RadioStationStatus.ON_LINE || status == RadioStationStatus.ON_LINE_WELL;
+        return status == RadioStationStatus.ON_LINE;
     }
 
     @Getter

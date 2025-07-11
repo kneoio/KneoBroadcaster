@@ -148,7 +148,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             if (doc.getSchedule() != null) {
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
                 Schedule schedule = doc.getSchedule();
-                scheduleDTO.setTimezone(schedule.getTimezone());
 
                 if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
                     List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
@@ -220,8 +219,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         if (dto.getSchedule() != null) {
             Schedule schedule = new Schedule();
             ScheduleDTO scheduleDTO = dto.getSchedule();
-            schedule.setTimezone(scheduleDTO.getTimezone());
-
             if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
                     Task task = new Task();

@@ -325,21 +325,6 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                 });
     }
 
-    public Uni<OffsetDateTime> findLastAccessTimeByBrand(String stationName) {
-        String sql = "SELECT last_access_time FROM " + brandStats.getTableName() + " WHERE station_name = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find last access time for: {}", stationName, throwable))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) {
-                        return iterator.next().getOffsetDateTime("last_access_time");
-                    } else {
-                        return null;
-                    }
-                });
-    }
-
     @Override
     public Uni<List<RadioStation>> findActiveScheduled() {
         String sql = "SELECT * FROM " + entityData.getTableName() +
@@ -379,6 +364,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                 JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
                 if (scheduleData != null) {
                     Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
+                    schedule.setTimeZone(doc.getTimeZone());
                     doc.setSchedule(schedule);
                 }
             } catch (Exception e) {

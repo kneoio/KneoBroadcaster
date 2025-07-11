@@ -43,7 +43,6 @@ public class DashboardService {
 
             stats.setOnlineStations((int) stations.stream()
                     .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE ||
-                            station.getStatus() == RadioStationStatus.ON_LINE_WELL ||
                             station.getStatus() == RadioStationStatus.IDLE)
                     .count());
 
@@ -53,7 +52,6 @@ public class DashboardService {
 
             List<StationEntry> stationStats = stations.stream()
                     .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE ||
-                            station.getStatus() == RadioStationStatus.ON_LINE_WELL ||
                             station.getStatus() == RadioStationStatus.WARMING_UP ||
                             station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                             station.getStatus() == RadioStationStatus.IDLE)

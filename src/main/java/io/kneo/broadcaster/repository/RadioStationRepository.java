@@ -335,7 +335,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled radio stations", throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
-                .select().where(RadioStation::isScheduleActive)
+                .select().where(r -> r.getSchedule().isEnabled())
                 .collect().asList();
     }
 

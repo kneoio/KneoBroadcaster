@@ -34,6 +34,7 @@ public class AiHelperService {
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
                         .filter(station -> statuses.contains(station.getStatus()))
+                        .filter(station -> !station.getSchedule().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).chain(stations -> {
             if (stations.isEmpty()) {

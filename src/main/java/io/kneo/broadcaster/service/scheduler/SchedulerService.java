@@ -2,10 +2,12 @@ package io.kneo.broadcaster.service.scheduler;
 
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Task;
+import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import jakarta.annotation.PostConstruct;
+import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import java.util.List;
 public class SchedulerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerService.class);
     private static final Duration CHECK_INTERVAL = Duration.ofMinutes(1);
+    private static final Duration INITIAL_DELAY = Duration.ofSeconds(30);
 
     @Inject
     SchedulableRepositoryRegistry repositoryRegistry;
@@ -27,31 +30,49 @@ public class SchedulerService {
     @Inject
     TaskExecutorRegistry taskExecutorRegistry;
 
-    @PostConstruct
-    void startScheduler() {
+    private Cancellable schedulerSubscription;
+
+    void onStart(@Observes StartupEvent event) {
         LOGGER.info("Starting scheduler service with {} second intervals", CHECK_INTERVAL.getSeconds());
+        startScheduler();
+    }
 
-        Multi.createFrom().ticks()
-                .startingAfter(Duration.ofSeconds(10))
-                .every(CHECK_INTERVAL)
-                .onOverflow().drop()
+    private void startScheduler() {
+        schedulerSubscription = getTicker()
+                .onItem().invoke(this::processSchedules)
+                .onFailure().invoke(error -> LOGGER.error("Scheduler execution failed", error))
                 .subscribe().with(
-                        tick -> {
-                            LOGGER.debug("Processing schedules at tick: {}", tick);
-
-                            repositoryRegistry.getRepositories().forEach(repository ->
-                                    repository.findActiveScheduled()
-                                            .onItem().transformToMulti(Multi.createFrom()::iterable)
-                                            .onItem().call(this::processEntitySchedule)
-                                            .collect().asList()
-                                            .subscribe().with(
-                                                    results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
-                                                    throwable -> LOGGER.error("Failed to process schedules", throwable)
-                                            )
-                            );
-                        },
-                        throwable -> LOGGER.error("Scheduler execution failed", throwable)
+                        item -> {},
+                        failure -> LOGGER.error("Scheduler subscription failed", failure)
                 );
+    }
+
+    private Multi<Long> getTicker() {
+        return Multi.createFrom().ticks()
+                .startingAfter(INITIAL_DELAY)
+                .every(CHECK_INTERVAL)
+                .onOverflow().drop();
+    }
+
+    public void stopScheduler() {
+        if (schedulerSubscription != null) {
+            schedulerSubscription.cancel();
+        }
+    }
+
+    private void processSchedules(Long tick) {
+        LOGGER.debug("Processing schedules at tick: {}", tick);
+
+        repositoryRegistry.getRepositories().forEach(repository ->
+                repository.findActiveScheduled()
+                        .onItem().transformToMulti(Multi.createFrom()::iterable)
+                        .onItem().call(this::processEntitySchedule)
+                        .collect().asList()
+                        .subscribe().with(
+                                results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
+                                throwable -> LOGGER.error("Failed to process schedules", throwable)
+                        )
+        );
     }
 
     private Uni<Void> processEntitySchedule(Schedulable entity) {
@@ -141,7 +162,6 @@ public class SchedulerService {
             return false;
         }
 
-        // Check if current time matches interval
         String interval = task.getPeriodicTrigger().getInterval();
         int intervalMinutes = parseInterval(interval);
 
@@ -150,13 +170,11 @@ public class SchedulerService {
     }
 
     private int parseInterval(String interval) {
-        // Parse interval like "30m", "1h", "2h30m"
         if (interval.endsWith("m")) {
             return Integer.parseInt(interval.substring(0, interval.length() - 1));
         } else if (interval.endsWith("h")) {
             return Integer.parseInt(interval.substring(0, interval.length() - 1)) * 60;
         }
-        // Default to 30 minutes if can't parse
         return 30;
     }
 
@@ -178,4 +196,3 @@ public class SchedulerService {
                                 task.getType(), entity.getId(), throwable));
     }
 }
-

@@ -1,0 +1,47 @@
+{
+  "schedule": {
+    "tasks": [
+      {
+        "type": "run_dj",
+        "target": "default",
+        "onceTrigger": null,
+        "triggerType": "TIME_WINDOW",
+        "periodicTrigger": null,
+        "timeWindowTrigger": {
+          "endTime": "10:00",
+          "weekdays": [
+            "MONDAY",
+            "TUESDAY",
+            "WEDNESDAY",
+            "THURSDAY",
+            "FRIDAY",
+            "SATURDAY",
+            "SUNDAY"
+          ],
+          "startTime": "09:00"
+        }
+      },
+      {
+        "type": "run_dj",
+        "target": "default",
+        "onceTrigger": null,
+        "triggerType": "TIME_WINDOW",
+        "periodicTrigger": null,
+        "timeWindowTrigger": {
+          "endTime": "00:00",
+          "weekdays": [
+            "MONDAY",
+            "TUESDAY",
+            "WEDNESDAY",
+            "THURSDAY",
+            "FRIDAY",
+            "SATURDAY",
+            "SUNDAY"
+          ],
+          "startTime": "23:00"
+        }
+      }
+    ],
+    "isEnabled": true
+  }
+}

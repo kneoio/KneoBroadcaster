@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class RadioStationPool {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationPool.class);
-
     private final ConcurrentHashMap<String, RadioStation> pool = new ConcurrentHashMap<>();
 
     @Inject
@@ -162,13 +161,15 @@ public class RadioStationPool {
         return Optional.ofNullable(pool.get(slugName));
     }
 
-    public Uni<BroadcastingStats> checkStatus(String name) {
+    public Uni<BroadcastingStats> getLiveStatus(String name) {
         BroadcastingStats stats = new BroadcastingStats();
         RadioStation radioStation = pool.get(name);
         if (radioStation != null) {
             stats.setStatus(radioStation.getStatus());
+            stats.setAiControlAllowed(radioStation.isAiControlAllowed());
         } else {
             stats.setStatus(RadioStationStatus.OFF_LINE);
+            stats.setAiControlAllowed(false);
         }
         return Uni.createFrom().item(stats);
     }

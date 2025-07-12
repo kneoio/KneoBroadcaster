@@ -8,6 +8,6 @@ import java.util.List;
 @Setter
 @Getter
 public class ScheduleDTO {
-    private boolean isEnabled;
+    private boolean enabled;
     private List<TaskDTO> tasks;
 }

@@ -1,11 +1,10 @@
 package io.kneo.broadcaster.dto.cnst;
 
 public enum RadioStationStatus {
-    OFF_LINE,
-    WARMING_UP,
-    ON_LINE,
-    ON_LINE_AUTONOMOUS,
-    WAITING_FOR_CURATOR,
-    IDLE,
-    SYSTEM_ERROR
+    OFF_LINE, //off-line
+    WARMING_UP, //started, in preparation stage
+    ON_LINE, // on-line streaming
+    WAITING_FOR_CURATOR, //on-line but waiting to be curated
+    IDLE, //on-line, no listeners
+    SYSTEM_ERROR //something happened
 }

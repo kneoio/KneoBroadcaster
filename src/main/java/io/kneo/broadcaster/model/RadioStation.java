@@ -28,7 +28,6 @@ import java.util.UUID;
 public class RadioStation extends SecureDataEntity<UUID> implements Schedulable {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private IStreamManager playlist;
-    private int listenersCount;
     private String slugName;
     private ZoneId timeZone;
     private Integer archived;
@@ -39,9 +38,12 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private Schedule schedule;
     private UUID aiAgentId;
     private UUID profileId;
+    //*transient**//
+    @Deprecated //???
     private RadioStationStatus status;
     private AiAgentStatus aiAgentStatus;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
+    private boolean AiControlAllowed;
 
     public void setStatus(RadioStationStatus newStatus) {
         if (this.status != newStatus) {

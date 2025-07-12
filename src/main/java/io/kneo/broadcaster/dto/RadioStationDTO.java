@@ -38,6 +38,7 @@ public class RadioStationDTO extends AbstractDTO {
     private String color;
     private String description;
     private ScheduleDTO schedule;
+    private boolean AiControlAllowed;
     private Integer archived;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
     private UUID aiAgentId;

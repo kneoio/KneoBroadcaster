@@ -357,7 +357,6 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
         doc.setColor(row.getString("color"));
         doc.setDescription(row.getString("description"));
 
-
         JsonObject scheduleJson = row.getJsonObject("schedule");
         if (scheduleJson != null) {
             try {

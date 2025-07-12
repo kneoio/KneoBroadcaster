@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class MemoryService {
 
-    private static final int MEMORY_RETENTION_HOURS = 24;
     private static final int MAX_ENTRIES_PER_TYPE = 5;
 
     @Inject

@@ -127,7 +127,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                radiostationPool.checkStatus(doc.getSlugName())
+                radiostationPool.getLiveStatus(doc.getSlugName())
         ).asTuple().map(tuple -> {
             RadioStationDTO dto = new RadioStationDTO();
             dto.setId(doc.getId());
@@ -200,6 +200,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             }
             dto.setArchived(doc.getArchived());
             dto.setStatus(tuple.getItem3().getStatus());
+            dto.setAiControlAllowed(tuple.getItem3().isAiControlAllowed());
             return dto;
         });
     }
@@ -220,11 +221,13 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         if (dto.getSchedule() != null) {
             Schedule schedule = new Schedule();
             ScheduleDTO scheduleDTO = dto.getSchedule();
+            schedule.setEnabled(scheduleDTO.isEnabled());
             if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
                     Task task = new Task();
                     task.setType(taskDTO.getType());
-                    task.setTarget(taskDTO.getTarget());
+                    //TODO always default for now
+                    task.setTarget("default");
                     task.setTriggerType(taskDTO.getTriggerType());
 
                     if (taskDTO.getOnceTrigger() != null) {
@@ -254,16 +257,12 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                         periodicTrigger.setWeekdays(periodicTriggerDTO.getWeekdays());
                         task.setPeriodicTrigger(periodicTrigger);
                     }
-
                     return task;
                 }).collect(Collectors.toList());
-
                 schedule.setTasks(tasks);
             }
-
             entity.setSchedule(schedule);
         }
-
         return entity;
     }
 

@@ -16,6 +16,7 @@ public class BroadcastingStats {
     private ZonedDateTime started;
     private int listeners;
     private SoundFragment current;
+    private boolean aiControlAllowed;
 
 
 }

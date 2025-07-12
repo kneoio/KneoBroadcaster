@@ -3,8 +3,9 @@ package io.kneo.broadcaster.service.scheduler;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.repository.SchedulableRepository;
-import jakarta.annotation.PostConstruct;
+import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import lombok.Getter;
 
@@ -19,8 +20,7 @@ public class SchedulableRepositoryRegistry {
     @Inject
     RadioStationRepository radioStationRepository;
 
-    @PostConstruct
-    void init() {
+    void onStart(@Observes StartupEvent event) {
         repositories.add(radioStationRepository);
     }
 

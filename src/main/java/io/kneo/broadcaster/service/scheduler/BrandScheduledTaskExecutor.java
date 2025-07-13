@@ -2,6 +2,8 @@ package io.kneo.broadcaster.service.scheduler;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.MemoryType;
+import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,6 +23,9 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
 
     @Inject
     private RadioStationPool radioStationPool;
+
+    @Inject
+    private MemoryService memoryService;
 
     private final Map<String, TaskState> runningTasks = new ConcurrentHashMap<>();
 
@@ -91,12 +96,13 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
                             .stream()
                             .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
                             .filter(rs ->
-                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
-                                    rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                                    rs.getStatus() == RadioStationStatus.WARMING_UP)
+                                            rs.getStatus() == RadioStationStatus.ON_LINE ||
+                                            rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                            rs.getStatus() == RadioStationStatus.WARMING_UP)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(true);
                                 LOGGER.info("Set AiControlAllowed=true for station: {}", rs.getSlugName());
+                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj started");
                             });
                 });
     }
@@ -108,12 +114,13 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
                             .stream()
                             .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
                             .filter(rs ->
-                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
-                                    rs.getStatus() == RadioStationStatus.WARMING_UP ||
-                                    rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                                    rs.getStatus() == RadioStationStatus.IDLE)
+                                            rs.getStatus() == RadioStationStatus.ON_LINE ||
+                                            rs.getStatus() == RadioStationStatus.WARMING_UP ||
+                                            rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                            rs.getStatus() == RadioStationStatus.IDLE)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(false);
+                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj ended");
                                 LOGGER.info("Set AiControlAllowed=false for station: {}", rs.getSlugName());
                             });
                 });

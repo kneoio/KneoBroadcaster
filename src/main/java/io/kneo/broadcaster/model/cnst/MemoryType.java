@@ -8,8 +8,8 @@ public enum MemoryType {
     AUDIENCE_CONTEXT("environment"),
     LISTENER_CONTEXT("listeners"),
     CONVERSATION_HISTORY("history"),
-    EVENT("event"),
-    INSTANT_MESSAGE("message");
+    EVENT("events"),
+    INSTANT_MESSAGE("messages");
 
     private final String value;
 

@@ -67,11 +67,11 @@ public class StationInactivityChecker {
         LOGGER.info("Station inactivity checking...");
         OffsetDateTime tenMinutesAgo = OffsetDateTime.now().minusMinutes(IDLE_THRESHOLD_MINUTES);
         OffsetDateTime fifteenMinutesAgo = OffsetDateTime.now().minusMinutes(STOP_REMOVE_THRESHOLD_MINUTES);
+        //TODO it is not tracking  WAITING_FOR_CURATOR
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
 
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
 
-        // Log the last request time for each active station
         for (RadioStation station : onlineStations) {
             statsService.getStats(station.getSlugName())
                     .onItem().ifNotNull().invoke(stats -> {

@@ -215,7 +215,12 @@ public class AiHelperController {
         }
 
         List<String> idParams = rc.queryParam("id");
-        String memoryId = idParams != null && !idParams.isEmpty() ? idParams.get(0) : null;
+        String memoryId;
+        if (idParams != null && !idParams.isEmpty()) {
+            memoryId = idParams.get(0);
+        } else {
+            memoryId = null;
+        }
 
         try {
             MemoryType memoryType = MemoryType.valueOf(type.toUpperCase());

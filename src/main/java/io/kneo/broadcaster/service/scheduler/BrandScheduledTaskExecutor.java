@@ -8,17 +8,13 @@ import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalTime;
 
 @ApplicationScoped
-public class BrandScheduledTaskExecutor implements TaskExecutor {
+public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
     private static final Logger LOGGER = LoggerFactory.getLogger(BrandScheduledTaskExecutor.class);
 
     @Inject
@@ -27,10 +23,8 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
     @Inject
     private MemoryService memoryService;
 
-    private final Map<String, TaskState> runningTasks = new ConcurrentHashMap<>();
-
     @Override
-    public Uni<Void> execute(ScheduleExecutionContext context) {
+    protected Uni<Void> executeTask(ScheduleExecutionContext context) {
         if (!(context.getEntity() instanceof RadioStation radioStation)) {
             return Uni.createFrom().voidItem();
         }
@@ -56,11 +50,11 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
     }
 
     private Uni<Void> handleDjTimeWindow(RadioStation station, String target, String taskKey, ScheduleExecutionContext context) {
-        TaskState currentState = runningTasks.get(taskKey);
+        TaskState currentState = getRunningTask(taskKey);
 
         if (currentState != null && !isWithinTimeWindow(context)) {
             LOGGER.warn("Force stopping DJ control for station {} - outside time window", station.getSlugName());
-            runningTasks.remove(taskKey);
+            removeRunningTask(taskKey);
             return stopDjControl(station);
         }
 
@@ -68,7 +62,7 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
             LOGGER.info("Starting DJ control for station: {} with target: {}", station.getSlugName(), target);
             return startDjControl(station, target)
                     .onItem().invoke(() -> {
-                        runningTasks.put(taskKey, new TaskState(station.getId(), "run_dj", target, LocalDateTime.now()));
+                        addRunningTask(taskKey, station.getId(), "run_dj", target);
 
                         String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
                         LOGGER.info("DJ control for station {} will stop at {}", station.getSlugName(), endTime);
@@ -77,7 +71,7 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
 
         if (isAtWindowEnd(context) && currentState != null) {
             LOGGER.info("Stopping DJ control for station: {}", station.getSlugName());
-            runningTasks.remove(taskKey);
+            removeRunningTask(taskKey);
             return stopDjControl(station);
         }
 
@@ -85,8 +79,32 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
         return Uni.createFrom().voidItem();
     }
 
+    private boolean isAtWindowStart(ScheduleExecutionContext context) {
+        if (context.getTask().getTimeWindowTrigger() == null) return false;
+
+        String currentTime = context.getCurrentTime();
+        String startTime = context.getTask().getTimeWindowTrigger().getStartTime();
+
+        LocalTime current = LocalTime.parse(currentTime);
+        LocalTime start = LocalTime.parse(startTime);
+
+        return !current.isBefore(start);
+    }
+
+    private boolean isAtWindowEnd(ScheduleExecutionContext context) {
+        if (context.getTask().getTimeWindowTrigger() == null) return false;
+
+        String currentTime = context.getCurrentTime();
+        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+
+        LocalTime current = LocalTime.parse(currentTime);
+        LocalTime end = LocalTime.parse(endTime);
+
+        return !current.isBefore(end);
+    }
+
     private String generateTaskKey(RadioStation station, CronTaskType taskType, String target) {
-        return String.format("%s_%s_%s", station.getId(), taskType, target);
+        return String.format("%s_%s_%s", station.getSlugName(), taskType, target);
     }
 
     private Uni<Void> startDjControl(RadioStation station, String target) {
@@ -96,13 +114,17 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
                             .stream()
                             .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
                             .filter(rs ->
-                                            rs.getStatus() == RadioStationStatus.ON_LINE ||
+                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
                                             rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                                             rs.getStatus() == RadioStationStatus.WARMING_UP)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(true);
+                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj started")
+                                        .subscribe().with(
+                                                id -> System.out.println("Memory created with ID: " + id),
+                                                failure -> System.err.println("Failed to create memory: " + failure)
+                                        );
                                 LOGGER.info("Set AiControlAllowed=true for station: {}", rs.getSlugName());
-                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj started");
                             });
                 });
     }
@@ -114,30 +136,19 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
                             .stream()
                             .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
                             .filter(rs ->
-                                            rs.getStatus() == RadioStationStatus.ON_LINE ||
+                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
                                             rs.getStatus() == RadioStationStatus.WARMING_UP ||
                                             rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                                             rs.getStatus() == RadioStationStatus.IDLE)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(false);
-                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj ended");
+                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj ended")
+                                        .subscribe().with(
+                                                id -> System.out.println("Memory created with ID: " + id),
+                                                failure -> System.err.println("Failed to create memory: " + failure)
+                                        );
                                 LOGGER.info("Set AiControlAllowed=false for station: {}", rs.getSlugName());
                             });
                 });
-    }
-
-    @Getter
-    public static class TaskState {
-        private final UUID entityId;
-        private final String taskType;
-        private final String target;
-        private final LocalDateTime startTime;
-
-        public TaskState(UUID entityId, String taskType, String target, LocalDateTime startTime) {
-            this.entityId = entityId;
-            this.taskType = taskType;
-            this.target = target;
-            this.startTime = startTime;
-        }
     }
 }

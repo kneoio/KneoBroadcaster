@@ -62,30 +62,31 @@ class SchedulerServiceTest {
         TestData testData = objectMapper.readValue(testDataStream, TestData.class);
 
         Task timeWindowTask = testData.getSchedule().getTasks().get(0);
-        ScheduleExecutionContext contextAtStart = createContext(timeWindowTask, "09:00");
-        assertTrue(taskExecutor.isAtWindowStart(contextAtStart), "Should detect start at 09:00");
 
-        ScheduleExecutionContext contextAfterStart = createContext(timeWindowTask, "09:15");
-        assertTrue(taskExecutor.isAtWindowStart(contextAfterStart), "Should detect start even at 09:15 (robust)");
-
-        ScheduleExecutionContext contextBeforeStart = createContext(timeWindowTask, "08:45");
-        assertFalse(taskExecutor.isAtWindowStart(contextBeforeStart), "Should not detect start before 09:00");
-
-        ScheduleExecutionContext contextAtEnd = createContext(timeWindowTask, "10:00");
-        assertTrue(taskExecutor.isAtWindowEnd(contextAtEnd), "Should detect end at 10:00");
-
-        ScheduleExecutionContext contextAfterEnd = createContext(timeWindowTask, "10:15");
-        assertTrue(taskExecutor.isAtWindowEnd(contextAfterEnd), "Should detect end even at 10:15 (robust)");
-
-        ScheduleExecutionContext contextBeforeEnd = createContext(timeWindowTask, "09:45");
-        assertFalse(taskExecutor.isAtWindowEnd(contextBeforeEnd), "Should not detect end before 10:00");
-
-        // Test within window
+        // Test isWithinTimeWindow method (moved to interface)
         ScheduleExecutionContext contextWithin = createContext(timeWindowTask, "09:30");
         assertTrue(taskExecutor.isWithinTimeWindow(contextWithin), "Should be within window at 09:30");
 
         ScheduleExecutionContext contextOutside = createContext(timeWindowTask, "11:00");
         assertFalse(taskExecutor.isWithinTimeWindow(contextOutside), "Should not be within window at 11:00");
+
+        ScheduleExecutionContext contextAtStart = createContext(timeWindowTask, "09:00");
+        assertTrue(taskExecutor.isWithinTimeWindow(contextAtStart), "Should be within window at start time");
+
+        ScheduleExecutionContext contextAtEnd = createContext(timeWindowTask, "10:00");
+        assertTrue(taskExecutor.isWithinTimeWindow(contextAtEnd), "Should be within window at end time");
+
+        ScheduleExecutionContext contextBeforeStart = createContext(timeWindowTask, "08:45");
+        assertFalse(taskExecutor.isWithinTimeWindow(contextBeforeStart), "Should not be within window before start");
+
+        ScheduleExecutionContext contextAfterEnd = createContext(timeWindowTask, "10:15");
+        assertFalse(taskExecutor.isWithinTimeWindow(contextAfterEnd), "Should not be within window after end");
+    }
+
+    @Test
+    void testTaskExecutorSupports() {
+        assertTrue(taskExecutor.supports(CronTaskType.PROCESS_DJ_CONTROL),
+                "BrandScheduledTaskExecutor should support PROCESS_DJ_CONTROL");
     }
 
     private ScheduleExecutionContext createContext(Task task, String currentTime) {

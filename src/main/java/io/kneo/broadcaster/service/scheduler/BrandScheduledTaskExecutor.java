@@ -90,7 +90,9 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
                     radioStationPool.getOnlineStationsSnapshot()
                             .stream()
                             .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
-                            .filter(rs -> rs.getStatus() == RadioStationStatus.ON_LINE ||
+                            .filter(rs ->
+                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
+                                    rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                                     rs.getStatus() == RadioStationStatus.WARMING_UP)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(true);
@@ -105,8 +107,10 @@ public class BrandScheduledTaskExecutor implements TaskExecutor {
                     radioStationPool.getOnlineStationsSnapshot()
                             .stream()
                             .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
-                            .filter(rs -> rs.getStatus() == RadioStationStatus.ON_LINE ||
+                            .filter(rs ->
+                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
                                     rs.getStatus() == RadioStationStatus.WARMING_UP ||
+                                    rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                                     rs.getStatus() == RadioStationStatus.IDLE)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(false);

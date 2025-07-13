@@ -6,7 +6,7 @@ import lombok.Getter;
 public enum MemoryType {
     UNKNOWN("unknown"),
     AUDIENCE_CONTEXT("environment"),
-    LISTENER_CONTEXTS("listeners"),
+    LISTENER_CONTEXT("listeners"),
     CONVERSATION_HISTORY("history"),
     EVENT("event"),
     INSTANT_MESSAGE("message");

@@ -107,7 +107,7 @@ public class MemoryService {
                         result.put("introductions", new JsonArray());
                     }
                 }
-                case LISTENER_CONTEXTS -> {
+                case LISTENER_CONTEXT -> {
                     Uni<Void> listenerUni = listenerService.getBrandListenersEntities(brand, 1000, 0, SuperUser.build())
                             .map(brandListeners -> {
                                 List<ListenerContext> listeners = brandListeners.stream()
@@ -147,12 +147,14 @@ public class MemoryService {
                     if (brandMap != null) {
                         List<MemoryDTO<?>> messages = brandMap.get(MemoryType.INSTANT_MESSAGE);
                         if (messages != null && !messages.isEmpty()) {
+                            JsonArray messageArray = new JsonArray();
                             MemoryDTO<?> latestMessage = messages.get(messages.size() - 1);
-                            result.put("message", latestMessage.getContent());
+                            messageArray.add(latestMessage.getContent());
+                            result.put("messages", messageArray);
                         }
                     }
-                    if (!result.containsKey("message")) {
-                        result.put("message", new JsonObject());
+                    if (!result.containsKey("messages")) {
+                        result.put("messages", new JsonArray());
                     }
                 }
             }

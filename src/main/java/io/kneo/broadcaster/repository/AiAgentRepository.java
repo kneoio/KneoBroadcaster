@@ -191,7 +191,7 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getMainPrompt())
                                     .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
                                     .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
-                                    .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
+                                    .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : JsonArray.of())
                                     .addDouble(agent.getTalkativity())
                                     .addUUID(id);
 

@@ -8,6 +8,7 @@ import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Schedule;
@@ -149,7 +150,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
                 Schedule schedule = doc.getSchedule();
                 scheduleDTO.setEnabled(schedule.isEnabled());
-
+                if (!schedule.isEnabled()) {
+                    dto.setAiControlAllowed(true);
+                }
                 if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
                     List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
                         TaskDTO taskDTO = new TaskDTO();
@@ -189,6 +192,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 }
 
                 dto.setSchedule(scheduleDTO);
+            } else {
+                if (doc.getManagedBy() != ManagedBy.ITSELF) {
+                    dto.setAiControlAllowed(true);
+                }
             }
 
             try {

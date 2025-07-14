@@ -56,6 +56,7 @@ public class ReferencesController extends BaseController {
         router.route(HttpMethod.DELETE, "/api/genres/:id").handler(this::delete);
     }
 
+    @Deprecated
     private void getAllGenres(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "0"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
@@ -95,6 +96,7 @@ public class ReferencesController extends BaseController {
                 );
     }
 
+    @Deprecated
     private void getAllCountries(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "0"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));

@@ -59,7 +59,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user),
                         service.getAll(size, (page - 1) * size, user)
@@ -87,7 +87,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         String id = rc.pathParam("id");
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
                         RadioStationDTO dto = new RadioStationDTO();
@@ -119,7 +119,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         JsonObject jsonObject = rc.body().asJsonObject();
         RadioStationDTO dto = jsonObject.mapTo(RadioStationDTO.class);
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
@@ -132,7 +132,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
 
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
@@ -146,7 +146,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         try {
             UUID documentId = UUID.fromString(id);
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.getDocumentAccess(documentId, user))
                     .subscribe().with(
                             accessList -> {

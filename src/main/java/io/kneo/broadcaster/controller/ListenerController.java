@@ -58,7 +58,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAll(size, (page - 1) * size, user),
                         service.getAllCount(user)
@@ -80,7 +80,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
     private void getById(RoutingContext rc) {
         String id = rc.pathParam("id");
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
                         ListenerDTO dto = new ListenerDTO();
@@ -108,7 +108,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getBrandListeners(brandName, size, (page - 1) * size, user),
                         service.getCountBrandListeners(brandName, user)
@@ -136,7 +136,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
             if (!validateDTO(rc, dto, validator)) return;
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.upsert(id, dto, user))
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
@@ -154,7 +154,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
@@ -170,7 +170,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         try {
             UUID documentId = UUID.fromString(id);
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.getDocumentAccess(documentId, user))
                     .subscribe().with(
                             accessList -> {

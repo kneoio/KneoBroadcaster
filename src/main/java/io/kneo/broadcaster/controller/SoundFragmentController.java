@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.AudioMetadataDTO;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
@@ -8,6 +9,7 @@ import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.FileData;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.manipulation.AudioMetadataService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -52,7 +54,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
-    SoundFragmentService service;
+    private SoundFragmentService service;
     private String uploadDir;
     private Validator validator;
     private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
@@ -63,14 +65,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     @Inject
     private Vertx vertx;
 
+    private AudioMetadataService audioMetadataService;
+
     public SoundFragmentController() {
         super(null);
     }
 
     @Inject
-    public SoundFragmentController(UserService userService, SoundFragmentService service, BroadcasterConfig config, Validator validator) {
+    public SoundFragmentController(UserService userService, SoundFragmentService service, AudioMetadataService audioMetadataService, BroadcasterConfig config, Validator validator) {
         super(userService);
         this.service = service;
+        this.audioMetadataService = audioMetadataService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.validator = validator;
     }
@@ -104,7 +109,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private void get(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user),
                         service.getAll(size, (page - 1) * size, user)
@@ -129,7 +134,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String id = rc.pathParam("id");
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
                         SoundFragmentDTO dto = new SoundFragmentDTO();
@@ -159,7 +164,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getBrandSoundFragments(brandName, size, (page - 1) * size, true, user),
                         service.getCountBrandSoundFragments(brandName, user)
@@ -188,7 +193,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getSearchCount(searchTerm, user),
                         service.search(searchTerm, size, (page - 1) * size, user)
@@ -218,7 +223,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             if (!validateDTO(rc, dto, validator)) return;
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
@@ -236,7 +241,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
@@ -281,7 +286,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         uploadProgressMap.put(uploadId, uploadDto);
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> {
                     processFileWithProgressReactive(uploadedFile, uploadId, id, user, originalFileName)
                             .subscribe().with(
@@ -290,7 +295,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                     },
                                     error -> {
                                         LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
-                                        updateUploadProgress(uploadId, 0, "error", null, null);
+                                        updateUploadProgress(uploadId, 0, "error", null, null, null);
                                     }
                             );
 
@@ -315,7 +320,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private Uni<Void> processFileWithProgressReactive(FileUpload uploadedFile, String uploadId, String entityId,
                                                       IUser user, String originalFileName) {
         return Uni.createFrom().item(() -> {
-            updateUploadProgress(uploadId, 0, "uploading", null, null);
+            updateUploadProgress(uploadId, 0, "uploading", null, null, null);
 
             String safeFileName;
             try {
@@ -339,9 +344,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }
 
                 Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
-
                 Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
                 Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
+
                 if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
                     LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
                             user.getUserName(), originalFileName);
@@ -355,18 +360,38 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         originalFileName, uploadedFile.size() / 1024 / 1024,
                         destination, user.getUserName());
 
+                // Update progress to 50% after file move
+                updateUploadProgress(uploadId, 50, "processing", null, null, null);
+
+                // Extract metadata for audio files
+                AudioMetadataDTO metadata = null;
+                if (isValidAudioFile(originalFileName, uploadedFile.contentType())) {
+                    try {
+                        LOGGER.info("Extracting metadata for audio file: {}", originalFileName);
+                        metadata = audioMetadataService.extractMetadata(destination.toString());
+                        LOGGER.info("Successfully extracted metadata - Title: {}, Artist: {}, Duration: {}s",
+                                metadata.getTitle(), metadata.getArtist(), metadata.getDurationSeconds());
+                    } catch (Exception e) {
+                        LOGGER.warn("Could not extract metadata from audio file: {}", originalFileName, e);
+                        // Continue without metadata if extraction fails
+                    }
+                }
+
                 String fileUrl = String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
-                updateUploadProgress(uploadId, 100, "finished", fileUrl, destination.toString());
+
+                // Final update with metadata included
+                updateUploadProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
 
                 return (Void) null;
             } catch (Exception e) {
-                updateUploadProgress(uploadId, 0, "error", null, null);
+                updateUploadProgress(uploadId, 0, "error", null, null, null);
                 throw new RuntimeException(e);
             }
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
     }
 
-    private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath) {
+    // Updated progress tracking method to include metadata
+    private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata) {
         UploadFileDTO dto = uploadProgressMap.get(uploadId);
         if (dto != null) {
             UploadFileDTO updatedDto = UploadFileDTO.builder()
@@ -379,10 +404,16 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     .type(dto.getType())
                     .fullPath(fullPath)
                     .thumbnailUrl(dto.getThumbnailUrl())
+                    .metadata(metadata) // Include metadata
                     .build();
 
             uploadProgressMap.put(uploadId, updatedDto);
         }
+    }
+
+    // Overload for existing calls without metadata
+    private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath) {
+        updateUploadProgress(uploadId, percentage, status, url, fullPath, null);
     }
 
     private void getUploadProgress(RoutingContext rc) {
@@ -394,6 +425,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
+        // Clean up finished/error uploads after 5 minutes
         if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
             vertx.setTimer(300000, timerId -> uploadProgressMap.remove(uploadId));
         }
@@ -407,7 +439,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String id = rc.pathParam("id");
         String requestedFileName = rc.pathParam("slug");
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> {
                     try {
                         // Handle temp directory case
@@ -574,7 +606,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         try {
             UUID documentId = UUID.fromString(id);
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.getDocumentAccess(documentId, user))
                     .subscribe().with(
                             accessList -> {

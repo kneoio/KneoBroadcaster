@@ -15,4 +15,5 @@ public class UploadFileDTO {
     private String thumbnailUrl;
     private String type;
     private String fullPath;
+    private AudioMetadataDTO metadata;
 }

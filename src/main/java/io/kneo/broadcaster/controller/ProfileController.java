@@ -60,7 +60,7 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user),
                         service.getAll(size, (page - 1) * size, user)
@@ -85,7 +85,7 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
         String id = rc.pathParam("id");
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
                         ProfileDTO dto = new ProfileDTO();
@@ -115,7 +115,7 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
 
             if (!validateDTO(rc, dto, validator)) return;
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
@@ -133,7 +133,7 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
 
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
-        getContextUser(rc)
+        getContextUser(rc, false, true)
                 .chain(user -> service.delete(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
@@ -147,7 +147,7 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
         try {
             UUID documentId = UUID.fromString(id);
 
-            getContextUser(rc)
+            getContextUser(rc, false, true)
                     .chain(user -> service.getDocumentAccess(documentId, user))
                     .subscribe().with(
                             accessList -> {

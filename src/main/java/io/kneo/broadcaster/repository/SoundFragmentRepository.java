@@ -131,10 +131,9 @@ public class SoundFragmentRepository extends AsyncRepository {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
         }
 
-        // ORDER BY: least played first, then oldest played first, never played at top
         sql += " ORDER BY " +
-                "COALESCE(bsf.played_by_brand_count, 0) ASC, " +  // Never played (NULL) becomes 0, so they come first
-                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC"; // Never played gets very old date
+                "COALESCE(bsf.played_by_brand_count, 0) ASC, " +
+                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);

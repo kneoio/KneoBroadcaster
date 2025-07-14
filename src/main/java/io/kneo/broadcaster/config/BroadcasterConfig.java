@@ -30,4 +30,7 @@ public interface BroadcasterConfig {
 
     @WithName("ffmpeg.path")
     String getFfmpegPath();
+
+    @WithName("ffprobe.path")
+    String getFfprobePath();
 }

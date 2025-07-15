@@ -10,7 +10,6 @@ import io.kneo.core.dto.cnst.PayloadType;
 import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -23,7 +22,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
-import java.util.EnumMap;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -83,10 +81,8 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
-                        ListenerDTO dto = new ListenerDTO();
-                        dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
-                        dto.getLocalizedName().put(LanguageCode.en, "");
-                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                        return service.getDTOTemplate(user, resolveLanguage(rc))
+                                .map(dto -> Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))
                             .map(doc -> Tuple2.of(doc, user));

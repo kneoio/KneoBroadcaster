@@ -62,7 +62,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user),
-                        service.getAll(size, (page - 1) * size, user)
+                        service.getAllDTO(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<RadioStationDTO> dtoEntries = new View<>(tuple.getItem2(),

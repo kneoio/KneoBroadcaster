@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.SoundFragmentRepository;
 import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
@@ -81,7 +82,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.config = config;
     }
 
-    public Uni<List<SoundFragmentDTO>> getAll(final int limit, final int offset, final IUser user) {
+    public Uni<List<SoundFragmentDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
@@ -106,6 +107,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getAll(limit, offset, false, SuperUser.build());
     }
 
+    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, IUser user) {
+        assert repository != null;
+        return repository.getAll(limit, offset, false, user);
+    }
+
     public Uni<SoundFragment> getById(UUID uuid, IUser user) {
         assert repository != null;
         return repository.findById(uuid, user.getId(), false);
@@ -126,16 +132,21 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<BrandSoundFragmentDTO> getBrandSoundFragmentDTO(UUID uuid, IUser user, LanguageCode code, boolean populateAllBrands) {
-        assert repository != null;
-        return repository.findBrandSoundFragmentById(uuid, user)
-                .chain(doc -> {
-                    if (populateAllBrands) {
-                        return repository.populateAllBrands(doc, user)
-                                .chain(this::mapToBrandSoundFragmentDTO);
-                    } else {
-                        return mapToBrandSoundFragmentDTO(doc);
-                    }
+    public Uni<SoundFragmentDTO> getDTOTemplate(IUser user, LanguageCode code) {
+        return radioStationService.getAll(10, 0, user)
+                .onItem().transform(userRadioStations -> {
+                    SoundFragmentDTO dto = new SoundFragmentDTO();
+                    dto.setAuthor(user.getUserName());
+                    dto.setLastModifier(user.getUserName());
+                    dto.setNewlyUploaded(List.of());
+                    dto.setUploadedFiles(List.of());
+
+                    List<UUID> stationIds = userRadioStations.stream()
+                            .map(RadioStation::getId)
+                            .collect(Collectors.toList());
+                    dto.setRepresentedInBrands(stationIds);
+
+                    return dto;
                 });
     }
 

@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
+import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -69,6 +70,26 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     public Uni<Integer> getAllCount(final IUser user) {
         assert repository != null;
         return repository.getAllCount(user, false);
+    }
+
+    public Uni<ListenerDTO> getDTOTemplate(IUser user, LanguageCode code) {
+        return radioStationService.getAll(10, 0, user)
+                .onItem().transform(userRadioStations -> {
+                    ListenerDTO dto = new ListenerDTO();
+                    dto.setAuthor(user.getUserName());
+                    dto.setLastModifier(user.getUserName());
+                    //dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
+                    //dto.getNickName(new EnumMap<>(LanguageCode.class));
+                    dto.getLocalizedName().put(LanguageCode.en, "");
+                    dto.getNickName().put(LanguageCode.en, "");
+
+                    List<UUID> stationIds = userRadioStations.stream()
+                            .map(RadioStation::getId)
+                            .collect(Collectors.toList());
+                    dto.setListenerOf(stationIds);
+
+                    return dto;
+                });
     }
 
     @Override

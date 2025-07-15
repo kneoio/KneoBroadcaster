@@ -60,7 +60,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         this.broadcasterConfig = broadcasterConfig;
     }
 
-    public Uni<List<RadioStationDTO>> getAll(final int limit, final int offset, final IUser user) {
+    public Uni<List<RadioStationDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
@@ -82,6 +82,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     public Uni<List<RadioStation>> getAll(final int limit, final int offset) {
         return repository.getAll(limit, offset, false, SuperUser.build());
+    }
+
+    public Uni<List<RadioStation>> getAll(final int limit, final int offset, IUser user) {
+        return repository.getAll(limit, offset, false, user);
     }
 
     public Uni<RadioStation> getById(UUID id, IUser user) {

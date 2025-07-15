@@ -46,7 +46,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -112,7 +111,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user),
-                        service.getAll(size, (page - 1) * size, user)
+                        service.getAllDTO(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<SoundFragmentDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -137,13 +136,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
-                        SoundFragmentDTO dto = new SoundFragmentDTO();
-                        dto.setAuthor(user.getUserName());
-                        dto.setLastModifier(user.getUserName());
-                        dto.setNewlyUploaded(List.of());
-                        dto.setUploadedFiles(List.of());
-                        dto.setRepresentedInBrands(List.of());
-                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                        return service.getDTOTemplate(user, languageCode)
+                                .map(dto -> Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)
                             .map(doc -> Tuple2.of(doc, user));
@@ -390,7 +384,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
     }
 
-    // Updated progress tracking method to include metadata
     private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata) {
         UploadFileDTO dto = uploadProgressMap.get(uploadId);
         if (dto != null) {
@@ -404,16 +397,11 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     .type(dto.getType())
                     .fullPath(fullPath)
                     .thumbnailUrl(dto.getThumbnailUrl())
-                    .metadata(metadata) // Include metadata
+                    .metadata(metadata)
                     .build();
 
             uploadProgressMap.put(uploadId, updatedDto);
         }
-    }
-
-    // Overload for existing calls without metadata
-    private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath) {
-        updateUploadProgress(uploadId, percentage, status, url, fullPath, null);
     }
 
     private void getUploadProgress(RoutingContext rc) {
@@ -425,7 +413,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-        // Clean up finished/error uploads after 5 minutes
         if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
             vertx.setTimer(300000, timerId -> uploadProgressMap.remove(uploadId));
         }
@@ -442,7 +429,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc, false, true)
                 .chain(user -> {
                     try {
-                        // Handle temp directory case
                         if ("temp".equals(id)) {
                             String safeFileName;
                             try {
@@ -485,7 +471,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             }
                         }
 
-                        // Handle UUID directory case
                         try {
                             UUID.fromString(id);
                         } catch (IllegalArgumentException e) {

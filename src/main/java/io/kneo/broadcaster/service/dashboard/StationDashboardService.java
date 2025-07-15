@@ -31,15 +31,22 @@ public class StationDashboardService {
         stationStats.setStatus(station.getStatus());
         stationStats.setManagedBy(station.getManagedBy());
         stationStats.setAlived(station.getCurrentAliveDurationMinutes());
+
         if (station.getPlaylist() != null) {
             IStreamManager playlist = station.getPlaylist();
             stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());
             PlaylistManager manager = playlist.getPlaylistManager();
             stationStats.setPlaylistManagerStats(manager.getStats());
             StreamManagerStats hlsSegmentStats = playlist.getStats();
-            stationStats.setHlsSongStats(hlsSegmentStats.getSongStatistics());
+
+            // Set the timeline data directly - this contains pastSegmentSequences, visibleSegmentSequences, upcomingSegmentSequences
             stationStats.setTimeline(hlsSegmentStats.getSegmentTimelineDisplay());
-            stationStats.setListenersCount(hlsSegmentStats.getListenersCount());
+
+            // Set song statistics with correct field name
+            stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
+
+            // Set listeners count with correct field name
+            stationStats.setCurrentListeners(hlsSegmentStats.getListenersCount());
         }
 
         return stationStats;

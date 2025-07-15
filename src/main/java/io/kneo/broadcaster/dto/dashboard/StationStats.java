@@ -4,13 +4,9 @@ import io.kneo.broadcaster.service.stream.HLSSongStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
-import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Setter
 public class StationStats {
@@ -24,15 +20,13 @@ public class StationStats {
     @Getter
     private PlaylistManagerStats playlistManagerStats;
     @Getter
-    private List<SchedulerTaskTimeline> timelines = new ArrayList<>();
+    private SegmentTimelineDisplay timeline;  // This contains the segment sequences
     @Getter
-    private HLSSongStats hlsSongStats;
+    private HLSSongStats songStatistics;     // Renamed from hlsSongStats to match frontend
     @Getter
     private long latestRequestedSeg;
     @Getter
-    private SegmentTimelineDisplay timeline;
-    @Getter
-    private long listenersCount;
+    private long currentListeners;           // Renamed from listenersCount to match frontend
 
     public String getAliveTimeInHours() {
         int hours = (int) (alived / 60);

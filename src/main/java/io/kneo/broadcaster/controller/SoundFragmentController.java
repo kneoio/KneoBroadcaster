@@ -166,7 +166,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getBrandSoundFragments(brandName, size, (page - 1) * size, true, user),
+                        service.getBrandSoundFragments(brandName, size, (page - 1) * size, false),
                         service.getCountBrandSoundFragments(brandName, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();

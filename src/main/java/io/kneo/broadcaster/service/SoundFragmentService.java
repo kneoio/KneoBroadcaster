@@ -181,7 +181,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, boolean populateAllBrands, IUser user) {
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, boolean populateAllBrands) {
         assert repository != null;
         assert radioStationService != null;
 
@@ -192,12 +192,17 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     }
                     UUID brandId = radioStation.getId();
 
-                    return repository.findForBrand(brandId, limit, offset, false, user)
+                    return repository.findForBrand(brandId, limit, offset, false, SuperUser.build())
                             .chain(fragments -> {
+                                if (fragments.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
+                                }
+
                                 List<Uni<BrandSoundFragmentDTO>> unis;
+                                //TODO ????
                                 if (populateAllBrands) {
                                     unis = fragments.stream()
-                                            .map(fragment -> repository.populateAllBrands(fragment, user)
+                                            .map(fragment -> repository.populateAllBrands(fragment, SuperUser.build())
                                                     .chain(this::mapToBrandSoundFragmentDTO))
                                             .collect(Collectors.toList());
                                 } else {
@@ -210,7 +215,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 })
                 .onFailure().recoverWithUni(failure -> {
                     LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
-                    return Uni.createFrom().failure(failure);
+                    return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
                 });
     }
 

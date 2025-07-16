@@ -255,6 +255,6 @@ public class EventRepository extends AsyncRepository {
     }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
-        return getDocumentAccessInfo(documentId, entityData);
+        return getDocumentAccessInfo(documentId, entityData, user);
     }
 }

@@ -399,6 +399,6 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
 
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
-        return getDocumentAccessInfo(documentId, entityData);
+        return getDocumentAccessInfo(documentId, entityData, user);
     }
 }

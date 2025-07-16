@@ -11,7 +11,7 @@ import java.util.List;
 
 @Setter
 @Getter
-public class AiAgent  extends SimpleReferenceEntity {
+public class AiAgent extends SimpleReferenceEntity {
     private String name;
     private LanguageCode preferredLang;
     private ZoneId timeZone;

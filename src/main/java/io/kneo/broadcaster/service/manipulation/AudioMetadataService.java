@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.time.Duration;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @ApplicationScoped
 public class AudioMetadataService {
@@ -35,21 +36,37 @@ public class AudioMetadataService {
         }
     }
 
+    // Original method for backward compatibility
     public AudioMetadataDTO extractMetadata(String filePath) {
+        return extractMetadataWithProgress(filePath, null);
+    }
+
+    // New method with progress reporting
+    public AudioMetadataDTO extractMetadataWithProgress(String filePath, Consumer<Integer> progressCallback) {
         if (ffprobe == null) {
             LOGGER.warn("FFprobe not initialized, returning empty metadata");
             return createEmptyMetadata(filePath);
         }
 
         try {
-            FFmpegProbeResult probeResult = ffprobe.probe(filePath);
-
             AudioMetadataDTO metadata = new AudioMetadataDTO();
-
             File file = new File(filePath);
+
+            // Step 1: Basic file info (55% - 60%)
+            reportProgress(progressCallback, 55);
             metadata.setFileName(file.getName());
             metadata.setFileSize(file.length());
 
+            // Small delay to make progress visible
+            Thread.sleep(50);
+            reportProgress(progressCallback, 60);
+
+            // Step 2: Probe the file (60% - 65%)
+            LOGGER.info("Starting FFprobe analysis for file: {}", filePath);
+            FFmpegProbeResult probeResult = ffprobe.probe(filePath);
+            reportProgress(progressCallback, 65);
+
+            // Step 3: Extract format information (65% - 70%)
             FFmpegFormat format = probeResult.getFormat();
             if (format != null) {
                 metadata.setFormat(format.format_name);
@@ -57,24 +74,47 @@ public class AudioMetadataService {
                 metadata.setDuration(Duration.ofSeconds((long) format.duration));
                 metadata.setBitRate((int) format.bit_rate);
 
-                Map<String, String> tags = format.tags;
-                if (tags != null) {
-                    metadata.setTitle(getTagValue(tags, "title", "TITLE"));
-                    metadata.setArtist(getTagValue(tags, "artist", "ARTIST"));
-                    metadata.setAlbum(getTagValue(tags, "album", "ALBUM"));
-                    metadata.setAlbumArtist(getTagValue(tags, "album_artist", "ALBUMARTIST"));
-                    metadata.setGenre(getTagValue(tags, "genre", "GENRE"));
-                    metadata.setYear(getTagValue(tags, "date", "DATE", "year", "YEAR"));
-                    metadata.setTrack(getTagValue(tags, "track", "TRACK"));
-                    metadata.setComposer(getTagValue(tags, "composer", "COMPOSER"));
-                    metadata.setComment(getTagValue(tags, "comment", "COMMENT"));
-                    metadata.setPublisher(getTagValue(tags, "publisher", "PUBLISHER"));
-                    metadata.setCopyright(getTagValue(tags, "copyright", "COPYRIGHT"));
-                    metadata.setLanguage(getTagValue(tags, "language", "LANGUAGE"));
-                }
+                LOGGER.info("Format extracted: {} duration: {}s", format.format_name, format.duration);
             }
 
-            // Stream metadata (audio technical details)
+            Thread.sleep(50);
+            reportProgress(progressCallback, 70);
+
+            // Step 4: Extract basic tag information (70% - 75%)
+            if (format != null && format.tags != null) {
+                Map<String, String> tags = format.tags;
+                metadata.setTitle(getTagValue(tags, "title", "TITLE"));
+                metadata.setArtist(getTagValue(tags, "artist", "ARTIST"));
+                metadata.setAlbum(getTagValue(tags, "album", "ALBUM"));
+
+                LOGGER.info("Basic tags extracted - Title: {}, Artist: {}, Album: {}",
+                        metadata.getTitle(), metadata.getArtist(), metadata.getAlbum());
+            }
+
+            Thread.sleep(50);
+            reportProgress(progressCallback, 75);
+
+            // Step 5: Extract additional tag information (75% - 80%)
+            if (format != null && format.tags != null) {
+                Map<String, String> tags = format.tags;
+                metadata.setAlbumArtist(getTagValue(tags, "album_artist", "ALBUMARTIST"));
+                metadata.setGenre(getTagValue(tags, "genre", "GENRE"));
+                metadata.setYear(getTagValue(tags, "date", "DATE", "year", "YEAR"));
+                metadata.setTrack(getTagValue(tags, "track", "TRACK"));
+                metadata.setComposer(getTagValue(tags, "composer", "COMPOSER"));
+                metadata.setComment(getTagValue(tags, "comment", "COMMENT"));
+                metadata.setPublisher(getTagValue(tags, "publisher", "PUBLISHER"));
+                metadata.setCopyright(getTagValue(tags, "copyright", "COPYRIGHT"));
+                metadata.setLanguage(getTagValue(tags, "language", "LANGUAGE"));
+
+                LOGGER.info("Extended metadata extracted - Genre: {}, Year: {}",
+                        metadata.getGenre(), metadata.getYear());
+            }
+
+            Thread.sleep(50);
+            reportProgress(progressCallback, 80);
+
+            // Step 6: Extract audio stream technical details (80% - 85%)
             FFmpegStream audioStream = probeResult.getStreams().stream()
                     .filter(stream -> stream.codec_type == FFmpegStream.CodecType.AUDIO)
                     .findFirst()
@@ -85,23 +125,95 @@ public class AudioMetadataService {
                 metadata.setChannels(String.valueOf(audioStream.channels));
                 metadata.setEncodingType(audioStream.codec_name);
 
-                // Additional audio stream metadata
                 if (audioStream.bit_rate > 0) {
                     metadata.setBitRate((int) audioStream.bit_rate);
                 }
 
-                // Check if it's lossless based on codec
                 metadata.setLossless(isLosslessCodec(audioStream.codec_name));
+
+                LOGGER.info("Audio stream info - Codec: {}, Sample Rate: {}, Channels: {}",
+                        audioStream.codec_name, audioStream.sample_rate, audioStream.channels);
             }
 
-            LOGGER.info("Extracted metadata for file: {} - Title: {}, Artist: {}",
+            Thread.sleep(50);
+            reportProgress(progressCallback, 85);
+
+            LOGGER.info("Successfully extracted complete metadata for file: {} - Title: {}, Artist: {}",
                     file.getName(), metadata.getTitle(), metadata.getArtist());
+
             return metadata;
 
         } catch (Exception e) {
             LOGGER.error("Failed to extract metadata from file: {}", filePath, e);
             return createEmptyMetadata(filePath);
         }
+    }
+
+    // Helper method to safely report progress
+    private void reportProgress(Consumer<Integer> progressCallback, int percentage) {
+        if (progressCallback != null) {
+            try {
+                progressCallback.accept(percentage);
+            } catch (Exception e) {
+                LOGGER.warn("Failed to report progress: {}", e.getMessage());
+            }
+        }
+    }
+
+    // Break down metadata extraction into smaller methods for even more granular progress
+    public AudioMetadataDTO extractBasicInfo(String filePath) {
+        AudioMetadataDTO metadata = new AudioMetadataDTO();
+        File file = new File(filePath);
+        metadata.setFileName(file.getName());
+        metadata.setFileSize(file.length());
+        return metadata;
+    }
+
+    public AudioMetadataDTO extractAudioProperties(String filePath, AudioMetadataDTO metadata) throws Exception {
+        if (ffprobe == null) return metadata;
+
+        FFmpegProbeResult probeResult = ffprobe.probe(filePath);
+        FFmpegFormat format = probeResult.getFormat();
+
+        if (format != null) {
+            metadata.setFormat(format.format_name);
+            metadata.setDurationSeconds((int) format.duration);
+            metadata.setDuration(Duration.ofSeconds((long) format.duration));
+            metadata.setBitRate((int) format.bit_rate);
+        }
+
+        return metadata;
+    }
+
+    public AudioMetadataDTO extractTags(String filePath, AudioMetadataDTO metadata) throws Exception {
+        if (ffprobe == null) return metadata;
+
+        FFmpegProbeResult probeResult = ffprobe.probe(filePath);
+        FFmpegFormat format = probeResult.getFormat();
+
+        if (format != null && format.tags != null) {
+            Map<String, String> tags = format.tags;
+            metadata.setTitle(getTagValue(tags, "title", "TITLE"));
+            metadata.setArtist(getTagValue(tags, "artist", "ARTIST"));
+            metadata.setAlbum(getTagValue(tags, "album", "ALBUM"));
+            metadata.setAlbumArtist(getTagValue(tags, "album_artist", "ALBUMARTIST"));
+            metadata.setGenre(getTagValue(tags, "genre", "GENRE"));
+            metadata.setYear(getTagValue(tags, "date", "DATE", "year", "YEAR"));
+            metadata.setTrack(getTagValue(tags, "track", "TRACK"));
+            metadata.setComposer(getTagValue(tags, "composer", "COMPOSER"));
+            metadata.setComment(getTagValue(tags, "comment", "COMMENT"));
+            metadata.setPublisher(getTagValue(tags, "publisher", "PUBLISHER"));
+            metadata.setCopyright(getTagValue(tags, "copyright", "COPYRIGHT"));
+            metadata.setLanguage(getTagValue(tags, "language", "LANGUAGE"));
+        }
+
+        return metadata;
+    }
+
+    public AudioMetadataDTO extractAlbumArt(String filePath, AudioMetadataDTO metadata) throws Exception {
+        // Placeholder for album art extraction if you implement it later
+        // This could involve extracting embedded images from audio files
+        return metadata;
     }
 
     private String getTagValue(Map<String, String> tags, String... keys) {

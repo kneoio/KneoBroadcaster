@@ -314,20 +314,22 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private Uni<Void> processFileWithProgressReactive(FileUpload uploadedFile, String uploadId, String entityId,
                                                       IUser user, String originalFileName) {
         return Uni.createFrom().item(() -> {
-            updateUploadProgress(uploadId, 0, "uploading", null, null, null);
-
-            String safeFileName;
             try {
-                safeFileName = FileSecurityUtils.sanitizeFilename(originalFileName);
-            } catch (SecurityException e) {
-                LOGGER.warn("Unsafe filename rejected: {} from user: {}", originalFileName, user.getUserName());
-                throw new IllegalArgumentException("Invalid filename: " + e.getMessage());
-            }
+                updateUploadProgress(uploadId, 0, "uploading", null, null, null);
 
-            try {
+                String safeFileName;
+                try {
+                    safeFileName = FileSecurityUtils.sanitizeFilename(originalFileName);
+                    updateUploadProgress(uploadId, 5, "uploading", null, null, null);
+                } catch (SecurityException e) {
+                    LOGGER.warn("Unsafe filename rejected: {} from user: {}", originalFileName, user.getUserName());
+                    throw new IllegalArgumentException("Invalid filename: " + e.getMessage());
+                }
+
                 Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
-                String entityIdSafe = entityId != null ? entityId : "temp";
+                updateUploadProgress(uploadId, 10, "uploading", null, null, null);
 
+                String entityIdSafe = entityId != null ? entityId : "temp";
                 if (!"temp".equals(entityIdSafe)) {
                     try {
                         UUID.fromString(entityIdSafe);
@@ -338,6 +340,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }
 
                 Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
+                updateUploadProgress(uploadId, 15, "uploading", null, null, null);
+
                 Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
                 Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
 
@@ -346,51 +350,70 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             user.getUserName(), originalFileName);
                     throw new SecurityException("Invalid file path");
                 }
+                updateUploadProgress(uploadId, 20, "uploading", null, null, null);
 
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-                updateUploadProgress(uploadId, 10, "uploading", null, null, null);
+                updateUploadProgress(uploadId, 25, "uploading", null, null, null);
 
                 Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
+                updateUploadProgress(uploadId, 35, "uploading", null, null, null);
+
                 LOGGER.info("Moved uploaded file {} ({} MB) to {} for user: {}",
                         originalFileName, uploadedFile.size() / 1024 / 1024,
                         destination, user.getUserName());
 
-                updateUploadProgress(uploadId, 30, "uploading", null, null, null);
+                if (!Files.exists(destination)) {
+                    throw new RuntimeException("File move verification failed");
+                }
+                updateUploadProgress(uploadId, 40, "uploading", null, null, null);
+
+                long fileSize = Files.size(destination);
+                if (fileSize != uploadedFile.size()) {
+                    throw new RuntimeException("File size verification failed");
+                }
+                updateUploadProgress(uploadId, 45, "uploading", null, null, null);
+
                 AudioMetadataDTO metadata = null;
                 if (isValidAudioFile(originalFileName, uploadedFile.contentType())) {
                     try {
                         LOGGER.info("Starting metadata extraction for audio file: {}", originalFileName);
-                        updateUploadProgress(uploadId, 40, "uploading", null, null, null);
-                        metadata = extractMetadataWithProgress(destination.toString(), uploadId);
+                        updateUploadProgress(uploadId, 50, "uploading", null, null, null);
 
-                        updateUploadProgress(uploadId, 80, "uploading", null, null, null);
+                        metadata = audioMetadataService.extractMetadataWithProgress(
+                                destination.toString(),
+                                (percentage) -> {
+                                    updateUploadProgress(uploadId, percentage, "uploading", null, null, null);
+                                }
+                        );
+
                         LOGGER.info("Successfully extracted metadata - Title: {}, Artist: {}, Duration: {}s",
                                 metadata.getTitle(), metadata.getArtist(), metadata.getDurationSeconds());
                     } catch (Exception e) {
                         LOGGER.warn("Could not extract metadata from audio file: {}", originalFileName, e);
-                        updateUploadProgress(uploadId, 70, "uploading", null, null, null);
+                        updateUploadProgress(uploadId, 80, "uploading", null, null, null);
                     }
                 } else {
-                    updateUploadProgress(uploadId, 70, "uploading", null, null, null);
+                    updateUploadProgress(uploadId, 80, "uploading", null, null, null);
                 }
 
                 String fileUrl = String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
+                updateUploadProgress(uploadId, 85, "uploading", fileUrl, destination.toString(), metadata);
+
+                Thread.sleep(100);
                 updateUploadProgress(uploadId, 90, "uploading", fileUrl, destination.toString(), metadata);
-                Thread.sleep(200);
+
+                Thread.sleep(100);
+                updateUploadProgress(uploadId, 95, "uploading", fileUrl, destination.toString(), metadata);
+
+                Thread.sleep(100);
                 updateUploadProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
+
                 return (Void) null;
             } catch (Exception e) {
                 updateUploadProgress(uploadId, 0, "error", null, null, null);
                 throw new RuntimeException(e);
             }
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
-    }
-
-    private AudioMetadataDTO extractMetadataWithProgress(String filePath, String uploadId) throws Exception {
-        updateUploadProgress(uploadId, 50, "uploading", null, null, null);
-        AudioMetadataDTO metadata = audioMetadataService.extractMetadata(filePath);
-        updateUploadProgress(uploadId, 65, "uploading", null, null, null);
-        return metadata;
     }
 
     private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata) {
@@ -593,7 +616,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             "audio/mp4", "audio/x-m4a"
     );
 
-
     private void getDocumentAccess(RoutingContext rc) {
         String id = rc.pathParam("id");
 
@@ -624,5 +646,4 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
     }
-
 }

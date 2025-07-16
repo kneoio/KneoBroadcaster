@@ -9,6 +9,7 @@ import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import io.kneo.officeframe.cnst.CountryCode;
+import io.kneo.officeframe.model.Label;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -38,6 +39,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private Schedule schedule;
     private UUID aiAgentId;
     private UUID profileId;
+    private List<Label> labelList;
     //*transient**//
     @Deprecated //???
     private RadioStationStatus status;

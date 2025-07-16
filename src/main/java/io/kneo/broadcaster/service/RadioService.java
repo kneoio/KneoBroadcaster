@@ -133,7 +133,7 @@ public class RadioService {
     }
 
     public Uni<List<RadioStationStatusDTO>> getAllStations() {
-        return radioStationService.getAllDTO(5, 0, SuperUser.build())
+        return radioStationService.getAllDTO(10, 0, SuperUser.build())
                 .chain(stations -> {
                     if (stations.isEmpty()) {
                         return Uni.createFrom().item(List.of());

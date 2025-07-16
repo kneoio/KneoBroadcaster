@@ -5,9 +5,10 @@ import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.actions.ProfileActionsFactory;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
+import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.dto.of.CountryDTO;
 import io.kneo.broadcaster.service.AiAgentService;
-import io.kneo.broadcaster.service.GenreService;
+import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.core.controller.BaseController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -36,10 +37,10 @@ import java.util.stream.Collectors;
 import static io.kneo.core.util.RuntimeUtil.countMaxPage;
 
 @ApplicationScoped
-public class ReferencesController extends BaseController {
+public class RefController extends BaseController {
 
     @Inject
-    GenreService service;
+    RefService service;
 
     @Inject
     AiAgentService aiAgentService;
@@ -226,6 +227,35 @@ public class ReferencesController extends BaseController {
                 viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
 
                 rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode());
+                break;
+
+            case "voices":
+                Uni.combine().all().unis(
+                                service.getAllVoicesCount(),
+                                service.getAllVoices()
+                        )
+                        .asTuple()
+                        .map(tuple -> {
+                            List<VoiceDTO> allVoices = tuple.getItem2();
+                            int voicesCount = tuple.getItem1();
+                            int maxVoicePage = countMaxPage(voicesCount, size);
+                            int voiceOffset = RuntimeUtil.calcStartEntry(page, size);
+
+                            List<VoiceDTO> pagedVoices = allVoices.stream()
+                                    .skip(voiceOffset)
+                                    .limit(size)
+                                    .collect(Collectors.toList());
+
+                            ViewPage voiceViewPage = new ViewPage();
+                            voiceViewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            View<VoiceDTO> voiceDtoEntries = new View<>(pagedVoices, voicesCount, page, maxVoicePage, size);
+                            voiceViewPage.addPayload(PayloadType.VIEW_DATA, voiceDtoEntries);
+                            return voiceViewPage;
+                        })
+                        .subscribe().with(
+                                voiceViewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(voiceViewPage).encode()),
+                                rc::fail
+                        );
                 break;
 
             default:

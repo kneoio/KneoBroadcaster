@@ -2,8 +2,6 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
-import io.kneo.broadcaster.dto.ai.ToolDTO;
-import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -34,13 +32,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
     @Inject
     AiAgentService service;
     private Validator validator;
-    public static final List<String> DEFAULT_FILLER_PROMPTS = List.of(
-            "Eerie mood music with smooth transition, 4-6 seconds",
-            "Eerie ambient music with gentle fade out, 4-6 seconds",
-            "Huge epic braam with natural decay, 4-6 seconds",
-            "Deep epic braam with gradual fade, 4-6 seconds",
-            "Massive cinematic braam with soft ending, 4-6 seconds"
-    );
 
     public AiAgentController() {
         super(null);
@@ -96,7 +87,7 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                 .chain(user -> {
                     if ("new".equals(id)) {
                         AiAgentDTO dto = new AiAgentDTO();
-                        VoiceDTO voice1 = new VoiceDTO();
+                       /** VoiceDTO voice1 = new VoiceDTO();
                         voice1.setId("nPczCjzI2devNBz1zQrb");
                         voice1.setName("Brain");
                         VoiceDTO voice2 = new VoiceDTO();
@@ -127,10 +118,10 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                         tool6.setName("messages");
                         tool6.setDescription("Can catch a message from Mixpla");
                         tool6.setVariableName("message");
-                        dto.setEnabledTools(List.of(tool1, tool2, tool3, tool4, tool5, tool6));
+                        dto.setEnabledTools(List.of(tool1, tool2, tool3, tool4, tool5, tool6));**/
                         dto.setTalkativity(0.3);
                         dto.setFillerPrompt(DEFAULT_FILLER_PROMPTS);
-                        dto.setMainPrompt("You are a radio DJ for {brand}. Introduce {song_title} by {artist} to our audience, including listeners like {listeners}. Factor in the current context: {context}. Important constraint: Keep introduction extremely concise (10-30 words) - longer introductions cannot be used. Your introduction should connect naturally with previous interactions. Previous interactions context: {history}");
+                        dto.setMainPrompt(PROMPT_BASIC);
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)
@@ -213,4 +204,25 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
     }
+
+    public static final List<String> DEFAULT_FILLER_PROMPTS = List.of(
+            "Eerie mood music with smooth transition, 4-6 seconds",
+            "Eerie ambient music with gentle fade out, 4-6 seconds",
+            "Huge epic braam with natural decay, 4-6 seconds",
+            "Deep epic braam with gradual fade, 4-6 seconds",
+            "Massive cinematic braam with soft ending, 4-6 seconds"
+    );
+
+    private  static final String PROMPT_BASIC = """
+            You are a radio DJ called {ai_dj_name} of radio station named {brand}. Introduce {song_title} by {artist} to our audience,
+             including listeners like {listeners}. Factor in the current context: {context}. Important
+             constraint: Keep introduction extremely concise (10-30 words) - longer introductions cannot be used.
+            Your introduction should connect naturally with previous interactions. Previous interactions context: {history}.
+             Priority instruction: Check the user message: {instant_message}. If this field contains meaningful content,
+              incorporate it as the primary focus of your introduction.
+             Events handling: Check events: {events} for special events. If "The shift of the dj started" is present,
+              greet the listeners and introduce yourself - in this case, ignore the word limit.
+              If "The shift of the dj ended" is present, say warm goodbye to the listeners before introducing
+               the song - in this case, ignore the word limit.
+            """;
 }

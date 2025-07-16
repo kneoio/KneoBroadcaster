@@ -348,40 +348,49 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }
 
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-                Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
+                updateUploadProgress(uploadId, 10, "uploading", null, null, null);
 
+                Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
                 LOGGER.info("Moved uploaded file {} ({} MB) to {} for user: {}",
                         originalFileName, uploadedFile.size() / 1024 / 1024,
                         destination, user.getUserName());
 
-                // Update progress to 50% after file move
-                updateUploadProgress(uploadId, 50, "processing", null, null, null);
-
-                // Extract metadata for audio files
+                updateUploadProgress(uploadId, 30, "uploading", null, null, null);
                 AudioMetadataDTO metadata = null;
                 if (isValidAudioFile(originalFileName, uploadedFile.contentType())) {
                     try {
-                        LOGGER.info("Extracting metadata for audio file: {}", originalFileName);
-                        metadata = audioMetadataService.extractMetadata(destination.toString());
+                        LOGGER.info("Starting metadata extraction for audio file: {}", originalFileName);
+                        updateUploadProgress(uploadId, 40, "uploading", null, null, null);
+                        metadata = extractMetadataWithProgress(destination.toString(), uploadId);
+
+                        updateUploadProgress(uploadId, 80, "uploading", null, null, null);
                         LOGGER.info("Successfully extracted metadata - Title: {}, Artist: {}, Duration: {}s",
                                 metadata.getTitle(), metadata.getArtist(), metadata.getDurationSeconds());
                     } catch (Exception e) {
                         LOGGER.warn("Could not extract metadata from audio file: {}", originalFileName, e);
-                        // Continue without metadata if extraction fails
+                        updateUploadProgress(uploadId, 70, "uploading", null, null, null);
                     }
+                } else {
+                    updateUploadProgress(uploadId, 70, "uploading", null, null, null);
                 }
 
                 String fileUrl = String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
-
-                // Final update with metadata included
+                updateUploadProgress(uploadId, 90, "uploading", fileUrl, destination.toString(), metadata);
+                Thread.sleep(200);
                 updateUploadProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
-
                 return (Void) null;
             } catch (Exception e) {
                 updateUploadProgress(uploadId, 0, "error", null, null, null);
                 throw new RuntimeException(e);
             }
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
+    }
+
+    private AudioMetadataDTO extractMetadataWithProgress(String filePath, String uploadId) throws Exception {
+        updateUploadProgress(uploadId, 50, "uploading", null, null, null);
+        AudioMetadataDTO metadata = audioMetadataService.extractMetadata(filePath);
+        updateUploadProgress(uploadId, 65, "uploading", null, null, null);
+        return metadata;
     }
 
     private void updateUploadProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata) {

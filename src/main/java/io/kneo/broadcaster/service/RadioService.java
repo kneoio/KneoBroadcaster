@@ -146,7 +146,7 @@ public class RadioService {
                                         null,
                                         null,
                                         null,
-                                        station.getCountry().name(),
+                                        station.getCountry(),
                                         station.getColor(),
                                         station.getDescription()
                                 )))

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.core.dto.AbstractReferenceDTO;
 import io.kneo.core.dto.validation.ValidCountry;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.officeframe.cnst.CountryCode;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,8 +24,9 @@ public class ListenerDTO extends AbstractReferenceDTO {
     long userId;
 
     @NotNull(message = "Country is required")
+    @NotBlank(message = "Country cannot be empty")
     @ValidCountry(message = "Country is not supported")
-    private CountryCode country;
+    private String country;
 
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;

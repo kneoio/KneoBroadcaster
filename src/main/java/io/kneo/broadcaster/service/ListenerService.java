@@ -15,6 +15,7 @@ import io.kneo.core.model.user.UndefinedUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -200,7 +201,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
-            dto.setCountry(doc.getCountry());
+            dto.setCountry(doc.getCountry().name());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
             dto.setLocalizedName(doc.getLocalizedName());
@@ -212,7 +213,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     private Listener buildEntity(ListenerDTO dto) {
         Listener doc = new Listener();
-        doc.setCountry(dto.getCountry());
+        doc.setCountry(CountryCode.fromString(dto.getCountry()));
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setNickName(dto.getNickName());

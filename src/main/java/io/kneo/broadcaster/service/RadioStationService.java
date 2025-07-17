@@ -24,6 +24,7 @@ import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -141,7 +142,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setLocalizedName(doc.getLocalizedName());
-            dto.setCountry(doc.getCountry());
+            dto.setCountry(doc.getCountry().name());
             dto.setColor(doc.getColor());
             dto.setTimeZone(doc.getTimeZone().getId());
             dto.setDescription(doc.getDescription());
@@ -219,7 +220,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     private RadioStation buildEntity(RadioStationDTO dto) {
         RadioStation entity = new RadioStation();
         entity.setLocalizedName(dto.getLocalizedName());
-        entity.setCountry(dto.getCountry());
+        entity.setCountry(CountryCode.fromString(dto.getCountry()));
         entity.setArchived(dto.getArchived());
         entity.setManagedBy(dto.getManagedBy());
         entity.setColor(dto.getColor());

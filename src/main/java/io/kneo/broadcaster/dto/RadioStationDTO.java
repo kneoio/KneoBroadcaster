@@ -8,7 +8,6 @@ import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.dto.validation.ValidCountry;
 import io.kneo.core.dto.validation.ValidLocalizedName;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.officeframe.cnst.CountryCode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -37,8 +36,9 @@ public class RadioStationDTO extends AbstractDTO {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     @NotNull(message = "Country is required")
-    @ValidCountry(message = "Country is not supported")
-    private CountryCode country;
+    @NotBlank(message = "Country cannot be empty")
+    @ValidCountry(message = "It is not available for the country")
+    private String country;
     @NotNull
     private ManagedBy managedBy;
     private URL hlsUrl;

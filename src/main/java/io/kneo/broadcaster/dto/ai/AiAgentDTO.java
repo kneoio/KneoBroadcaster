@@ -20,8 +20,12 @@ public class AiAgentDTO extends AbstractDTO {
     @NotNull
     @ValidLanguageCode(enumClass = LanguageCode.class)
     private LanguageCode preferredLang;
+
+    @Deprecated
     @NotBlank
     private String mainPrompt;
+
+    private List<String> prompts;
     private List<String> fillerPrompt;
     private List<VoiceDTO> preferredVoice;
     private List<ToolDTO> enabledTools;

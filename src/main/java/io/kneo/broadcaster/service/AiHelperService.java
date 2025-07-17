@@ -12,6 +12,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -49,15 +50,18 @@ public class AiHelperService {
 
                         if (station.getAiAgentId() != null) {
                             return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                    .map(aiAgent -> {
+                                    .map(agent -> {
                                         LiveAgentDTO liveAgentDTO = new LiveAgentDTO();
-                                        liveAgentDTO.setName(aiAgent.getName());
-                                        liveAgentDTO.setMainPrompt(aiAgent.getMainPrompt());
-                                        liveAgentDTO.setFillers(aiAgent.getFillerPrompt());
-                                        if (aiAgent.getPreferredVoice() != null && !aiAgent.getPreferredVoice().isEmpty()) {
-                                            liveAgentDTO.setPreferredVoice(aiAgent.getPreferredVoice().get(0).getId());
+                                        liveAgentDTO.setName(agent.getName());
+                                        List<String> prompts = agent.getPrompts();
+                                        Random random = new Random();
+                                        String randomPrompt = prompts.get(random.nextInt(prompts.size()));
+                                        liveAgentDTO.setPrompt(randomPrompt);
+                                        liveAgentDTO.setFillers(agent.getFillerPrompt());
+                                        if (agent.getPreferredVoice() != null && !agent.getPreferredVoice().isEmpty()) {
+                                            liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
                                         }
-                                        liveAgentDTO.setTalkativity(aiAgent.getTalkativity());
+                                        liveAgentDTO.setTalkativity(agent.getTalkativity());
                                         brand.setAgent(liveAgentDTO);
                                         return brand;
                                     });

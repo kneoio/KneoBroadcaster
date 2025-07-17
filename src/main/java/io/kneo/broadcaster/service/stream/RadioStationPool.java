@@ -95,11 +95,7 @@ public class RadioStationPool {
                                             updateService
                                     );
                                     stationFromDb.setPlaylist(newPlaylist);
-
-                                    // Set the station reference on the StreamManager *before* calling initialize
                                     newPlaylist.setRadioStation(stationFromDb);
-
-                                    // Now, StreamManager's initialize will set WARMING_UP or WAITING_FOR_CURATOR
                                     newPlaylist.initialize();
 
                                     LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP/WAITING.", key);

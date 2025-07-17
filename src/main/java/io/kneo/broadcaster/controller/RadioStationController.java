@@ -22,6 +22,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,17 +33,19 @@ import java.util.UUID;
 public class RadioStationController extends AbstractSecuredController<RadioStation, RadioStationDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationController.class);
 
-    @Inject
-    RadioStationService service;
+    private RadioStationService service;
+
+    private Validator validator;
 
     public RadioStationController() {
         super(null);
     }
 
     @Inject
-    public RadioStationController(UserService userService, RadioStationService service) {
+    public RadioStationController(UserService userService, RadioStationService service, Validator validator) {
         super(userService);
         this.service = service;
+        this.validator = validator;
     }
 
     public void setupRoutes(Router router) {
@@ -118,6 +121,9 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         String id = rc.pathParam("id");
         JsonObject jsonObject = rc.body().asJsonObject();
         RadioStationDTO dto = jsonObject.mapTo(RadioStationDTO.class);
+
+        if (!validateDTO(rc, dto, validator)) return;
+
 
         getContextUser(rc, false, true)
                 .chain(user -> service.upsert(id, dto, user, LanguageCode.en))

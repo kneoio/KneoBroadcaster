@@ -137,9 +137,9 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, main_prompt, " +
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, main_prompt, prompts, " +
                 "filler_prompt, preferred_voice, enabled_tools, talkativity) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
 
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
@@ -149,6 +149,7 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getName())
                 .addString(agent.getPreferredLang().name())
                 .addString(agent.getMainPrompt())
+                .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
                 .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
                 .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
                 .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
@@ -180,8 +181,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "main_prompt=$5, filler_prompt=$6, preferred_voice=$7, enabled_tools=$8, talkativity=$9 " +
-                                    "WHERE id=$10";
+                                    "main_prompt=$5, prompts=$6, filler_prompt=$7, preferred_voice=$8, enabled_tools=$9, talkativity=$10 " +
+                                    "WHERE id=$11";
 
                             Tuple params = Tuple.tuple()
                                     .addLong(user.getId())
@@ -189,6 +190,7 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getName())
                                     .addString(agent.getPreferredLang().name())
                                     .addString(agent.getMainPrompt())
+                                    .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
                                     .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
                                     .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
                                     .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : JsonArray.of())
@@ -257,6 +259,19 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
         doc.setMainPrompt(row.getString("main_prompt"));
         doc.setTalkativity(row.getDouble("talkativity"));
+
+        try {
+            JsonArray promptsJson = row.getJsonArray("prompts");
+            if (promptsJson != null) {
+                List<String> prompts = mapper.readValue(promptsJson.encode(), new TypeReference<List<String>>() {});
+                doc.setPrompts(prompts);
+            } else {
+                doc.setPrompts(new ArrayList<>());
+            }
+        } catch (JsonProcessingException e) {
+            LOGGER.error("Failed to deserialize prompts field for agent: {}", doc.getName(), e);
+            doc.setPrompts(new ArrayList<>());
+        }
 
         try {
             JsonArray fillerPromptJson = row.getJsonArray("filler_prompt");

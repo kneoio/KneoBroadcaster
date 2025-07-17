@@ -5,6 +5,8 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.core.dto.AbstractDTO;
+import io.kneo.core.dto.validation.ValidCountry;
+import io.kneo.core.dto.validation.ValidLocalizedName;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.officeframe.cnst.CountryCode;
 import jakarta.validation.constraints.NotBlank;
@@ -23,9 +25,19 @@ import java.util.UUID;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RadioStationDTO extends AbstractDTO {
+    @NotNull(message = "Localized name is required")
+    @ValidLocalizedName(
+            minLength = 1,
+            maxLength = 255,
+            allowEmptyMap = false,
+            requireDefaultLanguage = true,
+            defaultLanguage = LanguageCode.en,
+            message = "Invalid localized name format"
+    )
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private String slugName;
-    @NotNull
+    @NotNull(message = "Country is required")
+    @ValidCountry(message = "Country is not supported")
     private CountryCode country;
     @NotNull
     private ManagedBy managedBy;

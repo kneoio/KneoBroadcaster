@@ -11,7 +11,7 @@ import java.util.List;
 public class LiveAgentDTO {
     private String name;
     private List<String> fillers;
-    private String mainPrompt;
+    private String prompt;
     private String preferredVoice;
     private double talkativity;
 }

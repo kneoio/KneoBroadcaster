@@ -15,7 +15,11 @@ public class AiAgent extends SimpleReferenceEntity {
     private String name;
     private LanguageCode preferredLang;
     private ZoneId timeZone;
+
+    @Deprecated
     private String mainPrompt;
+
+    private List<String> prompts;
     private List<String> fillerPrompt;
     private List<Voice> preferredVoice;
     private List<Tool> enabledTools;
@@ -24,5 +28,4 @@ public class AiAgent extends SimpleReferenceEntity {
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();
     }
-
 }

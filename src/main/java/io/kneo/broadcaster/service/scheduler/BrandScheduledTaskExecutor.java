@@ -49,6 +49,8 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
         return CronTaskType.PROCESS_DJ_CONTROL == taskType;
     }
 
+    private static final int DJ_SHIFT_WARNING_MINUTES = 5;
+
     private Uni<Void> handleDjTimeWindow(RadioStation station, String target, String taskKey, ScheduleExecutionContext context) {
         TaskState currentState = getRunningTask(taskKey);
 
@@ -69,15 +71,46 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
                     });
         }
 
+        if (isAtWarningTime(context) && currentState != null) {
+            String warningTaskKey = taskKey + "_warning";
+            TaskState warningState = getRunningTask(warningTaskKey);
+
+            if (warningState == null) {
+                LOGGER.info("Sending DJ shift ending warning for station: {}", station.getSlugName());
+                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj ended")
+                        .subscribe().with(
+                                id -> System.out.println("Memory created with ID: " + id),
+                                failure -> System.err.println("Failed to create memory: " + failure)
+                        );
+                addRunningTask(warningTaskKey, station.getId(), "dj_warning", target);
+            }
+        }
+
         if (isAtWindowEnd(context) && currentState != null) {
             LOGGER.info("Stopping DJ control for station: {}", station.getSlugName());
             removeRunningTask(taskKey);
+            removeRunningTask(taskKey + "_warning");
             return stopDjControl(station);
         }
 
         LOGGER.debug("DJ control continuing for station: {} (no action needed)", station.getSlugName());
         return Uni.createFrom().voidItem();
     }
+
+    private boolean isAtWarningTime(ScheduleExecutionContext context) {
+        if (context.getTask().getTimeWindowTrigger() == null) return false;
+
+        String currentTime = context.getCurrentTime();
+        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+
+        LocalTime current = LocalTime.parse(currentTime);
+        LocalTime end = LocalTime.parse(endTime);
+        LocalTime warningTime = end.minusMinutes(DJ_SHIFT_WARNING_MINUTES);
+
+        return !current.isBefore(warningTime) && current.isBefore(end);
+    }
+
+
 
     private boolean isAtWindowStart(ScheduleExecutionContext context) {
         if (context.getTask().getTimeWindowTrigger() == null) return false;
@@ -142,11 +175,6 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
                                             rs.getStatus() == RadioStationStatus.IDLE)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(false);
-                                memoryService.upsert(station.getSlugName(), MemoryType.EVENT, "The shift of the dj ended")
-                                        .subscribe().with(
-                                                id -> System.out.println("Memory created with ID: " + id),
-                                                failure -> System.err.println("Failed to create memory: " + failure)
-                                        );
                                 LOGGER.info("Set AiControlAllowed=false for station: {}", rs.getSlugName());
                             });
                 });

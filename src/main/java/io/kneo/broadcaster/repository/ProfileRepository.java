@@ -5,7 +5,6 @@ import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -112,19 +111,10 @@ public class ProfileRepository extends AsyncRepository {
                 tx.preparedQuery(sql)
                         .execute(params)
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id -> {
-                            String rlsSql = String.format(
-                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                    entityData.getRlsName()
-                            );
-                            return tx.preparedQuery(rlsSql)
-                                    .execute(Tuple.of(user.getId(), id, true, true))
-                                    .onItem().transformToUni(ignored ->
-                                            tx.preparedQuery(rlsSql)
-                                                    .execute(Tuple.of(SuperUser.ID, id, true, true))
-                                                    .onItem().transform(ignored2 -> id)
-                                    );
-                        })
+                        .onItem().transformToUni(id ->
+                                insertRLSPermissions(tx, id, entityData, user)
+                                        .onItem().transform(ignored -> id)
+                        )
         ).onItem().transformToUni(this::findById);
     }
 

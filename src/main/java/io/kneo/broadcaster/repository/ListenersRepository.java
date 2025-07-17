@@ -7,7 +7,6 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -193,20 +192,11 @@ public class ListenersRepository extends AsyncRepository {
                 tx.preparedQuery(sql)
                         .execute(params)
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id -> {
-                            String rlsSql = String.format(
-                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                    entityData.getRlsName()
-                            );
-                            return tx.preparedQuery(rlsSql)
-                                    .execute(Tuple.of(user.getId(), id, true, true))
-                                    .onItem().transformToUni(ignored ->
-                                            tx.preparedQuery(rlsSql)
-                                                    .execute(Tuple.of(SuperUser.ID, id, true, true))
-                                                    .onItem().transformToUni(ignored2 -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
-                                                    .onItem().transform(ignored3 -> id)
-                                    );
-                        })
+                        .onItem().transformToUni(id ->
+                                insertRLSPermissions(tx, id, entityData, user)
+                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
+                                        .onItem().transform(ignored -> id)
+                        )
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
@@ -277,7 +267,6 @@ public class ListenersRepository extends AsyncRepository {
             return Uni.createFrom().voidItem();
         }
 
-        // First, get current brand associations
         String getCurrentBrandsSql = "SELECT brand_id FROM kneobroadcaster__listener_brands WHERE listener_id = $1";
 
         return tx.preparedQuery(getCurrentBrandsSql)
@@ -285,8 +274,6 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transformToUni(currentRows -> {
                     List<UUID> currentBrands = new ArrayList<>();
                     currentRows.forEach(row -> currentBrands.add(row.getUUID("brand_id")));
-
-                    // Calculate brands to add and remove
                     List<UUID> brandsToAdd = representedInBrands.stream()
                             .filter(brand -> !currentBrands.contains(brand))
                             .toList();
@@ -295,7 +282,6 @@ public class ListenersRepository extends AsyncRepository {
                             .filter(brand -> !representedInBrands.contains(brand))
                             .toList();
 
-                    // Remove brands that are no longer associated
                     Uni<Void> removeUni = Uni.createFrom().voidItem();
                     if (!brandsToRemove.isEmpty()) {
                         String deleteBrandsSql = "DELETE FROM kneobroadcaster__listener_brands WHERE listener_id = $1 AND brand_id = ANY($2)";
@@ -305,7 +291,6 @@ public class ListenersRepository extends AsyncRepository {
                                 .onItem().ignore().andContinueWithNull();
                     }
 
-                    // Add new brand associations
                     Uni<Void> addUni = Uni.createFrom().voidItem();
                     if (!brandsToAdd.isEmpty()) {
                         String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";

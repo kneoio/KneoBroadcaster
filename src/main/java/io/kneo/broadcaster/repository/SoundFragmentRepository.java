@@ -13,7 +13,6 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -674,18 +673,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                             fileMetadataUni = tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
                         }
 
-                        String readersSql = String.format(
-                                "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                entityData.getRlsName()
-                        );
-
                         return fileMetadataUni
-                                .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
-                                        .execute(Tuple.of(user.getId(), id, true, true))
-                                )
-                                .onItem().transformToUni(ignored -> tx.preparedQuery(readersSql)
-                                        .execute(Tuple.of(SuperUser.ID, id, true, true))
-                                )
+                                .onItem().transformToUni(ignored -> insertRLSPermissions(tx, id, entityData, user))
                                 .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user))
                                 .onItem().transform(ignored -> id);
                     })

@@ -9,7 +9,6 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -194,22 +193,10 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                                         .execute(params)
                                         .onFailure().invoke(throwable -> LOGGER.error("Failed to insert radio station for user: {}", user.getId(), throwable))
                                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                                        .onItem().transformToUni(id -> {
-                                            String readersSql = String.format(
-                                                    "INSERT INTO %s (reader, entity_id, can_edit, can_delete) VALUES ($1, $2, $3, $4)",
-                                                    entityData.getRlsName()
-                                            );
-
-                                            return tx.preparedQuery(readersSql)
-                                                    .execute(Tuple.of(user.getId(), id, true, true))
-                                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to insert RLS permissions for radio station: {} and user: {}", id, user.getId(), throwable))
-                                                    .onItem().transformToUni(ignored ->
-                                                            tx.preparedQuery(readersSql)
-                                                                    .execute(Tuple.of(SuperUser.ID, id, true, true))
-                                                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to insert SuperUser RLS permissions for radio station: {}", id, throwable))
-                                                                    .onItem().transform(ignored2 -> id)
-                                                    );
-                                        })
+                                        .onItem().transformToUni(id ->
+                                                insertRLSPermissions(tx, id, entityData, user)
+                                                        .onItem().transform(ignored -> id)
+                                        )
                         ).onFailure().invoke(throwable -> LOGGER.error("Transaction failed for radio station insert for user: {}", user.getId(), throwable))
                         .onItem().transformToUni(id -> findById(id, user, true));
             } catch (Exception e) {

@@ -102,7 +102,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setLastModifiedDate(agent.getLastModifiedDate());
             dto.setName(agent.getName());
             dto.setPreferredLang(agent.getPreferredLang());
-            dto.setMainPrompt(agent.getMainPrompt());
             dto.setPrompts(agent.getPrompts());
             dto.setFillerPrompt(agent.getFillerPrompt());
             dto.setTalkativity(agent.getTalkativity());
@@ -142,7 +141,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         entity.setId(dto.getId());
         entity.setName(dto.getName());
         entity.setPreferredLang(dto.getPreferredLang());
-        entity.setMainPrompt(dto.getMainPrompt());
         entity.setPrompts(dto.getPrompts());
         entity.setFillerPrompt(dto.getFillerPrompt());
         entity.setTalkativity(dto.getTalkativity());

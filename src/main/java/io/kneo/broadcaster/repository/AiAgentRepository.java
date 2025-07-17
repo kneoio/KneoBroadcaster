@@ -257,7 +257,6 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setName(row.getString("name"));
         doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
-        doc.setMainPrompt(row.getString("main_prompt"));
         doc.setTalkativity(row.getDouble("talkativity"));
 
         try {

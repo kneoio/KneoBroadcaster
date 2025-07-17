@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.RadioStationDTO;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
@@ -151,13 +152,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setAiAgentId(doc.getAiAgentId());
             dto.setProfileId(doc.getProfileId());
 
-            if (doc.getSchedule() != null) {
-                ScheduleDTO scheduleDTO = new ScheduleDTO();
-                Schedule schedule = doc.getSchedule();
-                scheduleDTO.setEnabled(schedule.isEnabled());
-                if (!schedule.isEnabled()) {
-                    dto.setAiControlAllowed(true);
-                }
+            ScheduleDTO scheduleDTO = new ScheduleDTO();
+            Schedule schedule = doc.getSchedule();
+            scheduleDTO.setEnabled(schedule.isEnabled());
+            if (schedule.isEnabled()) {
                 if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
                     List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
                         TaskDTO taskDTO = new TaskDTO();
@@ -189,30 +187,36 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                             periodicTriggerDTO.setWeekdays(task.getPeriodicTrigger().getWeekdays());
                             taskDTO.setPeriodicTrigger(periodicTriggerDTO);
                         }
-
                         return taskDTO;
                     }).collect(Collectors.toList());
 
                     scheduleDTO.setTasks(taskDTOs);
                 }
-
-                dto.setSchedule(scheduleDTO);
-            } else {
-                if (doc.getManagedBy() != ManagedBy.ITSELF) {
-                    dto.setAiControlAllowed(true);
-                }
             }
+
+            dto.setSchedule(scheduleDTO);
+
 
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
-                dto.setMixplaUrl(new URL(broadcasterConfig.getHost() + "/index.html?radio=" + dto.getSlugName()));
+                dto.setMixplaUrl(new URL("https://mixpla250.windsurf.build/index.html?radio=" + dto.getSlugName()));
+                //dto.setMixplaUrl(new URL(broadcasterConfig.getHost() + "/index.html?radio=" + dto.getSlugName()));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
             dto.setArchived(doc.getArchived());
-            dto.setStatus(tuple.getItem3().getStatus());
-            dto.setAiControlAllowed(tuple.getItem3().isAiControlAllowed());
+            RadioStationStatus liveStatus = tuple.getItem3().getStatus();
+            dto.setStatus(liveStatus);
+            if (liveStatus == RadioStationStatus.ON_LINE) {
+                if (dto.getSchedule().isEnabled()) {
+                    dto.setAiControlAllowed(tuple.getItem3().isAiControlAllowed());
+                } else {
+                    if (doc.getManagedBy() != ManagedBy.ITSELF) {
+                        dto.setAiControlAllowed(true);
+                    }
+                }
+            }
             return dto;
         });
     }

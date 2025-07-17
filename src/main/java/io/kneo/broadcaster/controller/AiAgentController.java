@@ -121,7 +121,7 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                         dto.setEnabledTools(List.of(tool1, tool2, tool3, tool4, tool5, tool6));**/
                         dto.setTalkativity(0.3);
                         dto.setFillerPrompt(DEFAULT_FILLER_PROMPTS);
-                        dto.setMainPrompt(PROMPT_BASIC);
+                        dto.setPrompts(List.of(PROMPT_BASIC));
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)

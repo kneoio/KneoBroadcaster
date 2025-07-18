@@ -114,7 +114,6 @@ public class QueueController {
                             station -> {
                                 rc.response()
                                         .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                        .putHeader("Access-Control-Allow-Origin", "*")
                                         .setStatusCode(200)
                                         .end("{\"status\":\"" + station.getStatus() + "}");
                             },
@@ -133,7 +132,6 @@ public class QueueController {
                             station -> {
                                 rc.response()
                                         .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                        .putHeader("Access-Control-Allow-Origin", "*")
                                         .setStatusCode(200)
                                         .end("{\"status\":\"DONE\"}");
                             },
@@ -152,9 +150,8 @@ public class QueueController {
                             station -> {
                                 rc.response()
                                         .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                        .putHeader("Access-Control-Allow-Origin", "*")
                                         .setStatusCode(200)
-                                        .end("{\"status\":\"" + station.getStatus() + "}");
+                                        .end("{\"status\":\"OK\"}");
                             },
                             throwable -> {
                                 LOGGER.error("Error stopping radio station: {}", throwable.getMessage());
@@ -169,7 +166,6 @@ public class QueueController {
             taskExecutorService.resetTasksForStation(brand);
             rc.response()
                     .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                    .putHeader("Access-Control-Allow-Origin", "*")
                     .setStatusCode(200)
                     .end("{\"status\":\"SCHEDULER_RESET_COMPLETE\"}");
         } else {

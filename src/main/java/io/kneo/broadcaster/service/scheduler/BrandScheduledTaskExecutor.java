@@ -49,7 +49,7 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
         return CronTaskType.PROCESS_DJ_CONTROL == taskType;
     }
 
-    private static final int DJ_SHIFT_WARNING_MINUTES = 5;
+    private static final int DJ_SHIFT_WARNING_MINUTES = 7;
 
     private Uni<Void> handleDjTimeWindow(RadioStation station, String target, String taskKey, ScheduleExecutionContext context) {
         TaskState currentState = getRunningTask(taskKey);

@@ -125,25 +125,19 @@ public class StreamManager implements IStreamManager {
 
     public void feedSegments() {
         int drippedCountThisCall = 0;
-        if (pendingFragmentSegmentsQueue.isEmpty()) {
-            // Queue is empty
-        } else {
+        if (!pendingFragmentSegmentsQueue.isEmpty()) {
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
                     System.out.printf("feedSegments Debug: [DRIP] liveSegments buffer for %s is full or at limit (%d/%d). Pausing drip-feed for this call.%n",
                             radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments * 2);
                     break;
                 }
-                if (!pendingFragmentSegmentsQueue.isEmpty()) {
-                    HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
-                    liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
-                    drippedCountThisCall++;
+                HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
+                liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
+                drippedCountThisCall++;
 
-                    if (segmentToMakeLive.isFirstSegmentOfFragment()) {
-                        handleNewFragmentStarted(segmentToMakeLive);
-                    }
-                } else {
-                    break;
+                if (segmentToMakeLive.isFirstSegmentOfFragment()) {
+                    handleNewFragmentStarted(segmentToMakeLive);
                 }
             }
             if (drippedCountThisCall > 0) {
@@ -219,10 +213,6 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public String generatePlaylist() {
-        String radioSlugForDebug = (this.radioStation != null && this.radioStation.getSlugName() != null)
-                ? this.radioStation.getSlugName()
-                : "UNKNOWN_STATION";
-
         if (liveSegments.isEmpty()) {
             //System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=0, Segments=[] (Live segments empty)%n", radioSlugForDebug);
             return "#EXTM3U\n" +
@@ -340,6 +330,7 @@ public class StreamManager implements IStreamManager {
         }
 
         if (currentPlayingFragment != null) {
+            assert radioStation != null;
             updateService.updatePlayedCountAsync(
                     radioStation.getId(),
                     currentPlayingFragment.getSoundFragment().getId(),

@@ -67,7 +67,6 @@ public class StationInactivityChecker {
         LOGGER.info("Station inactivity checking...");
         OffsetDateTime tenMinutesAgo = OffsetDateTime.now().minusMinutes(IDLE_THRESHOLD_MINUTES);
         OffsetDateTime fifteenMinutesAgo = OffsetDateTime.now().minusMinutes(STOP_REMOVE_THRESHOLD_MINUTES);
-        //TODO it is not tracking  WAITING_FOR_CURATOR
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
 
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
@@ -88,7 +87,7 @@ public class StationInactivityChecker {
                                     station.getSlugName(), failure.getMessage()))
                     .subscribe().with(
                             item -> {},
-                            failure -> {} // Already handled in onFailure
+                            failure -> {}
                     );
         }
 
@@ -98,11 +97,6 @@ public class StationInactivityChecker {
                                 .onItem().transformToUni(stats -> {
                                     if (stats != null && stats.getLastAccessTime() != null) {
                                         Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
-                                        if (lastAccessInstant.isBefore(tenMinutesAgo.toInstant())) {
-                                            LOGGER.info("Station {} has been inactive for {} minutes, setting status to IDLE.",
-                                                    radioStation.getSlugName(), IDLE_THRESHOLD_MINUTES);
-                                            radioStation.setStatus(RadioStationStatus.IDLE);
-                                        }
 
                                         if (lastAccessInstant.isBefore(fifteenMinutesAgo.toInstant())) {
                                             LOGGER.info("Station {} inactive for {} minutes, stopping and removing.",
@@ -110,6 +104,16 @@ public class StationInactivityChecker {
                                             return radioStationPool.stopAndRemove(radioStation.getSlugName())
                                                     .replaceWithVoid();
                                         }
+                                        else if (lastAccessInstant.isBefore(tenMinutesAgo.toInstant())) {
+                                            LOGGER.info("Station {} has been inactive for {} minutes, setting status to IDLE.",
+                                                    radioStation.getSlugName(), IDLE_THRESHOLD_MINUTES);
+                                            radioStation.setStatus(RadioStationStatus.IDLE);
+                                        }
+                                    } else {
+                                        LOGGER.info("Station {} has no last access time, stopping and removing.",
+                                                radioStation.getSlugName());
+                                        return radioStationPool.stopAndRemove(radioStation.getSlugName())
+                                                .replaceWithVoid();
                                     }
                                     return Uni.createFrom().voidItem();
                                 })

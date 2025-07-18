@@ -127,7 +127,20 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     public Uni<Integer> archive(String id, IUser user) {
         assert repository != null;
-        return repository.archive(UUID.fromString(id), user);
+        return repository.findById(UUID.fromString(id), user, false)
+                .chain(radioStation -> {
+                    if (radioStation != null && radioStation.getSlugName() != null) {
+                        return radiostationPool.stopAndRemove(radioStation.getSlugName())
+                                .onFailure().invoke(failure ->
+                                        LOGGER.warn("Failed to stop radio station {} during archive: {}",
+                                                radioStation.getSlugName(), failure.getMessage()))
+                                .onItem().ignore().andSwitchTo(
+                                        repository.archive(UUID.fromString(id), user)
+                                );
+                    } else {
+                        return repository.archive(UUID.fromString(id), user);
+                    }
+                });
     }
 
     private Uni<RadioStationDTO> mapToDTO(RadioStation doc) {

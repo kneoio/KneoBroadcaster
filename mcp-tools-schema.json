@@ -1,0 +1,58 @@
+{
+  "tools": [
+    {
+      "name": "get_brand_soundfragments",
+      "description": "Get sound fragments available for a specific brand",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": "string",
+            "description": "Brand name to filter sound fragments by"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination (1-based)",
+            "default": 1,
+            "minimum": 1
+          },
+          "size": {
+            "type": "integer",
+            "description": "Number of items per page",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["brand"]
+      }
+    },
+    {
+      "name": "search_soundfragments",
+      "description": "Search sound fragments by query term",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search term to find matching sound fragments"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number for pagination (1-based)",
+            "default": 1,
+            "minimum": 1
+          },
+          "size": {
+            "type": "integer",
+            "description": "Number of items per page",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}

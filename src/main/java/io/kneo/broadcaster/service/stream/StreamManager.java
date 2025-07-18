@@ -139,7 +139,6 @@ public class StreamManager implements IStreamManager {
                     liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
                     drippedCountThisCall++;
 
-                    // Track if this is the first segment of a new fragment
                     if (segmentToMakeLive.isFirstSegmentOfFragment()) {
                         handleNewFragmentStarted(segmentToMakeLive);
                     }
@@ -184,9 +183,7 @@ public class StreamManager implements IStreamManager {
     private void handleNewFragmentStarted(HlsSegment segment) {
         BrandSoundFragment newFragment = segment.getSourceFragment();
 
-        // If we had a previous fragment playing, mark it as completed
         if (currentPlayingFragment != null && !currentPlayingFragment.equals(newFragment)) {
-            // Previous fragment finished, update its play count
             updateService.updatePlayedCountAsync(
                     radioStation.getId(),
                     currentPlayingFragment.getSoundFragment().getId(),
@@ -194,7 +191,6 @@ public class StreamManager implements IStreamManager {
             );
         }
 
-        // Set the new current fragment
         currentPlayingFragment = newFragment;
     }
 
@@ -249,7 +245,6 @@ public class StreamManager implements IStreamManager {
                 .append(ZonedDateTime.now(ZONE_ID).format(DateTimeFormatter.ISO_INSTANT))
                 .append("\n");
 
-        List<Long> includedSegmentSequences = new ArrayList<>();
         String currentRadioSlugForPath = (this.radioStation != null && this.radioStation.getSlugName() != null)
                 ? this.radioStation.getSlugName() : "default_station_path";
 
@@ -258,7 +253,6 @@ public class StreamManager implements IStreamManager {
                 .limit(maxVisibleSegments)
                 .forEach(entry -> {
                     HlsSegment segment = entry.getValue();
-                    includedSegmentSequences.add(segment.getSequence());
                     playlist.append("#EXTINF:")
                             .append(segment.getDuration())
                             .append(",")
@@ -271,13 +265,6 @@ public class StreamManager implements IStreamManager {
                             .append(".ts\n");
                 });
 
-      /*   String segmentsLogString = includedSegmentSequences.stream()
-                .map(String::valueOf)
-                .collect(Collectors.joining(", "));
-
-       System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=%d, Segments=[%s]%n",
-                radioSlugForDebug, firstSequenceInWindow, segmentsLogString);
-*/
         return playlist.toString();
     }
 

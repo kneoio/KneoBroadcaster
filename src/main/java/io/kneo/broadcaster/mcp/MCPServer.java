@@ -4,28 +4,30 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.ServerWebSocket;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-@ApplicationScoped
 public class MCPServer extends AbstractVerticle {
     private static final Logger LOGGER = LoggerFactory.getLogger(MCPServer.class);
     private static final int MCP_PORT = 38708; 
     
-    @Inject
-    SoundFragmentMCPTools mcpTools;
+    private SoundFragmentMCPTools mcpTools;
     
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule());
     private HttpServer server;
+    
+    public MCPServer(SoundFragmentMCPTools mcpTools) {
+        this.mcpTools = mcpTools;
+    }
     
     @Override
     public void start(Promise<Void> startPromise) {
@@ -41,24 +43,26 @@ public class MCPServer extends AbstractVerticle {
     }
     
     private void handleWebSocket(ServerWebSocket webSocket) {
-        LOGGER.info("MCP client connected: {}", webSocket.remoteAddress());
+        LOGGER.info("🔗 MCP client connected from: {}", webSocket.remoteAddress());
+        LOGGER.info("   Connection established, ready to receive MCP requests");
         
         webSocket.textMessageHandler(message -> {
             try {
+                LOGGER.debug("📨 Received MCP message: {}", message);
                 JsonNode request = objectMapper.readTree(message);
                 handleMCPRequest(webSocket, request);
             } catch (Exception e) {
-                LOGGER.error("Error processing MCP request", e);
+                LOGGER.error("❌ Error processing MCP request: {}", e.getMessage(), e);
                 sendError(webSocket, "parse_error", "Invalid JSON", null);
             }
         });
         
         webSocket.closeHandler(v -> {
-            LOGGER.info("MCP client disconnected: {}", webSocket.remoteAddress());
+            LOGGER.info("🔌 MCP client disconnected: {}", webSocket.remoteAddress());
         });
         
         webSocket.exceptionHandler(throwable -> {
-            LOGGER.error("WebSocket error", throwable);
+            LOGGER.error("⚠️ WebSocket error for client {}: {}", webSocket.remoteAddress(), throwable.getMessage(), throwable);
         });
     }
     
@@ -68,21 +72,28 @@ public class MCPServer extends AbstractVerticle {
             JsonNode params = request.get("params");
             String id = request.has("id") ? request.get("id").asText() : null;
             
+            LOGGER.info("🔧 Processing MCP request: method='{}', id='{}'", method, id);
+            
             switch (method) {
                 case "initialize":
+                    LOGGER.info("   📋 Handling initialize request");
                     handleInitialize(webSocket, id);
                     break;
                 case "tools/list":
+                    LOGGER.info("   📝 Handling tools/list request");
                     handleToolsList(webSocket, id);
                     break;
                 case "tools/call":
+                    String toolName = params != null && params.has("name") ? params.get("name").asText() : "unknown";
+                    LOGGER.info("   🛠️ Handling tools/call request for tool: '{}'", toolName);
                     handleToolCall(webSocket, params, id);
                     break;
                 default:
+                    LOGGER.warn("   ❓ Unknown method requested: '{}'", method);
                     sendError(webSocket, "method_not_found", "Method not found: " + method, id);
             }
         } catch (Exception e) {
-            LOGGER.error("Error handling MCP request", e);
+            LOGGER.error("💥 Error handling MCP request: {}", e.getMessage(), e);
             sendError(webSocket, "internal_error", "Internal server error", null);
         }
     }

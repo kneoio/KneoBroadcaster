@@ -411,7 +411,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                     .id(meta.getSlugName())
                                     .name(safeFileName)
                                     .status("finished")
-                                    .url("/api/soundfragments/files/" + doc.getId() + "/" + safeFileName)
+                                    .url("/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName())
                                     .percentage(100)
                                     .build());
                         });

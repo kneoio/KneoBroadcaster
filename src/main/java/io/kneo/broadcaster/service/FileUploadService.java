@@ -90,16 +90,16 @@ public class FileUploadService {
                 updateProgress(uploadId, 5, "uploading", null, null, null);
                 Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
 
-                // Step 3: File copy with real progress (10-70%)
+                // Step 3: File copy with fine-grained progress (10-70%)
                 updateProgress(uploadId, 10, "uploading", null, null, null);
                 copyFileWithProgress(uploadedFile, destination, uploadId, totalFileSize);
 
                 // Step 4: Metadata extraction (70-90%)
-                updateProgress(uploadId, 70, "uploading", null, null, null);
+                updateProgress(uploadId, 70, "processing", null, null, null);
                 AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
 
                 // Step 5: Finalization (90-100%)
-                updateProgress(uploadId, 90, "uploading", null, null, null);
+                updateProgress(uploadId, 90, "finalizing", null, null, null);
                 String fileUrl = generateFileUrl(entityId, safeFileName);
 
                 // Complete (100%)
@@ -130,11 +130,10 @@ public class FileUploadService {
                 totalBytesRead += bytesRead;
 
                 // Calculate progress: map bytes read to 10-70% range
-                // Formula: 10 + (bytesRead/totalSize * 60)
                 int currentProgress = 10 + (int)((totalBytesRead * 60) / totalSize);
 
-                // Update progress in 5% increments to avoid too many updates
-                if (currentProgress >= lastReportedProgress + 5) {
+                // Fine-grained progress updates - report every 1% change
+                if (currentProgress > lastReportedProgress) {
                     updateProgress(uploadId, Math.min(currentProgress, 70), "uploading", null, null, null);
                     lastReportedProgress = currentProgress;
                 }
@@ -166,14 +165,13 @@ public class FileUploadService {
         }
 
         try {
-            // Progress: 70% -> 80%
+            // Progress: 70% -> 90%
             updateProgress(uploadId, 75, "processing", null, null, null);
 
             AudioMetadataDTO metadata = audioMetadataService.extractMetadataWithProgress(
                     destination.toString(),
                     (percentage) -> {
                         // Map metadata progress (0-100%) to overall progress (75-90%)
-                        // Formula: 75 + (percentage * 15 / 100)
                         int overallProgress = 75 + (percentage * 15 / 100);
                         updateProgress(uploadId, Math.min(overallProgress, 90), "processing", null, null, null);
                     }

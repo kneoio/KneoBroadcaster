@@ -312,23 +312,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         });
     }
 
-    private void getUploadProgress(RoutingContext rc) {
-        String uploadId = rc.pathParam("uploadId");
-        UploadFileDTO progress = fileUploadService.getUploadProgress(uploadId);
-
-        if (progress == null) {
-            rc.fail(404, new IllegalArgumentException("Upload not found"));
-            return;
-        }
-
-        if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
-            vertx.setTimer(300000, timerId -> fileUploadService.cleanupUploadSession(uploadId));
-        }
-
-        rc.response()
-                .putHeader("Content-Type", "application/json")
-                .end(JsonObject.mapFrom(progress).encode());
-    }
 
     private void getBySlugName(RoutingContext rc) {
         String id = rc.pathParam("id");

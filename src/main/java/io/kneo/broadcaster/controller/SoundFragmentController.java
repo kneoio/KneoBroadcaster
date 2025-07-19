@@ -243,7 +243,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         String entityId = rc.pathParam("id");
         FileUpload uploadedFile = rc.fileUploads().get(0);
-        String uploadId = UUID.randomUUID().toString();
+        String uploadId = rc.request().getParam("uploadId");
+
+        if (uploadId == null || uploadId.trim().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
+            return;
+        }
 
         try {
             fileUploadService.validateUpload(uploadedFile);
@@ -256,41 +261,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc, false, true)
                 .subscribe().with(
                         user -> {
-                            try {
-                                UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, entityId, uploadedFile);
+                            UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, entityId, uploadedFile);
 
-                                // Send response IMMEDIATELY - this should not block!!!
-                                rc.response()
-                                        .putHeader("Content-Type", "application/json")
-                                        .setStatusCode(200)
-                                        .end(JsonObject.mapFrom(uploadDto).encode());
+                            rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(JsonObject.mapFrom(uploadDto).encode());
 
-                                LOGGER.info("Response sent to client with uploadId: {}", uploadId);
-
-                                vertx.executeBlocking(promise -> {
-                                    fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName())
-                                            .subscribe().with(
-                                                    success -> {
-                                                        LOGGER.info("File processing completed for uploadId: {}", uploadId);
-                                                        promise.complete();
-                                                    },
-                                                    error -> {
-                                                        LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
-                                                        promise.fail(error);
-                                                    }
-                                            );
-                                }, false, res -> {
-                                    if (res.failed()) {
-                                        LOGGER.error("Background processing failed", res.cause());
-                                    }
-                                });
-
-                            } catch (Exception e) {
-                                LOGGER.error("Error in upload handler", e);
-                                if (!rc.response().ended()) {
-                                    rc.fail(500, e);
-                                }
-                            }
+                            fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName())
+                                    .subscribe().with(
+                                            success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
+                                            error -> LOGGER.error("File processing failed for uploadId: {}", uploadId, error)
+                                    );
                         },
                         throwable -> {
                             if (throwable instanceof SecurityException) {

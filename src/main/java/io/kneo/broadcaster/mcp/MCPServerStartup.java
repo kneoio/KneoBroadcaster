@@ -16,17 +16,25 @@ public class MCPServerStartup {
     Vertx vertx;
     
     @Inject
-    MCPServer mcpServer;
+    SoundFragmentMCPTools mcpTools;
     
     void onStart(@Observes StartupEvent ev) {
+        LOGGER.info("=== MCP SERVER STARTUP ====");
         LOGGER.info("Starting MCP Server...");
+        
+        MCPServer mcpServer = new MCPServer(mcpTools);
         
         vertx.deployVerticle(mcpServer)
             .onSuccess(deploymentId -> {
-                LOGGER.info("MCP Server deployed successfully with ID: {}", deploymentId);
+                LOGGER.info("✅ MCP Server deployed successfully!");
+                LOGGER.info("   Deployment ID: {}", deploymentId);
+                LOGGER.info("   WebSocket endpoint: ws://localhost:38708");
+                LOGGER.info("   Available tools: get_brand_soundfragments, search_soundfragments");
+                LOGGER.info("=== MCP SERVER READY ====");
             })
             .onFailure(throwable -> {
-                LOGGER.error("Failed to deploy MCP Server", throwable);
+                LOGGER.error("❌ Failed to deploy MCP Server", throwable);
+                LOGGER.error("   Check if port 38708 is available");
             });
     }
 }

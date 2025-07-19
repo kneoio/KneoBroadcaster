@@ -12,13 +12,16 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 @ApplicationScoped
 public class SoundFragmentMCPTools {
-    
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentMCPTools.class);
+
     @Inject
     SoundFragmentService service;
     
@@ -60,32 +63,51 @@ public class SoundFragmentMCPTools {
         @Parameter("page") Optional<Integer> page,
         @Parameter("size") Optional<Integer> size
     ) {
-        int pageNum = page.orElse(1);
-        int pageSize = size.orElse(10);
-        
-        // Validate search term
-        if (searchTerm == null || searchTerm.trim().isEmpty()) {
-            return CompletableFuture.failedFuture(
-                new IllegalArgumentException("Search term 'query' parameter is required and cannot be empty")
-            );
+        try {
+            LOGGER.info("MCP Tool: searchSoundFragments called with query='{}', page={}, size={}",
+                searchTerm, page.orElse(1), size.orElse(10));
+
+            int pageNum = page.orElse(1);
+            int pageSize = size.orElse(10);
+
+            // Validate search term
+            if (searchTerm == null || searchTerm.trim().isEmpty()) {
+                LOGGER.error("MCP Tool: Empty search term provided");
+                return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("Search term 'query' parameter is required and cannot be empty")
+                );
+            }
+
+            return getCurrentUser()
+                .chain(user -> {
+                    LOGGER.info("MCP Tool: Got user context: {}", user.getClass().getSimpleName());
+                    // Calculate offset for pagination
+                    int offset = (pageNum - 1) * pageSize;
+
+                    // Get both search results and count in parallel
+                    return Uni.combine().all().unis(
+                        service.getSearchCount(searchTerm, user),
+                        service.search(searchTerm, pageSize, offset, user)
+                    ).asTuple();
+                })
+                .map(tuple -> {
+                    long totalCount = tuple.getItem1();
+                    List<SoundFragmentDTO> fragments = tuple.getItem2();
+                    int maxPage = RuntimeUtil.countMaxPage(totalCount, pageSize);
+
+                    LOGGER.info("MCP Tool: Search completed. Found {} fragments, total count: {}",
+                        fragments.size(), totalCount);
+
+                    return new MCPSearchResponse(fragments, totalCount, pageNum, maxPage);
+                })
+                .onFailure().invoke(throwable -> {
+                    LOGGER.error("MCP Tool: Search failed", throwable);
+                })
+                .convert().toCompletableFuture();
+        } catch (Exception e) {
+            LOGGER.error("MCP Tool: Exception in searchSoundFragments", e);
+            return CompletableFuture.failedFuture(e);
         }
-        
-        return getCurrentUser()
-            .chain(user -> {
-                int offset = (pageNum - 1) * pageSize;
-                return Uni.combine().all().unis(
-                    service.getSearchCount(searchTerm, user),
-                    service.search(searchTerm, pageSize, offset, user)
-                ).asTuple();
-            })
-            .<MCPSearchResponse>map(tuple -> {
-                long totalCount = tuple.getItem1();
-                List<SoundFragmentDTO> fragments = tuple.getItem2();
-                int maxPage = RuntimeUtil.countMaxPage(totalCount, pageSize);
-                
-                return new MCPSearchResponse(fragments, totalCount, pageNum, maxPage);
-            })
-            .convert().toCompletableFuture();
     }
     
     /**

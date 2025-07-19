@@ -79,16 +79,16 @@ public class FileUploadService {
         return Uni.createFrom().item(() -> {
             try {
                 updateProgress(uploadId, 0, "uploading", null, null, null);
-
+                Thread.sleep(2000);
                 String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
                 updateProgress(uploadId, 5, "uploading", null, null, null);
-
+                Thread.sleep(1500);
                 Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
                 updateProgress(uploadId, 20, "uploading", null, null, null);
-
+                Thread.sleep(2000);
                 moveAndVerifyFile(uploadedFile, destination, originalFileName, user);
                 updateProgress(uploadId, 45, "uploading", null, null, null);
-
+                Thread.sleep(1500);
                 AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
 
                 String fileUrl = generateFileUrl(entityId, safeFileName);

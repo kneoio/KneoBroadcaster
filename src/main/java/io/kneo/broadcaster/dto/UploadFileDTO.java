@@ -1,10 +1,16 @@
 package io.kneo.broadcaster.dto;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
-@Builder
-@Data
+@Getter
+@Setter
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UploadFileDTO {
     private String id;
     private String name;
@@ -12,8 +18,9 @@ public class UploadFileDTO {
     private String url;
     private Integer percentage;
     private String batchId;
-    private String thumbnailUrl;
     private String type;
     private String fullPath;
+    private String thumbnailUrl;
     private AudioMetadataDTO metadata;
+    private Long fileSize;
 }

@@ -14,10 +14,10 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FileUploadService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileUploadService.class);
     private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+    private static final int BUFFER_SIZE = 8192;
 
     private final String uploadDir;
     private final AudioMetadataService audioMetadataService;
@@ -68,6 +69,7 @@ public class FileUploadService {
                 .percentage(0)
                 .type(uploadedFile.contentType())
                 .batchId(entityId)
+                .fileSize(uploadedFile.size())
                 .build();
 
         uploadProgressMap.put(uploadId, uploadDto);
@@ -78,28 +80,115 @@ public class FileUploadService {
                                  IUser user, String originalFileName) {
         return Uni.createFrom().item(() -> {
             try {
-                updateProgress(uploadId, 0, "uploading", null, null, null);
-                Thread.sleep(2000);
-                String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
-                updateProgress(uploadId, 5, "uploading", null, null, null);
-                Thread.sleep(1500);
-                Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
-                updateProgress(uploadId, 20, "uploading", null, null, null);
-                Thread.sleep(2000);
-                moveAndVerifyFile(uploadedFile, destination, originalFileName, user);
-                updateProgress(uploadId, 45, "uploading", null, null, null);
-                Thread.sleep(1500);
-                AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
+                long totalFileSize = uploadedFile.size();
 
+                // Phase 1: Validation (0-5%)
+                updateProgress(uploadId, 0, "validating", null, null, null);
+                String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
+                updateProgress(uploadId, 5, "validating", null, null, null);
+
+                // Phase 2: Setup directories (5-10%)
+                Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
+                updateProgress(uploadId, 10, "uploading", null, null, null);
+
+                // Phase 3: File copy with real progress (10-60%)
+                copyFileWithProgress(uploadedFile, destination, uploadId, totalFileSize);
+
+                // Phase 4: Metadata extraction (60-90%)
+                updateProgress(uploadId, 60, "processing", null, null, null);
+                AudioMetadataDTO metadata = extractMetadataWithRealProgress(destination, originalFileName, uploadId);
+
+                // Phase 5: Finalization (90-100%)
+                updateProgress(uploadId, 90, "finalizing", null, null, null);
                 String fileUrl = generateFileUrl(entityId, safeFileName);
-                finalizeUpload(uploadId, fileUrl, destination, metadata);
+
+                // Complete
+                updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
 
                 return (Void) null;
             } catch (Exception e) {
                 updateProgress(uploadId, 0, "error", null, null, null);
+                LOGGER.error("File upload failed for uploadId: {}", uploadId, e);
                 throw new RuntimeException(e);
             }
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
+    }
+
+    private void copyFileWithProgress(FileUpload uploadedFile, Path destination, String uploadId, long totalSize) throws IOException {
+        Path tempFile = Paths.get(uploadedFile.uploadedFileName());
+
+        try (InputStream in = new BufferedInputStream(new FileInputStream(tempFile.toFile()), BUFFER_SIZE);
+             OutputStream out = new BufferedOutputStream(new FileOutputStream(destination.toFile()), BUFFER_SIZE)) {
+
+            byte[] buffer = new byte[BUFFER_SIZE];
+            long totalBytesRead = 0;
+            int bytesRead;
+            int lastReportedProgress = 10;
+
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+
+                // Calculate progress (10-60% range for file copy)
+                int currentProgress = 10 + (int)((totalBytesRead * 50) / totalSize);
+
+                // Only update if progress changed by at least 2%
+                if (currentProgress - lastReportedProgress >= 2) {
+                    updateProgress(uploadId, currentProgress, "uploading", null, null, null);
+                    lastReportedProgress = currentProgress;
+                }
+            }
+
+            out.flush();
+        }
+
+        // Verify file was copied correctly
+        if (!Files.exists(destination)) {
+            throw new IOException("File copy verification failed - destination doesn't exist");
+        }
+
+        long copiedSize = Files.size(destination);
+        if (copiedSize != totalSize) {
+            throw new IOException("File size verification failed - expected " + totalSize + " but got " + copiedSize);
+        }
+
+        // Clean up temp file
+        Files.deleteIfExists(tempFile);
+
+        LOGGER.info("Successfully copied file {} ({} MB) to {}",
+                uploadedFile.fileName(), totalSize / 1024 / 1024, destination);
+    }
+
+    private AudioMetadataDTO extractMetadataWithRealProgress(Path destination, String originalFileName, String uploadId) {
+        AudioMetadataDTO metadata = null;
+
+        if (isValidAudioFile(originalFileName, null)) {
+            try {
+                LOGGER.info("Starting metadata extraction for audio file: {}", originalFileName);
+
+                // Use the metadata service with progress callback
+                metadata = audioMetadataService.extractMetadataWithProgress(
+                        destination.toString(),
+                        (percentage) -> {
+                            // Map metadata extraction progress (0-100%) to overall progress (60-90%)
+                            int overallProgress = 60 + (percentage * 30 / 100);
+                            updateProgress(uploadId, overallProgress, "processing", null, null, null);
+                        }
+                );
+
+                LOGGER.info("Successfully extracted metadata - Title: {}, Artist: {}, Duration: {}s",
+                        metadata.getTitle(), metadata.getArtist(), metadata.getDurationSeconds());
+            } catch (Exception e) {
+                LOGGER.warn("Could not extract metadata from audio file: {}", originalFileName, e);
+                // Continue without metadata
+                updateProgress(uploadId, 90, "processing", null, null, null);
+            }
+        } else {
+            // Not an audio file, skip to 90%
+            updateProgress(uploadId, 90, "processing", null, null, null);
+        }
+
+        return metadata;
     }
 
     public UploadFileDTO getUploadProgress(String uploadId) {
@@ -122,6 +211,7 @@ public class FileUploadService {
     private Path setupDirectoriesAndPath(String entityId, IUser user, String safeFileName) throws Exception {
         Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
         String entityIdSafe = entityId != null ? entityId : "temp";
+
         if (!"temp".equals(entityIdSafe)) {
             try {
                 UUID.fromString(entityIdSafe);
@@ -144,65 +234,6 @@ public class FileUploadService {
         return destination;
     }
 
-    private void moveAndVerifyFile(FileUpload uploadedFile, Path destination, String originalFileName, IUser user) throws Exception {
-        Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-        Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
-
-        LOGGER.info("Moved uploaded file {} ({} MB) to {} for user: {}",
-                originalFileName, uploadedFile.size() / 1024 / 1024,
-                destination, user.getUserName());
-
-        if (!Files.exists(destination)) {
-            throw new RuntimeException("File move verification failed");
-        }
-
-        long fileSize = Files.size(destination);
-        if (fileSize != uploadedFile.size()) {
-            throw new RuntimeException("File size verification failed");
-        }
-    }
-
-    private AudioMetadataDTO extractMetadata(Path destination, String originalFileName, String uploadId) {
-        AudioMetadataDTO metadata = null;
-        if (isValidAudioFile(originalFileName, null)) {
-            try {
-                LOGGER.info("Starting metadata extraction for audio file: {}", originalFileName);
-                updateProgress(uploadId, 50, "processing", null, null, null);
-                Thread.sleep(2000);
-                updateProgress(uploadId, 60, "processing", null, null, null);
-                Thread.sleep(2000);
-                metadata = audioMetadataService.extractMetadataWithProgress(
-                        destination.toString(),
-                        (percentage) -> {
-                            updateProgress(uploadId, 60 + (percentage * 20 / 100), "processing", null, null, null);
-                            try { Thread.sleep(200); } catch (InterruptedException e) {}
-                        }
-                );
-                updateProgress(uploadId, 80, "processing", null, null, null);
-                Thread.sleep(1000);
-
-                LOGGER.info("Successfully extracted metadata - Title: {}, Artist: {}, Duration: {}s",
-                        metadata.getTitle(), metadata.getArtist(), metadata.getDurationSeconds());
-            } catch (Exception e) {
-                LOGGER.warn("Could not extract metadata from audio file: {}", originalFileName, e);
-                updateProgress(uploadId, 80, "processing", null, null, null);
-            }
-        } else {
-            updateProgress(uploadId, 80, "processing", null, null, null);
-        }
-        return metadata;
-    }
-
-    private void finalizeUpload(String uploadId, String fileUrl, Path destination, AudioMetadataDTO metadata) throws Exception {
-        updateProgress(uploadId, 85, "uploading", fileUrl, destination.toString(), metadata);
-        Thread.sleep(5000);
-        updateProgress(uploadId, 90, "processing", fileUrl, destination.toString(), metadata);
-        Thread.sleep(3000);
-        updateProgress(uploadId, 95, "finalizing", fileUrl, destination.toString(), metadata);
-        Thread.sleep(2000);
-        updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
-    }
-
     private String generateFileUrl(String entityId, String safeFileName) {
         String entityIdSafe = entityId != null ? entityId : "temp";
         return String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
@@ -222,18 +253,11 @@ public class FileUploadService {
                     .fullPath(fullPath)
                     .thumbnailUrl(dto.getThumbnailUrl())
                     .metadata(metadata)
+                    .fileSize(dto.getFileSize())
                     .build();
 
             uploadProgressMap.put(uploadId, updatedDto);
         }
-    }
-
-    private String getCurrentUploadId() {
-        return uploadProgressMap.entrySet().stream()
-                .filter(entry -> "uploading".equals(entry.getValue().getStatus()))
-                .map(entry -> entry.getKey())
-                .findFirst()
-                .orElse("");
     }
 
     private boolean isValidAudioFile(String filename, String contentType) {
@@ -257,6 +281,4 @@ public class FileUploadService {
         }
         return "";
     }
-
-
 }

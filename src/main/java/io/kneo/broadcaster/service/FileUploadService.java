@@ -121,8 +121,6 @@ public class FileUploadService {
 
     private Path setupDirectoriesAndPath(String entityId, IUser user, String safeFileName) throws Exception {
         Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
-        updateProgress(getCurrentUploadId(), 10, "uploading", null, null, null);
-
         String entityIdSafe = entityId != null ? entityId : "temp";
         if (!"temp".equals(entityIdSafe)) {
             try {
@@ -134,8 +132,6 @@ public class FileUploadService {
         }
 
         Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
-        updateProgress(getCurrentUploadId(), 15, "uploading", null, null, null);
-
         Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
         Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
 
@@ -150,10 +146,7 @@ public class FileUploadService {
 
     private void moveAndVerifyFile(FileUpload uploadedFile, Path destination, String originalFileName, IUser user) throws Exception {
         Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-        updateProgress(getCurrentUploadId(), 25, "uploading", null, null, null);
-
         Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
-        updateProgress(getCurrentUploadId(), 35, "uploading", null, null, null);
 
         LOGGER.info("Moved uploaded file {} ({} MB) to {} for user: {}",
                 originalFileName, uploadedFile.size() / 1024 / 1024,
@@ -162,7 +155,6 @@ public class FileUploadService {
         if (!Files.exists(destination)) {
             throw new RuntimeException("File move verification failed");
         }
-        updateProgress(getCurrentUploadId(), 40, "uploading", null, null, null);
 
         long fileSize = Files.size(destination);
         if (fileSize != uploadedFile.size()) {
@@ -175,35 +167,39 @@ public class FileUploadService {
         if (isValidAudioFile(originalFileName, null)) {
             try {
                 LOGGER.info("Starting metadata extraction for audio file: {}", originalFileName);
-                updateProgress(uploadId, 50, "uploading", null, null, null);
-
+                updateProgress(uploadId, 50, "processing", null, null, null);
+                Thread.sleep(2000);
+                updateProgress(uploadId, 60, "processing", null, null, null);
+                Thread.sleep(2000);
                 metadata = audioMetadataService.extractMetadataWithProgress(
                         destination.toString(),
-                        (percentage) -> updateProgress(uploadId, percentage, "uploading", null, null, null)
+                        (percentage) -> {
+                            updateProgress(uploadId, 60 + (percentage * 20 / 100), "processing", null, null, null);
+                            try { Thread.sleep(200); } catch (InterruptedException e) {}
+                        }
                 );
+                updateProgress(uploadId, 80, "processing", null, null, null);
+                Thread.sleep(1000);
 
                 LOGGER.info("Successfully extracted metadata - Title: {}, Artist: {}, Duration: {}s",
                         metadata.getTitle(), metadata.getArtist(), metadata.getDurationSeconds());
             } catch (Exception e) {
                 LOGGER.warn("Could not extract metadata from audio file: {}", originalFileName, e);
-                updateProgress(uploadId, 80, "uploading", null, null, null);
+                updateProgress(uploadId, 80, "processing", null, null, null);
             }
         } else {
-            updateProgress(uploadId, 80, "uploading", null, null, null);
+            updateProgress(uploadId, 80, "processing", null, null, null);
         }
         return metadata;
     }
 
     private void finalizeUpload(String uploadId, String fileUrl, Path destination, AudioMetadataDTO metadata) throws Exception {
         updateProgress(uploadId, 85, "uploading", fileUrl, destination.toString(), metadata);
-
-        Thread.sleep(100);
-        updateProgress(uploadId, 90, "uploading", fileUrl, destination.toString(), metadata);
-
-        Thread.sleep(100);
-        updateProgress(uploadId, 95, "uploading", fileUrl, destination.toString(), metadata);
-
-        Thread.sleep(100);
+        Thread.sleep(5000);
+        updateProgress(uploadId, 90, "processing", fileUrl, destination.toString(), metadata);
+        Thread.sleep(3000);
+        updateProgress(uploadId, 95, "finalizing", fileUrl, destination.toString(), metadata);
+        Thread.sleep(2000);
         updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
     }
 
@@ -261,4 +257,6 @@ public class FileUploadService {
         }
         return "";
     }
+
+
 }

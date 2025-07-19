@@ -37,10 +37,7 @@ public class SoundFragmentMCPTools {
         
         return getCurrentUser()
             .chain(user -> {
-                // Calculate offset for pagination
                 int offset = (pageNum - 1) * pageSize;
-                
-                // Get both fragments and count in parallel
                 return Uni.combine().all().unis(
                     service.getBrandSoundFragments(brandName, pageSize, offset, false),
                     service.getCountBrandSoundFragments(brandName, user)
@@ -75,10 +72,7 @@ public class SoundFragmentMCPTools {
         
         return getCurrentUser()
             .chain(user -> {
-                // Calculate offset for pagination
                 int offset = (pageNum - 1) * pageSize;
-                
-                // Get both search results and count in parallel
                 return Uni.combine().all().unis(
                     service.getSearchCount(searchTerm, user),
                     service.search(searchTerm, pageSize, offset, user)

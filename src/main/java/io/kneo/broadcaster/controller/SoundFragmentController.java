@@ -254,21 +254,19 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
 
         getContextUser(rc, false, true)
-                .chain(user -> {
-                    UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, entityId, uploadedFile);
-
-                    fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName())
-                            .subscribe().with(
-                                    success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
-                                    error -> LOGGER.error("File processing failed for uploadId: {}", uploadId, error)
-                            );
-
-                    return Uni.createFrom().item(uploadDto);
-                })
                 .subscribe().with(
-                        uploadResponse -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(JsonObject.mapFrom(uploadResponse).encode()),
+                        user -> {
+                            UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, entityId, uploadedFile);
+                            // RESPOND IMMEDIATELY WITH UPLOAD ID
+                            rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(JsonObject.mapFrom(uploadDto).encode());
+                            fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName())
+                                    .subscribe().with(
+                                            success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
+                                            error -> LOGGER.error("File processing failed for uploadId: {}", uploadId, error)
+                                    );
+                        },
                         throwable -> {
                             if (throwable instanceof SecurityException) {
                                 rc.fail(403, throwable);
@@ -280,6 +278,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         }
                 );
     }
+
 
     private void getUploadProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");

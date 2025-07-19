@@ -168,14 +168,22 @@ public class FileUploadService {
             // Progress: 70% -> 90%
             updateProgress(uploadId, 75, "processing", null, null, null);
 
-            AudioMetadataDTO metadata = audioMetadataService.extractMetadataWithProgress(
+            // Simulate metadata progress if the service doesn't report it
+            for (int i = 75; i <= 90; i += 2) {
+                updateProgress(uploadId, i, "processing", null, null, null);
+                Thread.sleep(200); // 200ms delay between updates
+            }
+
+            AudioMetadataDTO metadata = audioMetadataService.extractMetadata(destination.toString());
+
+            /*AudioMetadataDTO metadata = audioMetadataService.extractMetadataWithProgress(
                     destination.toString(),
                     (percentage) -> {
                         // Map metadata progress (0-100%) to overall progress (75-90%)
                         int overallProgress = 75 + (percentage * 15 / 100);
                         updateProgress(uploadId, Math.min(overallProgress, 90), "processing", null, null, null);
                     }
-            );
+            );*/
 
             // Ensure we're at 90% after metadata extraction
             updateProgress(uploadId, 90, "processing", null, null, null);

@@ -42,7 +42,7 @@ public class SoundFragmentMCPTools {
             .chain(user -> {
                 int offset = (pageNum - 1) * pageSize;
                 return Uni.combine().all().unis(
-                    service.getBrandSoundFragments(brandName, pageSize, offset, false),
+                    service.getBrandSoundFragments(brandName, pageSize, offset),
                     service.getCountBrandSoundFragments(brandName, user)
                 ).asTuple();
             })

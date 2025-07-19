@@ -169,14 +169,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<BrandSoundFragment> populateAllBrands(BrandSoundFragment brandSoundFragment, IUser user) {
-        return getBrandsForSoundFragment(brandSoundFragment.getId(), user)
-                .onItem().transform(brandIds -> {
-                    brandSoundFragment.setRepresentedInBrands(brandIds);
-                    return brandSoundFragment;
-                });
-    }
-
     public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user) {
         String sql = "SELECT COUNT(*) " +
                 "FROM " + entityData.getTableName() + " t " +

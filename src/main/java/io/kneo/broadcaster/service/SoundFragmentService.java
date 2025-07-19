@@ -192,7 +192,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, boolean populateAllBrands) {
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset) {
         assert repository != null;
         assert radioStationService != null;
 
@@ -202,25 +202,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-
                     return repository.findForBrand(brandId, limit, offset, false, SuperUser.build())
                             .chain(fragments -> {
                                 if (fragments.isEmpty()) {
                                     return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
                                 }
 
-                                List<Uni<BrandSoundFragmentDTO>> unis;
-                                //TODO ????
-                                if (populateAllBrands) {
-                                    unis = fragments.stream()
-                                            .map(fragment -> repository.populateAllBrands(fragment, SuperUser.build())
-                                                    .chain(this::mapToBrandSoundFragmentDTO))
-                                            .collect(Collectors.toList());
-                                } else {
-                                    unis = fragments.stream()
-                                            .map(this::mapToBrandSoundFragmentDTO)
-                                            .collect(Collectors.toList());
-                                }
+                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
+                                        .map(this::mapToBrandSoundFragmentDTO)
+                                        .collect(Collectors.toList());
+
                                 return Uni.join().all(unis).andFailFast();
                             });
                 })

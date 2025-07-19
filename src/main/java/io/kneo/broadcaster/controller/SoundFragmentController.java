@@ -89,7 +89,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
-        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
+        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
+
+       // router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
     }
 
@@ -143,12 +145,13 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void getForBrand(RoutingContext rc) {
         String brandName = rc.request().getParam("brand");
+        String format = rc.request().getParam("format");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getBrandSoundFragments(brandName, size, (page - 1) * size, false),
+                        service.getBrandSoundFragments(brandName, size, (page - 1) * size),
                         service.getCountBrandSoundFragments(brandName, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
@@ -284,7 +287,30 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         }
                 );
     }
+    private void streamProgress(RoutingContext rc) {
+        String uploadId = rc.pathParam("uploadId");
 
+        rc.response()
+                .putHeader("Content-Type", "text/event-stream")
+                .putHeader("Cache-Control", "no-cache")
+                .setChunked(true);
+
+        long timerId = vertx.setPeriodic(500, id -> {
+            UploadFileDTO progress = fileUploadService.getUploadProgress(uploadId);
+            if (progress != null) {
+                rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
+
+                if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
+                    vertx.cancelTimer(id);
+                    rc.response().end();
+                }
+            }
+        });
+
+        rc.request().connection().closeHandler(v -> {
+            vertx.cancelTimer(timerId);
+        });
+    }
 
     private void getUploadProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");

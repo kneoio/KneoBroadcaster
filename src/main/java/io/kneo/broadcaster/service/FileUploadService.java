@@ -83,11 +83,11 @@ public class FileUploadService {
                 long totalFileSize = uploadedFile.size();
 
                 // Step 1: Validation (0%)
-                updateProgress(uploadId, 0, "validating", null, null, null);
+                updateProgress(uploadId, 0, "uploading", null, null, null);
                 String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
 
                 // Step 2: Setup directories (5%)
-                updateProgress(uploadId, 5, "preparing", null, null, null);
+                updateProgress(uploadId, 5, "uploading", null, null, null);
                 Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
 
                 // Step 3: File copy with real progress (10-70%)
@@ -95,11 +95,11 @@ public class FileUploadService {
                 copyFileWithProgress(uploadedFile, destination, uploadId, totalFileSize);
 
                 // Step 4: Metadata extraction (70-90%)
-                updateProgress(uploadId, 70, "processing", null, null, null);
+                updateProgress(uploadId, 70, "uploading", null, null, null);
                 AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
 
                 // Step 5: Finalization (90-100%)
-                updateProgress(uploadId, 90, "finalizing", null, null, null);
+                updateProgress(uploadId, 90, "uploading", null, null, null);
                 String fileUrl = generateFileUrl(entityId, safeFileName);
 
                 // Complete (100%)

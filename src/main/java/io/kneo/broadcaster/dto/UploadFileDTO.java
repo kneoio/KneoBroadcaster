@@ -25,4 +25,5 @@ public class UploadFileDTO {
     private String thumbnailUrl;
     private AudioMetadataDTO metadata;
     private Long fileSize;
+    private Long estimatedDurationSeconds;
 }

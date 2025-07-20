@@ -91,7 +91,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
         router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
 
-       // router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
+        // router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
     }
 
@@ -201,7 +201,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void upsert(RoutingContext rc) {
         try {
-            if (!validateJsonBody(rc)) return;
+            if (!validateJsonBody(rc)) {
+                return;
+            }
 
             SoundFragmentDTO dto = rc.body().asJsonObject().mapTo(SoundFragmentDTO.class);
             String id = rc.pathParam("id");
@@ -261,32 +263,32 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
+        long fileSize = uploadedFile.size();
+        long estimatedSeconds = Math.max(5, fileSize / (200 * 1024));
+
+        // Use existing method with estimation
+        UploadFileDTO uploadDto = fileUploadService.createUploadSessionWithEstimation(
+                uploadId, entityId, uploadedFile, estimatedSeconds);
+
+        // Return response immediately
+        rc.response()
+                .putHeader("Content-Type", "application/json")
+                .end(JsonObject.mapFrom(uploadDto).encode());
+
         getContextUser(rc, false, true)
                 .subscribe().with(
                         user -> {
-                            UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, entityId, uploadedFile);
-
-                            rc.response()
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(JsonObject.mapFrom(uploadDto).encode());
-
+                            // Start async processing
                             fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName())
                                     .subscribe().with(
                                             success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
                                             error -> LOGGER.error("File processing failed for uploadId: {}", uploadId, error)
                                     );
                         },
-                        throwable -> {
-                            if (throwable instanceof SecurityException) {
-                                rc.fail(403, throwable);
-                            } else if (throwable instanceof IllegalArgumentException) {
-                                rc.fail(400, throwable);
-                            } else {
-                                rc.fail(500, throwable);
-                            }
-                        }
+                        rc::fail
                 );
     }
+
     private void streamProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");
 

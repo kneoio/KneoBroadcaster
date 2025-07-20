@@ -249,9 +249,23 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String entityId = rc.pathParam("id");
         FileUpload uploadedFile = rc.fileUploads().get(0);
         String uploadId = rc.request().getParam("uploadId");
+        String clientStartTimeStr = rc.request().getParam("startTime");
 
         if (uploadId == null || uploadId.trim().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
+            return;
+        }
+
+        if (clientStartTimeStr == null || clientStartTimeStr.trim().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("startTime parameter is required"));
+            return;
+        }
+
+        long clientStartTime;
+        try {
+            clientStartTime = Long.parseLong(clientStartTimeStr);
+        } catch (NumberFormatException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid startTime format"));
             return;
         }
 
@@ -263,11 +277,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-
         getContextUser(rc, false, true)
                 .chain(user -> {
+                    long serverReceiveTime = System.currentTimeMillis();
+                    long uploadDurationMs = serverReceiveTime - clientStartTime;
                     long fileSize = uploadedFile.size();
-                    long estimatedSeconds = Math.max(5, fileSize / (200 * 1024));
+
+                    double uploadSpeedBytesPerSec = uploadDurationMs > 0 ?
+                            (double) fileSize / (uploadDurationMs / 1000.0) : 200 * 1024;
+
+                    long estimatedSeconds = Math.max(5, Math.round(fileSize / uploadSpeedBytesPerSec));
+
                     UploadFileDTO uploadDto = fileUploadService.createUploadSessionWithEstimation(
                             uploadId, entityId, uploadedFile, estimatedSeconds);
 
@@ -281,7 +301,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
                         error -> {
                             LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
-                            // Note: rc.response() already ended, so can't send error response
                         }
                 );
     }

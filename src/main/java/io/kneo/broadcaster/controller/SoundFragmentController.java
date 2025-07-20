@@ -263,29 +263,26 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-        long fileSize = uploadedFile.size();
-        long estimatedSeconds = Math.max(5, fileSize / (200 * 1024));
-
-        // Use existing method with estimation
-        UploadFileDTO uploadDto = fileUploadService.createUploadSessionWithEstimation(
-                uploadId, entityId, uploadedFile, estimatedSeconds);
-
-        // Return response immediately
-        rc.response()
-                .putHeader("Content-Type", "application/json")
-                .end(JsonObject.mapFrom(uploadDto).encode());
 
         getContextUser(rc, false, true)
+                .chain(user -> {
+                    long fileSize = uploadedFile.size();
+                    long estimatedSeconds = Math.max(5, fileSize / (200 * 1024));
+                    UploadFileDTO uploadDto = fileUploadService.createUploadSessionWithEstimation(
+                            uploadId, entityId, uploadedFile, estimatedSeconds);
+
+                    rc.response()
+                            .putHeader("Content-Type", "application/json")
+                            .end(JsonObject.mapFrom(uploadDto).encode());
+
+                    return fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName());
+                })
                 .subscribe().with(
-                        user -> {
-                            // Start async processing
-                            fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName())
-                                    .subscribe().with(
-                                            success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
-                                            error -> LOGGER.error("File processing failed for uploadId: {}", uploadId, error)
-                                    );
-                        },
-                        rc::fail
+                        success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
+                        error -> {
+                            LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
+                            // Note: rc.response() already ended, so can't send error response
+                        }
                 );
     }
 

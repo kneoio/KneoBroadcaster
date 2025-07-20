@@ -83,7 +83,7 @@ public class FileUploadService {
                 long totalFileSize = uploadedFile.size();
 
                 // Step 1: Validation (0%)
-                updateProgress(uploadId, 0, "uploading", null, null, null);
+                updateProgress(uploadId, 0, "validation", null, null, null);
                 String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
 
                 // Step 2: Setup directories (5%)
@@ -128,11 +128,8 @@ public class FileUploadService {
             while ((bytesRead = in.read(buffer)) != -1) {
                 out.write(buffer, 0, bytesRead);
                 totalBytesRead += bytesRead;
-
-                // Calculate progress: map bytes read to 10-70% range
                 int currentProgress = 10 + (int)((totalBytesRead * 60) / totalSize);
 
-                // Fine-grained progress updates - report every 1% change
                 if (currentProgress > lastReportedProgress) {
                     updateProgress(uploadId, Math.min(currentProgress, 70), "uploading", null, null, null);
                     lastReportedProgress = currentProgress;
@@ -140,57 +137,36 @@ public class FileUploadService {
             }
 
             out.flush();
-
-            // Ensure we report 70% when copy is complete
             updateProgress(uploadId, 70, "uploading", null, null, null);
         }
 
-        // Verify file was copied correctly
         long copiedSize = Files.size(destination);
         if (copiedSize != totalSize) {
             throw new IOException("File size mismatch: expected " + totalSize + " but got " + copiedSize);
         }
 
-        // Clean up temp file
         Files.deleteIfExists(tempFile);
-
         LOGGER.info("File copy completed: {} ({} bytes)", uploadedFile.fileName(), totalSize);
     }
 
     private AudioMetadataDTO extractMetadata(Path destination, String originalFileName, String uploadId) {
         if (!isValidAudioFile(originalFileName, null)) {
-            // Not an audio file, skip to 90%
             updateProgress(uploadId, 90, "processing", null, null, null);
             return null;
         }
 
         try {
-            // Progress: 70% -> 90%
             updateProgress(uploadId, 75, "processing", null, null, null);
-
-            // Simulate metadata progress if the service doesn't report it
-            /*for (int i = 75; i <= 90; i += 2) {
-                updateProgress(uploadId, i, "processing", null, null, null);
-                Thread.sleep(200); // 200ms delay between updates
-            }
-
-            AudioMetadataDTO metadata = audioMetadataService.extractMetadata(destination.toString());*/
-
             AudioMetadataDTO metadata = audioMetadataService.extractMetadataWithProgress(
                     destination.toString(),
                     (percentage) -> {
-                        // Map metadata progress (0-100%) to overall progress (75-90%)
                         int overallProgress = 75 + (percentage * 15 / 100);
                         updateProgress(uploadId, Math.min(overallProgress, 90), "processing", null, null, null);
                     }
             );
 
-            // Ensure we're at 90% after metadata extraction
-            updateProgress(uploadId, 90, "processing", null, null, null);
-
             LOGGER.info("Metadata extracted successfully");
             return metadata;
-
         } catch (Exception e) {
             LOGGER.warn("Metadata extraction failed: {}", e.getMessage());
             updateProgress(uploadId, 90, "processing", null, null, null);
@@ -200,10 +176,6 @@ public class FileUploadService {
 
     public UploadFileDTO getUploadProgress(String uploadId) {
         return uploadProgressMap.get(uploadId);
-    }
-
-    public void cleanupUploadSession(String uploadId) {
-        uploadProgressMap.remove(uploadId);
     }
 
     private String sanitizeAndValidateFilename(String originalFileName, IUser user) {

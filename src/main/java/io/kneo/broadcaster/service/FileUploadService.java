@@ -60,31 +60,12 @@ public class FileUploadService {
         }
     }
 
-    public UploadFileDTO createUploadSession(String uploadId, String entityId, FileUpload uploadedFile) {
+    public UploadFileDTO createUploadSession(String uploadId, String clientStartTimeStr) {
+        long estimatedSeconds = 30;
         UploadFileDTO uploadDto = UploadFileDTO.builder()
-                .id(uploadId)
-                .name(uploadedFile.fileName())
                 .status("uploading")
                 .percentage(0)
-                .type(uploadedFile.contentType())
-                .batchId(entityId)
-                .fileSize(uploadedFile.size())
-                .build();
-
-        uploadProgressMap.put(uploadId, uploadDto);
-        return uploadDto;
-    }
-
-    public UploadFileDTO createUploadSessionWithEstimation(String uploadId, String entityId,
-                                                           FileUpload uploadedFile, long estimatedSeconds) {
-        UploadFileDTO uploadDto = UploadFileDTO.builder()
-                .id(uploadId)
-                .name(uploadedFile.fileName())
-                .status("uploading")
-                .percentage(0)
-                .type(uploadedFile.contentType())
-                .batchId(entityId)
-                .fileSize(uploadedFile.size())
+                .batchId(uploadId)
                 .estimatedDurationSeconds(estimatedSeconds)
                 .build();
 

@@ -84,14 +84,14 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/search").handler(this::search);
+        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
+        router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
-        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
 
-        // router.route(HttpMethod.GET, path + "/upload-progress/:uploadId").handler(this::getUploadProgress);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
     }
 
@@ -240,14 +240,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-    private void uploadFile(RoutingContext rc) {
-        if (rc.fileUploads().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("No file uploaded"));
-            return;
-        }
-
-        String entityId = rc.pathParam("id");
-        FileUpload uploadedFile = rc.fileUploads().get(0);
+    private void startUploadSession(RoutingContext rc) {
         String uploadId = rc.request().getParam("uploadId");
         String clientStartTimeStr = rc.request().getParam("startTime");
 
@@ -261,11 +254,40 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return;
         }
 
-        long clientStartTime;
-        try {
-            clientStartTime = Long.parseLong(clientStartTimeStr);
-        } catch (NumberFormatException e) {
-            rc.fail(400, new IllegalArgumentException("Invalid startTime format"));
+        getContextUser(rc, false, true)
+                .chain(user -> {
+                    UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, clientStartTimeStr);
+                    rc.response()
+                            .putHeader("Content-Type", "application/json")
+                            .end(JsonObject.mapFrom(uploadDto).encode());
+
+                    return Uni.createFrom().voidItem();
+                })
+                .subscribe().with(
+                        success -> {
+                            LOGGER.info("Upload session started for uploadId: {}", uploadId);
+                        },
+                        error -> {
+                            LOGGER.error("Error starting upload session for uploadId: {}", uploadId, error);
+                            if (!rc.response().ended()) {
+                                rc.fail(500, error);
+                            }
+                        }
+                );
+    }
+
+    private void uploadFile(RoutingContext rc) {
+        if (rc.fileUploads().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("No file uploaded"));
+            return;
+        }
+
+        String entityId = rc.pathParam("id");
+        FileUpload uploadedFile = rc.fileUploads().get(0);
+        String uploadId = rc.request().getParam("uploadId");
+
+        if (uploadId == null || uploadId.trim().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
             return;
         }
 
@@ -279,30 +301,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc, false, true)
                 .chain(user -> {
-                    long serverReceiveTime = System.currentTimeMillis();
-                    long uploadDurationMs = serverReceiveTime - clientStartTime;
-                    long fileSize = uploadedFile.size();
-
-                    double uploadSpeedBytesPerSec = uploadDurationMs > 0 ?
-                            (double) fileSize / (uploadDurationMs / 1000.0) : 200 * 1024;
-
-                    long estimatedSeconds = Math.max(5, Math.round(fileSize / uploadSpeedBytesPerSec));
-
-                    UploadFileDTO uploadDto = fileUploadService.createUploadSessionWithEstimation(
-                            uploadId, entityId, uploadedFile, estimatedSeconds);
-
-                    rc.response()
-                            .putHeader("Content-Type", "application/json")
-                            .end(JsonObject.mapFrom(uploadDto).encode());
-
+                    // Update upload session with actual file info and start processing
                     return fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName());
-                })
-                .subscribe().with(
-                        success -> LOGGER.info("File processing completed for uploadId: {}", uploadId),
-                        error -> {
-                            LOGGER.error("File processing failed for uploadId: {}", uploadId, error);
-                        }
-                );
+                });
     }
 
     private void streamProgress(RoutingContext rc) {

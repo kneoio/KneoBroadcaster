@@ -2,10 +2,9 @@ package io.kneo.broadcaster.service.manipulation;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.model.SegmentInfo;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -32,7 +31,6 @@ public class AudioSegmentationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioSegmentationService.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
-    private final SoundFragmentService soundFragmentService;
     private final FFmpegProvider ffmpeg;
 
     @Setter
@@ -40,22 +38,11 @@ public class AudioSegmentationService {
     private final String outputDir;
 
     @Inject
-    public AudioSegmentationService(SoundFragmentService service, BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
-        this.soundFragmentService = service;
+    public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
         this.ffmpeg = ffmpeg;
         this.outputDir = broadcasterConfig.getSegmentationOutputDir();
         new File(outputDir).mkdirs();
         segmentDuration = hlsPlaylistConfig.getSegmentDuration();
-    }
-
-    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(Path filePath) {
-        return Uni.createFrom().item(() -> {
-                    String fileNameAsMetadata = filePath.getFileName().toString();
-                    UUID generatedFragmentId = UUID.randomUUID();
-                    List<SegmentInfo> segments = segmentAudioFile(filePath, fileNameAsMetadata, "AI" , generatedFragmentId);
-                    return createHlsQueueFromSegments(segments);
-                })
-                .onFailure().invoke(e -> LOGGER.error("Failed to slice ad-hoc audio file: {}", filePath, e));
     }
 
     public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath) {

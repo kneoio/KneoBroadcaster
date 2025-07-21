@@ -62,7 +62,10 @@ public class FileUploadService {
     }
 
     public UploadFileDTO createUploadSession(String uploadId, String clientStartTimeStr) {
-        long estimatedSeconds = 30;
+        long clientStartTime = Long.parseLong(clientStartTimeStr);
+        long serverReceiveTime = System.currentTimeMillis();
+        long estimatedSeconds = (serverReceiveTime - clientStartTime) / 1000;
+
         UploadFileDTO uploadDto = UploadFileDTO.builder()
                 .status("uploading")
                 .percentage(0)
@@ -79,18 +82,18 @@ public class FileUploadService {
         return Uni.createFrom().item(() -> {
             try {
                 // Step 1: Setup and validation
-                updateProgress(uploadId, 10, "processing", null, null, null);
+                updateProgress(uploadId, 10, "validation", null, null, null);
                 String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
                 Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
 
                 // Step 2: Move file (atomic operation)
-                updateProgress(uploadId, 20, "processing", null, null, null);
+                updateProgress(uploadId, 20, "preparation", null, null, null);
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
                 //Files.move(tempFile, destination);
                 Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
 
                 // Step 3: Extract metadata (the real work)
-                updateProgress(uploadId, 30, "processing", null, null, null);
+                updateProgress(uploadId, 30, "extract_metadata", null, null, null);
                 AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
 
                 // Step 4: Complete
@@ -107,17 +110,17 @@ public class FileUploadService {
 
     private AudioMetadataDTO extractMetadata(Path destination, String originalFileName, String uploadId) {
         if (!isValidAudioFile(originalFileName, null)) {
-            updateProgress(uploadId, 90, "processing", null, null, null);
+            updateProgress(uploadId, 90, "extract_metadata", null, null, null);
             return null;
         }
 
         try {
-            updateProgress(uploadId, 75, "processing", null, null, null);
+            updateProgress(uploadId, 75, "extract_metadata", null, null, null);
             AudioMetadataDTO metadata = audioMetadataService.extractMetadataWithProgress(
                     destination.toString(),
                     (percentage) -> {
                         int overallProgress = 75 + (percentage * 15 / 100);
-                        updateProgress(uploadId, Math.min(overallProgress, 90), "processing", null, null, null);
+                        updateProgress(uploadId, Math.min(overallProgress, 90), "extract_metadata", null, null, null);
                     }
             );
 
@@ -125,7 +128,7 @@ public class FileUploadService {
             return metadata;
         } catch (Exception e) {
             LOGGER.warn("Metadata extraction failed: {}", e.getMessage());
-            updateProgress(uploadId, 90, "processing", null, null, null);
+            updateProgress(uploadId, 90, "error", null, null, null);
             return null;
         }
     }

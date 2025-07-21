@@ -79,19 +79,24 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
 
-        router.route(path + "*").handler(this::addHeaders);
+        router.route(path + "*").handler(rc -> {
+            LOGGER.info("=== ROUTE HIT === {} {}", rc.request().method(), rc.request().path());
+            this.addHeaders(rc);
+        });
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/search").handler(this::search);
-        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
+        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(rc -> {
+            LOGGER.info("=== SSE ENDPOINT HIT === uploadId: {}", rc.pathParam("uploadId"));
+            this.streamProgress(rc);
+        });
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
-
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
     }
 
@@ -301,9 +306,14 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc, false, true)
                 .chain(user -> {
-                    // Update upload session with actual file info and start processing
+                    rc.response().setStatusCode(202).end();
                     return fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName());
-                });
+                })
+                .subscribe().with(
+                        success -> LOGGER.info("Upload done: {}", uploadId),
+                        error -> LOGGER.error("Upload failed: {}", uploadId, error)
+                );
+
     }
 
     private void streamProgress(RoutingContext rc) {

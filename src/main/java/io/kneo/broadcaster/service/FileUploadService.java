@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,7 +86,8 @@ public class FileUploadService {
                 // Step 2: Move file (atomic operation)
                 updateProgress(uploadId, 20, "processing", null, null, null);
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-                Files.move(tempFile, destination);
+                //Files.move(tempFile, destination);
+                Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
 
                 // Step 3: Extract metadata (the real work)
                 updateProgress(uploadId, 30, "processing", null, null, null);

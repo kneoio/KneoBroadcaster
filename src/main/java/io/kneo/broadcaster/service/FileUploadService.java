@@ -64,7 +64,9 @@ public class FileUploadService {
     public UploadFileDTO createUploadSession(String uploadId, String clientStartTimeStr) {
         long clientStartTime = Long.parseLong(clientStartTimeStr);
         long serverReceiveTime = System.currentTimeMillis();
-        long estimatedSeconds = (serverReceiveTime - clientStartTime) / 1000;
+
+        long timeDiffMs = serverReceiveTime - clientStartTime;
+        long estimatedSeconds = Math.max(10, (timeDiffMs / 1000) + 2);
 
         UploadFileDTO uploadDto = UploadFileDTO.builder()
                 .status("uploading")

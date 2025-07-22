@@ -234,6 +234,13 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         });
     }
 
+    private String normalizeTimeString(String timeString) {
+        if ("24:00".equals(timeString)) {
+            return "00:00";
+        }
+        return timeString;
+    }
+
     private RadioStation buildEntity(RadioStationDTO dto) {
         RadioStation entity = new RadioStation();
         entity.setLocalizedName(dto.getLocalizedName());
@@ -262,7 +269,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                     if (taskDTO.getOnceTrigger() != null) {
                         OnceTrigger onceTrigger = new OnceTrigger();
                         OnceTriggerDTO onceTriggerDTO = taskDTO.getOnceTrigger();
-                        onceTrigger.setStartTime(onceTriggerDTO.getStartTime());
+                        onceTrigger.setStartTime(normalizeTimeString(onceTriggerDTO.getStartTime()));
                         onceTrigger.setDuration(onceTriggerDTO.getDuration());
                         onceTrigger.setWeekdays(onceTriggerDTO.getWeekdays());
                         task.setOnceTrigger(onceTrigger);
@@ -271,8 +278,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                     if (taskDTO.getTimeWindowTrigger() != null) {
                         TimeWindowTrigger timeWindowTrigger = new TimeWindowTrigger();
                         TimeWindowTriggerDTO timeWindowTriggerDTO = taskDTO.getTimeWindowTrigger();
-                        timeWindowTrigger.setStartTime(timeWindowTriggerDTO.getStartTime());
-                        timeWindowTrigger.setEndTime(timeWindowTriggerDTO.getEndTime());
+                        timeWindowTrigger.setStartTime(normalizeTimeString(timeWindowTriggerDTO.getStartTime()));
+                        timeWindowTrigger.setEndTime(normalizeTimeString(timeWindowTriggerDTO.getEndTime()));
                         timeWindowTrigger.setWeekdays(timeWindowTriggerDTO.getWeekdays());
                         task.setTimeWindowTrigger(timeWindowTrigger);
                     }
@@ -280,8 +287,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                     if (taskDTO.getPeriodicTrigger() != null) {
                         PeriodicTrigger periodicTrigger = new PeriodicTrigger();
                         PeriodicTriggerDTO periodicTriggerDTO = taskDTO.getPeriodicTrigger();
-                        periodicTrigger.setStartTime(periodicTriggerDTO.getStartTime());
-                        periodicTrigger.setEndTime(periodicTriggerDTO.getEndTime());
+                        periodicTrigger.setStartTime(normalizeTimeString(periodicTriggerDTO.getStartTime()));
+                        periodicTrigger.setEndTime(normalizeTimeString(periodicTriggerDTO.getEndTime()));
                         periodicTrigger.setInterval(periodicTriggerDTO.getInterval());
                         periodicTrigger.setWeekdays(periodicTriggerDTO.getWeekdays());
                         task.setPeriodicTrigger(periodicTrigger);

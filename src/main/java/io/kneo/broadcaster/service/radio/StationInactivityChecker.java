@@ -8,6 +8,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.subscription.Cancellable;
 import io.quarkus.runtime.StartupEvent;
+import io.quarkus.runtime.ShutdownEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -28,7 +29,7 @@ public class StationInactivityChecker {
     private static final int STOP_REMOVE_THRESHOLD_MINUTES = 15;
 
     @Inject
-    RadioStationService statsService;
+    RadioStationService radioStationService;
 
     @Inject
     RadioStationPool radioStationPool;
@@ -40,12 +41,19 @@ public class StationInactivityChecker {
         startCleanupTask();
     }
 
+    void onShutdown(@Observes ShutdownEvent event) {
+        LOGGER.info("Shutting down station inactivity checker.");
+        stopCleanupTask();
+    }
+
     private void startCleanupTask() {
         cleanupSubscription = getTicker()
                 .onItem().call(this::checkStationActivity)
                 .onFailure().invoke(error -> LOGGER.error("Timer error", error))
+                .onFailure().retry().withBackOff(Duration.ofSeconds(10)).atMost(3)
                 .subscribe().with(
-                        item -> {},
+                        item -> {
+                        },
                         failure -> LOGGER.error("Subscription failed", failure)
                 );
     }
@@ -60,69 +68,59 @@ public class StationInactivityChecker {
     public void stopCleanupTask() {
         if (cleanupSubscription != null) {
             cleanupSubscription.cancel();
+            cleanupSubscription = null;
         }
     }
 
     private Uni<Void> checkStationActivity(Long tick) {
         LOGGER.info("Station inactivity checking...");
-        OffsetDateTime tenMinutesAgo = OffsetDateTime.now().minusMinutes(IDLE_THRESHOLD_MINUTES);
-        OffsetDateTime fifteenMinutesAgo = OffsetDateTime.now().minusMinutes(STOP_REMOVE_THRESHOLD_MINUTES);
+        OffsetDateTime idleThreshold = OffsetDateTime.now().minusMinutes(IDLE_THRESHOLD_MINUTES);
+        OffsetDateTime stopThreshold = OffsetDateTime.now().minusMinutes(STOP_REMOVE_THRESHOLD_MINUTES);
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
 
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
 
-        for (RadioStation station : onlineStations) {
-            statsService.getStats(station.getSlugName())
-                    .onItem().ifNotNull().invoke(stats -> {
-                        if (stats.getLastAccessTime() != null) {
-                            LOGGER.info("Station '{}' (ID: {}) last requested at: {}",
-                                    station.getSlugName(), station.getId(), stats.getLastAccessTime());
-                        } else {
-                            LOGGER.info("Station '{}' (ID: {}) has no last access time recorded.",
-                                    station.getSlugName(), station.getId());
-                        }
-                    })
-                    .onFailure().invoke(failure ->
-                            LOGGER.warn("Could not retrieve stats for station '{}' to log last access time: {}",
-                                    station.getSlugName(), failure.getMessage()))
-                    .subscribe().with(
-                            item -> {},
-                            failure -> {}
-                    );
-        }
-
         return Multi.createFrom().iterable(onlineStations)
                 .onItem().transformToUni(radioStation ->
-                        statsService.getStats(radioStation.getSlugName())
+                        radioStationService.getStats(radioStation.getSlugName())
                                 .onItem().transformToUni(stats -> {
+                                    String slug = radioStation.getSlugName();
                                     if (stats != null && stats.getLastAccessTime() != null) {
                                         Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
-
-                                        if (lastAccessInstant.isBefore(fifteenMinutesAgo.toInstant())) {
+                                        LOGGER.info("Station '{}' last requested at: {}", slug, stats.getLastAccessTime());
+                                        if (lastAccessInstant.isBefore(stopThreshold.toInstant())) {
                                             LOGGER.info("Station {} inactive for {} minutes, stopping and removing.",
-                                                    radioStation.getSlugName(), STOP_REMOVE_THRESHOLD_MINUTES);
-                                            return radioStationPool.stopAndRemove(radioStation.getSlugName())
+                                                    slug, STOP_REMOVE_THRESHOLD_MINUTES);
+                                            radioStation.setStatus(RadioStationStatus.OFF_LINE);
+                                            return radioStationPool.stopAndRemove(slug)
                                                     .replaceWithVoid();
-                                        }
-                                        else if (lastAccessInstant.isBefore(tenMinutesAgo.toInstant())) {
+                                        } else if (lastAccessInstant.isBefore(idleThreshold.toInstant())) {
                                             LOGGER.info("Station {} has been inactive for {} minutes, setting status to IDLE.",
-                                                    radioStation.getSlugName(), IDLE_THRESHOLD_MINUTES);
+                                                    slug, IDLE_THRESHOLD_MINUTES);
                                             radioStation.setStatus(RadioStationStatus.IDLE);
                                         }
                                     } else {
-                                        LOGGER.info("Station {} has no last access time, stopping and removing.",
-                                                radioStation.getSlugName());
-                                        return radioStationPool.stopAndRemove(radioStation.getSlugName())
+                                        LOGGER.info("Station '{}' has no last access time recorded, stopping and removing.", slug);
+                                        radioStation.setStatus(RadioStationStatus.OFF_LINE);
+                                        return radioStationPool.stopAndRemove(slug)
                                                 .replaceWithVoid();
                                     }
                                     return Uni.createFrom().voidItem();
                                 })
-                                .onFailure().invoke(failure ->
-                                        LOGGER.error("Error processing station {}", radioStation.getSlugName(), failure)
-                                )
+                                .onFailure().recoverWithUni(failure -> {
+                                    LOGGER.error("Error processing station {}: {}",
+                                            radioStation.getSlugName(), failure.getMessage());
+                                    radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                    String slug = radioStation.getSlugName();
+                                    LOGGER.info("Removing station {} due to system error.", slug);
+                                    return radioStationPool.stopAndRemove(slug)
+                                            .replaceWithVoid();
+                                })
                 )
                 .merge()
                 .toUni()
                 .replaceWithVoid();
     }
+
+
 }

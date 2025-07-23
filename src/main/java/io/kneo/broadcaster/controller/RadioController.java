@@ -137,7 +137,7 @@ public class RadioController {
     }
 
     private void wakeUp(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
+        String brand = rc.pathParam("brand").toLowerCase();
         LOGGER.info("Wake up radio station for brand: {}", brand);
         service.initializeStation(brand)
                 .subscribe().with(

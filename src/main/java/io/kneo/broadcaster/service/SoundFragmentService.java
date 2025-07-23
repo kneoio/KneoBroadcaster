@@ -173,7 +173,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     UUID brandId = radioStation.getId();
                     int limit = quantity;
                     if (shuffle) {
-                        limit = 20; // Get all for shuffling
+                        limit = 50; // Get all for shuffling
                     }
                     return repository.findForBrand(brandId, limit, 0, false, user)
                             .chain(fragments -> {

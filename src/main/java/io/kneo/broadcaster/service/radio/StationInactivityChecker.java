@@ -4,11 +4,11 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.quarkus.runtime.ShutdownEvent;
+import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.subscription.Cancellable;
-import io.quarkus.runtime.StartupEvent;
-import io.quarkus.runtime.ShutdownEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.Collection;
 
 @ApplicationScoped
@@ -74,8 +73,9 @@ public class StationInactivityChecker {
 
     private Uni<Void> checkStationActivity(Long tick) {
         LOGGER.info("Station inactivity checking...");
-        OffsetDateTime idleThreshold = OffsetDateTime.now().minusMinutes(IDLE_THRESHOLD_MINUTES);
-        OffsetDateTime stopThreshold = OffsetDateTime.now().minusMinutes(STOP_REMOVE_THRESHOLD_MINUTES);
+        Instant now = Instant.now();
+        Instant idleThreshold = now.minusSeconds(IDLE_THRESHOLD_MINUTES * 60L);
+        Instant stopThreshold = now.minusSeconds(STOP_REMOVE_THRESHOLD_MINUTES * 60L);
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
 
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
@@ -88,13 +88,13 @@ public class StationInactivityChecker {
                                     if (stats != null && stats.getLastAccessTime() != null) {
                                         Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
                                         LOGGER.info("Station '{}' last requested at: {}", slug, stats.getLastAccessTime());
-                                        if (lastAccessInstant.isBefore(stopThreshold.toInstant())) {
+                                        if (lastAccessInstant.isBefore(stopThreshold)) {
                                             LOGGER.info("Station {} inactive for {} minutes, stopping and removing.",
                                                     slug, STOP_REMOVE_THRESHOLD_MINUTES);
                                             radioStation.setStatus(RadioStationStatus.OFF_LINE);
                                             return radioStationPool.stopAndRemove(slug)
                                                     .replaceWithVoid();
-                                        } else if (lastAccessInstant.isBefore(idleThreshold.toInstant())) {
+                                        } else if (lastAccessInstant.isBefore(idleThreshold)) {
                                             LOGGER.info("Station {} has been inactive for {} minutes, setting status to IDLE.",
                                                     slug, IDLE_THRESHOLD_MINUTES);
                                             radioStation.setStatus(RadioStationStatus.IDLE);
@@ -121,6 +121,4 @@ public class StationInactivityChecker {
                 .toUni()
                 .replaceWithVoid();
     }
-
-
 }

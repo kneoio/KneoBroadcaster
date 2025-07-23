@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -78,7 +79,7 @@ public class QueueService {
                                         soundFragment.setTitle(String.format(" -- %s", soundFragment.getTitle()));
                                     } catch (Exception e) {
                                         LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
-                                        return Uni.createFrom().failure(e); // Return a failed Uni on error.
+                                        return Uni.createFrom().failure(e);
                                     }
                                 }
 
@@ -108,6 +109,16 @@ public class QueueService {
                 })
                 .onFailure().recoverWithItem(failure -> {
                     LOGGER.error("Error adding to queue for brand {}: {}", brandName, failure.getMessage(), failure);
+                    radioStationPool.get(brandName)
+                            .subscribe().with(
+                                    station -> {
+                                        if (station != null) {
+                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                            LOGGER.warn("Station {} status set to SYSTEM_ERROR due to addToQueue failure", brandName);
+                                        }
+                                    },
+                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", brandName, error.getMessage(), error)
+                            );
                     return false;
                 });
     }

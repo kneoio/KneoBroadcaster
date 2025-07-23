@@ -104,7 +104,7 @@ public class QueueController {
     }
 
     private void action(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
+        String brand = rc.pathParam("brand").toLowerCase();
         JsonObject jsonObject = rc.body().asJsonObject();
         String action = jsonObject.getString("action");
         if ("start".equalsIgnoreCase(action)) {

@@ -1,12 +1,16 @@
 package io.kneo.broadcaster.dto.dashboard;
 
-import io.kneo.broadcaster.service.stream.HLSSongStats;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
+import io.kneo.broadcaster.service.stream.HLSSongStats;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.LinkedList;
+import java.util.List;
 
 @Setter
 public class StationStats {
@@ -20,13 +24,15 @@ public class StationStats {
     @Getter
     private PlaylistManagerStats playlistManagerStats;
     @Getter
-    private SegmentTimelineDisplay timeline;  // This contains the segment sequences
+    private SegmentTimelineDisplay timeline;
     @Getter
-    private HLSSongStats songStatistics;     // Renamed from hlsSongStats to match frontend
+    private HLSSongStats songStatistics;
     @Getter
     private long latestRequestedSeg;
     @Getter
-    private long currentListeners;           // Renamed from listenersCount to match frontend
+    private long currentListeners;
+    @Getter
+    private List<RadioStation.StatusChangeRecord> statusHistory = new LinkedList<>();
 
     public String getAliveTimeInHours() {
         int hours = (int) (alived / 60);

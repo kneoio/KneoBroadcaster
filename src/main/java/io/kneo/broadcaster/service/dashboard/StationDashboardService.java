@@ -29,6 +29,7 @@ public class StationDashboardService {
         StationStats stationStats = new StationStats();
         stationStats.setBrandName(brand);
         stationStats.setStatus(station.getStatus());
+        stationStats.setStatusHistory(station.getStatusHistory());
         stationStats.setManagedBy(station.getManagedBy());
         stationStats.setAlived(station.getCurrentAliveDurationMinutes());
 

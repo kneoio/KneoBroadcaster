@@ -101,9 +101,13 @@ public class PlaylistManager {
             LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
             return this.addFragmentToSlice(brandSoundFragment, filePath);
         } else {
+            if (metadata == null) {
+                return Uni.createFrom().item(false);
+            }
+
             LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.", brandSoundFragment.getSoundFragment().getMetadata());
             final FileMetadata finalMetadata = metadata;
-            assert finalMetadata != null;
+
             Uni<Path> pathUni = soundFragmentService.getFile(
                             brandSoundFragment.getSoundFragment().getId(),
                             finalMetadata.getSlugName(),

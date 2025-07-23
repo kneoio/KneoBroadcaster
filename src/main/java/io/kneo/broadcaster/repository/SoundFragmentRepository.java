@@ -131,7 +131,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         }
 
         sql += " ORDER BY " +
-                "COALESCE(bsf.played_by_brand_count, 0) ASC, " +
+                "bsf.played_by_brand_count ASC, " +
                 "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
 
         if (limit > 0) {

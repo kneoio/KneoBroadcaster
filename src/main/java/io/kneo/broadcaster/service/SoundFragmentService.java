@@ -246,6 +246,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
                 String safeFileName;
                 try {
+                    //TODO do we really need the sanitization ?
                     safeFileName = FileSecurityUtils.sanitizeFilename(fileName);
                 } catch (SecurityException e) {
                     LOGGER.error("Security violation: Unsafe filename '{}' from user: {}", fileName, user.getUserName());

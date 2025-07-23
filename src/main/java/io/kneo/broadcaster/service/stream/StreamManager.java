@@ -45,8 +45,12 @@ public class StreamManager implements IStreamManager {
     private final Queue<Long> segmentRequestTimestamps = new ConcurrentLinkedQueue<>();
 
     private final Queue<HlsSegment> pendingFragmentSegmentsQueue = new LinkedList<>();
-    private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
-    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
+
+    //private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
+    //private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
+
+    private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 3;
+    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 10;
 
     @Getter @Setter
     private RadioStation radioStation;

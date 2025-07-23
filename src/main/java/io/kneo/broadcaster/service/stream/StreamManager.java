@@ -128,7 +128,6 @@ public class StreamManager implements IStreamManager {
 
 
     public void feedSegments() {
-        int drippedCountThisCall = 0;
         if (!pendingFragmentSegmentsQueue.isEmpty()) {
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
@@ -138,15 +137,9 @@ public class StreamManager implements IStreamManager {
                 }
                 HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                 liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
-                drippedCountThisCall++;
 
                 if (segmentToMakeLive.isFirstSegmentOfFragment()) {
                     handleNewFragmentStarted(segmentToMakeLive);
-                }
-            }
-            if (drippedCountThisCall > 0) {
-                if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
-                    radioStation.setStatus(RadioStationStatus.ON_LINE);
                 }
             }
         }

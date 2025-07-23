@@ -143,7 +143,9 @@ public class PlaylistManager {
                                     READY_QUEUE_MAX_SIZE);
                             return Uni.createFrom().item(false);
                         } else {
-                            radioStation.setStatus(RadioStationStatus.ON_LINE);
+                            if (radioStation.getStatus() == RadioStationStatus.WARMING_UP) {
+                                radioStation.setStatus(RadioStationStatus.ON_LINE);
+                            }
                             radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
                         }
 
@@ -169,7 +171,7 @@ public class PlaylistManager {
                 BrandSoundFragment nextFragment = segmentedAndReadyToBeConsumed.poll();
                 moveFragmentToProcessedList(nextFragment);
                 if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
-                    radioStation.setStatus(RadioStationStatus.ON_LINE);
+                    //radioStation.setStatus(RadioStationStatus.ON_LINE);
                     radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
                 }
                 return nextFragment;

@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -38,9 +39,19 @@ public class RadioService {
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Failed to initialize station for brand: {}", brand, failure)
-                );
+                .onFailure().invoke(failure -> {
+                    LOGGER.error("Failed to initialize station for brand: {}", brand, failure);
+                    radioStationPool.get(brand)
+                            .subscribe().with(
+                                    station -> {
+                                        if (station != null) {
+                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                            LOGGER.warn("Station {} status set to SYSTEM_ERROR due to initialization failure", brand);
+                                        }
+                                    },
+                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", brand, error.getMessage(), error)
+                            );
+                });
     }
 
     public Uni<Void> feed(String brand) {

@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.service.radio;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
@@ -9,7 +8,9 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.exceptions.PlaylistException;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -83,7 +84,6 @@ public class PlaylistManager {
             }
         }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
-
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
         Path filePath = null;
         FileMetadata metadata = null;
@@ -94,16 +94,22 @@ public class PlaylistManager {
                 filePath = metadata.getFilePath();
             }
         } catch (Exception e) {
-            LOGGER.warn("Could not defensively read file path from BrandSoundFragment, will attempt to fetch. Error: {}", e.getMessage());
+            return Uni.createFrom().failure(new PlaylistException("Failed to read file path from BrandSoundFragment: " + e.getMessage()));
         }
 
         if (filePath != null) {
             LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
             return this.addFragmentToSlice(brandSoundFragment, filePath);
         } else {
-            LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.", brandSoundFragment.getSoundFragment().getMetadata());
+            if (metadata == null) {
+                return Uni.createFrom().failure(new PlaylistException("FileMetadata is null for sound fragment: " +
+                        brandSoundFragment.getSoundFragment().getMetadata()));
+            }
+
+            LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.",
+                    brandSoundFragment.getSoundFragment().getMetadata());
             final FileMetadata finalMetadata = metadata;
-            assert finalMetadata != null;
+
             Uni<Path> pathUni = soundFragmentService.getFile(
                             brandSoundFragment.getSoundFragment().getId(),
                             finalMetadata.getSlugName(),
@@ -207,7 +213,10 @@ public class PlaylistManager {
                 .collect().asList()
                 .subscribe().with(
                         processedItems -> LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand),
-                        error -> LOGGER.error("Error during the reactive processing of fragments for brand {}: {}", brand, error.getMessage(), error)
+                        error -> {
+                            LOGGER.error("Error during the processing of fragments for brand {}: {}", brand, error.getMessage(), error);
+                            radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                        }
                 );
     }
 }

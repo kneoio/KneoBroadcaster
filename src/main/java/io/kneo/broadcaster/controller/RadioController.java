@@ -42,7 +42,7 @@ public class RadioController {
     }
 
     private void getPlaylist(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
+        String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
         LOGGER.debug("User-Agent: {}", userAgent);
         service.getPlaylist(brand, userAgent)
@@ -72,7 +72,7 @@ public class RadioController {
 
     private void getSegment(RoutingContext rc) {
         String segmentParam = rc.pathParam("segment");
-        String brand = rc.pathParam("brand");
+        String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
         service.getPlaylist(brand, userAgent)
                 .onItem().transform(playlist -> {
@@ -109,7 +109,7 @@ public class RadioController {
     }
 
     private void getStatus(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
+        String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
 
         service.getStatus(brand, userAgent)

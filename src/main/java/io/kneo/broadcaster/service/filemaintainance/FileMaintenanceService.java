@@ -21,6 +21,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
 public class FileMaintenanceService {
@@ -29,14 +31,23 @@ public class FileMaintenanceService {
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final String ADDRESS_FILE_MAINTENANCE_STATS = "file-maintenance-stats";
 
+    private static class StatsEntry {
+        final Instant timestamp;
+        final long filesDeleted;
+        final long spaceFreedBytes;
+        final long directoriesDeleted;
+
+        StatsEntry(long filesDeleted, long spaceFreedBytes, long directoriesDeleted) {
+            this.timestamp = Instant.now();
+            this.filesDeleted = filesDeleted;
+            this.spaceFreedBytes = spaceFreedBytes;
+            this.directoriesDeleted = directoriesDeleted;
+        }
+    }
+
     private final List<String> outputDirs;
+    private final ConcurrentLinkedQueue<StatsEntry> last24hStats = new ConcurrentLinkedQueue<>();
     private Cancellable cleanupSubscription;
-    @Getter
-    private long filesDeleted;
-    @Getter
-    private long spaceFreedBytes;
-    @Getter
-    private long directoriesDeleted;
     @Getter
     private long totalSpaceBytes;
     @Getter
@@ -55,9 +66,6 @@ public class FileMaintenanceService {
                 broadcasterConfig.getSegmentationOutputDir(),
                 broadcasterConfig.getQuarkusFileUploadsPath()
         );
-        this.filesDeleted = 0;
-        this.spaceFreedBytes = 0;
-        this.directoriesDeleted = 0;
         this.totalSpaceBytes = 0;
         this.availableSpaceBytes = 0;
     }
@@ -92,15 +100,11 @@ public class FileMaintenanceService {
     }
 
     private void cleanAllPaths(Long tick) {
-        long totalFilesDeleted = 0;
-        long totalSpaceFreedBytes = 0;
-        long totalDirectoriesDeleted = 0;
+        AtomicLong totalFilesDeleted = new AtomicLong(0);
+        AtomicLong totalSpaceFreedBytes = new AtomicLong(0);
+        AtomicLong totalDirectoriesDeleted = new AtomicLong(0);
 
         for (String outputDir : outputDirs) {
-            long filesDeletedForPath = 0;
-            long spaceFreedBytesForPath = 0;
-            long directoriesDeletedForPath = 0;
-
             try {
                 LOGGER.info("Starting cleanup for: {} (tick: {})", outputDir, tick);
                 Path outputPath = Path.of(outputDir);
@@ -112,28 +116,35 @@ public class FileMaintenanceService {
 
                 Instant threshold = Instant.now().minus(deletionThresholdMinutes, ChronoUnit.MINUTES);
 
-                filesDeleted = 0;
-                spaceFreedBytes = 0;
-                directoriesDeleted = 0;
+                AtomicLong currentFilesDeleted = new AtomicLong(0);
+                AtomicLong currentSpaceFreed = new AtomicLong(0);
 
                 Files.walk(outputPath)
                         .filter(Files::isRegularFile)
                         .filter(path -> isOlderThan(path, threshold))
-                        .forEach(this::deleteFile);
-                filesDeletedForPath += filesDeleted;
-                spaceFreedBytesForPath += spaceFreedBytes;
+                        .forEach(path -> deleteFile(path, currentFilesDeleted, currentSpaceFreed));
 
-                cleanEmptyDirectories(outputPath);
-                directoriesDeletedForPath += directoriesDeleted;
+                totalFilesDeleted.addAndGet(currentFilesDeleted.get());
+                totalSpaceFreedBytes.addAndGet(currentSpaceFreed.get());
 
-                totalFilesDeleted += filesDeletedForPath;
-                totalSpaceFreedBytes += spaceFreedBytesForPath;
-                totalDirectoriesDeleted += directoriesDeletedForPath;
+                AtomicLong currentDirsDeleted = new AtomicLong(0);
+                cleanEmptyDirectories(outputPath, currentDirsDeleted);
+                totalDirectoriesDeleted.addAndGet(currentDirsDeleted.get());
 
             } catch (IOException e) {
                 LOGGER.error("Error during cleanup of: {}", outputDir, e);
             }
         }
+
+        if (totalFilesDeleted.get() > 0 || totalDirectoriesDeleted.get() > 0) {
+            last24hStats.offer(new StatsEntry(
+                    totalFilesDeleted.get(),
+                    totalSpaceFreedBytes.get(),
+                    totalDirectoriesDeleted.get()
+            ));
+        }
+
+        cleanup24hStats();
 
         try {
             updateDiskSpace();
@@ -143,19 +154,40 @@ public class FileMaintenanceService {
             this.availableSpaceBytes = -1;
         }
 
-        double totalSpaceFreedMB = (double) totalSpaceFreedBytes / (1024 * 1024);
+        long files24h = getLast24hFilesDeleted();
+        long space24h = getLast24hSpaceFreedBytes();
+        long dirs24h = getLast24hDirectoriesDeleted();
+
+        double totalSpaceFreedMB = (double) space24h / (1024 * 1024);
         double totalSpaceMB = (double) totalSpaceBytes / (1024 * 1024);
         double availableSpaceMB = (double) availableSpaceBytes / (1024 * 1024);
 
         FileMaintenanceStats stats = FileMaintenanceStats.builder()
-                .fromService(totalFilesDeleted, totalSpaceFreedBytes, totalDirectoriesDeleted)
+                .fromService(files24h, space24h, dirs24h)
                 .totalSpaceBytes(totalSpaceBytes)
                 .availableSpaceBytes(availableSpaceBytes)
                 .build();
         eventBus.publish(ADDRESS_FILE_MAINTENANCE_STATS, stats);
-        LOGGER.info("Cleanup done. Freed: {} MB, Deleted: {} files, {} dirs. Total: {} MB, Available: {} MB.",
-                String.format("%.2f", totalSpaceFreedMB), totalFilesDeleted, totalDirectoriesDeleted,
+        LOGGER.info("Cleanup done. Freed last 24h: {} MB, Deleted: {} files, {} dirs. Total: {} MB, Available: {} MB.",
+                String.format("%.2f", totalSpaceFreedMB), files24h, dirs24h,
                 String.format("%.2f", totalSpaceMB), String.format("%.2f", availableSpaceMB));
+    }
+
+    private void cleanup24hStats() {
+        Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
+        last24hStats.removeIf(entry -> entry.timestamp.isBefore(cutoff));
+    }
+
+    private long getLast24hFilesDeleted() {
+        return last24hStats.stream().mapToLong(entry -> entry.filesDeleted).sum();
+    }
+
+    private long getLast24hSpaceFreedBytes() {
+        return last24hStats.stream().mapToLong(entry -> entry.spaceFreedBytes).sum();
+    }
+
+    private long getLast24hDirectoriesDeleted() {
+        return last24hStats.stream().mapToLong(entry -> entry.directoriesDeleted).sum();
     }
 
     private boolean isWindows() {
@@ -214,12 +246,12 @@ public class FileMaintenanceService {
         throw new IOException("Unexpected 'wmic' output format: " + output);
     }
 
-    private void cleanEmptyDirectories(Path directory) throws IOException {
+    private void cleanEmptyDirectories(Path directory, AtomicLong directoriesDeleted) throws IOException {
         Files.walk(directory)
                 .filter(Files::isDirectory)
                 .filter(path -> !path.equals(directory))
                 .filter(this::isEmptyDirectory)
-                .forEach(this::deleteDirectory);
+                .forEach(path -> deleteDirectory(path, directoriesDeleted));
     }
 
     private boolean isEmptyDirectory(Path path) {
@@ -231,10 +263,10 @@ public class FileMaintenanceService {
         }
     }
 
-    private void deleteDirectory(Path dir) {
+    private void deleteDirectory(Path dir, AtomicLong directoriesDeleted) {
         try {
             Files.delete(dir);
-            directoriesDeleted++;
+            directoriesDeleted.incrementAndGet();
             LOGGER.debug("Deleted empty directory: {}", dir);
         } catch (IOException e) {
             LOGGER.warn("Could not delete directory: {}", dir, e);
@@ -251,12 +283,12 @@ public class FileMaintenanceService {
         }
     }
 
-    private void deleteFile(Path file) {
+    private void deleteFile(Path file, AtomicLong filesDeleted, AtomicLong spaceFreedBytes) {
         try {
             long fileSize = Files.size(file);
-            filesDeleted++;
-            spaceFreedBytes += fileSize;
             Files.delete(file);
+            filesDeleted.incrementAndGet();
+            spaceFreedBytes.addAndGet(fileSize);
             LOGGER.debug("Deleted old file: {}", file);
         } catch (IOException e) {
             LOGGER.warn("Could not delete file: {}", file, e);
@@ -264,6 +296,8 @@ public class FileMaintenanceService {
     }
 
     public FileMaintenanceStats getStats() {
+        cleanup24hStats();
+
         try {
             updateDiskSpace();
         } catch (IOException e) {
@@ -271,8 +305,9 @@ public class FileMaintenanceService {
             this.totalSpaceBytes = -1;
             this.availableSpaceBytes = -1;
         }
+
         return FileMaintenanceStats.builder()
-                .fromService(this.filesDeleted, this.spaceFreedBytes, this.directoriesDeleted)
+                .fromService(getLast24hFilesDeleted(), getLast24hSpaceFreedBytes(), getLast24hDirectoriesDeleted())
                 .totalSpaceBytes(this.totalSpaceBytes)
                 .availableSpaceBytes(this.availableSpaceBytes)
                 .build();

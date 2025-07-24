@@ -45,12 +45,8 @@ public class StreamManager implements IStreamManager {
     private final Queue<Long> segmentRequestTimestamps = new ConcurrentLinkedQueue<>();
 
     private final Queue<HlsSegment> pendingFragmentSegmentsQueue = new LinkedList<>();
-
-    //private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
-    //private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
-
-    private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 3;
-    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 10;
+    private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
+    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
 
     @Getter @Setter
     private RadioStation radioStation;
@@ -128,6 +124,7 @@ public class StreamManager implements IStreamManager {
 
 
     public void feedSegments() {
+        int drippedCountThisCall = 0;
         if (!pendingFragmentSegmentsQueue.isEmpty()) {
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
@@ -137,9 +134,15 @@ public class StreamManager implements IStreamManager {
                 }
                 HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                 liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
+                drippedCountThisCall++;
 
                 if (segmentToMakeLive.isFirstSegmentOfFragment()) {
                     handleNewFragmentStarted(segmentToMakeLive);
+                }
+            }
+            if (drippedCountThisCall > 0) {
+                if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
+                    radioStation.setStatus(RadioStationStatus.ON_LINE);
                 }
             }
         }

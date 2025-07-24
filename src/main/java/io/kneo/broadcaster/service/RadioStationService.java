@@ -213,8 +213,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
-                dto.setMixplaUrl(new URL("https://mixpla250.windsurf.build/index.html?radio=" + dto.getSlugName()));
-                //dto.setMixplaUrl(new URL(broadcasterConfig.getHost() + "/index.html?radio=" + dto.getSlugName()));
+                dto.setMixplaUrl(new URL("https://friendly-maamoul-c0722a.netlify.app/?radio=" + dto.getSlugName()));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }

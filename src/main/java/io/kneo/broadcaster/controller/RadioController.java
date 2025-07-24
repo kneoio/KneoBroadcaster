@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 public class RadioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
     private final RadioService service;
-    private static final String[] SUPPORTED_MIXPLA_VERSIONS = {"2.4.6", "2.4.7", "2.5.0", "2.5.1"};
+    private static final String[] SUPPORTED_MIXPLA_VERSIONS = {"2.5.0", "2.5.2", "2.5.3", "2.5.4", "2.5.5"};
 
     @Inject
     public RadioController(RadioService service) {

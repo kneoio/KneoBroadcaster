@@ -12,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import io.kneo.broadcaster.util.BrandActivityLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.List;
@@ -38,6 +39,10 @@ public class SoundFragmentMCPTools {
         int pageNum = page.orElse(1);
         int pageSize = size.orElse(10);
         
+        // Log the start of the operation
+        BrandActivityLogger.logActivity(brandName, "fragment_query", 
+            "Fetching page %d with size %d", pageNum, pageSize);
+        
         return getCurrentUser()
             .chain(user -> {
                 int offset = (pageNum - 1) * pageSize;
@@ -51,7 +56,21 @@ public class SoundFragmentMCPTools {
                 long totalCount = tuple.getItem2();
                 int maxPage = RuntimeUtil.countMaxPage(totalCount, pageSize);
                 
+                // Log the results
+                BrandActivityLogger.logActivity(brandName, "fragment_results", 
+                    "Found %d fragments (page %d of %d)", 
+                    fragments.size(), pageNum, maxPage);
+                
+                if (fragments.isEmpty()) {
+                    BrandActivityLogger.logActivity(brandName, "fragment_warning", 
+                        "No fragments found for this query");
+                }
+                
                 return new MCPBrandResponse(fragments, totalCount, pageNum, maxPage);
+            })
+            .onFailure().invoke(failure -> {
+                BrandActivityLogger.logActivity(brandName, "fragment_error", 
+                    "Failed to get fragments: %s", failure.getMessage());
             })
             .convert().toCompletableFuture();
     }

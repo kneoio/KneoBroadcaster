@@ -24,6 +24,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
+import io.kneo.broadcaster.util.BrandActivityLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,11 +164,17 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user) {
         assert repository != null;
         assert radioStationService != null;
-        LOGGER.debug("Get fragments for brand: {}, quantity: {}, shuffle: {}", brandName, quantity, shuffle);
+        
+        // Log the brand fragment request
+        BrandActivityLogger.logActivity(brandName, "fragment_request", 
+            "Requesting %d fragments, shuffle: %s, user: %s", 
+            quantity, shuffle, user.getUserName());
 
-        return radioStationService.findByBrandName(brandName)
+        return radioStationService.findByBrandName(brandName) 
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
+                        BrandActivityLogger.logActivity(brandName, "brand_not_found", 
+                            "Brand not found");
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
@@ -175,18 +182,37 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     if (shuffle) {
                         limit = 50; // Get all for shuffling
                     }
+                    // Log before fetching fragments
+                    BrandActivityLogger.logActivity(brandName, "fetching_fragments", 
+                        "Fetching up to %d fragments for brand ID: %s", limit, brandId);
+                        
                     return repository.findForBrand(brandId, limit, 0, false, user)
                             .chain(fragments -> {
-                                if (shuffle && fragments != null && !fragments.isEmpty()) {
-                                    Collections.shuffle(fragments);
-                                    if (quantity > 0 && fragments.size() > quantity) {
-                                        fragments = fragments.subList(0, quantity);
+                                // Log the results
+                                if (fragments == null || fragments.isEmpty()) {
+                                    BrandActivityLogger.logActivity(brandName, "no_fragments_found", 
+                                        "No fragments available for this brand");
+                                } else {
+                                    BrandActivityLogger.logActivity(brandName, "fragments_retrieved", 
+                                        "Retrieved %d fragments", fragments.size());
+                                    
+                                    if (shuffle) {
+                                        BrandActivityLogger.logActivity(brandName, "shuffling_fragments", 
+                                            "Shuffling fragments");
+                                        Collections.shuffle(fragments);
+                                        if (quantity > 0 && fragments.size() > quantity) {
+                                            fragments = fragments.subList(0, quantity);
+                                            BrandActivityLogger.logActivity(brandName, "fragments_limited", 
+                                                "Limited to %d fragments after shuffle", fragments.size());
+                                        }
                                     }
                                 }
                                 return Uni.createFrom().item(fragments);
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
+                    BrandActivityLogger.logActivity(brandName, "fragment_retrieval_error", 
+                        "Failed to get fragments: %s", failure.getMessage());
                     LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
                     return Uni.createFrom().failure(failure);
                 });
@@ -195,6 +221,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset) {
         assert repository != null;
         assert radioStationService != null;
+        
+        // Log the brand fragments request
+        BrandActivityLogger.logActivity(brandName, "brand_fragments_request", 
+            "Requesting fragments (limit: %d, offset: %d)", limit, offset);
 
         return radioStationService.findByBrandName(brandName)
                 .onItem().transformToUni(radioStation -> {
@@ -202,11 +232,22 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
+                    // Log before fetching brand fragments
+                    BrandActivityLogger.logActivity(brandName, "fetching_brand_fragments", 
+                        "Fetching fragments for brand ID: %s (limit: %d, offset: %d)", 
+                        brandId, limit, offset);
+                        
                     return repository.findForBrand(brandId, limit, offset, false, SuperUser.build())
                             .chain(fragments -> {
                                 if (fragments.isEmpty()) {
+                                    BrandActivityLogger.logActivity(brandName, "no_brand_fragments", 
+                                        "No fragments found for this brand");
                                     return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
                                 }
+
+                                // Log successful retrieval
+                                BrandActivityLogger.logActivity(brandName, "brand_fragments_retrieved", 
+                                    "Retrieved %d fragments", fragments.size());
 
                                 List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
                                         .map(this::mapToBrandSoundFragmentDTO)
@@ -216,6 +257,8 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
+                    BrandActivityLogger.logActivity(brandName, "brand_fragments_error", 
+                        "Failed to get fragments: %s", failure.getMessage());
                     LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
                     return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
                 });
@@ -223,15 +266,34 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<Integer> getCountBrandSoundFragments(final String brand, final IUser user) {
         assert repository != null;
+        
+        // Log the count request
+        BrandActivityLogger.logActivity(brand, "count_request", 
+            "Requesting fragment count for brand");
+            
         return radioStationService.findByBrandName(brand)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
+                        BrandActivityLogger.logActivity(brand, "brand_not_found", 
+                            "Brand not found in getCountBrandSoundFragments");
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.findForBrandCount(brandId, false, user);
+                    
+                    // Log before counting
+                    BrandActivityLogger.logActivity(brand, "counting_fragments", 
+                        "Counting fragments for brand ID: %s", brandId);
+                        
+                    return repository.findForBrandCount(brandId, false, user)
+                            .invoke(count -> {
+                                // Log the count result
+                                BrandActivityLogger.logActivity(brand, "fragment_count", 
+                                    "Found %d fragments for this brand", count);
+                            });
                 })
                 .onFailure().recoverWithUni(failure -> {
+                    BrandActivityLogger.logActivity(brand, "count_error", 
+                        "Failed to count fragments: %s", failure.getMessage());
                     LOGGER.error("Failed to get fragments count for brand: {}", brand, failure);
                     return Uni.createFrom().failure(failure);
                 });

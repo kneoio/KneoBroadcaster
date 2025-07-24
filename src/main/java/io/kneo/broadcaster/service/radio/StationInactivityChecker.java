@@ -116,6 +116,9 @@ public class StationInactivityChecker {
                                                     LOGGER.info("Station {} has been inactive for {} minutes, setting status to IDLE.",
                                                             slug, IDLE_THRESHOLD_MINUTES);
                                                     radioStation.setStatus(RadioStationStatus.IDLE);
+                                                } else {
+                                                    LOGGER.info("Station {} is active, setting status to ON_LINE.", slug);
+                                                    radioStation.setStatus(RadioStationStatus.ON_LINE);
                                                 }
                                             } else {
                                                 LOGGER.info("Station '{}' has no last access time recorded, setting status to OFF_LINE and marking for removal.", slug);

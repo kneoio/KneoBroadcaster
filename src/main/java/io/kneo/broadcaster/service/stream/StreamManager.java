@@ -235,23 +235,11 @@ public class StreamManager implements IStreamManager {
         String currentRadioSlugForPath = (this.radioStation != null && this.radioStation.getSlugName() != null)
                 ? this.radioStation.getSlugName() : "default_station_path";
 
-        // Track previous fragment for discontinuity detection
-        final BrandSoundFragment[] previousFragment = {null};
 
         liveSegments.tailMap(firstSequenceInWindow).entrySet().stream()
                 .limit(maxVisibleSegments)
                 .forEach(entry -> {
                     HlsSegment segment = entry.getValue();
-
-                    // Add discontinuity tag when fragment changes
-                    if (segment.isFirstSegmentOfFragment()) {
-                        BrandSoundFragment currentFragment = segment.getSourceFragment();
-                        if (previousFragment[0] != null && !previousFragment[0].equals(currentFragment)) {
-                            playlist.append("#EXT-X-DISCONTINUITY\n");
-                        }
-                        previousFragment[0] = currentFragment;
-                    }
-
                     playlist.append("#EXTINF:")
                             .append(segment.getDuration())
                             .append(",")

@@ -121,8 +121,8 @@ public class StationInactivityChecker {
                                                             slug, IDLE_THRESHOLD_MINUTES);
                                                     radioStation.setStatus(RadioStationStatus.IDLE);
                                                 } else {
-                                                    LOGGER.info("Station {} is active, but NOT setting status to ON_LINE (commented out for testing).", slug);
-                                                    // radioStation.setStatus(RadioStationStatus.ON_LINE);
+                                                    LOGGER.info("Station {} is active, setting status to ON_LINE.", slug);
+                                                    radioStation.setStatus(RadioStationStatus.ON_LINE);
                                                 }
                                             } else {
                                                 LOGGER.info("Station '{}' has no last access time recorded, setting status to IDLE (grace period).", slug);

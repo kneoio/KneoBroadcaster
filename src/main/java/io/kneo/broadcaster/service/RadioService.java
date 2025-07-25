@@ -69,13 +69,21 @@ public class RadioService {
                 );
     }
 
-    public Uni<IStreamManager> getPlaylist(String brand, String userAgent) {
-        return recordAccess(brand, userAgent)
-                .onFailure().recoverWithItem(() -> {
-                    LOGGER.warn("Failed to record access, but continuing with playlist retrieval: {}", brand);
-                    return null;
-                })
-                .chain(() -> radioStationPool.get(brand))
+    public Uni<IStreamManager> getPlaylist(String brand, String userAgent, boolean updateAccessTime) {
+        if (updateAccessTime) {
+            return recordAccess(brand, userAgent)
+                    .onFailure().recoverWithItem(() -> {
+                        LOGGER.warn("Failed to record access, but continuing with playlist retrieval: {}", brand);
+                        return null;
+                    })
+                    .chain(() -> getPlaylistInternal(brand));
+        } else {
+            return getPlaylistInternal(brand);
+        }
+    }
+
+    private Uni<IStreamManager> getPlaylistInternal(String brand) {
+        return radioStationPool.get(brand)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
                 )
@@ -93,7 +101,7 @@ public class RadioService {
     }
 
     public Uni<RadioStationStatusDTO> getStatus(String brand, String userAgent) {
-        return getPlaylist(brand, userAgent)
+        return getPlaylist(brand, userAgent, false)
                 .onItem().transform(IStreamManager::getRadioStation)
                 .chain(this::toStatusDTO);
     }

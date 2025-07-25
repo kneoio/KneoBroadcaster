@@ -45,7 +45,7 @@ public class RadioController {
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
         LOGGER.debug("User-Agent: {}", userAgent);
-        service.getPlaylist(brand, userAgent)
+        service.getPlaylist(brand, userAgent, true)
                 .onItem().transform(IStreamManager::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -74,7 +74,7 @@ public class RadioController {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
-        service.getPlaylist(brand, userAgent)
+        service.getPlaylist(brand, userAgent, true)
                 .onItem().transform(playlist -> {
                     HlsSegment segment = playlist.getSegment(segmentParam);
                     if (segment == null) {

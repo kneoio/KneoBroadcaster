@@ -168,8 +168,14 @@ public class FileMaintenanceService {
                 .availableSpaceBytes(availableSpaceBytes)
                 .build();
         eventBus.publish(ADDRESS_FILE_MAINTENANCE_STATS, stats);
-        LOGGER.info("Cleanup done. Freed last 24h: {} MB, Deleted: {} files, {} dirs. Total: {} MB, Available: {} MB.",
-                String.format("%.2f", totalSpaceFreedMB), files24h, dirs24h,
+
+        double currentIterationMB = (double) totalSpaceFreedBytes.get() / (1024 * 1024);
+
+        LOGGER.info("Cleanup done. Current iteration: {} files, {} dirs, {} MB freed. " +
+                        "Last 24h total: {} files, {} dirs, {} MB. " +
+                        "Disk: {} MB total, {} MB available.",
+                totalFilesDeleted.get(), totalDirectoriesDeleted.get(), String.format("%.2f", currentIterationMB),
+                files24h, dirs24h, String.format("%.2f", totalSpaceFreedMB),
                 String.format("%.2f", totalSpaceMB), String.format("%.2f", availableSpaceMB));
     }
 

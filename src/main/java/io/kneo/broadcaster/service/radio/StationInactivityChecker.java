@@ -132,10 +132,10 @@ public class StationInactivityChecker {
                                         })
                                         .onFailure().recoverWithUni(failure -> {
                                             LOGGER.error("Error processing station {}: {}", radioStation.getSlugName(), failure.getMessage());
-                                            radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                            //radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
                                             String slug = radioStation.getSlugName();
-                                            LOGGER.info("Marking station {} for removal due to system error.", slug);
-                                            stationsMarkedForRemoval.put(slug, now);
+                                            //LOGGER.info("Marking station {} for removal due to system error.", slug);
+                                            //stationsMarkedForRemoval.put(slug, now);
                                             return Uni.createFrom().voidItem();
                                         })
                         )

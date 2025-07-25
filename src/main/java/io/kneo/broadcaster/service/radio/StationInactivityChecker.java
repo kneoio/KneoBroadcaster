@@ -84,7 +84,7 @@ public class StationInactivityChecker {
 
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
 
-        // Check for stations marked for removal
+        // First: Check for stations marked for removal
         return Multi.createFrom().iterable(stationsMarkedForRemoval.entrySet())
                 .onItem().transformToUni(entry -> {
                     String slug = entry.getKey();
@@ -99,7 +99,11 @@ public class StationInactivityChecker {
                 .merge()
                 .toUni()
                 .replaceWithVoid()
-                .chain(() -> Multi.createFrom().iterable(onlineStations)
+                .chain(() -> {
+                    // Second: Get fresh snapshot after removals and check activity
+                    Collection<RadioStation> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
+                    LOGGER.info("After cleanup, there are {} active radio stations.", currentOnlineStations.size());
+                    return Multi.createFrom().iterable(currentOnlineStations)
                         .onItem().transformToUni(radioStation ->
                                 radioStationService.getStats(radioStation.getSlugName())
                                         .onItem().transformToUni(stats -> {
@@ -121,15 +125,13 @@ public class StationInactivityChecker {
                                                     radioStation.setStatus(RadioStationStatus.ON_LINE);
                                                 }
                                             } else {
-                                                LOGGER.info("Station '{}' has no last access time recorded, setting status to OFF_LINE and marking for removal.", slug);
-                                                radioStation.setStatus(RadioStationStatus.OFF_LINE);
-                                                stationsMarkedForRemoval.put(slug, now);
+                                                LOGGER.info("Station '{}' has no last access time recorded, setting status to IDLE (grace period).", slug);
+                                                radioStation.setStatus(RadioStationStatus.IDLE);
                                             }
                                             return Uni.createFrom().voidItem();
                                         })
                                         .onFailure().recoverWithUni(failure -> {
-                                            LOGGER.error("Error processing station {}: {}",
-                                                    radioStation.getSlugName(), failure.getMessage());
+                                            LOGGER.error("Error processing station {}: {}", radioStation.getSlugName(), failure.getMessage());
                                             radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
                                             String slug = radioStation.getSlugName();
                                             LOGGER.info("Marking station {} for removal due to system error.", slug);
@@ -139,7 +141,7 @@ public class StationInactivityChecker {
                         )
                         .merge()
                         .toUni()
-                        .replaceWithVoid()
-                );
+                        .replaceWithVoid();
+                });
     }
 }

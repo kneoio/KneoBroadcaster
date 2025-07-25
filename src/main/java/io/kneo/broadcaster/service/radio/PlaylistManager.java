@@ -144,7 +144,7 @@ public class PlaylistManager {
                             return Uni.createFrom().item(false);
                         } else {
                             if (radioStation.getStatus() == RadioStationStatus.WARMING_UP) {
-                                radioStation.setStatus(RadioStationStatus.ON_LINE);
+                                //radioStation.setStatus(RadioStationStatus.ON_LINE);
                             }
                             radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
                         }

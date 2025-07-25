@@ -27,7 +27,7 @@ public class StationInactivityChecker {
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final int IDLE_THRESHOLD_MINUTES = 5;
     private static final int STOP_REMOVE_THRESHOLD_MINUTES = 15;
-    private static final int REMOVAL_DELAY_MINUTES = 2;
+    private static final int REMOVAL_DELAY_MINUTES = 1;
 
     @Inject
     RadioStationService radioStationService;

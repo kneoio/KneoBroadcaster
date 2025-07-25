@@ -142,7 +142,7 @@ public class StreamManager implements IStreamManager {
             }
             if (drippedCountThisCall > 0) {
                 if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
-                    radioStation.setStatus(RadioStationStatus.ON_LINE);
+                    //radioStation.setStatus(RadioStationStatus.ON_LINE);
                 }
             }
         }

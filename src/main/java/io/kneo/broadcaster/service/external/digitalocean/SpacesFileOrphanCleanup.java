@@ -1,7 +1,15 @@
 package io.kneo.broadcaster.service.external.digitalocean;
 
 import io.kneo.broadcaster.config.DOConfig;
+import io.kneo.broadcaster.dto.AudioMetadataDTO;
+import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.dashboard.SpacesOrphanCleanupStats;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.manipulation.AudioMetadataService;
+import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.SuperUser;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -19,11 +27,16 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -44,21 +57,29 @@ public class SpacesFileOrphanCleanup {
     private final DOConfig doConfig;
     private final PgPool pgPool;
     private final EventBus eventBus;
+    private final AudioMetadataService audioMetadataService;
+    private final SoundFragmentService soundFragmentService;
     private S3Client s3Client;
     private Cancellable cleanupSubscription;
 
     @Getter
     private final AtomicLong orphanFilesDeleted = new AtomicLong(0);
     @Getter
+    private final AtomicLong orphanFilesSaved = new AtomicLong(0);
+    @Getter
     private final AtomicLong spaceFreedBytes = new AtomicLong(0);
     @Getter
     private final AtomicLong totalFilesScanned = new AtomicLong(0);
 
     @Inject
-    public SpacesFileOrphanCleanup(DOConfig doConfig, PgPool pgPool, EventBus eventBus) {
+    public SpacesFileOrphanCleanup(DOConfig doConfig, PgPool pgPool, EventBus eventBus,
+                                   AudioMetadataService audioMetadataService,
+                                   SoundFragmentService soundFragmentService) {
         this.doConfig = doConfig;
         this.pgPool = pgPool;
         this.eventBus = eventBus;
+        this.audioMetadataService = audioMetadataService;
+        this.soundFragmentService = soundFragmentService;
     }
 
     void onStart(@Observes StartupEvent event) {
@@ -109,6 +130,7 @@ public class SpacesFileOrphanCleanup {
 
         long startTime = System.currentTimeMillis();
         long filesDeleted = 0;
+        long filesSaved = 0;
         long bytesFreed = 0;
         long filesScanned = 0;
         this.lastError = null;
@@ -141,12 +163,21 @@ public class SpacesFileOrphanCleanup {
                     if (!dbFileKeys.contains(fileKey)) {
                         try {
                             long fileSize = s3Object.size();
-                            if (deleteOrphanFile(fileKey)){
-                                filesDeleted++;
-                                bytesFreed += fileSize;
+                            OrphanProcessingResult result = processOrphanFile(fileKey, fileSize);
+
+                            switch (result) {
+                                case DELETED:
+                                    filesDeleted++;
+                                    bytesFreed += fileSize;
+                                    break;
+                                case SAVED:
+                                    filesSaved++;
+                                    break;
+                                case SKIPPED:
+                                    break;
                             }
                         } catch (Exception e) {
-                            LOGGER.error("Failed to delete orphan file: {}", fileKey, e);
+                            LOGGER.error("Failed to process orphan file: {}", fileKey, e);
                         }
                     }
                 }
@@ -161,6 +192,7 @@ public class SpacesFileOrphanCleanup {
         }
 
         orphanFilesDeleted.addAndGet(filesDeleted);
+        orphanFilesSaved.addAndGet(filesSaved);
         spaceFreedBytes.addAndGet(bytesFreed);
         totalFilesScanned.addAndGet(filesScanned);
         this.lastCleanupTime = LocalDateTime.now();
@@ -178,8 +210,128 @@ public class SpacesFileOrphanCleanup {
                 .build();
 
         eventBus.publish(ADDRESS_ORPHAN_CLEANUP_STATS, stats);
-        LOGGER.info("Orphan cleanup completed in {}ms. Scanned: {} files, Deleted: {} orphans, Freed: {} MB",
-                duration, filesScanned, filesDeleted, bytesFreedMB);
+        LOGGER.info("Orphan cleanup completed in {}ms. Scanned: {} files, Deleted: {} orphans, Saved: {} recoverable, Freed: {} MB",
+                duration, filesScanned, filesDeleted, filesSaved, bytesFreedMB);
+    }
+
+    private OrphanProcessingResult processOrphanFile(String fileKey, long fileSize) {
+        if (!isAudioFile(fileKey)) {
+            LOGGER.warn("Orphan file is not an audio file, deleting: {}", fileKey);
+            if (deleteOrphanFile(fileKey)) {
+                return OrphanProcessingResult.DELETED;
+            }
+            return OrphanProcessingResult.SKIPPED;
+        }
+
+        Path tempFile = null;
+        try {
+            tempFile = downloadFileTemporarily(fileKey);
+            if (tempFile == null) {
+                LOGGER.warn("Failed to download orphan file for metadata analysis: {}", fileKey);
+                return OrphanProcessingResult.SKIPPED;
+            }
+
+            AudioMetadataDTO metadata = audioMetadataService.extractMetadata(tempFile.toString());
+
+            if (hasCompleteMetadata(metadata)) {
+                LOGGER.info("Found orphan file with complete metadata - Title: {}, Artist: {}, Genre: {}, File: {}",
+                        metadata.getTitle(), metadata.getArtist(), metadata.getGenre(), fileKey);
+
+                if (saveOrphanToDatabase(metadata, fileKey)) {
+                    LOGGER.info("Successfully saved orphan file to database: {}", fileKey);
+                    return OrphanProcessingResult.SAVED;
+                } else {
+                    LOGGER.warn("Failed to save orphan file to database, deleting: {}", fileKey);
+                    if (deleteOrphanFile(fileKey)) {
+                        return OrphanProcessingResult.DELETED;
+                    }
+                    return OrphanProcessingResult.SKIPPED;
+                }
+            } else {
+                LOGGER.warn("Orphan file lacks complete metadata (Title: {}, Artist: {}, Genre: {}), deleting: {}",
+                        metadata.getTitle(), metadata.getArtist(), metadata.getGenre(), fileKey);
+                if (deleteOrphanFile(fileKey)) {
+                    return OrphanProcessingResult.DELETED;
+                }
+                return OrphanProcessingResult.SKIPPED;
+            }
+
+        } catch (Exception e) {
+            LOGGER.error("Error processing orphan file: {}", fileKey, e);
+            return OrphanProcessingResult.SKIPPED;
+        } finally {
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException e) {
+                    LOGGER.warn("Failed to delete temporary file: {}", tempFile, e);
+                }
+            }
+        }
+    }
+
+    private boolean isAudioFile(String fileKey) {
+        String lowerKey = fileKey.toLowerCase();
+        return lowerKey.endsWith(".mp3") || lowerKey.endsWith(".wav") ||
+                lowerKey.endsWith(".flac") || lowerKey.endsWith(".m4a") ||
+                lowerKey.endsWith(".aac") || lowerKey.endsWith(".ogg") ||
+                lowerKey.endsWith(".wma") || lowerKey.endsWith(".ape");
+    }
+
+    private Path downloadFileTemporarily(String fileKey) {
+        try {
+            Path tempDir = Paths.get(System.getProperty("java.io.tmpdir"), "orphan-cleanup");
+            Files.createDirectories(tempDir);
+
+            String fileName = Paths.get(fileKey).getFileName().toString();
+            Path tempFile = tempDir.resolve(fileName);
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(doConfig.getBucketName())
+                    .key(fileKey)
+                    .build();
+
+            s3Client.getObject(getObjectRequest, tempFile);
+            return tempFile;
+
+        } catch (Exception e) {
+            LOGGER.error("Failed to download file temporarily: {}", fileKey, e);
+            return null;
+        }
+    }
+
+    private boolean hasCompleteMetadata(AudioMetadataDTO metadata) {
+        return metadata.getTitle() != null && !metadata.getTitle().trim().isEmpty() &&
+                metadata.getArtist() != null && !metadata.getArtist().trim().isEmpty() &&
+                metadata.getGenre() != null && !metadata.getGenre().trim().isEmpty();
+    }
+
+    private boolean saveOrphanToDatabase(AudioMetadataDTO metadata, String fileKey) {
+        try {
+            SoundFragmentDTO dto = SoundFragmentDTO.builder()
+                    .title(metadata.getTitle())
+                    .artist(metadata.getArtist())
+                    .genre(metadata.getGenre())
+                    .album(metadata.getAlbum())
+                    .source(SourceType.ORPHAN_RECOVERY)
+                    .status(1)
+                    .type(PlaylistItemType.SONG)
+                    .newlyUploaded(List.of())
+                    .representedInBrands(List.of())
+                    .build();
+
+            SuperUser superUser = SuperUser.build();
+
+            soundFragmentService.upsert(null, dto, superUser, LanguageCode.en)
+                    .await().atMost(Duration.ofMinutes(1));
+
+            LOGGER.info("Successfully created database entry for orphan file: {}", fileKey);
+            return true;
+
+        } catch (Exception e) {
+            LOGGER.error("Failed to save orphan to database: {}", fileKey, e);
+            return false;
+        }
     }
 
     public Uni<SpacesOrphanCleanupStats> getStats() {
@@ -221,7 +373,6 @@ public class SpacesFileOrphanCleanup {
                 .onFailure().invoke(throwable ->
                         LOGGER.error("Failed to retrieve file keys from database", throwable));
     }
-
 
     private boolean deleteOrphanFile(String fileKey) {
         try {
@@ -267,5 +418,11 @@ public class SpacesFileOrphanCleanup {
 
             return totalCount;
         }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
+    }
+
+    private enum OrphanProcessingResult {
+        DELETED,
+        SAVED,
+        SKIPPED
     }
 }

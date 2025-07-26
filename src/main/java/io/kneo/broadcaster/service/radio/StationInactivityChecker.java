@@ -13,6 +13,8 @@ import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class StationInactivityChecker {
+    private static final Logger LOGGER = LoggerFactory.getLogger(StationInactivityChecker.class);
     private static final int INTERVAL_SECONDS = 300;
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final int IDLE_THRESHOLD_MINUTES = 5;
@@ -37,24 +40,24 @@ public class StationInactivityChecker {
     private final ConcurrentHashMap<String, Instant> stationsMarkedForRemoval = new ConcurrentHashMap<>();
 
     void onStart(@Observes StartupEvent event) {
-        BrandActivityLogger.logActivity("system", "startup", "Starting station inactivity checker");
+        LOGGER.info("Starting station inactivity checker.");
         startCleanupTask();
     }
 
     void onShutdown(@Observes ShutdownEvent event) {
-        BrandActivityLogger.logActivity("system", "shutdown", "Shutting down station inactivity checker");
+        LOGGER.info("Shutting down station inactivity checker.");
         stopCleanupTask();
     }
 
     private void startCleanupTask() {
         cleanupSubscription = getTicker()
                 .onItem().call(this::checkStationActivity)
-                .onFailure().invoke(error -> BrandActivityLogger.logActivity("system", "error", "Timer error: %s", error.getMessage()))
+                .onFailure().invoke(error -> LOGGER.error("Timer error", error))
                 .onFailure().retry().withBackOff(Duration.ofSeconds(10)).atMost(3)
                 .subscribe().with(
                         item -> {
                         },
-                        failure -> BrandActivityLogger.logActivity("system", "error", "Subscription failed: %s", failure.getMessage())
+                        failure -> LOGGER.error("Subscription failed", failure)
                 );
     }
 
@@ -73,14 +76,14 @@ public class StationInactivityChecker {
     }
 
     private Uni<Void> checkStationActivity(Long tick) {
-        BrandActivityLogger.logActivity("system", "check", "Station inactivity checking...");
+        LOGGER.info("Station inactivity checking...");
         Instant now = Instant.now();
         Instant idleThreshold = now.minusSeconds(IDLE_THRESHOLD_MINUTES * 60L);
         Instant stopThreshold = now.minusSeconds(STOP_REMOVE_THRESHOLD_MINUTES * 60L);
         Instant removalThreshold = now.minusSeconds(REMOVAL_DELAY_MINUTES * 60L);
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
 
-        BrandActivityLogger.logActivity("system", "stats", "Currently, there are %d active radio stations", onlineStations.size());
+        LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
 
         // First: Check for stations marked for removal
         return Multi.createFrom().iterable(stationsMarkedForRemoval.entrySet())
@@ -100,7 +103,7 @@ public class StationInactivityChecker {
                 .chain(() -> {
                     // Second: Get fresh snapshot after removals and check activity
                     Collection<RadioStation> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
-                    BrandActivityLogger.logActivity("system", "stats", "After cleanup, there are %d active radio stations", currentOnlineStations.size());
+                    LOGGER.info("After cleanup, there are {} active radio stations.", currentOnlineStations.size());
                     return Multi.createFrom().iterable(currentOnlineStations)
                             .onItem().transformToUni(radioStation ->
                                     radioStationService.getStats(radioStation.getSlugName())

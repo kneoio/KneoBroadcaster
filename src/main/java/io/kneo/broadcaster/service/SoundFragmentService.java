@@ -156,17 +156,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileById(soundFragmentId, slugName, user, false);
     }
 
-    public Uni<FileMetadata> getFile(UUID soundFragmentId) {
-        assert repository != null;
-        return repository.getFileById(soundFragmentId);
-    }
-
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user) {
         assert repository != null;
         assert radioStationService != null;
         
-        // Log the brand fragment request
-        BrandActivityLogger.logActivity(brandName, "fragment_request", 
+        BrandActivityLogger.logActivity(brandName, "fragment_request",
             "Requesting %d fragments, shuffle: %s, user: %s", 
             quantity, shuffle, user.getUserName());
 
@@ -180,15 +174,13 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     UUID brandId = radioStation.getId();
                     int limit = quantity;
                     if (shuffle) {
-                        limit = 50; // Get all for shuffling
+                        limit = 50;
                     }
-                    // Log before fetching fragments
-                    BrandActivityLogger.logActivity(brandName, "fetching_fragments", 
+                    BrandActivityLogger.logActivity(brandName, "fetching_fragments",
                         "Fetching up to %d fragments for brand ID: %s", limit, brandId);
                         
                     return repository.findForBrand(brandId, limit, 0, false, user)
                             .chain(fragments -> {
-                                // Log the results
                                 if (fragments == null || fragments.isEmpty()) {
                                     BrandActivityLogger.logActivity(brandName, "no_fragments_found", 
                                         "No fragments available for this brand");
@@ -222,8 +214,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         assert repository != null;
         assert radioStationService != null;
         
-        // Log the brand fragments request
-        BrandActivityLogger.logActivity(brandName, "brand_fragments_request", 
+        BrandActivityLogger.logActivity(brandName, "brand_fragments_request",
             "Requesting fragments (limit: %d, offset: %d)", limit, offset);
 
         return radioStationService.findByBrandName(brandName)
@@ -232,8 +223,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    // Log before fetching brand fragments
-                    BrandActivityLogger.logActivity(brandName, "fetching_brand_fragments", 
+                    BrandActivityLogger.logActivity(brandName, "fetching_brand_fragments",
                         "Fetching fragments for brand ID: %s (limit: %d, offset: %d)", 
                         brandId, limit, offset);
                         
@@ -245,8 +235,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                     return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
                                 }
 
-                                // Log successful retrieval
-                                BrandActivityLogger.logActivity(brandName, "brand_fragments_retrieved", 
+                                BrandActivityLogger.logActivity(brandName, "brand_fragments_retrieved",
                                     "Retrieved %d fragments", fragments.size());
 
                                 List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
@@ -267,8 +256,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<Integer> getCountBrandSoundFragments(final String brand, final IUser user) {
         assert repository != null;
         
-        // Log the count request
-        BrandActivityLogger.logActivity(brand, "count_request", 
+        BrandActivityLogger.logActivity(brand, "count_request",
             "Requesting fragment count for brand");
             
         return radioStationService.findByBrandName(brand)
@@ -279,15 +267,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
                     }
                     UUID brandId = radioStation.getId();
-                    
-                    // Log before counting
-                    BrandActivityLogger.logActivity(brand, "counting_fragments", 
+                    BrandActivityLogger.logActivity(brand, "counting_fragments",
                         "Counting fragments for brand ID: %s", brandId);
                         
                     return repository.findForBrandCount(brandId, false, user)
                             .invoke(count -> {
-                                // Log the count result
-                                BrandActivityLogger.logActivity(brand, "fragment_count", 
+                                BrandActivityLogger.logActivity(brand, "fragment_count",
                                     "Found %d fragments for this brand", count);
                             });
                 })
@@ -419,7 +404,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 for (FileMetadata meta : fileMetadataList) {
                     String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
 
-                    // SECURITY: Use secure path resolution for both source and destination
                     Path tempFile = FileSecurityUtils.secureResolve(tempDir, safeFileName);
                     Path entityFile = FileSecurityUtils.secureResolve(entityDir, safeFileName);
 

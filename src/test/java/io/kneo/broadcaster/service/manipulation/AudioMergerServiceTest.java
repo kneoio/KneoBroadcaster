@@ -55,7 +55,7 @@ public class AudioMergerServiceTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 3, 5})
-    public void testMergeAudioFiles(int silenceDuration) throws IOException {
+    public void testMergeAudioFiles(int silenceDuration) throws IOException, AudioMergerService.AudioMergeException {
         Path result = audioMergerService.mergeAudioFiles(testFile1, testFile2, silenceDuration);
 
         assertNotNull(result, "Result should not be null");
@@ -81,7 +81,7 @@ public class AudioMergerServiceTest {
     }
 
     @Test
-    public void testMergeAudioFilesWithNonexistentFiles() {
+    public void testMergeAudioFilesWithNonexistentFiles() throws AudioMergerService.AudioMergeException {
         Path nonExistentFile = testDir.resolve("nonexistent.mp3");
         Path result = audioMergerService.mergeAudioFiles(nonExistentFile, testFile2, 0);
 

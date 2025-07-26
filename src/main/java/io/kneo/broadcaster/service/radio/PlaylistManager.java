@@ -8,7 +8,6 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.SoundFragmentService;
-import io.kneo.broadcaster.service.exceptions.PlaylistException;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.SuperUser;
@@ -84,45 +83,44 @@ public class PlaylistManager {
             }
         }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
+
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
-        Path filePath = null;
-        FileMetadata metadata = null;
-
         try {
-            metadata = brandSoundFragment.getSoundFragment().getFileMetadataList().get(0);
-            if (metadata != null) {
-                filePath = metadata.getFilePath();
+            var metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
+            if (metadataList == null || metadataList.isEmpty()) {
+                LOGGER.warn("Skipping fragment with empty metadata list: {}",
+                        brandSoundFragment.getSoundFragment().getMetadata());
+                return Uni.createFrom().item(false);
             }
-        } catch (Exception e) {
-            return Uni.createFrom().failure(new PlaylistException("Failed to read file path from BrandSoundFragment: " + e.getMessage()));
-        }
 
-        if (filePath != null) {
-            LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
-            return this.addFragmentToSlice(brandSoundFragment, filePath);
-        } else {
-            if (metadata == null) {
-                return Uni.createFrom().failure(new PlaylistException("FileMetadata is null for sound fragment: " +
-                        brandSoundFragment.getSoundFragment().getMetadata()));
+            FileMetadata metadata = metadataList.get(0);
+            Path filePath = metadata.getFilePath();
+
+            if (filePath != null) {
+                LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
+                return this.addFragmentToSlice(brandSoundFragment, filePath);
             }
 
             LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.",
                     brandSoundFragment.getSoundFragment().getMetadata());
-            final FileMetadata finalMetadata = metadata;
 
             Uni<Path> pathUni = soundFragmentService.getFile(
                             brandSoundFragment.getSoundFragment().getId(),
-                            finalMetadata.getSlugName(),
+                            metadata.getSlugName(),
                             SuperUser.build()
                     )
                     .onItem().transform(fetchedMetadata -> {
-                        finalMetadata.setFilePath(fetchedMetadata.getFilePath());
+                        metadata.setFilePath(fetchedMetadata.getFilePath());
                         return fetchedMetadata.getFilePath();
                     });
 
             return pathUni.onItem().transformToUni(resolvedPath ->
                     this.addFragmentToSlice(brandSoundFragment, resolvedPath)
             );
+
+        } catch (Exception e) {
+            LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
+            return Uni.createFrom().item(false);
         }
     }
 

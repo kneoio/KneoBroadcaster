@@ -6,9 +6,9 @@ import io.kneo.broadcaster.model.SegmentInfo;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import lombok.Setter;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import org.slf4j.Logger;
@@ -33,45 +33,63 @@ public class AudioSegmentationService {
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
     private final FFmpegProvider ffmpeg;
 
-    @Setter
-    public static int segmentDuration;
+    private final int segmentDuration;
     private final String outputDir;
 
     @Inject
     public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
         this.ffmpeg = ffmpeg;
         this.outputDir = broadcasterConfig.getSegmentationOutputDir();
+        this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
         new File(outputDir).mkdirs();
-        segmentDuration = hlsPlaylistConfig.getSegmentDuration();
     }
 
     public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath) {
         return Uni.createFrom().item(() -> {
-                    List<SegmentInfo> segments = segmentAudioFile(filePath, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId());
-                    return createHlsQueueFromSegments(segments);
+                    return segmentAudioFile(filePath, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId());
                 })
-                .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e));
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e))
+                .chain(segments -> createHlsQueueFromSegments(segments));
     }
 
-    private ConcurrentLinkedQueue<HlsSegment> createHlsQueueFromSegments(List<SegmentInfo> segments) {
-        ConcurrentLinkedQueue<HlsSegment> hlsSegments = new ConcurrentLinkedQueue<>();
-        for (SegmentInfo segment : segments) {
-            try {
-                byte[] data = Files.readAllBytes(Paths.get(segment.path()));
-                HlsSegment hlsSegment = new HlsSegment(
-                        0,
-                        data,
-                        segment.duration(),
-                        segment.fragmentId(),
-                        segment.metadata(),
-                        System.currentTimeMillis() / 1000 + segment.sequenceIndex()
-                );
-                hlsSegments.add(hlsSegment);
-            } catch (IOException e) {
-                LOGGER.error("Error reading segment file into byte array: {}", segment.path(), e);
+    private Uni<ConcurrentLinkedQueue<HlsSegment>> createHlsQueueFromSegments(List<SegmentInfo> segments) {
+        return Uni.createFrom().item(() -> {
+            ConcurrentLinkedQueue<HlsSegment> hlsSegments = new ConcurrentLinkedQueue<>();
+            for (SegmentInfo segment : segments) {
+                try {
+                    byte[] data = Files.readAllBytes(Paths.get(segment.path()));
+                    HlsSegment hlsSegment = new HlsSegment(
+                            0,
+                            data,
+                            segment.duration(),
+                            segment.fragmentId(),
+                            segment.metadata(),
+                            System.currentTimeMillis() / 1000 + segment.sequenceIndex()
+                    );
+                    hlsSegments.add(hlsSegment);
+                } catch (IOException e) {
+                    LOGGER.error("Error reading segment file into byte array: {}", segment.path(), e);
+                }
             }
+            return hlsSegments;
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    private void debugAudioProperties(Path audioFilePath) {
+        try {
+            FFmpegBuilder probeBuilder = new FFmpegBuilder()
+                    .setInput(audioFilePath.toString())
+                    .addOutput("/dev/null")
+                    .addExtraArgs("-f", "null")
+                    .done();
+
+            LOGGER.info("Probing audio file properties for: {}", audioFilePath);
+            FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
+            executor.createJob(probeBuilder).run();
+        } catch (Exception e) {
+            LOGGER.error("Failed to probe audio file: {}", audioFilePath, e);
         }
-        return hlsSegments;
     }
 
     public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songTitle, String songArtist, UUID fragmentId) {
@@ -91,6 +109,8 @@ public class AudioSegmentationService {
             return segments;
         }
 
+        debugAudioProperties(audioFilePath);
+
         String baseName = UUID.randomUUID().toString();
         String segmentPattern = songDir + File.separator + baseName + "_%03d.ts";
         String segmentListFile = songDir + File.separator + baseName + "_segments.txt";
@@ -106,13 +126,28 @@ public class AudioSegmentationService {
                     .addExtraArgs("-segment_format", "mpegts")
                     .addExtraArgs("-segment_list", segmentListFile)
                     .addExtraArgs("-segment_list_type", "flat")
+                    .addExtraArgs("-ac", "2")
+                    .addExtraArgs("-ar", "44100")
+                    .addExtraArgs("-channel_layout", "stereo")
+                    .addExtraArgs("-map", "0:a")
                     .addExtraArgs("-metadata", "title=" + songTitle)
                     .addExtraArgs("-metadata", "artist=" + songArtist)
                     .done();
 
+            LOGGER.info("FFmpeg segmentation command: {}", builder.toString());
+
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
+
             List<String> segmentFiles = Files.readAllLines(Paths.get(segmentListFile));
+
+            if (!segmentFiles.isEmpty()) {
+                String firstSegment = segmentFiles.get(0).trim();
+                Path firstSegmentPath = Paths.get(songDir.toString(), firstSegment);
+                LOGGER.info("Debugging first segment: {}", firstSegmentPath);
+                debugAudioProperties(firstSegmentPath);
+            }
+
             for (int i = 0; i < segmentFiles.size(); i++) {
                 String segmentFile = segmentFiles.get(i).trim();
                 if (!segmentFile.isEmpty()) {
@@ -130,7 +165,7 @@ public class AudioSegmentationService {
             }
 
         } catch (IOException e) {
-            LOGGER.error("Something wrong with FFMpeg: {}, error: {}", audioFilePath, e.getMessage());
+            LOGGER.error("FFmpeg error for file: {}, error: {}", audioFilePath, e.getMessage());
         } catch (Exception e) {
             LOGGER.error("Error segmenting audio file: {}", audioFilePath, e);
         }

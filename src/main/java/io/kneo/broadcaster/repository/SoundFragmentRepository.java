@@ -13,6 +13,7 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -25,6 +26,7 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.SqlClient;
+import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -278,9 +280,13 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onItem().invoke(rows ->
                         LOGGER.debug("Query returned {} rows", rows.rowCount()))
                 .onFailure().invoke(failure ->
-                        LOGGER.error("Database query failed for ID: {} - Error", id, failure)) // Fixed
+                        LOGGER.error("Database query failed for ID: {} - Error", id, failure))
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
+                        markAsCorrupted(id).subscribe().with(
+                                result -> LOGGER.info("Marked file {} as corrupted (archived = -1) due to missing file record", id),
+                                markFailure -> LOGGER.error("Failed to mark file {} as corrupted", id, markFailure)
+                        );
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(
                                 "File not found (ID: " + id + ") or access denied"));
                     }
@@ -294,13 +300,20 @@ public class SoundFragmentRepository extends AsyncRepository {
                                     LOGGER.debug("Successfully retrieved file content for key: {}", doKey))
                             .onFailure().invoke(failure ->
                                     LOGGER.error("Storage retrieval failed for key: {}", doKey, failure))
+                            .onFailure().invoke(failure ->
+                                    LOGGER.error("Storage retrieval failed for key: {}", doKey, failure))
                             .onFailure().transform(ex -> {
                                 if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
                                     LOGGER.warn("File not found in storage - Key: {}", doKey, ex);
                                     return ex;
                                 }
                                 LOGGER.error("Storage retrieval error - Key: {}", doKey, ex);
-                                //TODO it might happen , we need to mark it as archived=2 (corrupted)
+
+                                markAsCorrupted(id).subscribe().with(
+                                        result -> LOGGER.info("Marked file {} as corrupted (archived = -1) due to storage error", id),
+                                        markFailure -> LOGGER.error("Failed to mark file {} as corrupted", id, markFailure)
+                                );
+
                                 return new FileNotFoundException(
                                         String.format("Failed to retrieve file (ID: %s, Key: %s) - Cause: %s",
                                                 id, doKey, ex.getMessage()));
@@ -329,6 +342,23 @@ public class SoundFragmentRepository extends AsyncRepository {
                     if (res != null) {
                         LOGGER.debug("Operation succeeded - ID: {}", id);
                     }
+                });
+    }
+
+    public Uni<Integer> markAsCorrupted(UUID uuid) {
+        IUser superUser = SuperUser.build();
+        return this.rlsRepository.findById(entityData.getRlsName(), superUser.getId(), uuid)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException(
+                                "User does not have edit permission", superUser.getUserName(), uuid));
+                    }
+
+                    String sql = String.format("UPDATE %s SET archived = -1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
+                            entityData.getTableName());
+                    return this.client.preparedQuery(sql)
+                            .execute(Tuple.of(ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime(), superUser.getId(), uuid))
+                            .onItem().transform(SqlResult::rowCount);
                 });
     }
 
@@ -530,6 +560,22 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     public Uni<Integer> archive(UUID id, IUser user) {
         return archive(id, entityData, user);
+    }
+
+    public Uni<Integer> markAsCorrupted(UUID uuid, IUser user) {
+        return this.rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException(
+                                "User does not have edit permission", user.getUserName(), uuid));
+                    }
+
+                    String sql = String.format("UPDATE %s SET archived = -1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
+                            entityData.getTableName());
+                    return this.client.preparedQuery(sql)
+                            .execute(Tuple.of(ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime(), user.getId(), uuid))
+                            .onItem().transform(SqlResult::rowCount);
+                });
     }
 
     public Uni<Integer> delete(UUID uuid, IUser user) {

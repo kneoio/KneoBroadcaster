@@ -33,4 +33,20 @@ public interface BroadcasterConfig {
 
     @WithName("ffprobe.path")
     String getFfprobePath();
+
+    @WithName("audio.sample-rate")
+    @WithDefault("44100")
+    int getAudioSampleRate();
+
+    @WithName("audio.channels")
+    @WithDefault("stereo")
+    String getAudioChannels();
+
+    @WithName("audio.output-format")
+    @WithDefault("mp3")
+    String getAudioOutputFormat();
+
+    @WithName("audio.max-silence-duration")
+    @WithDefault("3600")
+    int getMaxSilenceDuration();
 }

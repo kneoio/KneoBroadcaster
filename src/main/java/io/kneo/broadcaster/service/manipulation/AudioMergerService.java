@@ -14,19 +14,39 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 @ApplicationScoped
 public class AudioMergerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioMergerService.class);
 
     private final String outputDir;
-    private final FFmpegProvider ffmpeg;
+    private final BroadcasterConfig config;
+    private final FFmpegExecutor executor;
+
+    public static class AudioMergeException extends Exception {
+        public AudioMergeException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+        public AudioMergeException(String message) {
+            super(message);
+        }
+    }
 
     @Inject
-    public AudioMergerService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg) {
-        this.ffmpeg = ffmpeg;
+    public AudioMergerService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg) throws AudioMergeException {
+        this.config = broadcasterConfig;
         this.outputDir = broadcasterConfig.getPathForMerged();
+
+        try {
+            this.executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
+        } catch (IOException e) {
+            throw new AudioMergeException("Failed to initialize FFmpeg executor", e);
+        }
+
         initializeOutputDirectory();
     }
 
@@ -42,7 +62,7 @@ public class AudioMergerService {
             if (files != null) {
                 for (File file : files) {
                     Files.deleteIfExists(file.toPath());
-                    LOGGER.debug("Deleted temporary file: {}", file.getName());
+                    LOGGER.info("Deleted temporary file: {}", file.getName());
                 }
             }
         } catch (IOException e) {
@@ -50,29 +70,21 @@ public class AudioMergerService {
         }
     }
 
-    public Path mergeAudioFiles(Path speachFilePath, Path songFilePath, int silenceDurationSeconds) {
-        String mergedFileName = UUID.randomUUID() + ".mp3";
+    public Path mergeAudioFiles(Path speechFilePath, Path songFilePath, int silenceDurationSeconds) throws AudioMergeException {
+        String mergedFileName = UUID.randomUUID() + "." + config.getAudioOutputFormat();
         Path outputFilePath = Paths.get(outputDir, mergedFileName);
         Path silenceFilePath = null;
 
         try {
-            FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
-
             if (silenceDurationSeconds > 0) {
-                String silenceFileName = "silence_" + UUID.randomUUID() + ".mp3";
-                silenceFilePath = Paths.get(outputDir, silenceFileName);
+                if (silenceDurationSeconds > config.getMaxSilenceDuration()) {
+                    throw new AudioMergeException("Silence duration too long (max " + config.getMaxSilenceDuration() + " seconds): " + silenceDurationSeconds);
+                }
+                silenceFilePath = createSilenceFile(executor, silenceDurationSeconds);
 
                 executor.createJob(
                         new FFmpegBuilder()
-                                .setInput("anullsrc=r=44100:cl=stereo")
-                                .addOutput(silenceFilePath.toString())
-                                .setDuration(silenceDurationSeconds, TimeUnit.SECONDS)
-                                .done()
-                ).run();
-
-                executor.createJob(
-                        new FFmpegBuilder()
-                                .setInput(speachFilePath.toString())
+                                .setInput(speechFilePath.toString())
                                 .addInput(silenceFilePath.toString())
                                 .addInput(songFilePath.toString())
                                 .addOutput(outputFilePath.toString())
@@ -82,7 +94,7 @@ public class AudioMergerService {
             } else {
                 executor.createJob(
                         new FFmpegBuilder()
-                                .setInput(speachFilePath.toString())
+                                .setInput(speechFilePath.toString())
                                 .addInput(songFilePath.toString())
                                 .addOutput(outputFilePath.toString())
                                 .addExtraArgs("-filter_complex", "concat=n=2:v=0:a=1")
@@ -90,13 +102,113 @@ public class AudioMergerService {
                 ).run();
             }
 
-            cleanupFile(silenceFilePath);
+            LOGGER.info("Successfully merged audio files to: {}", outputFilePath);
+
+
+          //  Path debugDir = Paths.get(System.getProperty("java.io.tmpdir"), "audio_debug");
+          //  Files.createDirectories(debugDir);
+          //  Path debugFile = debugDir.resolve("debug_" + System.currentTimeMillis() + "_" + outputFilePath.getFileName());
+          //  Files.copy(outputFilePath, debugFile, StandardCopyOption.REPLACE_EXISTING);
+          //  LOGGER.info("Debug copy created at: {}", debugFile);
 
             return outputFilePath;
+
         } catch (Exception e) {
-            LOGGER.error("Error merging files", e);
+            LOGGER.error("Error merging audio files: speech={}, song={}, silence={}s",
+                    speechFilePath, songFilePath, silenceDurationSeconds, e);
+            throw new AudioMergeException("Failed to merge audio files", e);
+        } finally {
             cleanupFile(silenceFilePath);
-            return null;
+        }
+    }
+
+    public CompletableFuture<Path> mergeAudioFilesAsync(Path speechFilePath, Path songFilePath,
+                                                        int silenceDurationSeconds) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return mergeAudioFiles(speechFilePath, songFilePath, silenceDurationSeconds);
+            } catch (AudioMergeException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public CompletableFuture<Path> mergeAudioFilesAsync(Path speechFilePath, Path songFilePath,
+                                                        int silenceDurationSeconds,
+                                                        Consumer<String> progressCallback) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                progressCallback.accept("Starting audio merge process...");
+
+                String mergedFileName = UUID.randomUUID() + "." + config.getAudioOutputFormat();
+                Path outputFilePath = Paths.get(outputDir, mergedFileName);
+                Path silenceFilePath = null;
+
+                try {
+                    if (silenceDurationSeconds > 0) {
+                        if (silenceDurationSeconds > config.getMaxSilenceDuration()) {
+                            throw new AudioMergeException("Silence duration too long (max " + config.getMaxSilenceDuration() + " seconds): " + silenceDurationSeconds);
+                        }
+                        progressCallback.accept("Creating silence track...");
+                        silenceFilePath = createSilenceFile(executor, silenceDurationSeconds);
+
+                        progressCallback.accept("Merging speech, silence, and song...");
+                        executor.createJob(
+                                new FFmpegBuilder()
+                                        .setInput(speechFilePath.toString())
+                                        .addInput(silenceFilePath.toString())
+                                        .addInput(songFilePath.toString())
+                                        .addOutput(outputFilePath.toString())
+                                        .addExtraArgs("-filter_complex", "concat=n=3:v=0:a=1")
+                                        .done()
+                        ).run();
+                    } else {
+                        progressCallback.accept("Merging speech and song...");
+                        executor.createJob(
+                                new FFmpegBuilder()
+                                        .setInput(speechFilePath.toString())
+                                        .addInput(songFilePath.toString())
+                                        .addOutput(outputFilePath.toString())
+                                        .addExtraArgs("-filter_complex", "concat=n=2:v=0:a=1")
+                                        .done()
+                        ).run();
+                    }
+
+                    progressCallback.accept("Audio merge completed successfully");
+                    LOGGER.info("Successfully merged audio files to: {}", outputFilePath);
+                    return outputFilePath;
+
+                } finally {
+                    cleanupFile(silenceFilePath);
+                }
+
+            } catch (AudioMergeException e) {
+                progressCallback.accept("Error: " + e.getMessage());
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private Path createSilenceFile(FFmpegExecutor executor, int silenceDurationSeconds) throws AudioMergeException {
+        String silenceFileName = "silence_" + UUID.randomUUID() + "." + config.getAudioOutputFormat();
+        Path silenceFilePath = Paths.get(outputDir, silenceFileName);
+
+        String silenceSource = String.format("anullsrc=r=%d:cl=%s",
+                config.getAudioSampleRate(),
+                config.getAudioChannels());
+
+        try {
+            executor.createJob(
+                    new FFmpegBuilder()
+                            .setInput(silenceSource)
+                            .addOutput(silenceFilePath.toString())
+                            .setDuration(silenceDurationSeconds, TimeUnit.SECONDS)
+                            .done()
+            ).run();
+
+            return silenceFilePath;
+        } catch (Exception e) {
+            throw new AudioMergeException("Failed to create silence file", e);
         }
     }
 
@@ -104,6 +216,7 @@ public class AudioMergerService {
         if (filePath != null) {
             try {
                 Files.deleteIfExists(filePath);
+                LOGGER.debug("Cleaned up temporary file: {}", filePath);
             } catch (IOException ex) {
                 LOGGER.warn("Failed to delete temporary file: {}", filePath, ex);
             }

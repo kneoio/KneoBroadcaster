@@ -235,8 +235,11 @@ public class SpacesFileOrphanCleanup {
             AudioMetadataDTO metadata = audioMetadataService.extractMetadata(tempFile.toString());
 
             if (hasCompleteMetadata(metadata)) {
+                String genre = metadata.getGenre() != null && !metadata.getGenre().trim().isEmpty()
+                        ? metadata.getGenre() : "Other";
+
                 LOGGER.info("Found orphan file with complete metadata - Title: {}, Artist: {}, Genre: {}, File: {}",
-                        metadata.getTitle(), metadata.getArtist(), metadata.getGenre(), fileKey);
+                        metadata.getTitle(), metadata.getArtist(), genre, fileKey);
 
                 if (saveOrphanToDatabase(metadata, fileKey)) {
                     LOGGER.info("Successfully saved orphan file to database: {}", fileKey);
@@ -249,8 +252,8 @@ public class SpacesFileOrphanCleanup {
                     return OrphanProcessingResult.SKIPPED;
                 }
             } else {
-                LOGGER.warn("Orphan file lacks complete metadata (Title: {}, Artist: {}, Genre: {}), deleting: {}",
-                        metadata.getTitle(), metadata.getArtist(), metadata.getGenre(), fileKey);
+                LOGGER.warn("Orphan file lacks required metadata (Title: {}, Artist: {}), deleting: {}",
+                        metadata.getTitle(), metadata.getArtist(), fileKey);
                 if (deleteOrphanFile(fileKey)) {
                     return OrphanProcessingResult.DELETED;
                 }
@@ -303,16 +306,20 @@ public class SpacesFileOrphanCleanup {
 
     private boolean hasCompleteMetadata(AudioMetadataDTO metadata) {
         return metadata.getTitle() != null && !metadata.getTitle().trim().isEmpty() &&
-                metadata.getArtist() != null && !metadata.getArtist().trim().isEmpty() &&
-                metadata.getGenre() != null && !metadata.getGenre().trim().isEmpty();
+                metadata.getArtist() != null && !metadata.getArtist().trim().isEmpty();
     }
 
     private boolean saveOrphanToDatabase(AudioMetadataDTO metadata, String fileKey) {
         try {
+            String genre = metadata.getGenre();
+            if (genre == null || genre.trim().isEmpty()) {
+                genre = "Other";
+            }
+
             SoundFragmentDTO dto = SoundFragmentDTO.builder()
                     .title(metadata.getTitle())
                     .artist(metadata.getArtist())
-                    .genre(metadata.getGenre())
+                    .genre(genre)
                     .album(metadata.getAlbum())
                     .source(SourceType.ORPHAN_RECOVERY)
                     .status(1)

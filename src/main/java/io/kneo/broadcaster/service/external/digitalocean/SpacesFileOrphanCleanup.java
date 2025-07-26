@@ -316,7 +316,7 @@ public class SpacesFileOrphanCleanup {
                     .source(SourceType.ORPHAN_RECOVERY)
                     .status(1)
                     .type(PlaylistItemType.SONG)
-                    .newlyUploaded(List.of())
+                    .newlyUploaded(List.of(fileKey))
                     .representedInBrands(List.of())
                     .build();
 

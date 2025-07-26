@@ -50,7 +50,7 @@ public class AudioMergerService {
         }
     }
 
-    public Path mergeAudioFiles(Path firstFilePath, Path secondFilePath, int silenceDurationSeconds) {
+    public Path mergeAudioFiles(Path speachFilePath, Path songFilePath, int silenceDurationSeconds) {
         String mergedFileName = UUID.randomUUID() + ".mp3";
         Path outputFilePath = Paths.get(outputDir, mergedFileName);
         Path silenceFilePath = null;
@@ -62,38 +62,34 @@ public class AudioMergerService {
                 String silenceFileName = "silence_" + UUID.randomUUID() + ".mp3";
                 silenceFilePath = Paths.get(outputDir, silenceFileName);
 
-                // Generate silence with proper TimeUnit
                 executor.createJob(
                         new FFmpegBuilder()
                                 .setInput("anullsrc=r=44100:cl=stereo")
                                 .addOutput(silenceFilePath.toString())
-                                .setDuration(silenceDurationSeconds, TimeUnit.SECONDS) // Fixed duration with TimeUnit
+                                .setDuration(silenceDurationSeconds, TimeUnit.SECONDS)
                                 .done()
                 ).run();
 
-                // Merge with silence
                 executor.createJob(
                         new FFmpegBuilder()
-                                .setInput(firstFilePath.toString())
+                                .setInput(speachFilePath.toString())
                                 .addInput(silenceFilePath.toString())
-                                .addInput(secondFilePath.toString())
+                                .addInput(songFilePath.toString())
                                 .addOutput(outputFilePath.toString())
                                 .addExtraArgs("-filter_complex", "concat=n=3:v=0:a=1")
                                 .done()
                 ).run();
             } else {
-                // Simple merge without silence
                 executor.createJob(
                         new FFmpegBuilder()
-                                .setInput(firstFilePath.toString())
-                                .addInput(secondFilePath.toString())
+                                .setInput(speachFilePath.toString())
+                                .addInput(songFilePath.toString())
                                 .addOutput(outputFilePath.toString())
                                 .addExtraArgs("-filter_complex", "concat=n=2:v=0:a=1")
                                 .done()
                 ).run();
             }
 
-            // Clean up
             cleanupFile(silenceFilePath);
 
             return outputFilePath;

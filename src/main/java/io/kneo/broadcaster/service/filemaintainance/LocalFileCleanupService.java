@@ -10,6 +10,7 @@ import io.vertx.mutiny.core.file.FileSystem;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,20 +26,14 @@ import java.util.stream.Stream;
 @ApplicationScoped
 public class LocalFileCleanupService {
     private static final Logger LOGGER = LoggerFactory.getLogger(LocalFileCleanupService.class);
-
-    // Cleanup intervals
     private static final Duration TEMP_FILE_MAX_AGE = Duration.ofHours(2);
     private static final Duration ENTITY_FILE_MAX_AGE = Duration.ofDays(1);
     private static final Duration CLEANUP_INTERVAL = Duration.ofHours(1);
     private static final Duration INITIAL_DELAY = Duration.ofMinutes(10);
-
-    private final BroadcasterConfig config;
-    private final Vertx vertx;
     private final FileSystem fileSystem;
-    private String uploadDir;
+    private final String uploadDir;
     private Cancellable cleanupSubscription;
 
-    // Statistics
     private final AtomicLong tempFilesDeleted = new AtomicLong(0);
     private final AtomicLong entityFilesDeleted = new AtomicLong(0);
     private final AtomicLong bytesFreed = new AtomicLong(0);
@@ -46,8 +41,6 @@ public class LocalFileCleanupService {
 
     @Inject
     public LocalFileCleanupService(BroadcasterConfig config, Vertx vertx) {
-        this.config = config;
-        this.vertx = vertx;
         this.fileSystem = vertx.fileSystem();
         this.uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
@@ -91,7 +84,6 @@ public class LocalFileCleanupService {
                 return;
             }
 
-            // Clean up user directories
             try (Stream<Path> userDirs = Files.list(uploadPath)) {
                 for (Path userDir : userDirs.toArray(Path[]::new)) {
                     if (Files.isDirectory(userDir)) {
@@ -103,7 +95,6 @@ public class LocalFileCleanupService {
                 }
             }
 
-            // Update statistics
             tempFilesDeleted.addAndGet(tempDeleted);
             entityFilesDeleted.addAndGet(entityDeleted);
             bytesFreed.addAndGet(bytesFreedSession);
@@ -130,10 +121,8 @@ public class LocalFileCleanupService {
                         String dirName = entityDir.getFileName().toString();
 
                         if ("temp".equals(dirName)) {
-                            // Clean temp directory - files older than 2 hours
                             result.add(cleanupTempDirectory(entityDir));
                         } else {
-                            // Clean entity directory - files older than 1 day
                             result.add(cleanupEntityDirectory(entityDir));
                         }
                     }
@@ -142,7 +131,6 @@ public class LocalFileCleanupService {
                 LOGGER.error("Failed to cleanup user directory: {}", userDir, e);
             }
 
-            // Remove empty user directory
             try {
                 if (isDirectoryEmpty(userDir)) {
                     Files.delete(userDir);
@@ -179,7 +167,6 @@ public class LocalFileCleanupService {
                 }
             }
 
-            // Remove temp directory if empty
             if (isDirectoryEmpty(tempDir)) {
                 Files.delete(tempDir);
                 LOGGER.debug("Removed empty temp directory: {}", tempDir);
@@ -215,7 +202,6 @@ public class LocalFileCleanupService {
                 }
             }
 
-            // Remove entity directory if empty
             if (isDirectoryEmpty(entityDir)) {
                 Files.delete(entityDir);
                 LOGGER.debug("Removed empty entity directory: {}", entityDir);
@@ -236,9 +222,6 @@ public class LocalFileCleanupService {
         }
     }
 
-    /**
-     * Immediate cleanup for specific scenarios
-     */
     public Uni<Void> cleanupTempFilesForUser(String username) {
         return Uni.createFrom().item(() -> {
                     Path tempDir = Paths.get(uploadDir, username, "temp");
@@ -264,9 +247,6 @@ public class LocalFileCleanupService {
                 .replaceWithVoid();
     }
 
-    /**
-     * Immediate cleanup after successful upload to DigitalOcean
-     */
     public Uni<Void> cleanupAfterSuccessfulUpload(String username, String entityId, String fileName) {
         return fileSystem.delete(Paths.get(uploadDir, username, entityId, fileName).toString())
                 .onItem().invoke(() -> LOGGER.debug("Cleaned up local file after successful upload: {}/{}/{}",
@@ -277,7 +257,6 @@ public class LocalFileCleanupService {
                 .replaceWithVoid();
     }
 
-    // Statistics
     public CleanupStats getStats() {
         return CleanupStats.builder()
                 .tempFilesDeleted(tempFilesDeleted.get())
@@ -287,7 +266,6 @@ public class LocalFileCleanupService {
                 .build();
     }
 
-    // Helper classes
     private static class CleanupResult {
         long tempFilesDeleted = 0;
         long entityFilesDeleted = 0;
@@ -300,6 +278,7 @@ public class LocalFileCleanupService {
         }
     }
 
+    @Getter
     public static class CleanupStats {
         private final long tempFilesDeleted;
         private final long entityFilesDeleted;
@@ -317,12 +296,6 @@ public class LocalFileCleanupService {
         public static CleanupStatsBuilder builder() {
             return new CleanupStatsBuilder();
         }
-
-        // Getters
-        public long getTempFilesDeleted() { return tempFilesDeleted; }
-        public long getEntityFilesDeleted() { return entityFilesDeleted; }
-        public long getTotalBytesFreed() { return totalBytesFreed; }
-        public LocalDateTime getLastCleanupTime() { return lastCleanupTime; }
 
         public static class CleanupStatsBuilder {
             private long tempFilesDeleted;

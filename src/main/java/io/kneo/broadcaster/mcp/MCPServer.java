@@ -48,11 +48,11 @@ public class MCPServer extends AbstractVerticle {
         
         webSocket.textMessageHandler(message -> {
             try {
-                LOGGER.debug("📨 Received MCP message: {}", message);
+                LOGGER.debug("Received MCP message: {}", message);
                 JsonNode request = objectMapper.readTree(message);
                 handleMCPRequest(webSocket, request);
             } catch (Exception e) {
-                LOGGER.error("❌ Error processing MCP request: {}", e.getMessage(), e);
+                LOGGER.error("Error processing MCP request: {}", e.getMessage(), e);
                 sendError(webSocket, "parse_error", "Invalid JSON", null);
             }
         });
@@ -89,11 +89,11 @@ public class MCPServer extends AbstractVerticle {
                     handleToolCall(webSocket, params, id);
                     break;
                 default:
-                    LOGGER.warn("   ❓ Unknown method requested: '{}'", method);
+                    LOGGER.warn("Unknown method requested: '{}'", method);
                     sendError(webSocket, "method_not_found", "Method not found: " + method, id);
             }
         } catch (Exception e) {
-            LOGGER.error("💥 Error handling MCP request: {}", e.getMessage(), e);
+            LOGGER.error("Error handling MCP request: {}", e.getMessage(), e);
             sendError(webSocket, "internal_error", "Internal server error", null);
         }
     }
@@ -125,7 +125,6 @@ public class MCPServer extends AbstractVerticle {
         
         ArrayNode tools = objectMapper.createArrayNode();
         
-        // Add get_brand_soundfragments tool
         ObjectNode brandTool = objectMapper.createObjectNode();
         brandTool.put("name", "get_brand_soundfragments");
         brandTool.put("description", "Get sound fragments available for a specific brand");
@@ -152,7 +151,6 @@ public class MCPServer extends AbstractVerticle {
         
         tools.add(brandTool);
         
-        // Add search_soundfragments tool
         ObjectNode searchTool = objectMapper.createObjectNode();
         searchTool.put("name", "search_soundfragments");
         searchTool.put("description", "Search sound fragments by query term");

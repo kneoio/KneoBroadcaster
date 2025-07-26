@@ -42,6 +42,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
@@ -316,14 +317,21 @@ public class SpacesFileOrphanCleanup {
                     .source(SourceType.ORPHAN_RECOVERY)
                     .status(1)
                     .type(PlaylistItemType.SONG)
-                    .newlyUploaded(List.of(fileKey))
+                    .newlyUploaded(List.of())
                     .representedInBrands(List.of())
                     .build();
 
             SuperUser superUser = SuperUser.build();
 
-            soundFragmentService.upsert(null, dto, superUser, LanguageCode.en)
+            SoundFragmentDTO savedDto = soundFragmentService.upsert(null, dto, superUser, LanguageCode.en)
                     .await().atMost(Duration.ofMinutes(1));
+
+            boolean fileCreated = createFileMetadataRecord(savedDto.getId(), fileKey, metadata);
+
+            if (!fileCreated) {
+                LOGGER.error("Failed to create file metadata record for orphan: {}", fileKey);
+                return false;
+            }
 
             LOGGER.info("Successfully created database entry for orphan file: {}", fileKey);
             return true;
@@ -332,6 +340,42 @@ public class SpacesFileOrphanCleanup {
             LOGGER.error("Failed to save orphan to database: {}", fileKey, e);
             return false;
         }
+    }
+
+    private boolean createFileMetadataRecord(UUID soundFragmentId, String fileKey, AudioMetadataDTO metadata) {
+        try {
+            String sql = """
+            INSERT INTO _files (
+                parent_table, parent_id, storage_type, file_key, file_original_name, 
+                slug_name, mime_type, reg_date, last_mod_date, archived
+            ) VALUES (
+                'kneobroadcaster__sound_fragments', $1, 'DIGITAL_OCEAN', $2, $3,
+                $4, 'audio/mpeg', NOW(), NOW(), 0
+            )
+            """;
+
+            String originalName = Paths.get(fileKey).getFileName().toString();
+            String slugName = generateSlugName(metadata.getTitle(), metadata.getArtist());
+
+            pgPool.preparedQuery(sql)
+                    .execute(io.vertx.mutiny.sqlclient.Tuple.of(soundFragmentId, fileKey, originalName, slugName))
+                    .await().atMost(Duration.ofSeconds(30));
+
+            LOGGER.info("Created file metadata record for orphan: {} -> {}", fileKey, soundFragmentId);
+            return true;
+
+        } catch (Exception e) {
+            LOGGER.error("Failed to create file metadata record: {}", fileKey, e);
+            return false;
+        }
+    }
+
+    private String generateSlugName(String title, String artist) {
+        if (title == null || artist == null) return "orphan-file";
+        return (artist + "-" + title).toLowerCase()
+                .replaceAll("[^a-z0-9\\-]", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
     }
 
     public Uni<SpacesOrphanCleanupStats> getStats() {

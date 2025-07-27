@@ -26,7 +26,6 @@ public class EventDTO extends AbstractReferenceDTO {
 
     @NotNull(message = "Description is required")
     private String description;
-
     private String priority;
-    private Integer archived;
+
 }

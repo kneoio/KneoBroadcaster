@@ -141,7 +141,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setTimestampEvent(doc.getTimestampEvent());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority());
-            dto.setArchived(doc.getArchived());
             return dto;
         });
     }
@@ -153,7 +152,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
         doc.setTimestampEvent(dto.getTimestampEvent());
         doc.setDescription(dto.getDescription());
         doc.setPriority(dto.getPriority());
-        doc.setArchived(dto.getArchived());
         return doc;
     }
 

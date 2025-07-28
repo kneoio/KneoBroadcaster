@@ -7,14 +7,14 @@ import java.io.Serializable;
 
 @Getter
 @Setter
-public class FileMaintenanceStats implements Serializable {
+public class FileMaintenanceStatsDTO implements Serializable {
     private long filesDeleted;
     private long spaceFreedBytes;
     private long directoriesDeleted;
     private long totalSpaceBytes;
     private long availableSpaceBytes;
 
-    private FileMaintenanceStats() {
+    private FileMaintenanceStatsDTO() {
         this.filesDeleted = 0;
         this.spaceFreedBytes = 0;
         this.directoriesDeleted = 0;
@@ -27,10 +27,10 @@ public class FileMaintenanceStats implements Serializable {
     }
 
     public static class Builder {
-        private final FileMaintenanceStats stats;
+        private final FileMaintenanceStatsDTO stats;
 
         private Builder() {
-            this.stats = new FileMaintenanceStats();
+            this.stats = new FileMaintenanceStatsDTO();
         }
 
         public Builder fromService(long deleted, long free, long dirDeleted ) {
@@ -50,7 +50,7 @@ public class FileMaintenanceStats implements Serializable {
             return this;
         }
 
-        public FileMaintenanceStats build() {
+        public FileMaintenanceStatsDTO build() {
             return stats;
         }
     }

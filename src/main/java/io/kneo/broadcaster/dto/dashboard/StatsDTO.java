@@ -10,13 +10,13 @@ import java.util.List;
 
 @Getter
 @Setter
-public class Stats {
+public class StatsDTO {
     private int totalStations;
     private int onlineStations;
     private int warmingStations;
     private int offlineStations;
     private int minimumSegments;
-    private FileMaintenanceStats fileMaintenanceStats;
+    private FileMaintenanceStatsDTO fileMaintenanceStats;
     private int slidingWindowSize;
     private List<StationEntry> stations;
     private ConfigurationStats configurationStats; // Added field

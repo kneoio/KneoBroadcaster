@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.filemaintainance;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.dashboard.FileMaintenanceStats;
+import io.kneo.broadcaster.dto.dashboard.FileMaintenanceStatsDTO;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
@@ -162,7 +162,7 @@ public class FileMaintenanceService {
         double totalSpaceMB = (double) totalSpaceBytes / (1024 * 1024);
         double availableSpaceMB = (double) availableSpaceBytes / (1024 * 1024);
 
-        FileMaintenanceStats stats = FileMaintenanceStats.builder()
+        FileMaintenanceStatsDTO stats = FileMaintenanceStatsDTO.builder()
                 .fromService(files24h, space24h, dirs24h)
                 .totalSpaceBytes(totalSpaceBytes)
                 .availableSpaceBytes(availableSpaceBytes)
@@ -301,7 +301,7 @@ public class FileMaintenanceService {
         }
     }
 
-    public FileMaintenanceStats getStats() {
+    public FileMaintenanceStatsDTO getStats() {
         cleanup24hStats();
 
         try {
@@ -312,7 +312,7 @@ public class FileMaintenanceService {
             this.availableSpaceBytes = -1;
         }
 
-        return FileMaintenanceStats.builder()
+        return FileMaintenanceStatsDTO.builder()
                 .fromService(getLast24hFilesDeleted(), getLast24hSpaceFreedBytes(), getLast24hDirectoriesDeleted())
                 .totalSpaceBytes(this.totalSpaceBytes)
                 .availableSpaceBytes(this.availableSpaceBytes)

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  */
 @Getter
 @Setter
-public class SpacesOrphanCleanupStats implements Serializable {
+public class SpacesOrphanCleanupStatsDTO implements Serializable {
 
     // Current cleanup session stats
     private long orphanFilesDeleted;
@@ -34,7 +34,7 @@ public class SpacesOrphanCleanupStats implements Serializable {
     private long databaseFileCount;
     private long spacesFileCount;
 
-    private SpacesOrphanCleanupStats() {
+    private SpacesOrphanCleanupStatsDTO() {
         this.orphanFilesDeleted = 0;
         this.spaceFreedBytes = 0;
         this.totalFilesScanned = 0;
@@ -82,10 +82,10 @@ public class SpacesOrphanCleanupStats implements Serializable {
     }
 
     public static class Builder {
-        private final SpacesOrphanCleanupStats stats;
+        private final SpacesOrphanCleanupStatsDTO stats;
 
         private Builder() {
-            this.stats = new SpacesOrphanCleanupStats();
+            this.stats = new SpacesOrphanCleanupStatsDTO();
         }
 
         public Builder currentSession(long orphansDeleted, long spaceFreed, long filesScanned, long durationMs) {
@@ -129,7 +129,7 @@ public class SpacesOrphanCleanupStats implements Serializable {
             return this;
         }
 
-        public SpacesOrphanCleanupStats build() {
+        public SpacesOrphanCleanupStatsDTO build() {
             return stats;
         }
     }

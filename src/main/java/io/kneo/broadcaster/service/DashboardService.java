@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
-import io.kneo.broadcaster.dto.dashboard.Stats;
+import io.kneo.broadcaster.dto.dashboard.StatsDTO;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.service.filemaintainance.FileMaintenanceService;
@@ -32,9 +32,9 @@ public class DashboardService {
     @Inject
     ConfigurationStats configurationStats;
 
-    public Uni<Stats> getInfo() {
+    public Uni<StatsDTO> getInfo() {
         return Uni.createFrom().item(() -> {
-            Stats stats = new Stats();
+            StatsDTO stats = new StatsDTO();
             Collection<RadioStation> stations = radioStationPool.getOnlineStationsSnapshot();
 
             stats.setTotalStations(stations.size());

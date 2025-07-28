@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service.scheduler;
 
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Task;
+import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -14,12 +15,9 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 @ApplicationScoped
 public class SchedulerService {
@@ -34,9 +32,6 @@ public class SchedulerService {
     TaskExecutorRegistry taskExecutorRegistry;
 
     private Cancellable schedulerSubscription;
-    private final ConcurrentHashMap<String, LocalDateTime> lastExecution = new ConcurrentHashMap<>();
-    private final ReentrantLock schedulerLock = new ReentrantLock();
-    private final ConcurrentHashMap<String, Boolean> runningTasks = new ConcurrentHashMap<>();
 
     void onStart(@Observes StartupEvent event) {
         LOGGER.info("Starting scheduler service with {} second intervals", CHECK_INTERVAL.getSeconds());
@@ -76,27 +71,20 @@ public class SchedulerService {
     }
 
     private void processSchedules(Long tick) {
-        if (!schedulerLock.tryLock()) {
-            LOGGER.debug("Scheduler already running, skipping tick: {}", tick);
-            return;
-        }
+        LOGGER.info("=== SCHEDULER TICK {} ===", tick);
+        LOGGER.info("Available repositories: {}", repositoryRegistry.getRepositories().size());
 
-        try {
-            LOGGER.debug("Processing schedules at tick: {}", tick);
-
-            repositoryRegistry.getRepositories().forEach(repository ->
-                    repository.findActiveScheduled()
-                            .onItem().transformToMulti(Multi.createFrom()::iterable)
-                            .onItem().call(this::processEntitySchedule)
-                            .collect().asList()
-                            .subscribe().with(
-                                    results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
-                                    throwable -> LOGGER.error("Failed to process schedules from repository", throwable)
-                            )
-            );
-        } finally {
-            schedulerLock.unlock();
-        }
+        repositoryRegistry.getRepositories().forEach(repository -> {
+            LOGGER.info("Processing repository: {}", repository.getClass().getSimpleName());
+            repository.findActiveScheduled()
+                    .onItem().transformToMulti(Multi.createFrom()::iterable)
+                    .onItem().call(this::processEntitySchedule)
+                    .collect().asList()
+                    .subscribe().with(
+                            results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
+                            throwable -> LOGGER.error("Failed to process schedules from repository", throwable)
+                    );
+        });
     }
 
     private Uni<Void> processEntitySchedule(Schedulable entity) {
@@ -108,7 +96,12 @@ public class SchedulerService {
         String currentTime = now.format(DateTimeFormatter.ofPattern("HH:mm"));
         String currentDay = now.getDayOfWeek().name();
 
-        List<Task> dueTasks = entity.getSchedule().getTasks().stream()
+        List<Task> tasks = entity.getSchedule().getTasks();
+        if (tasks == null) {
+            return Uni.createFrom().voidItem();
+        }
+
+        List<Task> dueTasks = tasks.stream()
                 .filter(task -> isTaskDue(task, currentTime, currentDay, now, entity.getId()))
                 .toList();
 
@@ -116,140 +109,71 @@ public class SchedulerService {
             return Uni.createFrom().voidItem();
         }
 
-        LOGGER.info("Found {} due tasks for entity: {}", dueTasks.size(), entity.getId());
-
         return Multi.createFrom().iterable(dueTasks)
-                .onItem().call(task -> executeTask(entity, task, currentTime, now))
+                .onItem().call(task -> executeTask(entity, task, currentTime))
                 .collect().asList()
                 .replaceWithVoid();
     }
 
     private boolean isTaskDue(Task task, String currentTime, String currentDay, LocalDateTime now, UUID entityId) {
-        if (hasWeekdayFilter(task) && !isCurrentDayIncluded(task, currentDay)) {
+        if (!WeekdayFilter.isAllowed(task, currentDay)) {
             return false;
         }
 
-        return switch (task.getTriggerType()) {
-            case ONCE -> isOnceTriggerDue(task, currentTime, entityId, now);
-            case TIME_WINDOW -> isTimeWindowTriggerDue(task, currentTime);
-            case PERIODIC -> isPeriodicTriggerDue(task, currentTime, now, entityId);
-        };
+        if (task.getTriggerType() == TriggerType.ONCE) {
+            return isOnceTriggerDue(task, currentTime);
+        } else if (task.getTriggerType() == TriggerType.TIME_WINDOW) {
+            return isTimeWindowTriggerDue(task, currentTime);
+        } else if (task.getTriggerType() == TriggerType.PERIODIC) {
+            return isPeriodicTriggerDue(task, currentTime, now);
+        }
+
+        return false;
     }
 
-    private boolean hasWeekdayFilter(Task task) {
-        return switch (task.getTriggerType()) {
-            case ONCE -> task.getOnceTrigger() != null &&
-                    task.getOnceTrigger().getWeekdays() != null &&
-                    !task.getOnceTrigger().getWeekdays().isEmpty();
-            case TIME_WINDOW -> task.getTimeWindowTrigger() != null &&
-                    task.getTimeWindowTrigger().getWeekdays() != null &&
-                    !task.getTimeWindowTrigger().getWeekdays().isEmpty();
-            case PERIODIC -> task.getPeriodicTrigger() != null &&
-                    task.getPeriodicTrigger().getWeekdays() != null &&
-                    !task.getPeriodicTrigger().getWeekdays().isEmpty();
-        };
+    private boolean isOnceTriggerDue(Task task, String currentTime) {
+        if (task.getOnceTrigger() == null) {
+            return false;
+        }
+        return TimeUtils.isAtTime(currentTime, task.getOnceTrigger().getStartTime());
     }
 
-    private boolean isCurrentDayIncluded(Task task, String currentDay) {
-        List<String> weekdays = switch (task.getTriggerType()) {
-            case ONCE -> task.getOnceTrigger().getWeekdays();
-            case TIME_WINDOW -> task.getTimeWindowTrigger().getWeekdays();
-            case PERIODIC -> task.getPeriodicTrigger().getWeekdays();
-        };
-
-        return weekdays != null && weekdays.contains(currentDay);
+    private boolean isTimeWindowTriggerDue(Task task, String currentTime) {
+        if (task.getTimeWindowTrigger() == null) {
+            return false;
+        }
+        return TimeUtils.isWithinWindow(currentTime,
+                task.getTimeWindowTrigger().getStartTime(),
+                task.getTimeWindowTrigger().getEndTime());
     }
 
-    private boolean isOnceTriggerDue(Task task, String currentTime, UUID entityId, LocalDateTime now) {
-        if (task.getOnceTrigger() == null) return false;
-
-        if (!task.getOnceTrigger().getStartTime().equals(currentTime)) {
+    private boolean isPeriodicTriggerDue(Task task, String currentTime, LocalDateTime now) {
+        if (task.getPeriodicTrigger() == null) {
             return false;
         }
 
-        String key = entityId.toString() + ":" + task.getId() + ":ONCE";
-        LocalDateTime lastRun = lastExecution.get(key);
-
-        if (lastRun != null && lastRun.toLocalDate().equals(now.toLocalDate())) {
-            return false; // Already executed today
+        if (!TimeUtils.isWithinWindow(currentTime,
+                task.getPeriodicTrigger().getStartTime(),
+                task.getPeriodicTrigger().getEndTime())) {
+            return false;
         }
 
         return true;
     }
 
-    private boolean isTimeWindowTriggerDue(Task task, String currentTime) {
-        if (task.getTimeWindowTrigger() == null) return false;
-
-        LocalTime current = LocalTime.parse(currentTime);
-        LocalTime start = LocalTime.parse(task.getTimeWindowTrigger().getStartTime());
-        LocalTime end = LocalTime.parse(task.getTimeWindowTrigger().getEndTime());
-
-        return !current.isBefore(start) && !current.isAfter(end);
-    }
-
-    private boolean isPeriodicTriggerDue(Task task, String currentTime, LocalDateTime now, UUID entityId) {
-        if (task.getPeriodicTrigger() == null) return false;
-
-        LocalTime current = LocalTime.parse(currentTime);
-        LocalTime start = LocalTime.parse(task.getPeriodicTrigger().getStartTime());
-        LocalTime end = LocalTime.parse(task.getPeriodicTrigger().getEndTime());
-
-        if (current.isBefore(start) || current.isAfter(end)) {
-            return false;
-        }
-
-        String key = entityId.toString() + ":" + task.getId() + ":PERIODIC";
-        LocalDateTime lastRun = lastExecution.get(key);
-
-        int intervalMinutes = parseInterval(task.getPeriodicTrigger().getInterval());
-
-        if (lastRun == null) {
-            return true; // First execution
-        }
-
-        return Duration.between(lastRun, now).toMinutes() >= intervalMinutes;
-    }
-
-    private int parseInterval(String interval) {
-        if (interval.endsWith("m")) {
-            return Integer.parseInt(interval.substring(0, interval.length() - 1));
-        } else if (interval.endsWith("h")) {
-            return Integer.parseInt(interval.substring(0, interval.length() - 1)) * 60;
-        }
-        return 30;
-    }
-
-    private Uni<Void> executeTask(Schedulable entity, Task task, String currentTime, LocalDateTime now) {
-        String key = entity.getId().toString() + ":" + task.getId() + ":" + task.getTriggerType();
-
-        // Check if already running
-        if (runningTasks.putIfAbsent(key, true) != null) {
-            LOGGER.debug("Task already running, skipping: {}", key);
-            return Uni.createFrom().voidItem();
-        }
-
+    private Uni<Void> executeTask(Schedulable entity, Task task, String currentTime) {
         ScheduleExecutionContext context = new ScheduleExecutionContext(entity, task, currentTime);
 
         TaskExecutor executor = taskExecutorRegistry.getExecutor(task.getType());
         if (executor == null) {
-            runningTasks.remove(key);
             LOGGER.warn("No executor found for task type: {}", task.getType());
             return Uni.createFrom().voidItem();
         }
 
-        LOGGER.info("Executing task: {} for entity: {} at time: {}",
-                task.getType(), entity.getId(), currentTime);
-
-        // Record execution time before running
-        lastExecution.put(key, now);
-
         return executor.execute(context)
-                .onTermination().invoke(() -> runningTasks.remove(key))
-                .onFailure().invoke(throwable -> {
-                    LOGGER.error("Failed to execute task: {} for entity: {}",
-                            task.getType(), entity.getId(), throwable);
-                    // Remove execution record on failure so it can retry
-                    lastExecution.remove(key);
-                });
+                .onFailure().invoke(throwable ->
+                        LOGGER.error("Failed to execute task: {} for entity: {}",
+                                task.getType(), entity.getId(), throwable)
+                );
     }
 }

@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service.external.digitalocean;
 import io.kneo.broadcaster.config.DOConfig;
 import io.kneo.broadcaster.dto.AudioMetadataDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.dashboard.SpacesOrphanCleanupStats;
+import io.kneo.broadcaster.dto.dashboard.SpacesOrphanCleanupStatsDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -201,7 +201,7 @@ public class SpacesFileOrphanCleanup {
         long duration = System.currentTimeMillis() - startTime;
         double bytesFreedMB = (double) bytesFreed / (1024 * 1024);
 
-        SpacesOrphanCleanupStats stats = SpacesOrphanCleanupStats.builder()
+        SpacesOrphanCleanupStatsDTO stats = SpacesOrphanCleanupStatsDTO.builder()
                 .currentSession(filesDeleted, bytesFreed, filesScanned, duration)
                 .cumulativeStats(orphanFilesDeleted.get(), spaceFreedBytes.get(), totalFilesScanned.get())
                 .lastCleanupTime(this.lastCleanupTime)
@@ -385,7 +385,7 @@ public class SpacesFileOrphanCleanup {
                 .replaceAll("^-|-$", "");
     }
 
-    public Uni<SpacesOrphanCleanupStats> getStats() {
+    public Uni<SpacesOrphanCleanupStatsDTO> getStats() {
         return Uni.combine().all().unis(
                         getDatabaseFileKeys().onItem().transform(Set::size),
                         getSpacesFileCount()
@@ -394,7 +394,7 @@ public class SpacesFileOrphanCleanup {
                     long dbCount = tuple.getItem1();
                     long spacesCount = tuple.getItem2();
 
-                    return SpacesOrphanCleanupStats.builder()
+                    return SpacesOrphanCleanupStatsDTO.builder()
                             .cumulativeStats(orphanFilesDeleted.get(), spaceFreedBytes.get(), totalFilesScanned.get())
                             .lastCleanupTime(this.lastCleanupTime)
                             .nextScheduledCleanup(this.lastCleanupTime != null ?

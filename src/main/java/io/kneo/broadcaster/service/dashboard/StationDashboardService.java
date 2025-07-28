@@ -1,15 +1,18 @@
 package io.kneo.broadcaster.service.dashboard;
 
-import io.kneo.broadcaster.service.stream.IStreamManager;
-import io.kneo.broadcaster.service.stream.StreamManagerStats;
-import io.kneo.broadcaster.dto.dashboard.StationStats;
+import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
+import io.kneo.broadcaster.service.scheduler.TaskState;
+import io.kneo.broadcaster.service.scheduler.TaskTracker;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.service.stream.StreamManagerStats;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.Collection;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -18,20 +21,26 @@ public class StationDashboardService {
     @Inject
     RadioStationPool radioStationPool;
 
-    public Uni<Optional<StationStats>> getStationStats(String brand) {
+    @Inject
+    TaskTracker taskTracker;
+
+    public Uni<Optional<StationStatsDTO>> getStationStats(String brand) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getStation(brand)
                         .map(station -> createStationStats(brand, station))
         );
     }
 
-    private StationStats createStationStats(String brand, RadioStation station) {
-        StationStats stationStats = new StationStats();
+    private StationStatsDTO createStationStats(String brand, RadioStation station) {
+        StationStatsDTO stationStats = new StationStatsDTO();
         stationStats.setBrandName(brand);
         stationStats.setStatus(station.getStatus());
         stationStats.setStatusHistory(station.getStatusHistory());
         stationStats.setManagedBy(station.getManagedBy());
         stationStats.setAlived(station.getCurrentAliveDurationMinutes());
+
+        Collection<TaskState> stationTasks = taskTracker.getTasksForBrand(brand);
+        stationStats.setRunningTasks(stationTasks);
 
         if (station.getPlaylist() != null) {
             IStreamManager playlist = station.getPlaylist();
@@ -39,14 +48,8 @@ public class StationDashboardService {
             PlaylistManager manager = playlist.getPlaylistManager();
             stationStats.setPlaylistManagerStats(manager.getStats());
             StreamManagerStats hlsSegmentStats = playlist.getStats();
-
-            // Set the timeline data directly - this contains pastSegmentSequences, visibleSegmentSequences, upcomingSegmentSequences
             stationStats.setTimeline(hlsSegmentStats.getSegmentTimelineDisplay());
-
-            // Set song statistics with correct field name
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
-
-            // Set listeners count with correct field name
             stationStats.setCurrentListeners(hlsSegmentStats.getListenersCount());
         }
 

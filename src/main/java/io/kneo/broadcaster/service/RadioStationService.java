@@ -214,14 +214,16 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
-                dto.setMixplaUrl(new URL("https://friendly-maamoul-c0722a.netlify.app/?radio=" + dto.getSlugName()));
+                dto.setMixplaUrl(new URL("https://mixpla.kneo.io/?radio=" + dto.getSlugName()));
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
             dto.setArchived(doc.getArchived());
             RadioStationStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
-            if (liveStatus == RadioStationStatus.ON_LINE) {
+            if (liveStatus == RadioStationStatus.ON_LINE
+                    || liveStatus == RadioStationStatus.WARMING_UP
+                    || liveStatus == RadioStationStatus.WAITING_FOR_CURATOR) {
                 if (dto.getSchedule().isEnabled()) {
                     dto.setAiControlAllowed(tuple.getItem3().isAiControlAllowed());
                 } else {

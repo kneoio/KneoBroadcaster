@@ -3,7 +3,6 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
-import io.kneo.broadcaster.service.scheduler.TaskExecutorService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
@@ -27,15 +26,13 @@ public class QueueController {
 
     private final QueueService service;
     private final RadioService radioService;
-    private final TaskExecutorService taskExecutorService;
     private final BroadcasterConfig config;
     private final Vertx vertx;
 
     @Inject
-    public QueueController(QueueService service, RadioService radioService, TaskExecutorService taskExecutorService, BroadcasterConfig config, Vertx vertx) {
+    public QueueController(QueueService service, RadioService radioService, BroadcasterConfig config, Vertx vertx) {
         this.service = service;
         this.radioService = radioService;
-        this.taskExecutorService = taskExecutorService;
         this.config = config;
         this.vertx = vertx;
     }
@@ -163,11 +160,7 @@ public class QueueController {
                     );
         } else if ("reset_scheduler".equalsIgnoreCase(action)) {
             LOGGER.info("Resetting tasks for brand: {}", brand);
-            taskExecutorService.resetTasksForStation(brand);
-            rc.response()
-                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                    .setStatusCode(200)
-                    .end("{\"status\":\"SCHEDULER_RESET_COMPLETE\"}");
+
         } else {
             rc.response()
                     .setStatusCode(400)

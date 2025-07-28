@@ -88,6 +88,11 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
         }
     }
 
+    public String toString() {
+        return String.format("id: %s, slug: %s", getId(), slugName);
+    }
+
+
     private boolean isAliveStatus(RadioStationStatus status) {
         return status == RadioStationStatus.ON_LINE;
     }
@@ -106,4 +111,5 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
             this.newStatus = newStatus;
         }
     }
+
 }

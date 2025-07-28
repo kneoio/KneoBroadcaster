@@ -71,8 +71,8 @@ public class SchedulerService {
     }
 
     private void processSchedules(Long tick) {
-        LOGGER.info("=== SCHEDULER TICK {} ===", tick);
-        LOGGER.info("Available repositories: {}", repositoryRegistry.getRepositories().size());
+        //LOGGER.info("=== SCHEDULER TICK {} ===", tick);
+        //LOGGER.info("Available repositories: {}", repositoryRegistry.getRepositories().size());
 
         repositoryRegistry.getRepositories().forEach(repository -> {
             LOGGER.info("Processing repository: {}", repository.getClass().getSimpleName());

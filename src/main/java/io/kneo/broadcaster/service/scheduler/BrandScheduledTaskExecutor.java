@@ -52,10 +52,10 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
 
         // Log initial state
         LOGGER.info("=== DJ Time Window Check for station: {} ===", station.getSlugName());
-        LOGGER.info("Task key: {}", taskKey);
-        LOGGER.info("Target: {}", target);
-        LOGGER.info("Current state exists: {}", currentState != null);
-        LOGGER.info("Current time: {}", context.getCurrentTime());
+        //LOGGER.info("Task key: {}", taskKey);
+        //LOGGER.info("Target: {}", target);
+        //LOGGER.info("Current state exists: {}", currentState != null);
+        //LOGGER.info("Current time: {}", context.getCurrentTime());
 
         if (context.getTask().getTimeWindowTrigger() != null) {
             LOGGER.info("Start time: {}", context.getTask().getTimeWindowTrigger().getStartTime());

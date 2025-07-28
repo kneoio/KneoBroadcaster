@@ -19,7 +19,7 @@ public class MCPServer extends AbstractVerticle {
     private static final Logger LOGGER = LoggerFactory.getLogger(MCPServer.class);
     private static final int MCP_PORT = 38708; 
     
-    private SoundFragmentMCPTools mcpTools;
+    private final SoundFragmentMCPTools mcpTools;
     
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());

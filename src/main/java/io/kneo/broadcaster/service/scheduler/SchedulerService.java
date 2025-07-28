@@ -17,6 +17,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 @ApplicationScoped
 public class SchedulerService {
@@ -31,6 +34,9 @@ public class SchedulerService {
     TaskExecutorRegistry taskExecutorRegistry;
 
     private Cancellable schedulerSubscription;
+    private final ConcurrentHashMap<String, LocalDateTime> lastExecution = new ConcurrentHashMap<>();
+    private final ReentrantLock schedulerLock = new ReentrantLock();
+    private final ConcurrentHashMap<String, Boolean> runningTasks = new ConcurrentHashMap<>();
 
     void onStart(@Observes StartupEvent event) {
         LOGGER.info("Starting scheduler service with {} second intervals", CHECK_INTERVAL.getSeconds());
@@ -43,8 +49,16 @@ public class SchedulerService {
                 .onFailure().invoke(error -> LOGGER.error("Scheduler execution failed", error))
                 .subscribe().with(
                         item -> {},
-                        failure -> LOGGER.error("Scheduler subscription failed", failure)
+                        failure -> {
+                            LOGGER.error("Scheduler subscription failed, restarting", failure);
+                            restartScheduler();
+                        }
                 );
+    }
+
+    private void restartScheduler() {
+        stopScheduler();
+        startScheduler();
     }
 
     private Multi<Long> getTicker() {
@@ -57,22 +71,32 @@ public class SchedulerService {
     public void stopScheduler() {
         if (schedulerSubscription != null) {
             schedulerSubscription.cancel();
+            schedulerSubscription = null;
         }
     }
 
     private void processSchedules(Long tick) {
-        LOGGER.debug("Processing schedules at tick: {}", tick);
+        if (!schedulerLock.tryLock()) {
+            LOGGER.debug("Scheduler already running, skipping tick: {}", tick);
+            return;
+        }
 
-        repositoryRegistry.getRepositories().forEach(repository ->
-                repository.findActiveScheduled()
-                        .onItem().transformToMulti(Multi.createFrom()::iterable)
-                        .onItem().call(this::processEntitySchedule)
-                        .collect().asList()
-                        .subscribe().with(
-                                results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
-                                throwable -> LOGGER.error("Failed to process schedules", throwable)
-                        )
-        );
+        try {
+            LOGGER.debug("Processing schedules at tick: {}", tick);
+
+            repositoryRegistry.getRepositories().forEach(repository ->
+                    repository.findActiveScheduled()
+                            .onItem().transformToMulti(Multi.createFrom()::iterable)
+                            .onItem().call(this::processEntitySchedule)
+                            .collect().asList()
+                            .subscribe().with(
+                                    results -> LOGGER.debug("Processed {} scheduled entities", results.size()),
+                                    throwable -> LOGGER.error("Failed to process schedules from repository", throwable)
+                            )
+            );
+        } finally {
+            schedulerLock.unlock();
+        }
     }
 
     private Uni<Void> processEntitySchedule(Schedulable entity) {
@@ -85,7 +109,7 @@ public class SchedulerService {
         String currentDay = now.getDayOfWeek().name();
 
         List<Task> dueTasks = entity.getSchedule().getTasks().stream()
-                .filter(task -> isTaskDue(task, currentTime, currentDay, now))
+                .filter(task -> isTaskDue(task, currentTime, currentDay, now, entity.getId()))
                 .toList();
 
         if (dueTasks.isEmpty()) {
@@ -95,20 +119,20 @@ public class SchedulerService {
         LOGGER.info("Found {} due tasks for entity: {}", dueTasks.size(), entity.getId());
 
         return Multi.createFrom().iterable(dueTasks)
-                .onItem().call(task -> executeTask(entity, task, currentTime))
+                .onItem().call(task -> executeTask(entity, task, currentTime, now))
                 .collect().asList()
                 .replaceWithVoid();
     }
 
-    private boolean isTaskDue(Task task, String currentTime, String currentDay, LocalDateTime now) {
+    private boolean isTaskDue(Task task, String currentTime, String currentDay, LocalDateTime now, UUID entityId) {
         if (hasWeekdayFilter(task) && !isCurrentDayIncluded(task, currentDay)) {
             return false;
         }
 
         return switch (task.getTriggerType()) {
-            case ONCE -> isOnceTriggerDue(task, currentTime, currentDay);
+            case ONCE -> isOnceTriggerDue(task, currentTime, entityId, now);
             case TIME_WINDOW -> isTimeWindowTriggerDue(task, currentTime);
-            case PERIODIC -> isPeriodicTriggerDue(task, currentTime, now);
+            case PERIODIC -> isPeriodicTriggerDue(task, currentTime, now, entityId);
         };
     }
 
@@ -136,9 +160,21 @@ public class SchedulerService {
         return weekdays != null && weekdays.contains(currentDay);
     }
 
-    private boolean isOnceTriggerDue(Task task, String currentTime, String currentDay) {
+    private boolean isOnceTriggerDue(Task task, String currentTime, UUID entityId, LocalDateTime now) {
         if (task.getOnceTrigger() == null) return false;
-        return task.getOnceTrigger().getStartTime().equals(currentTime);
+
+        if (!task.getOnceTrigger().getStartTime().equals(currentTime)) {
+            return false;
+        }
+
+        String key = entityId.toString() + ":" + task.getId() + ":ONCE";
+        LocalDateTime lastRun = lastExecution.get(key);
+
+        if (lastRun != null && lastRun.toLocalDate().equals(now.toLocalDate())) {
+            return false; // Already executed today
+        }
+
+        return true;
     }
 
     private boolean isTimeWindowTriggerDue(Task task, String currentTime) {
@@ -151,7 +187,7 @@ public class SchedulerService {
         return !current.isBefore(start) && !current.isAfter(end);
     }
 
-    private boolean isPeriodicTriggerDue(Task task, String currentTime, LocalDateTime now) {
+    private boolean isPeriodicTriggerDue(Task task, String currentTime, LocalDateTime now, UUID entityId) {
         if (task.getPeriodicTrigger() == null) return false;
 
         LocalTime current = LocalTime.parse(currentTime);
@@ -162,11 +198,16 @@ public class SchedulerService {
             return false;
         }
 
-        String interval = task.getPeriodicTrigger().getInterval();
-        int intervalMinutes = parseInterval(interval);
+        String key = entityId.toString() + ":" + task.getId() + ":PERIODIC";
+        LocalDateTime lastRun = lastExecution.get(key);
 
-        int minutesSinceStart = (int) Duration.between(start.atDate(now.toLocalDate()), now).toMinutes();
-        return minutesSinceStart % intervalMinutes == 0;
+        int intervalMinutes = parseInterval(task.getPeriodicTrigger().getInterval());
+
+        if (lastRun == null) {
+            return true; // First execution
+        }
+
+        return Duration.between(lastRun, now).toMinutes() >= intervalMinutes;
     }
 
     private int parseInterval(String interval) {
@@ -178,11 +219,20 @@ public class SchedulerService {
         return 30;
     }
 
-    private Uni<Void> executeTask(Schedulable entity, Task task, String currentTime) {
+    private Uni<Void> executeTask(Schedulable entity, Task task, String currentTime, LocalDateTime now) {
+        String key = entity.getId().toString() + ":" + task.getId() + ":" + task.getTriggerType();
+
+        // Check if already running
+        if (runningTasks.putIfAbsent(key, true) != null) {
+            LOGGER.debug("Task already running, skipping: {}", key);
+            return Uni.createFrom().voidItem();
+        }
+
         ScheduleExecutionContext context = new ScheduleExecutionContext(entity, task, currentTime);
 
         TaskExecutor executor = taskExecutorRegistry.getExecutor(task.getType());
         if (executor == null) {
+            runningTasks.remove(key);
             LOGGER.warn("No executor found for task type: {}", task.getType());
             return Uni.createFrom().voidItem();
         }
@@ -190,9 +240,16 @@ public class SchedulerService {
         LOGGER.info("Executing task: {} for entity: {} at time: {}",
                 task.getType(), entity.getId(), currentTime);
 
+        // Record execution time before running
+        lastExecution.put(key, now);
+
         return executor.execute(context)
-                .onFailure().invoke(throwable ->
-                        LOGGER.error("Failed to execute task: {} for entity: {}",
-                                task.getType(), entity.getId(), throwable));
+                .onTermination().invoke(() -> runningTasks.remove(key))
+                .onFailure().invoke(throwable -> {
+                    LOGGER.error("Failed to execute task: {} for entity: {}",
+                            task.getType(), entity.getId(), throwable);
+                    // Remove execution record on failure so it can retry
+                    lastExecution.remove(key);
+                });
     }
 }

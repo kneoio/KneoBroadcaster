@@ -225,7 +225,7 @@ public class SoundFragmentRepository extends AsyncRepository {
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
             String normalizedTerm = searchTerm.trim().toLowerCase();
-            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
+            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
         }
 
         if (!includeArchived) {
@@ -252,7 +252,7 @@ public class SoundFragmentRepository extends AsyncRepository {
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
             String normalizedTerm = searchTerm.trim().toLowerCase();
-            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
+            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
         }
 
         if (!includeArchived) {

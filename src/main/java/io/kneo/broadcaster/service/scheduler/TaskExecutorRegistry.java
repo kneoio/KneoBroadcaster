@@ -29,4 +29,8 @@ public class TaskExecutorRegistry {
     public TaskExecutor getExecutor(CronTaskType taskType) {
         return executors.get(taskType);
     }
+
+    public void cleanupTasksForEntity(Object entity) {
+        executors.values().forEach(executor -> executor.cleanupTasksForEntity(entity));
+    }
 }

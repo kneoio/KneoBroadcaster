@@ -89,6 +89,7 @@ public class SchedulerService {
 
     private Uni<Void> processEntitySchedule(Schedulable entity) {
         if (!entity.getSchedule().isEnabled()) {
+            taskExecutorRegistry.cleanupTasksForEntity(entity);
             return Uni.createFrom().voidItem();
         }
 

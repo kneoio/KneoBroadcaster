@@ -5,6 +5,7 @@ import java.time.LocalTime;
 
 public interface TaskExecutor {
     Uni<Void> execute(ScheduleExecutionContext context);
+    void cleanupTasksForEntity(Object entity);
 
     boolean supports(CronTaskType taskType);
 

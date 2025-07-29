@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.scheduler;
 
+import io.kneo.broadcaster.model.RadioStation;
 import io.smallrye.mutiny.Uni;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,22 @@ public abstract class AbstractTaskExecutor implements TaskExecutor, TaskTracker 
 
     protected abstract Uni<Void> executeTask(ScheduleExecutionContext context);
 
+    //TODO ut should be move to upper app specific impl.
+    @Override
+    public void cleanupTasksForEntity(Object entity) {
+        if (entity instanceof RadioStation radioStation) {
+            runningTasks.entrySet().removeIf(entry -> {
+                String taskKey = entry.getKey();
+                if (taskKey.contains(radioStation.getSlugName())) {
+                    LOGGER.info("Resetting task for station: {} (key: {})", radioStation.getSlugName(), taskKey);
+                    return true;
+                }
+                return false;
+            });
+            LOGGER.info("Cleaned up tasks for entity: {}", radioStation.getSlugName());
+        }
+    }
+
     @Override
     public Collection<TaskState> getCurrentTasks() {
         return new ArrayList<>(runningTasks.values());
@@ -36,6 +53,7 @@ public abstract class AbstractTaskExecutor implements TaskExecutor, TaskTracker 
                 .collect(Collectors.toList());
     }
 
+    //TODO it should run when scheduler disabled by user in station
     @Override
     public void resetTasksForBrand(String brand) {
         runningTasks.entrySet().removeIf(entry -> {
@@ -43,17 +61,6 @@ public abstract class AbstractTaskExecutor implements TaskExecutor, TaskTracker 
             TaskState taskState = entry.getValue();
             if (taskState.getBrand() != null && taskState.getBrand().equals(brand)) {
                 LOGGER.info("Resetting task for brand: {} (key: {})", brand, taskKey);
-                return true;
-            }
-            return false;
-        });
-    }
-
-    public void resetTasksForStation(String stationSlugName) {
-        runningTasks.entrySet().removeIf(entry -> {
-            String taskKey = entry.getKey();
-            if (taskKey.contains(stationSlugName)) {
-                LOGGER.info("Resetting task for station: {} (key: {})", stationSlugName, taskKey);
                 return true;
             }
             return false;
@@ -75,6 +82,4 @@ public abstract class AbstractTaskExecutor implements TaskExecutor, TaskTracker 
     protected boolean isTaskRunning(String taskKey) {
         return runningTasks.containsKey(taskKey);
     }
-
-
 }

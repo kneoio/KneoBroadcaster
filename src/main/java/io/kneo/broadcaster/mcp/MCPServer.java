@@ -134,83 +134,99 @@ public class MCPServer extends AbstractVerticle {
         ArrayNode tools = objectMapper.createArrayNode();
 
         // Sound fragment tools
-        ObjectNode brandTool = objectMapper.createObjectNode();
-        brandTool.put("name", "get_brand_soundfragments");
-        brandTool.put("description", "Get sound fragments available for a specific brand");
+        tools.add(createBrandSoundFragmentsTool());
+        tools.add(createSearchSoundFragmentsTool());
+        tools.add(createGetAllSoundFragmentsTool());
+        tools.add(createMemoryTool());
 
-        ObjectNode brandSchema = objectMapper.createObjectNode();
-        brandSchema.put("type", "object");
-        ObjectNode brandProps = objectMapper.createObjectNode();
+        ObjectNode result = objectMapper.createObjectNode();
+        result.set("tools", tools);
+        response.set("result", result);
 
-        ObjectNode brandProp = objectMapper.createObjectNode();
-        brandProp.put("type", "string");
-        brandProp.put("description", "Brand name to filter sound fragments by");
-        brandProps.set("brand", brandProp);
+        webSocket.writeTextMessage(response.toString());
+    }
 
-        ObjectNode pageProp = objectMapper.createObjectNode();
-        pageProp.put("type", "integer");
-        pageProp.put("description", "Page number for pagination (1-based)");
-        pageProp.put("default", 1);
-        brandProps.set("page", pageProp);
+    private ObjectNode createBrandSoundFragmentsTool() {
+        ObjectNode tool = objectMapper.createObjectNode();
+        tool.put("name", "get_brand_soundfragments");
+        tool.put("description", "Get sound fragments available for a specific brand with optional filtering");
 
-        ObjectNode sizeProp = objectMapper.createObjectNode();
-        sizeProp.put("type", "integer");
-        sizeProp.put("description", "Number of items per page");
-        sizeProp.put("default", 10);
-        brandProps.set("size", sizeProp);
-        brandSchema.set("properties", brandProps);
-        ArrayNode brandRequired = objectMapper.createArrayNode();
-        brandRequired.add("brand");
-        brandSchema.set("required", brandRequired);
-        brandTool.set("inputSchema", brandSchema);
+        ObjectNode schema = objectMapper.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = objectMapper.createObjectNode();
 
-        tools.add(brandTool);
+        addStringProperty(props, "brand", "Brand name to filter sound fragments by");
+        addIntegerProperty(props, "page", "Page number for pagination (1-based)", 1);
+        addIntegerProperty(props, "size", "Number of items per page", 10);
+        addStringProperty(props, "genres", "Comma-separated list of genres (e.g., 'rock,pop,jazz')");
+        addStringProperty(props, "sources", "Comma-separated list of source types (e.g., 'USERS_UPLOAD,EXTERNAL')");
+        addStringProperty(props, "types", "Comma-separated list of playlist item types (e.g., 'MUSIC,JINGLE')");
 
-        ObjectNode searchTool = objectMapper.createObjectNode();
-        searchTool.put("name", "search_soundfragments");
-        searchTool.put("description", "Search sound fragments by query term");
+        schema.set("properties", props);
+        ArrayNode required = objectMapper.createArrayNode();
+        required.add("brand");
+        schema.set("required", required);
+        tool.set("inputSchema", schema);
 
-        ObjectNode searchSchema = objectMapper.createObjectNode();
-        searchSchema.put("type", "object");
-        ObjectNode searchProps = objectMapper.createObjectNode();
+        return tool;
+    }
 
-        ObjectNode queryProp = objectMapper.createObjectNode();
-        queryProp.put("type", "string");
-        queryProp.put("description", "Search term to find matching sound fragments");
-        searchProps.set("query", queryProp);
+    private ObjectNode createSearchSoundFragmentsTool() {
+        ObjectNode tool = objectMapper.createObjectNode();
+        tool.put("name", "search_soundfragments");
+        tool.put("description", "Search sound fragments by query term with optional filtering");
 
-        ObjectNode searchPageProp = objectMapper.createObjectNode();
-        searchPageProp.put("type", "integer");
-        searchPageProp.put("description", "Page number for pagination (1-based)");
-        searchPageProp.put("default", 1);
-        searchProps.set("page", searchPageProp);
+        ObjectNode schema = objectMapper.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = objectMapper.createObjectNode();
 
-        ObjectNode searchSizeProp = objectMapper.createObjectNode();
-        searchSizeProp.put("type", "integer");
-        searchSizeProp.put("description", "Number of items per page");
-        searchSizeProp.put("default", 10);
-        searchProps.set("size", searchSizeProp);
-        searchSchema.set("properties", searchProps);
-        ArrayNode searchRequired = objectMapper.createArrayNode();
-        searchRequired.add("query");
-        searchSchema.set("required", searchRequired);
-        searchTool.set("inputSchema", searchSchema);
+        addStringProperty(props, "query", "Search term to find matching sound fragments");
+        addIntegerProperty(props, "page", "Page number for pagination (1-based)", 1);
+        addIntegerProperty(props, "size", "Number of items per page", 10);
+        addStringProperty(props, "genres", "Comma-separated list of genres (e.g., 'rock,pop,jazz')");
+        addStringProperty(props, "sources", "Comma-separated list of source types (e.g., 'USERS_UPLOAD,EXTERNAL')");
+        addStringProperty(props, "types", "Comma-separated list of playlist item types (e.g., 'MUSIC,JINGLE')");
 
-        tools.add(searchTool);
+        schema.set("properties", props);
+        ArrayNode required = objectMapper.createArrayNode();
+        required.add("query");
+        schema.set("required", required);
+        tool.set("inputSchema", schema);
 
-        // Memory tools
-        ObjectNode memoryTool = objectMapper.createObjectNode();
-        memoryTool.put("name", "get_memory_by_type");
-        memoryTool.put("description", "Get memory data by type for a specific brand");
+        return tool;
+    }
 
-        ObjectNode memorySchema = objectMapper.createObjectNode();
-        memorySchema.put("type", "object");
-        ObjectNode memoryProps = objectMapper.createObjectNode();
+    private ObjectNode createGetAllSoundFragmentsTool() {
+        ObjectNode tool = objectMapper.createObjectNode();
+        tool.put("name", "get_all_soundfragments");
+        tool.put("description", "Get all sound fragments with optional filtering and pagination");
 
-        ObjectNode memoryBrandProp = objectMapper.createObjectNode();
-        memoryBrandProp.put("type", "string");
-        memoryBrandProp.put("description", "Brand name to filter memory by");
-        memoryProps.set("brand", memoryBrandProp);
+        ObjectNode schema = objectMapper.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = objectMapper.createObjectNode();
+
+        addIntegerProperty(props, "page", "Page number for pagination (1-based)", 1);
+        addIntegerProperty(props, "size", "Number of items per page", 10);
+        addStringProperty(props, "genres", "Comma-separated list of genres (e.g., 'rock,pop,jazz')");
+        addStringProperty(props, "sources", "Comma-separated list of source types (e.g., 'USERS_UPLOAD,EXTERNAL')");
+        addStringProperty(props, "types", "Comma-separated list of playlist item types (e.g., 'MUSIC,JINGLE')");
+
+        schema.set("properties", props);
+        tool.set("inputSchema", schema);
+
+        return tool;
+    }
+
+    private ObjectNode createMemoryTool() {
+        ObjectNode tool = objectMapper.createObjectNode();
+        tool.put("name", "get_memory_by_type");
+        tool.put("description", "Get memory data by type for a specific brand");
+
+        ObjectNode schema = objectMapper.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = objectMapper.createObjectNode();
+
+        addStringProperty(props, "brand", "Brand name to filter memory by");
 
         ObjectNode typesProp = objectMapper.createObjectNode();
         typesProp.put("type", "array");
@@ -218,21 +234,31 @@ public class MCPServer extends AbstractVerticle {
         itemsProp.put("type", "string");
         typesProp.set("items", itemsProp);
         typesProp.put("description", "Memory types to retrieve (CONVERSATION_HISTORY, LISTENER_CONTEXT, AUDIENCE_CONTEXT, INSTANT_MESSAGE, EVENT)");
-        memoryProps.set("types", typesProp);
-        memorySchema.set("properties", memoryProps);
-        ArrayNode memoryRequired = objectMapper.createArrayNode();
-        memoryRequired.add("brand");
-        memoryRequired.add("types");
-        memorySchema.set("required", memoryRequired);
-        memoryTool.set("inputSchema", memorySchema);
+        props.set("types", typesProp);
 
-        tools.add(memoryTool);
+        schema.set("properties", props);
+        ArrayNode required = objectMapper.createArrayNode();
+        required.add("brand");
+        required.add("types");
+        schema.set("required", required);
+        tool.set("inputSchema", schema);
 
-        ObjectNode result = objectMapper.createObjectNode();
-        result.set("tools", tools);
-        response.set("result", result);
+        return tool;
+    }
 
-        webSocket.writeTextMessage(response.toString());
+    private void addStringProperty(ObjectNode props, String name, String description) {
+        ObjectNode prop = objectMapper.createObjectNode();
+        prop.put("type", "string");
+        prop.put("description", description);
+        props.set(name, prop);
+    }
+
+    private void addIntegerProperty(ObjectNode props, String name, String description, int defaultValue) {
+        ObjectNode prop = objectMapper.createObjectNode();
+        prop.put("type", "integer");
+        prop.put("description", description);
+        prop.put("default", defaultValue);
+        props.set(name, prop);
     }
 
     private void handleToolCall(ServerWebSocket webSocket, JsonNode params, String id) {
@@ -244,40 +270,19 @@ public class MCPServer extends AbstractVerticle {
 
             switch (toolName) {
                 case "get_brand_soundfragments":
-                    String brand = arguments.get("brand").asText();
-                    Optional<Integer> brandPage = arguments.has("page") ?
-                            Optional.of(arguments.get("page").asInt()) : Optional.empty();
-                    Optional<Integer> brandSize = arguments.has("size") ?
-                            Optional.of(arguments.get("size").asInt()) : Optional.empty();
-
-                    future = soundFragmentMCPTools.getBrandSoundFragments(brand, brandPage, brandSize)
-                            .thenApply(result -> (Object) result);
+                    future = handleBrandSoundFragmentsCall(arguments);
                     break;
 
                 case "search_soundfragments":
-                    String query = arguments.get("query").asText();
-                    Optional<Integer> searchPage = arguments.has("page") ?
-                            Optional.of(arguments.get("page").asInt()) : Optional.empty();
-                    Optional<Integer> searchSize = arguments.has("size") ?
-                            Optional.of(arguments.get("size").asInt()) : Optional.empty();
+                    future = handleSearchSoundFragmentsCall(arguments);
+                    break;
 
-                    future = soundFragmentMCPTools.searchSoundFragments(query, searchPage, searchSize)
-                            .thenApply(result -> (Object) result);
+                case "get_all_soundfragments":
+                    future = handleGetAllSoundFragmentsCall(arguments);
                     break;
 
                 case "get_memory_by_type":
-                    String memoryBrand = arguments.get("brand").asText();
-                    JsonNode typesNode = arguments.get("types");
-                    List<String> typesList = new ArrayList<>();
-                    if (typesNode.isArray()) {
-                        for (JsonNode typeNode : typesNode) {
-                            typesList.add(typeNode.asText());
-                        }
-                    }
-                    String[] types = typesList.toArray(new String[0]);
-
-                    future = memoryMCPTools.getMemoryByType(memoryBrand, types)
-                            .thenApply(result -> (Object) result);
+                    future = handleMemoryCall(arguments);
                     break;
 
                 default:
@@ -298,6 +303,65 @@ public class MCPServer extends AbstractVerticle {
             LOGGER.error("Error processing tool call", e);
             sendError(webSocket, "invalid_params", "Invalid tool call parameters", id);
         }
+    }
+
+    private CompletableFuture<Object> handleBrandSoundFragmentsCall(JsonNode arguments) {
+        String brand = arguments.get("brand").asText();
+        Optional<Integer> page = getOptionalInt(arguments, "page");
+        Optional<Integer> size = getOptionalInt(arguments, "size");
+        Optional<String> genres = getOptionalString(arguments, "genres");
+        Optional<String> sources = getOptionalString(arguments, "sources");
+        Optional<String> types = getOptionalString(arguments, "types");
+
+        return soundFragmentMCPTools.getBrandSoundFragments(brand, page, size, genres, sources, types)
+                .thenApply(result -> (Object) result);
+    }
+
+    private CompletableFuture<Object> handleSearchSoundFragmentsCall(JsonNode arguments) {
+        String query = arguments.get("query").asText();
+        Optional<Integer> page = getOptionalInt(arguments, "page");
+        Optional<Integer> size = getOptionalInt(arguments, "size");
+        Optional<String> genres = getOptionalString(arguments, "genres");
+        Optional<String> sources = getOptionalString(arguments, "sources");
+        Optional<String> types = getOptionalString(arguments, "types");
+
+        return soundFragmentMCPTools.searchSoundFragments(query, page, size, genres, sources, types)
+                .thenApply(result -> (Object) result);
+    }
+
+    private CompletableFuture<Object> handleGetAllSoundFragmentsCall(JsonNode arguments) {
+        Optional<Integer> page = getOptionalInt(arguments, "page");
+        Optional<Integer> size = getOptionalInt(arguments, "size");
+        Optional<String> genres = getOptionalString(arguments, "genres");
+        Optional<String> sources = getOptionalString(arguments, "sources");
+        Optional<String> types = getOptionalString(arguments, "types");
+
+        return soundFragmentMCPTools.getAllSoundFragments(page, size, genres, sources, types)
+                .thenApply(result -> (Object) result);
+    }
+
+    private CompletableFuture<Object> handleMemoryCall(JsonNode arguments) {
+        String brand = arguments.get("brand").asText();
+        JsonNode typesNode = arguments.get("types");
+        List<String> typesList = new ArrayList<>();
+        if (typesNode.isArray()) {
+            for (JsonNode typeNode : typesNode) {
+                typesList.add(typeNode.asText());
+            }
+        }
+        String[] types = typesList.toArray(new String[0]);
+
+        return memoryMCPTools.getMemoryByType(brand, types)
+                .thenApply(result -> (Object) result);
+    }
+
+    private Optional<Integer> getOptionalInt(JsonNode arguments, String field) {
+        return arguments.has(field) ? Optional.of(arguments.get(field).asInt()) : Optional.empty();
+    }
+
+    private Optional<String> getOptionalString(JsonNode arguments, String field) {
+        return arguments.has(field) && !arguments.get(field).isNull() ?
+                Optional.of(arguments.get(field).asText()) : Optional.empty();
     }
 
     private void sendToolResult(ServerWebSocket webSocket, Object result, String id) {

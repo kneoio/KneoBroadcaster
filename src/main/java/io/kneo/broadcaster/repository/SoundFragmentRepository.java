@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -64,12 +65,16 @@ public class SoundFragmentRepository extends AsyncRepository {
         this.fileStorage = fileStorage;
     }
 
-    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived, final IUser user) {
+    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived, final IUser user, final SoundFragmentFilter filter) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
         }
 
         sql += " ORDER BY t.last_mod_date DESC";
@@ -85,7 +90,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, SoundFragmentFilter filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
@@ -93,35 +98,16 @@ public class SoundFragmentRepository extends AsyncRepository {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
         }
 
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id = $2";
-
-        if (!includeArchived) {
-            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
-        }
-
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(userID, uuid))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transformToUni(iterator -> {
-                    if (iterator.hasNext()) {
-                        Row row = iterator.next();
-                        return from(row, true);
-                    } else {
-                        return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
-                    }
-                });
-    }
-
-    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset, boolean includeArchived, IUser user) {
+    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
         String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
@@ -130,6 +116,10 @@ public class SoundFragmentRepository extends AsyncRepository {
 
         if (!includeArchived) {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
         }
 
         sql += " ORDER BY " +
@@ -158,6 +148,141 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
+    public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+        String sql = "SELECT COUNT(*) " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, user.getId()))
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    public Uni<List<SoundFragment>> search(String searchTerm, final int limit, final int offset, final boolean includeArchived, final IUser user, final SoundFragmentFilter filter) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            String normalizedTerm = searchTerm.trim().toLowerCase();
+            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
+        }
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        sql += " ORDER BY t.last_mod_date DESC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        return client.query(sql)
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false))
+                .concatenate()
+                .collect().asList();
+    }
+
+    public Uni<Integer> getSearchCount(String searchTerm, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            String normalizedTerm = searchTerm.trim().toLowerCase();
+            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
+        }
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        return client.query(sql)
+                .execute()
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    private String buildFilterConditions(SoundFragmentFilter filter) {
+        StringBuilder conditions = new StringBuilder();
+
+        if (filter.getGenres() != null && !filter.getGenres().isEmpty()) {
+            conditions.append(" AND t.genre IN (");
+            for (int i = 0; i < filter.getGenres().size(); i++) {
+                if (i > 0) {
+                    conditions.append(", ");
+                }
+                conditions.append("'").append(filter.getGenres().get(i).replace("'", "''")).append("'");
+            }
+            conditions.append(")");
+        }
+
+        if (filter.getSources() != null && !filter.getSources().isEmpty()) {
+            conditions.append(" AND t.source IN (");
+            for (int i = 0; i < filter.getSources().size(); i++) {
+                if (i > 0) {
+                    conditions.append(", ");
+                }
+                conditions.append("'").append(filter.getSources().get(i).name()).append("'");
+            }
+            conditions.append(")");
+        }
+
+        if (filter.getTypes() != null && !filter.getTypes().isEmpty()) {
+            conditions.append(" AND t.type IN (");
+            for (int i = 0; i < filter.getTypes().size(); i++) {
+                if (i > 0) {
+                    conditions.append(", ");
+                }
+                conditions.append("'").append(filter.getTypes().get(i).name()).append("'");
+            }
+            conditions.append(")");
+        }
+
+        return conditions.toString();
+    }
+
+    public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeArchived) {
+        String sql = "SELECT theTable.*, rls.* " +
+                "FROM %s theTable " +
+                "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.id = $2";
+
+        if (!includeArchived) {
+            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+        }
+
+        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+                .execute(Tuple.of(userID, uuid))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        Row row = iterator.next();
+                        return from(row, true);
+                    } else {
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
+                    }
+                });
+    }
+
     public Uni<List<UUID>> getBrandsForSoundFragment(UUID soundFragmentId, IUser user) {
         String sql = "SELECT bsf.brand_id " +
                 "FROM kneobroadcaster__brand_sound_fragments bsf " +
@@ -169,22 +294,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> row.getUUID("brand_id"))
                 .collect().asList();
-    }
-
-    public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user) {
-        String sql = "SELECT COUNT(*) " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
     public Uni<BrandSoundFragment> findBrandSoundFragmentById(UUID soundFragmentId, IUser user) {
@@ -217,51 +326,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                                 return brandSoundFragment;
                             });
                 });
-    }
-
-    public Uni<List<SoundFragment>> search(String searchTerm, final int limit, final int offset, final boolean includeArchived, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String normalizedTerm = searchTerm.trim().toLowerCase();
-            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
-        }
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        sql += " ORDER BY t.last_mod_date DESC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.query(sql)
-                .execute()
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false))
-                .concatenate()
-                .collect().asList();
-    }
-
-    public Uni<Integer> getSearchCount(String searchTerm, boolean includeArchived, IUser user) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String normalizedTerm = searchTerm.trim().toLowerCase();
-            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
-        }
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        return client.query(sql)
-                .execute()
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
     public Uni<FileMetadata> getFileById(UUID id) {

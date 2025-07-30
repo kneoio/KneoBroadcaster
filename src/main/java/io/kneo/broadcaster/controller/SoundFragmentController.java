@@ -2,9 +2,12 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.service.FileDownloadService;
 import io.kneo.broadcaster.service.FileUploadService;
 import io.kneo.broadcaster.service.SoundFragmentService;
@@ -36,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -79,18 +84,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
 
-        router.route(path + "*").handler(rc -> {
-            LOGGER.info("=== ROUTE HIT === {} {}", rc.request().method(), rc.request().path());
-            this.addHeaders(rc);
-        });
+        router.route(path + "*").handler(this::addHeaders);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/search").handler(this::search);
-        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(rc -> {
-            LOGGER.info("=== SSE ENDPOINT HIT === uploadId: {}", rc.pathParam("uploadId"));
-            this.streamProgress(rc);
-        });
+        router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
@@ -103,10 +102,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private void get(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        SoundFragmentFilterDTO filter = parseFilterDTO(rc);
+
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllCount(user),
-                        service.getAllDTO(size, (page - 1) * size, user)
+                        service.getAllCount(user, filter),
+                        service.getAllDTO(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<SoundFragmentDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -153,11 +154,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String format = rc.request().getParam("format");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        SoundFragmentFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getBrandSoundFragments(brandName, size, (page - 1) * size),
-                        service.getCountBrandSoundFragments(brandName, user)
+                        service.getBrandSoundFragments(brandName, size, (page - 1) * size, filter),
+                        service.getCountBrandSoundFragments(brandName, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<BrandSoundFragmentDTO> dtoEntries = new View<>(tuple.getItem1(),
@@ -177,6 +179,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         String searchTerm = rc.request().getParam("q");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        SoundFragmentFilterDTO filter = parseFilterDTO(rc);
 
         if (searchTerm == null || searchTerm.trim().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("Search term 'q' parameter is required"));
@@ -185,8 +188,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getSearchCount(searchTerm, user),
-                        service.search(searchTerm, size, (page - 1) * size, user)
+                        service.getSearchCount(searchTerm, user, filter),
+                        service.search(searchTerm, size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<SoundFragmentDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -406,5 +409,78 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
+    }
+
+    private SoundFragmentFilterDTO parseFilterDTO(RoutingContext rc) {
+        SoundFragmentFilterDTO filterDTO = new SoundFragmentFilterDTO();
+        boolean hasAnyFilter = false;
+
+        // Parse genres filter (comma-separated string values)
+        String genresParam = rc.request().getParam("genre");
+        if (genresParam != null && !genresParam.trim().isEmpty()) {
+            List<String> genres = new ArrayList<>();
+            String[] genreArray = genresParam.split(",");
+            for (String genre : genreArray) {
+                String trimmedGenre = genre.trim();
+                if (!trimmedGenre.isEmpty()) {
+                    genres.add(trimmedGenre);
+                }
+            }
+            if (!genres.isEmpty()) {
+                filterDTO.setGenres(genres);
+                hasAnyFilter = true;
+            }
+        }
+
+        // Parse sources filter (comma-separated enum values)
+        String sourcesParam = rc.request().getParam("source");
+        if (sourcesParam != null && !sourcesParam.trim().isEmpty()) {
+            List<SourceType> sources = new ArrayList<>();
+            String[] sourceArray = sourcesParam.split(",");
+            for (String source : sourceArray) {
+                String trimmedSource = source.trim();
+                if (!trimmedSource.isEmpty()) {
+                    try {
+                        sources.add(SourceType.valueOf(trimmedSource));
+                    } catch (IllegalArgumentException e) {
+                        LOGGER.warn("Invalid source type: {}", trimmedSource);
+                    }
+                }
+            }
+            if (!sources.isEmpty()) {
+                filterDTO.setSources(sources);
+                hasAnyFilter = true;
+            }
+        }
+
+        // Parse types filter (comma-separated enum values)
+        String typesParam = rc.request().getParam("type");
+        if (typesParam != null && !typesParam.trim().isEmpty()) {
+            List<PlaylistItemType> types = new ArrayList<>();
+            String[] typeArray = typesParam.split(",");
+            for (String type : typeArray) {
+                String trimmedType = type.trim();
+                if (!trimmedType.isEmpty()) {
+                    try {
+                        types.add(PlaylistItemType.valueOf(trimmedType));
+                    } catch (IllegalArgumentException e) {
+                        LOGGER.warn("Invalid playlist item type: {}", trimmedType);
+                    }
+                }
+            }
+            if (!types.isEmpty()) {
+                filterDTO.setTypes(types);
+                hasAnyFilter = true;
+            }
+        }
+
+        // Parse activated flag
+        String activatedParam = rc.request().getParam("filterActivated");
+        if (activatedParam != null && !activatedParam.trim().isEmpty()) {
+            filterDTO.setActivated(Boolean.parseBoolean(activatedParam));
+            hasAnyFilter = true;
+        }
+
+        return hasAnyFilter ? filterDTO : null;
     }
 }

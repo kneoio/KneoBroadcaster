@@ -2,8 +2,10 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
+import io.kneo.broadcaster.model.ListenerFilter;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.util.WebHelper;
@@ -54,8 +56,13 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<List<ListenerDTO>> getAll(final int limit, final int offset, final IUser user) {
+        return getAll(limit, offset, user, null);
+    }
+
+    public Uni<List<ListenerDTO>> getAll(final int limit, final int offset, final IUser user, final ListenerFilterDTO filterDTO) {
         assert repository != null;
-        return repository.getAll(limit, offset, false, user)
+        ListenerFilter filter = toFilter(filterDTO);
+        return repository.getAll(limit, offset, false, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -69,8 +76,13 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<Integer> getAllCount(final IUser user) {
+        return getAllCount(user, null);
+    }
+
+    public Uni<Integer> getAllCount(final IUser user, final ListenerFilterDTO filterDTO) {
         assert repository != null;
-        return repository.getAllCount(user, false);
+        ListenerFilter filter = toFilter(filterDTO);
+        return repository.getAllCount(user, false, filter);
     }
 
     public Uni<ListenerDTO> getDTOTemplate(IUser user, LanguageCode code) {
@@ -101,15 +113,25 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<List<BrandListener>> getBrandListenersEntities(String brandName, int limit, final int offset, IUser user) {
+        return getBrandListenersEntities(brandName, limit, offset, user, null);
+    }
+
+    public Uni<List<BrandListener>> getBrandListenersEntities(String brandName, int limit, final int offset, IUser user, ListenerFilterDTO filterDTO) {
         assert repository != null;
-        return repository.findForBrand(brandName, limit, offset, user, false);
+        ListenerFilter filter = toFilter(filterDTO);
+        return repository.findForBrand(brandName, limit, offset, user, false, filter);
     }
 
     public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user) {
+        return getBrandListeners(brandName, limit, offset, user, null);
+    }
+
+    public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user, ListenerFilterDTO filterDTO) {
         assert repository != null;
         assert radioStationService != null;
 
-        return repository.findForBrand(brandName, limit, offset, user, false)
+        ListenerFilter filter = toFilter(filterDTO);
+        return repository.findForBrand(brandName, limit, offset, user, false, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -124,8 +146,13 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<Integer> getCountBrandListeners(final String brand, final IUser user) {
+        return getCountBrandListeners(brand, user, null);
+    }
+
+    public Uni<Integer> getCountBrandListeners(final String brand, final IUser user, final ListenerFilterDTO filterDTO) {
         assert repository != null;
-        return repository.findForBrandCount(brand, user, false);
+        ListenerFilter filter = toFilter(filterDTO);
+        return repository.findForBrandCount(brand, user, false, filter);
     }
 
     public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, IUser user) {
@@ -231,7 +258,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 });
     }
 
-
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
         assert repository != null;
         return repository.getDocumentAccessInfo(documentId, user)
@@ -242,5 +268,19 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 );
     }
 
+    /**
+     * Converts ListenerFilterDTO to ListenerFilter domain model
+     */
+    private ListenerFilter toFilter(ListenerFilterDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        ListenerFilter filter = new ListenerFilter();
+        filter.setActivated(dto.isActivated());
+        filter.setCountries(dto.getCountries());
+
+        return filter;
+    }
 
 }

@@ -3,6 +3,7 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
+import io.kneo.broadcaster.model.ListenerFilter;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -44,11 +45,19 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<Listener>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
+        return getAll(limit, offset, includeArchived, user, null);
+    }
+
+    public Uni<List<Listener>> getAll(int limit, int offset, boolean includeArchived, IUser user, ListenerFilter filter) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
         }
 
         sql += " ORDER BY t.last_mod_date DESC";
@@ -66,11 +75,19 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        return getAllCount(user, includeArchived, null);
+    }
+
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, ListenerFilter filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
         }
 
         return client.query(sql)
@@ -102,6 +119,10 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived) {
+        return findForBrand(slugName, limit, offset, user, includeArchived, null);
+    }
+
+    public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived, ListenerFilter filter) {
         String sql = "SELECT l.* " +
                 "FROM " + entityData.getTableName() + " l " +
                 "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
@@ -111,6 +132,10 @@ public class ListenersRepository extends AsyncRepository {
 
         if (!includeArchived) {
             sql += " AND (l.archived IS NULL OR l.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter, "l");
         }
 
         sql += " ORDER BY l.last_mod_date DESC";
@@ -149,6 +174,10 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived) {
+        return findForBrandCount(slugName, user, includeArchived, null);
+    }
+
+    public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived, ListenerFilter filter) {
         String sql = "SELECT COUNT(l.id) " +
                 "FROM " + entityData.getTableName() + " l " +
                 "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
@@ -156,16 +185,18 @@ public class ListenersRepository extends AsyncRepository {
                 "JOIN " + entityData.getRlsName() + " rls ON l.id = rls.entity_id " +
                 "WHERE b.slug_name = $1 AND rls.reader = $2";
 
-
         if (!includeArchived) {
             sql += " AND (l.archived IS NULL OR l.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter, "l");
         }
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(slugName, user.getId()))
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
-
 
     public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
@@ -362,8 +393,28 @@ public class ListenersRepository extends AsyncRepository {
         return Uni.createFrom().item(doc);
     }
 
-
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
+    }
+
+    private String buildFilterConditions(ListenerFilter filter) {
+        return buildFilterConditions(filter, "t");
+    }
+
+    private String buildFilterConditions(ListenerFilter filter, String tableAlias) {
+        StringBuilder conditions = new StringBuilder();
+
+        if (filter.getCountries() != null && !filter.getCountries().isEmpty()) {
+            conditions.append(" AND ").append(tableAlias).append(".country IN (");
+            for (int i = 0; i < filter.getCountries().size(); i++) {
+                if (i > 0) {
+                    conditions.append(", ");
+                }
+                conditions.append("'").append(filter.getCountries().get(i).name()).append("'");
+            }
+            conditions.append(")");
+        }
+
+        return conditions.toString();
     }
 }

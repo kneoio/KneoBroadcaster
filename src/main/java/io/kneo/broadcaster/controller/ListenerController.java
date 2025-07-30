@@ -2,6 +2,7 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -12,6 +13,7 @@ import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.json.JsonObject;
@@ -21,11 +23,17 @@ import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
 public class ListenerController extends AbstractSecuredController<Listener, ListenerDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerController.class);
+
     private ListenerService service;
     private Validator validator;
 
@@ -55,16 +63,17 @@ public class ListenerController extends AbstractSecuredController<Listener, List
     private void get(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        ListenerFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAll(size, (page - 1) * size, user),
-                        service.getAllCount(user)
+                        service.getAllCount(user, filter),
+                        service.getAll(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<ListenerDTO> dtoEntries = new View<>(tuple.getItem1(),
-                            tuple.getItem2(), page,
-                            RuntimeUtil.countMaxPage(tuple.getItem2(), size),
+                    View<ListenerDTO> dtoEntries = new View<>(tuple.getItem2(),
+                            tuple.getItem1(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                             size);
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                     return viewPage;
@@ -103,11 +112,12 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         String brandName = rc.request().getParam("brand");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        ListenerFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getBrandListeners(brandName, size, (page - 1) * size, user),
-                        service.getCountBrandListeners(brandName, user)
+                        service.getBrandListeners(brandName, size, (page - 1) * size, user, filter),
+                        service.getCountBrandListeners(brandName, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<BrandListenerDTO> dtoEntries = new View<>(tuple.getItem1(),
@@ -158,8 +168,6 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 );
     }
 
-
-
     private void getDocumentAccess(RoutingContext rc) {
         String id = rc.pathParam("id");
 
@@ -189,5 +197,40 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
+    }
+
+    private ListenerFilterDTO parseFilterDTO(RoutingContext rc) {
+        ListenerFilterDTO filterDTO = new ListenerFilterDTO();
+        boolean hasAnyFilter = false;
+
+        // Parse countries filter (comma-separated enum values)
+        String countriesParam = rc.request().getParam("country");
+        if (countriesParam != null && !countriesParam.trim().isEmpty()) {
+            List<CountryCode> countries = new ArrayList<>();
+            String[] countryArray = countriesParam.split(",");
+            for (String country : countryArray) {
+                String trimmedCountry = country.trim();
+                if (!trimmedCountry.isEmpty()) {
+                    try {
+                        countries.add(CountryCode.valueOf(trimmedCountry));
+                    } catch (IllegalArgumentException e) {
+                        LOGGER.warn("Invalid country code: {}", trimmedCountry);
+                    }
+                }
+            }
+            if (!countries.isEmpty()) {
+                filterDTO.setCountries(countries);
+                hasAnyFilter = true;
+            }
+        }
+
+        // Parse activated flag
+        String activatedParam = rc.request().getParam("filterActivated");
+        if (activatedParam != null && !activatedParam.trim().isEmpty()) {
+            filterDTO.setActivated(Boolean.parseBoolean(activatedParam));
+            hasAnyFilter = true;
+        }
+
+        return hasAnyFilter ? filterDTO : null;
     }
 }

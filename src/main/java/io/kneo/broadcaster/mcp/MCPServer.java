@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public class MCPServer extends AbstractVerticle {
@@ -118,6 +117,7 @@ public class MCPServer extends AbstractVerticle {
 
         ObjectNode capabilities = objectMapper.createObjectNode();
         ObjectNode tools = objectMapper.createObjectNode();
+        tools.put("listChanged", true);
         capabilities.set("tools", tools);
         result.set("capabilities", capabilities);
 
@@ -132,11 +132,8 @@ public class MCPServer extends AbstractVerticle {
         response.put("id", id);
 
         ArrayNode tools = objectMapper.createArrayNode();
-
-        // Sound fragment tools
         tools.add(createBrandSoundFragmentsTool());
         tools.add(createSearchSoundFragmentsTool());
-        tools.add(createGetAllSoundFragmentsTool());
         tools.add(createMemoryTool());
 
         ObjectNode result = objectMapper.createObjectNode();
@@ -148,7 +145,7 @@ public class MCPServer extends AbstractVerticle {
 
     private ObjectNode createBrandSoundFragmentsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_brand_soundfragments");
+        tool.put("name", "get_brand_sound_fragments");
         tool.put("description", "Get sound fragments available for a specific brand with optional filtering");
 
         ObjectNode schema = objectMapper.createObjectNode();
@@ -173,7 +170,7 @@ public class MCPServer extends AbstractVerticle {
 
     private ObjectNode createSearchSoundFragmentsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "search_soundfragments");
+        tool.put("name", "search_sound_fragments");
         tool.put("description", "Search sound fragments by query term with optional filtering");
 
         ObjectNode schema = objectMapper.createObjectNode();
@@ -191,27 +188,6 @@ public class MCPServer extends AbstractVerticle {
         ArrayNode required = objectMapper.createArrayNode();
         required.add("query");
         schema.set("required", required);
-        tool.set("inputSchema", schema);
-
-        return tool;
-    }
-
-    private ObjectNode createGetAllSoundFragmentsTool() {
-        ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_all_soundfragments");
-        tool.put("description", "Get all sound fragments with optional filtering and pagination");
-
-        ObjectNode schema = objectMapper.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = objectMapper.createObjectNode();
-
-        addIntegerProperty(props, "page", "Page number for pagination (1-based)", 1);
-        addIntegerProperty(props, "size", "Number of items per page", 10);
-        addStringProperty(props, "genres", "Comma-separated list of genres (e.g., 'rock,pop,jazz')");
-        addStringProperty(props, "sources", "Comma-separated list of source types (e.g., 'USERS_UPLOAD,EXTERNAL')");
-        addStringProperty(props, "types", "Comma-separated list of playlist item types (e.g., 'MUSIC,JINGLE')");
-
-        schema.set("properties", props);
         tool.set("inputSchema", schema);
 
         return tool;
@@ -269,16 +245,12 @@ public class MCPServer extends AbstractVerticle {
             CompletableFuture<Object> future;
 
             switch (toolName) {
-                case "get_brand_soundfragments":
+                case "get_brand_sound_fragments":
                     future = handleBrandSoundFragmentsCall(arguments);
                     break;
 
-                case "search_soundfragments":
+                case "search_sound_fragments":
                     future = handleSearchSoundFragmentsCall(arguments);
-                    break;
-
-                case "get_all_soundfragments":
-                    future = handleGetAllSoundFragmentsCall(arguments);
                     break;
 
                 case "get_memory_by_type":
@@ -292,7 +264,7 @@ public class MCPServer extends AbstractVerticle {
 
             future.whenComplete((result, throwable) -> {
                 if (throwable != null) {
-                    LOGGER.error("Error executing tool: " + toolName, throwable);
+                    LOGGER.error("Error executing tool: {}", toolName, throwable);
                     sendError(webSocket, "tool_error", throwable.getMessage(), id);
                 } else {
                     sendToolResult(webSocket, result, id);
@@ -307,11 +279,11 @@ public class MCPServer extends AbstractVerticle {
 
     private CompletableFuture<Object> handleBrandSoundFragmentsCall(JsonNode arguments) {
         String brand = arguments.get("brand").asText();
-        Optional<Integer> page = getOptionalInt(arguments, "page");
-        Optional<Integer> size = getOptionalInt(arguments, "size");
-        Optional<String> genres = getOptionalString(arguments, "genres");
-        Optional<String> sources = getOptionalString(arguments, "sources");
-        Optional<String> types = getOptionalString(arguments, "types");
+        Integer page = getNullableInt(arguments, "page");
+        Integer size = getNullableInt(arguments, "size");
+        String genres = getNullableString(arguments, "genres");
+        String sources = getNullableString(arguments, "sources");
+        String types = getNullableString(arguments, "types");
 
         return soundFragmentMCPTools.getBrandSoundFragments(brand, page, size, genres, sources, types)
                 .thenApply(result -> (Object) result);
@@ -319,25 +291,14 @@ public class MCPServer extends AbstractVerticle {
 
     private CompletableFuture<Object> handleSearchSoundFragmentsCall(JsonNode arguments) {
         String query = arguments.get("query").asText();
-        Optional<Integer> page = getOptionalInt(arguments, "page");
-        Optional<Integer> size = getOptionalInt(arguments, "size");
-        Optional<String> genres = getOptionalString(arguments, "genres");
-        Optional<String> sources = getOptionalString(arguments, "sources");
-        Optional<String> types = getOptionalString(arguments, "types");
+        Integer page = getNullableInt(arguments, "page");
+        Integer size = getNullableInt(arguments, "size");
+        String genres = getNullableString(arguments, "genres");
+        String sources = getNullableString(arguments, "sources");
+        String types = getNullableString(arguments, "types");
 
         return soundFragmentMCPTools.searchSoundFragments(query, page, size, genres, sources, types)
-                .thenApply(result -> (Object) result);
-    }
-
-    private CompletableFuture<Object> handleGetAllSoundFragmentsCall(JsonNode arguments) {
-        Optional<Integer> page = getOptionalInt(arguments, "page");
-        Optional<Integer> size = getOptionalInt(arguments, "size");
-        Optional<String> genres = getOptionalString(arguments, "genres");
-        Optional<String> sources = getOptionalString(arguments, "sources");
-        Optional<String> types = getOptionalString(arguments, "types");
-
-        return soundFragmentMCPTools.getAllSoundFragments(page, size, genres, sources, types)
-                .thenApply(result -> (Object) result);
+                .thenApply(result -> result);
     }
 
     private CompletableFuture<Object> handleMemoryCall(JsonNode arguments) {
@@ -355,13 +316,13 @@ public class MCPServer extends AbstractVerticle {
                 .thenApply(result -> (Object) result);
     }
 
-    private Optional<Integer> getOptionalInt(JsonNode arguments, String field) {
-        return arguments.has(field) ? Optional.of(arguments.get(field).asInt()) : Optional.empty();
+    private Integer getNullableInt(JsonNode arguments, String field) {
+        return arguments.has(field) ? arguments.get(field).asInt() : null;
     }
 
-    private Optional<String> getOptionalString(JsonNode arguments, String field) {
+    private String getNullableString(JsonNode arguments, String field) {
         return arguments.has(field) && !arguments.get(field).isNull() ?
-                Optional.of(arguments.get(field).asText()) : Optional.empty();
+                arguments.get(field).asText() : null;
     }
 
     private void sendToolResult(ServerWebSocket webSocket, Object result, String id) {

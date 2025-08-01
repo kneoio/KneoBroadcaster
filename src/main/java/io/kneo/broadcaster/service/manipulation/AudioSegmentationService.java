@@ -50,7 +50,7 @@ public class AudioSegmentationService {
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e))
-                .chain(segments -> createHlsQueueFromSegments(segments));
+                .chain(this::createHlsQueueFromSegments);
     }
 
     private Uni<ConcurrentLinkedQueue<HlsSegment>> createHlsQueueFromSegments(List<SegmentInfo> segments) {

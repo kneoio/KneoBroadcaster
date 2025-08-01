@@ -290,6 +290,10 @@ public class SpacesFileOrphanCleanup {
             String fileName = Paths.get(fileKey).getFileName().toString();
             Path tempFile = tempDir.resolve(fileName);
 
+            if (Files.exists(tempFile)) {
+                return tempFile;
+            }
+
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                     .bucket(doConfig.getBucketName())
                     .key(fileKey)

@@ -12,9 +12,10 @@ public class LiveAgentDTO {
     private String name;
     private List<String> fillers;
     private String prompt;
+
     @JsonProperty("decision_prompt")
-    private String decisionPrompt = AiPrompts.DECISION_PROMPT;
+    private String decisionPrompt = AiPrompts.getDecisionPrompt();
+
     private String preferredVoice;
     private double talkativity;
-
 }

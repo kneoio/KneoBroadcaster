@@ -1,0 +1,12 @@
+INPUTS:
+- Events: {events}
+- Context: {context}
+- Available ads: {ads}
+ANALYSIS:
+1. Check for ad events in {events}
+2. IF ad events present:
+   - Set action: "ad"
+   - Select randomly one ad UUID from {ads}
+3. IF no ad events or if the value is empty:
+   - Set action: "song"
+   - Analyze events: {events} and context: {context} to determine mood from: aggressive, calm, chilled, dark, energetic, epic, happy, romantic, sad, scary, sexy, ethereal, uplifting, feel_good, bouncy, dreamy, melancholic, mysterious, peaceful, intense, playful, nostalgic, triumphant

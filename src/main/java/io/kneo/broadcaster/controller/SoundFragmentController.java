@@ -97,6 +97,21 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
+        router.route(HttpMethod.POST, path + "/bulk-brand-update").handler(jsonBodyHandler).handler(this::bulkBrandUpdate);
+    }
+
+    // DTO for bulk brand operation request
+    public static class BulkBrandUpdateDTO {
+        private List<UUID> documentIds;
+        private List<String> brands;
+        private String operation; // "SET" or "UNSET"
+
+        public List<UUID> getDocumentIds() { return documentIds; }
+        public void setDocumentIds(List<UUID> documentIds) { this.documentIds = documentIds; }
+        public List<String> getBrands() { return brands; }
+        public void setBrands(List<String> brands) { this.brands = brands; }
+        public String getOperation() { return operation; }
+        public void setOperation(String operation) { this.operation = operation; }
     }
 
     private void get(RoutingContext rc) {
@@ -378,6 +393,58 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             }
                         }
                 );
+    }
+
+    private void bulkBrandUpdate(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+
+            BulkBrandUpdateDTO dto = rc.body().asJsonObject().mapTo(BulkBrandUpdateDTO.class);
+
+            if (dto.getDocumentIds() == null || dto.getDocumentIds().isEmpty()) {
+                rc.fail(400, new IllegalArgumentException("Document IDs are required"));
+                return;
+            }
+
+            if (dto.getOperation() == null || (!dto.getOperation().equals("SET") && !dto.getOperation().equals("UNSET"))) {
+                rc.fail(400, new IllegalArgumentException("Operation must be SET or UNSET"));
+                return;
+            }
+
+            if ("SET".equals(dto.getOperation()) && (dto.getBrands() == null || dto.getBrands().isEmpty())) {
+                rc.fail(400, new IllegalArgumentException("Brands list is required for SET operation"));
+                return;
+            }
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.bulkBrandUpdate(dto.getDocumentIds(), dto.getBrands(), dto.getOperation(), user))
+                    .subscribe().with(
+                            updatedCount -> {
+                                JsonObject response = new JsonObject();
+                                response.put("updatedCount", updatedCount);
+                                response.put("operation", dto.getOperation());
+                                response.put("brands", dto.getBrands());
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(response.encode());
+                            },
+                            throwable -> {
+                                LOGGER.error("Bulk brand update failed", throwable);
+                                if (throwable instanceof IllegalArgumentException) {
+                                    rc.fail(400, throwable);
+                                } else {
+                                    rc.fail(500, throwable);
+                                }
+                            }
+                    );
+
+        } catch (Exception e) {
+            LOGGER.error("Error parsing bulk brand update request", e);
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
     }
 
     private void getDocumentAccess(RoutingContext rc) {

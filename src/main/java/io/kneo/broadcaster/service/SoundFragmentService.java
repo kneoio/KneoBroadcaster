@@ -481,6 +481,44 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         }
     }
 
+    public Uni<Integer> bulkBrandUpdate(List<UUID> documentIds, List<String> brands, String operation, IUser user) {
+        return Uni.createFrom().item(() -> {
+            int updatedCount = 0;
+
+            for (UUID documentId : documentIds) {
+                try {
+                    SoundFragment fragment = repository.findById(documentId, user.getId(), false).await().indefinitely();
+                    if (fragment == null) {
+                        continue;
+                    }
+
+                    List<String> updatedBrands;
+                    if ("SET".equals(operation)) {
+                        updatedBrands = new ArrayList<>(brands);
+                    } else {
+                        updatedBrands = new ArrayList<>();
+                    }
+
+                    repository.update(documentId, fragment, convertBrandsToUUIDs(updatedBrands), user).await().indefinitely();
+                    updatedCount++;
+
+                } catch (Exception e) {
+                    LOGGER.error("Failed to update document {}: {}", documentId, e.getMessage(), e);
+                }
+            }
+
+            return updatedCount;
+        });
+    }
+
+    private List<UUID> convertBrandsToUUIDs(List<String> brandNames) {
+        return brandNames.stream()
+                .map(brandName -> radioStationService.findByBrandName(brandName).await().indefinitely())
+                .filter(station -> station != null)
+                .map(RadioStation::getId)
+                .collect(Collectors.toList());
+    }
+
     private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl, List<UUID> representedInBrands) {
         return Uni.combine().all().unis(
                 userRepository.getUserName(doc.getAuthor()),

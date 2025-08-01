@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -43,6 +44,7 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
         router.post("/api/memories/:id?").handler(this::upsert);
         router.delete("/api/memories/:id").handler(this::delete);
         router.delete("/api/memories/brand/:brand").handler(this::deleteByBrand);
+        router.post("/api/memories/events").handler(this::triggerEvent);
     }
 
     private void getAll(RoutingContext rc) {
@@ -73,10 +75,6 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
 
         getContextUser(rc)
                 .chain(user -> {
-                    if ("new".equals(id)) {
-                        MemoryDTO<?> dto = new MemoryDTO<>();
-                        return Uni.createFrom().item(Tuple2.of(dto, user));
-                    }
                     return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))
                             .map(doc -> Tuple2.of(doc, user));
                 })
@@ -101,6 +99,33 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
                 .chain(user -> service.upsert(id, dto, user))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
+                        rc::fail
+                );
+    }
+
+    private void triggerEvent(RoutingContext rc) {
+        JsonObject jsonObject = rc.body().asJsonObject();
+        String brand = jsonObject.getString("brand");
+        String memoryTypeStr = jsonObject.getString("memoryType");
+        Object content = jsonObject.getValue("content");
+
+        if (brand == null || content == null || memoryTypeStr == null) {
+            rc.response().setStatusCode(400).end("{\"error\":\"Brand, content and memoryType are required\"}");
+            return;
+        }
+
+        MemoryType memoryType;
+        try {
+            memoryType = MemoryType.valueOf(memoryTypeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            rc.response().setStatusCode(400).end("{\"error\":\"Invalid memory type: " + memoryTypeStr + "\"}");
+            return;
+        }
+
+        getContextUser(rc)
+                .chain(user -> service.upsert(brand, memoryType, content))
+                .subscribe().with(
+                        id -> rc.response().setStatusCode(201).end("{\"id\":\"" + id + "\"}"),
                         rc::fail
                 );
     }

@@ -321,7 +321,7 @@ public class SpacesFileOrphanCleanup {
                     .artist(metadata.getArtist())
                     .genre(genre)
                     .album(metadata.getAlbum())
-                    .source(SourceType.ORPHAN_RECOVERY)
+                    .source(SourceType.RECOVERED_FROM_SPACES)
                     .status(1)
                     .type(PlaylistItemType.SONG)
                     .newlyUploaded(List.of())

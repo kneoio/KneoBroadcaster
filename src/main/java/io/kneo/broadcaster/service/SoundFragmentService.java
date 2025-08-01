@@ -37,6 +37,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -482,41 +483,51 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     public Uni<Integer> bulkBrandUpdate(List<UUID> documentIds, List<String> brands, String operation, IUser user) {
-        return Uni.createFrom().item(() -> {
-            int updatedCount = 0;
+        return getBrandUUIDs(brands)
+                .chain(brandUUIDs -> {
+                    List<Uni<SoundFragment>> updateUnis = documentIds.stream()
+                            .map(documentId ->
+                                    repository.findById(documentId, user.getId(), false)
+                                            .chain(fragment -> {
+                                                if (fragment == null) {
+                                                    return Uni.createFrom().nullItem();
+                                                }
 
-            for (UUID documentId : documentIds) {
-                try {
-                    SoundFragment fragment = repository.findById(documentId, user.getId(), false).await().indefinitely();
-                    if (fragment == null) {
-                        continue;
-                    }
+                                                List<UUID> updatedBrandIds;
+                                                if ("SET".equals(operation)) {
+                                                    updatedBrandIds = new ArrayList<>(brandUUIDs);
+                                                } else {
+                                                    updatedBrandIds = new ArrayList<>();
+                                                }
 
-                    List<String> updatedBrands;
-                    if ("SET".equals(operation)) {
-                        updatedBrands = new ArrayList<>(brands);
-                    } else {
-                        updatedBrands = new ArrayList<>();
-                    }
+                                                return repository.update(documentId, fragment, updatedBrandIds, user);
+                                            })
+                                            .onFailure().recoverWithItem(throwable -> {
+                                                LOGGER.error("Failed to update document {}: {}", documentId, throwable.getMessage());
+                                                return null;
+                                            })
+                            )
+                            .collect(Collectors.toList());
 
-                    repository.update(documentId, fragment, convertBrandsToUUIDs(updatedBrands), user).await().indefinitely();
-                    updatedCount++;
-
-                } catch (Exception e) {
-                    LOGGER.error("Failed to update document {}: {}", documentId, e.getMessage(), e);
-                }
-            }
-
-            return updatedCount;
-        });
+                    return Uni.join().all(updateUnis).andFailFast()
+                            .map(results -> (int) results.stream().filter(result -> result != null).count());
+                });
     }
 
-    private List<UUID> convertBrandsToUUIDs(List<String> brandNames) {
-        return brandNames.stream()
-                .map(brandName -> radioStationService.findByBrandName(brandName).await().indefinitely())
-                .filter(station -> station != null)
-                .map(RadioStation::getId)
+    private Uni<List<UUID>> getBrandUUIDs(List<String> brandNames) {
+        if (brandNames == null || brandNames.isEmpty()) {
+            return Uni.createFrom().item(new ArrayList<>());
+        }
+
+        List<Uni<RadioStation>> stationUnis = brandNames.stream()
+                .map(radioStationService::findByBrandName)
                 .collect(Collectors.toList());
+
+        return Uni.join().all(stationUnis).andFailFast()
+                .map(stations -> stations.stream()
+                        .filter(Objects::nonNull)
+                        .map(RadioStation::getId)
+                        .collect(Collectors.toList()));
     }
 
     private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl, List<UUID> representedInBrands) {

@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
+import io.kneo.broadcaster.dto.BulkBrandUpdateDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
@@ -92,26 +93,13 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
+        router.route(HttpMethod.POST, path + "/bulk-brand-update").handler(jsonBodyHandler).handler(this::bulkBrandUpdate);
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);
         router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
-        router.route(HttpMethod.POST, path + "/bulk-brand-update").handler(jsonBodyHandler).handler(this::bulkBrandUpdate);
-    }
 
-    // DTO for bulk brand operation request
-    public static class BulkBrandUpdateDTO {
-        private List<UUID> documentIds;
-        private List<String> brands;
-        private String operation; // "SET" or "UNSET"
-
-        public List<UUID> getDocumentIds() { return documentIds; }
-        public void setDocumentIds(List<UUID> documentIds) { this.documentIds = documentIds; }
-        public List<String> getBrands() { return brands; }
-        public void setBrands(List<String> brands) { this.brands = brands; }
-        public String getOperation() { return operation; }
-        public void setOperation(String operation) { this.operation = operation; }
     }
 
     private void get(RoutingContext rc) {

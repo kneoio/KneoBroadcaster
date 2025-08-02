@@ -1,9 +1,10 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.service.stream.HlsSegment;
-import io.kneo.broadcaster.service.stream.IStreamManager;
+import io.kneo.broadcaster.service.GeolocationService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.stream.HlsSegment;
+import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
@@ -28,6 +29,9 @@ public class RadioController {
         this.service = service;
     }
 
+    @Inject
+    private GeolocationService geoService;
+
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
@@ -44,8 +48,13 @@ public class RadioController {
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
-        LOGGER.debug("User-Agent: {}", userAgent);
-        service.getPlaylist(brand, userAgent, true)
+        String clientIP = rc.request().getHeader("do-connecting-ip");
+
+        geoService.getCountryAsync(clientIP)
+                .chain(country -> {
+                    LOGGER.debug("User-Agent: {}, Country: {}", userAgent, country);
+                    return service.getPlaylist(brand, userAgent, true);
+                })
                 .onItem().transform(IStreamManager::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -74,7 +83,7 @@ public class RadioController {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
-        service.getPlaylist(brand, userAgent, true)
+        service.getPlaylist(brand, userAgent, false)
                 .onItem().transform(playlist -> {
                     HlsSegment segment = playlist.getSegment(segmentParam);
                     if (segment == null) {

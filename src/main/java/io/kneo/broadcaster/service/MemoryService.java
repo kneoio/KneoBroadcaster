@@ -399,6 +399,7 @@ public class MemoryService {
         MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
         dto.setId(memory.getId());
         dto.setBrand(memory.getBrand());
+        //dto.setColor(memory.getBrand());
         dto.setMemoryType(memory.getMemoryType());
         dto.setContent(memory.getContent());
         dto.setRegDate(memory.getRegDate());

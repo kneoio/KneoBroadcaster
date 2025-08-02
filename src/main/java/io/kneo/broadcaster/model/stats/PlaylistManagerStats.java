@@ -14,11 +14,20 @@ public class PlaylistManagerStats {
     private String brand;
 
     public static PlaylistManagerStats from(PlaylistManager playlistManager) {
+        List<String> allReady = new java.util.ArrayList<>();
+
+        playlistManager.getManualQueue().stream()
+                .map(v -> v.getSoundFragment().getMetadata())
+                .forEach(allReady::add);
+
+        playlistManager.getSegmentedAndReadyToBeConsumed().stream()
+                .map(v -> v.getSoundFragment().getMetadata())
+                .forEach(allReady::add);
+
         return PlaylistManagerStats.builder()
                 .brand(playlistManager.getBrand())
-                .readyToBeConsumed(playlistManager.getSegmentedAndReadyToBeConsumed().stream()
-                        .map(v -> v.getSoundFragment().getMetadata()).toList())
-                        .obtainedByPlaylist(playlistManager.getObtainedByHlsPlaylist().stream()
+                .readyToBeConsumed(allReady)
+                .obtainedByPlaylist(playlistManager.getObtainedByHlsPlaylist().stream()
                         .map(v -> v.getSoundFragment().getMetadata()).toList())
                 .build();
     }

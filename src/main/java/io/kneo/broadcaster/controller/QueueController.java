@@ -18,7 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class QueueController {
@@ -62,42 +65,65 @@ public class QueueController {
         String brand = rc.pathParam("brand");
         String songIdAsString = rc.pathParam("songId");
 
-        determineFilePath(rc, brand)
-                .onItem().transformToUni(filePath ->
-                        service.addToQueue(brand, UUID.fromString(songIdAsString), filePath)
-                                .onItem().transform(ignored -> filePath)
+        processAllFiles(rc, brand)
+                .onItem().transformToUni(filePaths ->
+                        service.addToQueue(brand, UUID.fromString(songIdAsString), filePaths)
+                                .onItem().transform(ignored -> filePaths)
                 )
                 .subscribe().with(
-                        filePath -> {
+                        filePaths -> {
                             rc.response()
-                                    .setStatusCode(filePath != null ? 201 : 200)
+                                    .setStatusCode(filePaths.isEmpty() ? 200 : 201)
                                     .putHeader("Content-Type", "application/json")
                                     .end(Json.encode(new JsonObject()
                                             .put("success", true)
-                                            .put("fileUploaded", filePath != null)));
+                                            .put("filesUploaded", filePaths.size())
+                                            .put("filePaths", filePaths)));
                         },
                         error -> rc.fail(500, error)
                 );
     }
 
-    private Uni<String> determineFilePath(RoutingContext rc, String brand) {
+    private Uni<List<String>> processAllFiles(RoutingContext rc, String brand) {
         List<FileUpload> files = rc.fileUploads();
         if (files.isEmpty()) {
-            return Uni.createFrom().item((String) null);
+            return Uni.createFrom().item(List.of());
         }
 
-        FileUpload file = files.get(0);
-        String fileName = UUID.randomUUID() + "_" + file.fileName();
         String uploadDir = config.getPathUploads() + "/" + brand;
-        String newFilePath = uploadDir + "/" + fileName;
-
         var fs = vertx.fileSystem();
 
         return Uni.createFrom().completionStage(fs.mkdirs(uploadDir).toCompletionStage())
-                .onItem().transformToUni(v ->
-                        Uni.createFrom().completionStage(fs.move(file.uploadedFileName(), newFilePath).toCompletionStage())
-                )
-                .onItem().transform(v -> newFilePath);
+                .onItem().transformToUni(v -> {
+                    Map<String, FileUpload> uniqueFiles = deduplicateFiles(files);
+
+                    List<Uni<String>> fileProcessingTasks = uniqueFiles.values().stream()
+                            .map(file -> processFile(file, uploadDir, fs))
+                            .toList();
+
+                    return Uni.combine().all().unis(fileProcessingTasks)
+                            .with(results -> results.stream()
+                                    .map(String.class::cast)
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toList()));
+                });
+    }
+
+    private Map<String, FileUpload> deduplicateFiles(List<FileUpload> files) {
+        return files.stream()
+                .collect(Collectors.toMap(
+                        file -> file.fileName() + ":" + file.size(),
+                        file -> file,
+                        (existing, duplicate) -> existing
+                ));
+    }
+
+    private Uni<String> processFile(FileUpload file, String uploadDir, io.vertx.core.file.FileSystem fs) {
+        String newFilePath = uploadDir + "/" + file.fileName();
+
+        return Uni.createFrom().completionStage(
+                fs.move(file.uploadedFileName(), newFilePath).toCompletionStage()
+        ).onItem().transform(v -> newFilePath);
     }
 
     private void action(RoutingContext rc) {

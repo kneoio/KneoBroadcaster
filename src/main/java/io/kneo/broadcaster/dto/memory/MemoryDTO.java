@@ -2,13 +2,12 @@ package io.kneo.broadcaster.dto.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-
 import jakarta.validation.constraints.NotNull;
-import java.time.ZonedDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @Getter
@@ -19,6 +18,8 @@ public class MemoryDTO<T> {
     private UUID id;
     @NotNull
     private String brand;
+    @NotNull
+    private String color;
     @NotNull
     private MemoryType memoryType;
     @NotNull

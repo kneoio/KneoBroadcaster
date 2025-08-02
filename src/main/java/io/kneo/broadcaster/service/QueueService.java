@@ -20,9 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class QueueService {
@@ -44,36 +42,41 @@ public class QueueService {
         return getPlaylist(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation != null && radioStation.getPlaylist() != null && radioStation.getPlaylist().getPlaylistManager() != null) {
-                        PriorityQueue<BrandSoundFragment> fragments = radioStation.getPlaylist().getPlaylistManager().getSegmentedAndReadyToBeConsumed();
-                        if (fragments.isEmpty()) {
+                        var playlistManager = radioStation.getPlaylist().getPlaylistManager();
+
+                        List<Uni<SoundFragmentDTO>> unis = new java.util.ArrayList<>();
+                        playlistManager.getManualQueue().stream()
+                                .map(this::mapToBrandSoundFragmentDTO)
+                                .forEach(unis::add);
+                        playlistManager.getSegmentedAndReadyToBeConsumed().stream()
+                                .map(this::mapToBrandSoundFragmentDTO)
+                                .forEach(unis::add);
+
+                        if (unis.isEmpty()) {
                             return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                         }
-                        List<Uni<SoundFragmentDTO>> unis = fragments.stream()
-                                .map(this::mapToBrandSoundFragmentDTO)
-                                .collect(Collectors.toList());
-
                         return Uni.join().all(unis).andCollectFailures();
                     } else {
                         LOGGER.warn("RadioStation or Playlist not found for brand: {}", brandName);
                         return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                     }
-                })
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Error getting queue for brand {}: {}", brandName, failure.getMessage(), failure)
-                );
+                });
     }
 
-    public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, String filePath) {
+    public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, List<String> filePaths) {
         return soundFragmentService.getById(soundFragmentId, SuperUser.build())
                 .chain(soundFragment -> {
                     return repository.getFileById(soundFragment.getId())
                             .chain(metadata -> {
-                                if (filePath != null && !filePath.isEmpty()) {
+                                if (filePaths != null && !filePaths.isEmpty()) {
                                     try {
-                                        Path mergedPath = audioMergerService.mergeAudioFiles(
-                                                Path.of(filePath),
-                                                metadata.getFilePath(), 0
-                                        );
+                                        Path mergedPath = metadata.getFilePath();
+                                        for (String filePath : filePaths) {
+                                            mergedPath = audioMergerService.mergeAudioFiles(
+                                                    Path.of(filePath),
+                                                    mergedPath, 0
+                                            );
+                                        }
                                         metadata.setFilePath(mergedPath);
                                         soundFragment.setFileMetadataList(List.of(metadata));
                                         soundFragment.setTitle(String.format(" -- %s", soundFragment.getTitle()));

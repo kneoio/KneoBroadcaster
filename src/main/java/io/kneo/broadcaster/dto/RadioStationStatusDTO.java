@@ -13,6 +13,7 @@ import lombok.Setter;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RadioStationStatusDTO {
     private String name;
+    private String slugName;
     private String managedBy;
     private String djName;
     private String djPreferredLang;

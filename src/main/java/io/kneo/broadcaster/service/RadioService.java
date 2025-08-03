@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
+import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.RadioStationRepository;
@@ -9,6 +10,7 @@ import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -159,7 +161,8 @@ public class RadioService {
                     } else {
                         List<Uni<RadioStationStatusDTO>> statusUnis = stations.stream()
                                 .map(station -> Uni.createFrom().item(new RadioStationStatusDTO(
-                                        station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName()),
+                                        station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
+                                        station.getSlugName(),
                                         null,
                                         null,
                                         null,
@@ -182,18 +185,20 @@ public class RadioService {
         }
 
         String stationName = radioStation.getLocalizedName()
-                .getOrDefault(LanguageCode.en, radioStation.getSlugName());
+                .getOrDefault(radioStation.getCountry().getPreferredLanguage(), radioStation.getSlugName());
+        String slugName = radioStation.getSlugName();
         String managedByType = radioStation.getManagedBy().toString();
         String currentStatus = radioStation.getStatus() != null ?
-                radioStation.getStatus().name() : "OFF_LINE";
+                radioStation.getStatus().name() : RadioStationStatus.OFF_LINE.name();
         String agentStatus = radioStation.getAiAgentStatus() != null ?
-                radioStation.getAiAgentStatus().name() : "UNKNOWN";
+                radioStation.getAiAgentStatus().name() : AiAgentStatus.UNDEFINED.name();
         String stationCountryCode = radioStation.getCountry().name();
 
         if (radioStation.getAiAgentId() != null) {
             return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                     .onItem().transform(aiAgent -> new RadioStationStatusDTO(
                             stationName,
+                            slugName,
                             managedByType,
                             aiAgent.getName(),
                             aiAgent.getPreferredLang().name().toUpperCase(),
@@ -205,6 +210,7 @@ public class RadioService {
                     ))
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
                             stationName,
+                            slugName,
                             managedByType,
                             null,
                             null,
@@ -218,6 +224,7 @@ public class RadioService {
 
         return Uni.createFrom().item(new RadioStationStatusDTO(
                 stationName,
+                slugName,
                 managedByType,
                 null,
                 null,

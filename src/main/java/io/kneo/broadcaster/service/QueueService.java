@@ -71,6 +71,14 @@ public class QueueService {
                                 if (filePaths != null && !filePaths.isEmpty()) {
                                     try {
                                         Path mergedPath = metadata.getFilePath();
+                                        String dashPrefix = " - ";
+
+                                        String firstFilePath = filePaths.get(0);
+                                        String fileName = Path.of(firstFilePath).getFileName().toString();
+                                        if (fileName.contains("_--")) {
+                                            dashPrefix = " -- ";
+                                        }
+
                                         for (String filePath : filePaths) {
                                             mergedPath = audioMergerService.mergeAudioFiles(
                                                     Path.of(filePath),
@@ -79,7 +87,7 @@ public class QueueService {
                                         }
                                         metadata.setFilePath(mergedPath);
                                         soundFragment.setFileMetadataList(List.of(metadata));
-                                        soundFragment.setTitle(String.format(" -- %s", soundFragment.getTitle()));
+                                        soundFragment.setTitle(String.format("%s%s", dashPrefix, soundFragment.getTitle()));
                                     } catch (Exception e) {
                                         LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
                                         return Uni.createFrom().failure(e);

@@ -1,12 +1,10 @@
 package io.kneo.broadcaster.service.radio;
 
-import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
-import io.kneo.broadcaster.model.stats.SchedulerTaskTimeline;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -29,11 +27,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
-    private static final String SCHEDULED_TASK_ID = "playlist-manager-task";
-    private static final int INTERVAL_SECONDS = 240;
+    private static final int SELF_MANAGING_INTERVAL_SECONDS = 300;
     private static final int READY_QUEUE_MAX_SIZE = 3;
     private static final int TRIGGER_SELF_MANAGING = 1;
-    private static final int PROCESSED_QUEUE_MAX_SIZE = 5;
+    private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
 
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
@@ -42,16 +39,14 @@ public class PlaylistManager {
     private final LinkedList<BrandSoundFragment> obtainedByHlsPlaylist = new LinkedList<>();
 
     @Getter
-    private final PriorityQueue<BrandSoundFragment> segmentedAndReadyToBeConsumed = new PriorityQueue<>(Comparator.comparing(BrandSoundFragment::getQueueNum));
+    private final PriorityQueue<BrandSoundFragment> regularQueue = new PriorityQueue<>(Comparator.comparing(BrandSoundFragment::getQueueNum));
 
     @Getter
-    private final LinkedList<BrandSoundFragment> manualQueue = new LinkedList<>();
+    private final LinkedList<BrandSoundFragment> prioritizedQueue = new LinkedList<>();
 
     @Getter
     private final String brand;
 
-    @Getter
-    private final SchedulerTaskTimeline taskTimeline = new SchedulerTaskTimeline();
     private final SoundFragmentService soundFragmentService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final AudioSegmentationService segmentationService;
@@ -64,27 +59,22 @@ public class PlaylistManager {
         this.radioStation = playlist.getRadioStation();
         this.brand = radioStation.getSlugName();
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
-        taskTimeline.registerTask(
-                SCHEDULED_TASK_ID,
-                "Playlist Manager",
-                INTERVAL_SECONDS
-        );
+
     }
 
     public void startSelfManaging() {
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                if (segmentedAndReadyToBeConsumed.size() <= TRIGGER_SELF_MANAGING) {
+                if (regularQueue.size() <= TRIGGER_SELF_MANAGING) {
                     addFragments(2);
                 } else {
                     LOGGER.debug("Skipping fragment addition - ready queue is full ({} items)",
                             READY_QUEUE_MAX_SIZE);
                 }
-                taskTimeline.updateProgress();
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
-        }, 0, INTERVAL_SECONDS, TimeUnit.SECONDS);
+        }, 0, SELF_MANAGING_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
@@ -103,9 +93,6 @@ public class PlaylistManager {
                 LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
                 return this.addFragmentToSlice(brandSoundFragment, filePath);
             }
-
-            LOGGER.debug("File path is null for sound fragment '{}', assuming lazy load and fetching.",
-                    brandSoundFragment.getSoundFragment().getMetadata());
 
             Uni<Path> pathUni = soundFragmentService.getFile(
                             brandSoundFragment.getSoundFragment().getId(),
@@ -139,36 +126,25 @@ public class PlaylistManager {
 
                     readyFragmentsLock.writeLock().lock();
                     try {
-                        boolean isManual = brandSoundFragment.getQueueNum() == 10;
-                        int totalQueueSize = manualQueue.size() + segmentedAndReadyToBeConsumed.size();
+                        boolean isAiDjSubmit = brandSoundFragment.getQueueNum() == 10;
+                        int totalQueueSize = prioritizedQueue.size() + regularQueue.size();
 
 
-                        if (isManual) {  //for manual always allow to add but status changed
+                        if (isAiDjSubmit) {  //for manual always allow to add but status changed
                             if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
                             }
-                            manualQueue.add(brandSoundFragment);
-                            LOGGER.info("Added manual fragment for brand {}: {}", brand, filePath.getFileName().toString());
+                            prioritizedQueue.add(brandSoundFragment);
+                            LOGGER.info("Added AI submit fragment for brand {}: {}", brand, filePath.getFileName().toString());
                         } else {
                             if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
+                                return Uni.createFrom().item(false);
                             } else {
-                                if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
-                                    LOGGER.debug("Cannot add fragment from path - ready queue is full ({} items)", READY_QUEUE_MAX_SIZE);
-                                    return Uni.createFrom().item(false);
-                                }
-
-                                if (radioStation.getStatus() == RadioStationStatus.WARMING_UP) {
-                                    //radioStation.setStatus(RadioStationStatus.ON_LINE);
-                                }
-                                radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
-
-                                segmentedAndReadyToBeConsumed.add(brandSoundFragment);
+                                regularQueue.add(brandSoundFragment);
                                 LOGGER.info("Added and sliced fragment from path for brand {}: {}", brand, filePath.getFileName().toString());
                             }
                         }
-
-
                         return Uni.createFrom().item(true);
                     } finally {
                         readyFragmentsLock.writeLock().unlock();
@@ -179,21 +155,17 @@ public class PlaylistManager {
     public BrandSoundFragment getNextFragment() {
         readyFragmentsLock.writeLock().lock();
         try {
-            if (!manualQueue.isEmpty()) {
-                BrandSoundFragment nextFragment = manualQueue.poll();
+            if (!prioritizedQueue.isEmpty()) {
+                BrandSoundFragment nextFragment = prioritizedQueue.poll();
                 moveFragmentToProcessedList(nextFragment);
                 return nextFragment;
             }
 
-            if (!segmentedAndReadyToBeConsumed.isEmpty()) {
-                BrandSoundFragment nextFragment = segmentedAndReadyToBeConsumed.poll();
+            if (!regularQueue.isEmpty()) {
+                BrandSoundFragment nextFragment = regularQueue.poll();
                 moveFragmentToProcessedList(nextFragment);
-                /*if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE) {
-                    radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    radioStation.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
-                }*/
 
-                if (segmentedAndReadyToBeConsumed.size() < READY_QUEUE_MAX_SIZE &&
+                if (regularQueue.size() < READY_QUEUE_MAX_SIZE &&
                         radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
                     LOGGER.info("Queue capacity available - switching back to ON_LINE");

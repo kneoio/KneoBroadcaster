@@ -45,10 +45,10 @@ public class QueueService {
                         var playlistManager = radioStation.getPlaylist().getPlaylistManager();
 
                         List<Uni<SoundFragmentDTO>> unis = new java.util.ArrayList<>();
-                        playlistManager.getManualQueue().stream()
+                        playlistManager.getPrioritizedQueue().stream()
                                 .map(this::mapToBrandSoundFragmentDTO)
                                 .forEach(unis::add);
-                        playlistManager.getSegmentedAndReadyToBeConsumed().stream()
+                        playlistManager.getRegularQueue().stream()
                                 .map(this::mapToBrandSoundFragmentDTO)
                                 .forEach(unis::add);
 

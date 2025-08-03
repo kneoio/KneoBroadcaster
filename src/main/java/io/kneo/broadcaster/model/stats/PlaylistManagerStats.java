@@ -16,11 +16,11 @@ public class PlaylistManagerStats {
     public static PlaylistManagerStats from(PlaylistManager playlistManager) {
         List<String> allReady = new java.util.ArrayList<>();
 
-        playlistManager.getManualQueue().stream()
+        playlistManager.getPrioritizedQueue().stream()
                 .map(v -> v.getSoundFragment().getMetadata())
                 .forEach(allReady::add);
 
-        playlistManager.getSegmentedAndReadyToBeConsumed().stream()
+        playlistManager.getRegularQueue().stream()
                 .map(v -> v.getSoundFragment().getMetadata())
                 .forEach(allReady::add);
 

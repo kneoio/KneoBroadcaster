@@ -198,14 +198,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    int limit = quantity;
-                    if (shuffle) {
-                        limit = quantity > 1 ? 50 : quantity;
-                    }
                     BrandActivityLogger.logActivity(brandName, "fetching_fragments",
-                            "Fetching up to %d fragments for brand ID: %s with filter", limit, brandId);
+                            "Fetching up to %d fragments for brand ID: %s with filter", quantity, brandId);
 
-                    return repository.findForBrand(brandId, limit, 0, false, user, filter)
+                    return repository.findForBrand(brandId, quantity, 0, false, user, filter)
                             .chain(fragments -> {
                                 BrandActivityLogger.logActivity(brandName, "fragments_retrieved",
                                         "Retrieved %d fragments", fragments.size());
@@ -213,11 +209,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                     BrandActivityLogger.logActivity(brandName, "shuffling_fragments",
                                             "Shuffling fragments");
                                     Collections.shuffle(fragments);
-                                    if (quantity > 0 && fragments.size() > quantity) {
-                                        fragments = fragments.subList(0, quantity);
-                                        BrandActivityLogger.logActivity(brandName, "fragments_limited",
-                                                "Limited to %d fragments after shuffle", fragments.size());
-                                    }
                                 }
                                 return Uni.createFrom().item(fragments);
                             });

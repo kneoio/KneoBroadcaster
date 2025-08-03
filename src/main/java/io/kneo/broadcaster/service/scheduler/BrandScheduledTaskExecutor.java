@@ -104,6 +104,19 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
                     });
         }
 
+        // Handle AI control recovery when task exists but AI control is disabled
+        if (withinWindow && currentState != null && !atStart && !atEnd) {
+            boolean needsRecovery = radioStationPool.getOnlineStationsSnapshot()
+                    .stream()
+                    .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
+                    .anyMatch(rs -> !rs.isAiControlAllowed());
+
+            if (needsRecovery) {
+                LOGGER.warn("Task exists but AI control disabled - recovering for station: {}", station.getSlugName());
+                return startDjControl(station, target);
+            }
+        }
+
         if (atWarning && currentState != null) {
             String warningTaskKey = TaskKeyGenerator.generateWarning(taskKey);
             TaskState warningState = getRunningTask(warningTaskKey);
@@ -181,15 +194,16 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
                 .onItem().invoke(() -> {
                     radioStationPool.getOnlineStationsSnapshot()
                             .stream()
-                            .filter(rs -> rs.getSlugName().equals(station.getSlugName()))
-                            .filter(rs ->
-                                    rs.getStatus() == RadioStationStatus.ON_LINE ||
-                                            rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                                            rs.getStatus() == RadioStationStatus.WARMING_UP)
-                            .forEach(rs -> {
-                                rs.setAiControlAllowed(true);
+                            .filter(brand -> brand.getSlugName().equals(station.getSlugName()))
+                            .filter(brand ->
+                                    brand.getStatus() == RadioStationStatus.ON_LINE ||
+                                            brand.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                            brand.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                                            brand.getStatus() == RadioStationStatus.WARMING_UP)
+                            .forEach(brand -> {
+                                brand.setAiControlAllowed(true);
                                 createMemoryEvent(station.getSlugName(), "The shift of the dj started");
-                                LOGGER.info("Set AiControlAllowed=true for station: {}", rs.getSlugName());
+                                LOGGER.info("Set AiControlAllowed=true for station: {}", brand.getSlugName());
                             });
                 });
     }
@@ -204,6 +218,7 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
                                     rs.getStatus() == RadioStationStatus.ON_LINE ||
                                             rs.getStatus() == RadioStationStatus.WARMING_UP ||
                                             rs.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                            rs.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
                                             rs.getStatus() == RadioStationStatus.IDLE)
                             .forEach(rs -> {
                                 rs.setAiControlAllowed(false);

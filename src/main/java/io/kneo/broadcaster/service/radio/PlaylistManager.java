@@ -142,13 +142,16 @@ public class PlaylistManager {
                         boolean isManual = brandSoundFragment.getQueueNum() == 10;
                         int totalQueueSize = manualQueue.size() + segmentedAndReadyToBeConsumed.size();
 
-                        if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
-                            radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
-                        } else {
 
-                            if (isManual) {
-                                manualQueue.add(brandSoundFragment);
-                                LOGGER.info("Added manual fragment for brand {}: {}", brand, filePath.getFileName().toString());
+                        if (isManual) {  //for manual always allow to add but status changed
+                            if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
+                                radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
+                            }
+                            manualQueue.add(brandSoundFragment);
+                            LOGGER.info("Added manual fragment for brand {}: {}", brand, filePath.getFileName().toString());
+                        } else {
+                            if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
+                                radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
                             } else {
                                 if (segmentedAndReadyToBeConsumed.size() >= READY_QUEUE_MAX_SIZE) {
                                     LOGGER.debug("Cannot add fragment from path - ready queue is full ({} items)", READY_QUEUE_MAX_SIZE);
@@ -164,6 +167,7 @@ public class PlaylistManager {
                                 LOGGER.info("Added and sliced fragment from path for brand {}: {}", brand, filePath.getFileName().toString());
                             }
                         }
+
 
                         return Uni.createFrom().item(true);
                     } finally {

@@ -223,6 +223,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setStatus(liveStatus);
             if (liveStatus == RadioStationStatus.ON_LINE
                     || liveStatus == RadioStationStatus.WARMING_UP
+                    || liveStatus == RadioStationStatus.QUEUE_SATURATED
                     || liveStatus == RadioStationStatus.WAITING_FOR_CURATOR) {
                 if (dto.getSchedule().isEnabled()) {
                     dto.setAiControlAllowed(tuple.getItem3().isAiControlAllowed());

@@ -38,7 +38,11 @@ public class MCPServer extends AbstractVerticle {
     public void start(Promise<Void> startPromise) {
         server = vertx.createHttpServer();
 
-        server.webSocketHandler(this::handleWebSocket)
+        server.webSocketHandler(webSocket -> {
+                    LOGGER.info("WebSocket connection attempt: path={}, remote={}",
+                            webSocket.path(), webSocket.remoteAddress());
+                    handleWebSocket(webSocket);
+                })
                 .listen(mcpConfig.getServerPort())
                 .onSuccess(result -> {
                     LOGGER.info("MCP Server started on port {}", mcpConfig.getServerPort());
@@ -48,6 +52,10 @@ public class MCPServer extends AbstractVerticle {
     }
 
     private void handleWebSocket(ServerWebSocket webSocket) {
+        LOGGER.info("WebSocket handshake initiated from: {}", webSocket.remoteAddress());
+        LOGGER.info("WebSocket path: {}", webSocket.path());
+        LOGGER.info("WebSocket headers: {}", webSocket.headers());
+
         LOGGER.info("MCP client connected from: {}", webSocket.remoteAddress());
         LOGGER.info("Connection established, ready to receive MCP requests");
 

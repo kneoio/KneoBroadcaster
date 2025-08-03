@@ -52,7 +52,7 @@ public class RadioController {
 
         geoService.getCountryAsync(clientIP)
                 .chain(country -> {
-                    LOGGER.debug("User-Agent: {}, Country: {}", userAgent, country);
+                    LOGGER.info("User-Agent: {}, Country: {}, Ip: {}", userAgent, country, clientIP);
                     return service.getPlaylist(brand, userAgent, true);
                 })
                 .onItem().transform(IStreamManager::generatePlaylist)

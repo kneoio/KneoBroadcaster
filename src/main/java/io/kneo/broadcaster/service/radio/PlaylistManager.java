@@ -173,7 +173,10 @@ public class PlaylistManager {
 
                 return nextFragment;
             } else {
-                radioStation.setStatus(RadioStationStatus.ON_LINE);
+                if (prioritizedQueue.size() < READY_QUEUE_MAX_SIZE &&
+                        radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
+                    radioStation.setStatus(RadioStationStatus.ON_LINE);
+                }
             }
             return null;
         } finally {

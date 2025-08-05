@@ -25,6 +25,9 @@ public class MCPServerStartup {
     @Inject
     MemoryMCPTools memoryMCPTools;
 
+    @Inject
+    QueueMCPTools queueMCPTools;
+
     void onStart(@Observes StartupEvent ev) {
         if (!mcpConfig.isServerEnabled()) {
             LOGGER.info("MCP Server disabled via configuration");
@@ -33,7 +36,7 @@ public class MCPServerStartup {
 
         LOGGER.info("Starting MCP Server...");
 
-        MCPServer mcpServer = new MCPServer(soundFragmentMCPTools, memoryMCPTools, mcpConfig);
+        MCPServer mcpServer = new MCPServer(soundFragmentMCPTools, memoryMCPTools, queueMCPTools, mcpConfig);
 
         vertx.deployVerticle(mcpServer)
                 .onSuccess(deploymentId -> {

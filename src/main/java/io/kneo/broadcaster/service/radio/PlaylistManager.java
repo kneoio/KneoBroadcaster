@@ -79,6 +79,8 @@ public class PlaylistManager {
 
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
         try {
+
+            //TODO it is not decoupled enough for microservices
             var metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
             if (metadataList == null || metadataList.isEmpty()) {
                 LOGGER.warn("Skipping fragment with empty metadata list: {}",

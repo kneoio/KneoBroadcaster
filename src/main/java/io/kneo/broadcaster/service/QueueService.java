@@ -3,6 +3,8 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.dto.queue.IntroPlusSong;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -19,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -44,7 +47,7 @@ public class QueueService {
                     if (radioStation != null && radioStation.getPlaylist() != null && radioStation.getPlaylist().getPlaylistManager() != null) {
                         var playlistManager = radioStation.getPlaylist().getPlaylistManager();
 
-                        List<Uni<SoundFragmentDTO>> unis = new java.util.ArrayList<>();
+                        List<Uni<SoundFragmentDTO>> unis = new ArrayList<>();
                         playlistManager.getPrioritizedQueue().stream()
                                 .map(this::mapToBrandSoundFragmentDTO)
                                 .forEach(unis::add);
@@ -61,6 +64,69 @@ public class QueueService {
                         return Uni.createFrom().item(List.<SoundFragmentDTO>of());
                     }
                 });
+    }
+
+    public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO) {
+        if (toQueueDTO.getMergingMethod() instanceof IntroPlusSong method) {
+            UUID soundFragmentId = method.getSoundFragmentUUID();
+            return soundFragmentService.getById(soundFragmentId, SuperUser.build())
+                    .chain(soundFragment -> {
+                        return repository.getFileById(soundFragment.getId())
+                                .chain(metadata -> {
+                                    try {
+                                        Path mergedPath = metadata.getFilePath();
+                                        mergedPath = audioMergerService.mergeAudioFiles(
+                                                method.getFilePath(),
+                                                mergedPath, 0);
+                                        metadata.setFilePath(mergedPath);
+                                        soundFragment.setFileMetadataList(List.of(metadata));
+                                        soundFragment.setTitle(soundFragment.getTitle());
+                                    } catch (Exception e) {
+                                        LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
+                                        return Uni.createFrom().failure(e);
+                                    }
+
+                                    return getPlaylist(brandName)
+                                            .onItem().transformToUni(radioStation -> {
+                                                if (radioStation == null) {
+                                                    return Uni.createFrom().item(Boolean.FALSE);
+                                                }
+
+                                                radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                                brandSoundFragment.setId(soundFragment.getId());
+                                                brandSoundFragment.setSoundFragment(soundFragment);
+                                                brandSoundFragment.setQueueNum(toQueueDTO.getPriority());
+
+                                                return radioStation.getPlaylist().getPlaylistManager()
+                                                        .addFragmentToSlice(brandSoundFragment)
+                                                        .onItem().invoke(result -> {
+                                                            if (result) {
+                                                                LOGGER.info("Added song to queue for brand {}: {}",
+                                                                        brandName, soundFragment.getTitle());
+                                                            }
+                                                        })
+                                                        .onItem().transform(Boolean::valueOf);
+                                            });
+                                });
+                    })
+                    .onFailure().recoverWithItem(failure -> {
+                        LOGGER.error("Error adding to queue for brand {}: {}", brandName, failure.getMessage(), failure);
+                        radioStationPool.get(brandName)
+                                .subscribe().with(
+                                        station -> {
+                                            if (station != null) {
+                                                station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                                LOGGER.warn("Station {} addToQueue failure", brandName);
+                                            }
+                                        },
+                                        error -> LOGGER.error("Failed to get station {} to set error status: {}", brandName, error.getMessage(), error)
+                                );
+                        return Boolean.FALSE;
+                    });
+        } else {
+            return Uni.createFrom().item(Boolean.FALSE);
+        }
     }
 
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, List<String> filePaths) {

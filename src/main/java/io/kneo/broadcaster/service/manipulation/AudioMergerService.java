@@ -70,6 +70,7 @@ public class AudioMergerService {
         }
     }
 
+
     public Path mergeAudioFiles(Path speechFilePath, Path songFilePath, int silenceDurationSeconds) throws AudioMergeException {
         String mergedFileName = UUID.randomUUID() + "." + config.getAudioOutputFormat();
         Path outputFilePath = Paths.get(outputDir, mergedFileName);
@@ -105,11 +106,11 @@ public class AudioMergerService {
             LOGGER.info("Successfully merged audio files to: {}", outputFilePath);
 
 
-          //  Path debugDir = Paths.get(System.getProperty("java.io.tmpdir"), "audio_debug");
-          //  Files.createDirectories(debugDir);
-          //  Path debugFile = debugDir.resolve("debug_" + System.currentTimeMillis() + "_" + outputFilePath.getFileName());
-          //  Files.copy(outputFilePath, debugFile, StandardCopyOption.REPLACE_EXISTING);
-          //  LOGGER.info("Debug copy created at: {}", debugFile);
+            //  Path debugDir = Paths.get(System.getProperty("java.io.tmpdir"), "audio_debug");
+            //  Files.createDirectories(debugDir);
+            //  Path debugFile = debugDir.resolve("debug_" + System.currentTimeMillis() + "_" + outputFilePath.getFileName());
+            //  Files.copy(outputFilePath, debugFile, StandardCopyOption.REPLACE_EXISTING);
+            //  LOGGER.info("Debug copy created at: {}", debugFile);
 
             return outputFilePath;
 

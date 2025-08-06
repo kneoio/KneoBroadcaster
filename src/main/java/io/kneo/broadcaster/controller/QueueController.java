@@ -119,11 +119,35 @@ public class QueueController {
     }
 
     private Uni<String> processFile(FileUpload file, String uploadDir, io.vertx.core.file.FileSystem fs) {
-        String newFilePath = uploadDir + "/" + file.fileName();
+        String originalFileName = file.fileName();
+        String sanitizedFileName = sanitizeFileName(originalFileName);
+        String uploadedPath = file.uploadedFileName();
+        String newFilePath = uploadDir + "/" + sanitizedFileName;
+
+        LOGGER.info("FILE_PROCESS - Processing: '{}' -> '{}' (uploaded from: '{}')",
+                originalFileName, newFilePath, uploadedPath);
 
         return Uni.createFrom().completionStage(
-                fs.move(file.uploadedFileName(), newFilePath).toCompletionStage()
-        ).onItem().transform(v -> newFilePath);
+                fs.exists(uploadedPath).toCompletionStage()
+        ).onItem().transformToUni(exists -> {
+            if (!exists) {
+                LOGGER.error("FILE_NOT_FOUND - Source file missing: {}", uploadedPath);
+                return Uni.createFrom().failure(new IllegalStateException("Source file not found: " + uploadedPath));
+            }
+
+            LOGGER.debug("FILE_EXISTS - Moving file from '{}' to '{}'", uploadedPath, newFilePath);
+
+            return Uni.createFrom().completionStage(
+                            fs.move(uploadedPath, newFilePath).toCompletionStage()
+                    ).onItem().invoke(v -> LOGGER.info("FILE_MOVED - Success: {}", newFilePath))
+                    .onFailure().invoke(error -> LOGGER.error("FILE_MOVE_FAILED - Error moving '{}' to '{}': {}",
+                            uploadedPath, newFilePath, error.getMessage()))
+                    .onItem().transform(v -> newFilePath);
+        });
+    }
+
+    private String sanitizeFileName(String fileName) {
+        return fileName.replaceAll("[/\\\\:*?\"<>|]", "_");
     }
 
     private void action(RoutingContext rc) {

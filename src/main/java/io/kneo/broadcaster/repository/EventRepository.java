@@ -100,7 +100,7 @@ public class EventRepository extends AsyncRepository {
         String sql = "SELECT e.* " +
                 "FROM " + entityData.getTableName() + " e " +
                 "JOIN " + entityData.getRlsName() + " rls ON e.id = rls.entity_id " +
-                "WHERE e.brand = $1 AND rls.reader = $2";
+                "WHERE e.brand_id = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
             sql += " AND (e.archived IS NULL OR e.archived = 0)";
@@ -124,7 +124,7 @@ public class EventRepository extends AsyncRepository {
         String sql = "SELECT COUNT(e.id) " +
                 "FROM " + entityData.getTableName() + " e " +
                 "JOIN " + entityData.getRlsName() + " rls ON e.id = rls.entity_id " +
-                "WHERE e.brand = $1 AND rls.reader = $2";
+                "WHERE e.brand_id = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
             sql += " AND (e.archived IS NULL OR e.archived = 0)";
@@ -139,7 +139,7 @@ public class EventRepository extends AsyncRepository {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, brand, type, timestamp_event, description, priority, archived) " +
+                " (author, reg_date, last_mod_user, last_mod_date, brand_id, type, timestamp_event, description, priority, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
         Tuple params = Tuple.tuple()
@@ -179,7 +179,7 @@ public class EventRepository extends AsyncRepository {
                             LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET brand=$1, type=$2, timestamp_event=$3, description=$4, priority=$5, last_mod_user=$6, last_mod_date=$7 " +
+                                    " SET brand_id=$1, type=$2, timestamp_event=$3, description=$4, priority=$5, last_mod_user=$6, last_mod_date=$7 " +
                                     "WHERE id=$8";
 
                             Tuple params = Tuple.tuple()
@@ -236,7 +236,7 @@ public class EventRepository extends AsyncRepository {
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
-        doc.setBrand(row.getString("brand_id"));
+        doc.setBrand(UUID.fromString(row.getString("brand_id")));
         doc.setType(EventType.valueOf(row.getString("type")));
         doc.setTimestampEvent(row.getOffsetDateTime("timestamp_event").toLocalDateTime());
         doc.setDescription(row.getString("description"));

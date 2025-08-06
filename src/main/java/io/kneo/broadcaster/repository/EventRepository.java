@@ -236,7 +236,7 @@ public class EventRepository extends AsyncRepository {
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
-        doc.setBrand(UUID.fromString(row.getString("brand_id")));
+        doc.setBrand(row.getUUID("brand_id"));
         doc.setType(EventType.valueOf(row.getString("type")));
         doc.setTimestampEvent(row.getOffsetDateTime("timestamp_event").toLocalDateTime());
         doc.setDescription(row.getString("description"));

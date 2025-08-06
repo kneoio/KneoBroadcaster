@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.EventDTO;
+import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.service.EventService;
 import io.kneo.core.controller.AbstractSecuredController;

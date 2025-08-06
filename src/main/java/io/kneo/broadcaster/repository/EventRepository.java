@@ -2,6 +2,7 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -146,7 +147,7 @@ public class EventRepository extends AsyncRepository {
                 .addLong(user.getId())
                 .addLocalDateTime(nowTime)
                 .addString(event.getBrand())
-                .addString(event.getType())
+                .addString(event.getType().toString())
                 .addOffsetDateTime(event.getTimestampEvent().atOffset(ZoneOffset.UTC))
                 .addString(event.getDescription())
                 .addString(event.getPriority())
@@ -182,7 +183,7 @@ public class EventRepository extends AsyncRepository {
 
                             Tuple params = Tuple.tuple()
                                     .addString(event.getBrand())
-                                    .addString(event.getType())
+                                    .addString(event.getType().name())
                                     .addOffsetDateTime(event.getTimestampEvent().atOffset(ZoneOffset.UTC))
                                     .addString(event.getDescription())
                                     .addString(event.getPriority())
@@ -235,7 +236,7 @@ public class EventRepository extends AsyncRepository {
         Event doc = new Event();
         setDefaultFields(doc, row);
         doc.setBrand(row.getString("brand"));
-        doc.setType(row.getString("type"));
+        doc.setType(EventType.valueOf(row.getString("type")));
         doc.setTimestampEvent(row.getOffsetDateTime("timestamp_event").toLocalDateTime());
         doc.setDescription(row.getString("description"));
         doc.setPriority(row.getString("priority"));

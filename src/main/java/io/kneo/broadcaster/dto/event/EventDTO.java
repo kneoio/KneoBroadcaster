@@ -1,6 +1,7 @@
-package io.kneo.broadcaster.dto;
+package io.kneo.broadcaster.dto.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.core.dto.AbstractReferenceDTO;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -9,6 +10,7 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
@@ -16,10 +18,9 @@ import java.time.LocalDateTime;
 @SuperBuilder
 @NoArgsConstructor
 public class EventDTO extends AbstractReferenceDTO {
-    private String brand;
+    private List<String> brands;
 
-    @NotNull(message = "Type is required")
-    private String type;
+    private EventType type;
 
     @NotNull(message = "Timestamp is required")
     private LocalDateTime timestampEvent;

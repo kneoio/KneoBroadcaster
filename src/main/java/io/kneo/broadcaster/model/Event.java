@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Event extends SecureDataEntity<UUID> {
     private String brand;
-    private String type;
+    private EventType type;
     private LocalDateTime timestampEvent;
     private String description;
     private String priority;

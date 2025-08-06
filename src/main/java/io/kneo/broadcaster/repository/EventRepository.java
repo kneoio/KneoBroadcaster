@@ -2,6 +2,7 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -146,11 +147,11 @@ public class EventRepository extends AsyncRepository {
                 .addLocalDateTime(nowTime)
                 .addLong(user.getId())
                 .addLocalDateTime(nowTime)
-                .addString(event.getBrand())
+                .addUUID(event.getBrand())
                 .addString(event.getType().toString())
                 .addOffsetDateTime(event.getTimestampEvent().atOffset(ZoneOffset.UTC))
                 .addString(event.getDescription())
-                .addString(event.getPriority())
+                .addString(event.getPriority().name())
                 .addInteger(0);
 
         return client.withTransaction(tx ->
@@ -182,11 +183,11 @@ public class EventRepository extends AsyncRepository {
                                     "WHERE id=$8";
 
                             Tuple params = Tuple.tuple()
-                                    .addString(event.getBrand())
+                                    .addUUID(event.getBrand())
                                     .addString(event.getType().name())
                                     .addOffsetDateTime(event.getTimestampEvent().atOffset(ZoneOffset.UTC))
                                     .addString(event.getDescription())
-                                    .addString(event.getPriority())
+                                    .addString(event.getPriority().name())
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -235,11 +236,11 @@ public class EventRepository extends AsyncRepository {
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
-        doc.setBrand(row.getString("brand"));
+        doc.setBrand(row.getString("brand_id"));
         doc.setType(EventType.valueOf(row.getString("type")));
         doc.setTimestampEvent(row.getOffsetDateTime("timestamp_event").toLocalDateTime());
         doc.setDescription(row.getString("description"));
-        doc.setPriority(row.getString("priority"));
+        doc.setPriority(EventPriority.valueOf(row.getString("priority")));
         doc.setArchived(row.getInteger("archived"));
 
         return Uni.createFrom().item(doc);

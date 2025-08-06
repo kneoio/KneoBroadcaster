@@ -2,6 +2,8 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.cnst.EventPriority;
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.repository.EventRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -136,22 +138,22 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
-            //dto.setBrand(doc.getBrand());
-            dto.setType(doc.getType());
+            dto.setBrand(doc.getBrand().toString());
+            dto.setType(doc.getType().name());
             dto.setTimestampEvent(doc.getTimestampEvent());
             dto.setDescription(doc.getDescription());
-            dto.setPriority(doc.getPriority());
+            dto.setPriority(doc.getPriority().name());
             return dto;
         });
     }
 
     private Event buildEntity(EventDTO dto) {
         Event doc = new Event();
-        //doc.setBrand(dto.getBrand());
-        doc.setType(dto.getType());
+        doc.setBrand(UUID.fromString(dto.getBrand()));
+        doc.setType(EventType.valueOf(dto.getType()));
         doc.setTimestampEvent(dto.getTimestampEvent());
         doc.setDescription(dto.getDescription());
-        doc.setPriority(dto.getPriority());
+        doc.setPriority(EventPriority.valueOf(dto.getPriority()));
         return doc;
     }
 

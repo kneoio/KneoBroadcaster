@@ -354,6 +354,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         LOGGER.error("Database query failed for ID: {} - Error", id, failure))
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
+                        LOGGER.warn("No file record found in database for ID: {}", id);
                         markAsCorrupted(id).subscribe().with(
                                 result -> LOGGER.info("Marked file {} as corrupted (archived = -1) due to missing file record", id),
                                 markFailure -> LOGGER.error("Failed to mark file {} as corrupted", id, markFailure)
@@ -364,21 +365,29 @@ public class SoundFragmentRepository extends AsyncRepository {
 
                     Row row = rows.iterator().next();
                     String doKey = row.getString("file_key");
-                    LOGGER.debug("Retrieved file key: {} for ID: {}", doKey, id);
+                    LOGGER.info("Retrieved file key: {} for ID: {} - Attempting Digital Ocean retrieval", doKey, id);
 
                     return fileStorage.retrieveFile(doKey)
-                            .onItem().invoke(file ->
-                                    LOGGER.debug("Successfully retrieved file content for key: {}", doKey))
-                            .onFailure().invoke(failure ->
-                                    LOGGER.error("Storage retrieval failed for key: {}", doKey, failure))
-                            .onFailure().invoke(failure ->
-                                    LOGGER.error("Storage retrieval failed for key: {}", doKey, failure))
+                            .onItem().invoke(file -> {
+                                LOGGER.info("SUCCESS: Digital Ocean retrieval completed for key: {} (ID: {})", doKey, id);
+                                LOGGER.debug("File mime: {}", file != null ? file.getMimeType() : "null");
+                            })
+                            .onFailure().invoke(failure -> {
+                                LOGGER.error("DIGITAL OCEAN FAILURE: Storage retrieval failed for key: {} (ID: {})", doKey, id, failure);
+                                LOGGER.error("Failure type: {}", failure.getClass().getSimpleName());
+                                LOGGER.error("Failure message: {}", failure.getMessage());
+                                if (failure.getCause() != null) {
+                                    LOGGER.error("Root cause: {} - {}", failure.getCause().getClass().getSimpleName(), failure.getCause().getMessage());
+                                }
+                            })
                             .onFailure().transform(ex -> {
                                 if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
-                                    LOGGER.warn("File not found in storage - Key: {}", doKey, ex);
+                                    LOGGER.warn("File not found in Digital Ocean storage - Key: {} (ID: {})", doKey, id, ex);
                                     return ex;
                                 }
-                                LOGGER.error("Storage retrieval error - Key: {}", doKey, ex);
+
+                                LOGGER.error("CRITICAL: Unexpected Digital Ocean storage error - Key: {} (ID: {})", doKey, id, ex);
+                                LOGGER.error("About to mark file as corrupted due to storage error");
 
                                 markAsCorrupted(id).subscribe().with(
                                         result -> LOGGER.info("Marked file {} as corrupted (archived = -1) due to storage error", id),
@@ -391,27 +400,28 @@ public class SoundFragmentRepository extends AsyncRepository {
                             });
                 })
                 .onFailure(FileNotFoundException.class)
-                .invoke(fnf -> LOGGER.error("File not found flow", fnf))
+                .invoke(fnf -> LOGGER.error("File not found flow executed for ID: {}", id, fnf))
                 .onFailure().invoke(failure ->
-                        LOGGER.error("Unexpected failure processing ID: {}", id, failure))
+                        LOGGER.error("Unexpected failure processing ID: {} - Error type: {}", id, failure.getClass().getSimpleName(), failure))
                 .onFailure().recoverWithUni(otherException -> {
                     if (otherException instanceof DocumentHasNotFoundException) {
-                        LOGGER.warn("Document not found", otherException);
+                        LOGGER.warn("Document not found recovery for ID: {}", id, otherException);
                         return Uni.createFrom().failure(otherException);
                     }
-                    LOGGER.error("Unexpected error", otherException);
+                    LOGGER.error("Unexpected error recovery for ID: {}", id, otherException);
                     return Uni.createFrom().failure(new RuntimeException(
                             "Unexpected error fetching file data for ID: " + id, otherException));
                 })
                 .onTermination().invoke((res, fail, cancelled) -> {
                     if (cancelled) {
-                        LOGGER.warn("Operation cancelled - ID: {}", id);
+                        LOGGER.warn("Operation cancelled for ID: {}", id);
                     }
                     if (fail != null) {
-                        LOGGER.error("Operation failed", fail);
+                        LOGGER.error("Operation terminated with failure for ID: {} - {}", id, fail.getMessage());
                     }
                     if (res != null) {
-                        LOGGER.debug("Operation succeeded - ID: {}", id);
+                        LOGGER.info("Operation completed successfully for ID: {} - File key: {}", id,
+                                res != null && res.getFileKey() != null ? res.getFileKey() : "unknown");
                     }
                 });
     }

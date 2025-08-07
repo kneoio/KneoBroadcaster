@@ -170,11 +170,18 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     public Uni<List<SoundFragment>> search(String searchTerm, final int limit, final int offset, final boolean includeArchived, final IUser user, final SoundFragmentFilter filter) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+                "WHERE t.id = rls.entity_id AND rls.reader = $1";
+
+        List<Object> params = new ArrayList<>();
+        params.add(user.getId());
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String normalizedTerm = searchTerm.trim().toLowerCase();
-            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm + "%' OR LOWER(t.genre) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
+            String normalizedTerm = "%" + searchTerm.trim().toLowerCase() + "%";
+            sql += " AND (LOWER(t.title) LIKE $2 OR LOWER(t.artist) LIKE $3 OR LOWER(t.genre) LIKE $4 OR CAST(t.id AS TEXT) LIKE $5)";
+            params.add(normalizedTerm);
+            params.add(normalizedTerm);
+            params.add(normalizedTerm);
+            params.add(normalizedTerm);
         }
 
         if (!includeArchived) {
@@ -191,8 +198,8 @@ public class SoundFragmentRepository extends AsyncRepository {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
 
-        return client.query(sql)
-                .execute()
+        return client.preparedQuery(sql)
+                .execute(Tuple.from(params))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> from(row, false))
                 .concatenate()

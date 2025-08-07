@@ -26,8 +26,9 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
     protected Uni<Void> executeTask(ScheduleExecutionContext context) {
         if (!(context.getEntity() instanceof RadioStation radioStation)) {
             return Uni.createFrom().voidItem();
+        } else if (radioStation.getStatus() == RadioStationStatus.OFF_LINE) {
+            return Uni.createFrom().voidItem();
         }
-
         CronTaskType taskType = context.getTask().getType();
         String target = context.getTask().getTarget();
         String taskKey = TaskKeyGenerator.generate(radioStation.getSlugName(), taskType.toString(), target);

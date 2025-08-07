@@ -17,7 +17,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.UUID;
 
 @ApplicationScoped
 public class SchedulerService {
@@ -103,7 +102,7 @@ public class SchedulerService {
         }
 
         List<Task> dueTasks = tasks.stream()
-                .filter(task -> isTaskDue(task, currentTime, currentDay, now, entity.getId()))
+                .filter(task -> isTaskDue(task, currentTime, currentDay, now))
                 .toList();
 
         if (dueTasks.isEmpty()) {
@@ -116,7 +115,7 @@ public class SchedulerService {
                 .replaceWithVoid();
     }
 
-    private boolean isTaskDue(Task task, String currentTime, String currentDay, LocalDateTime now, UUID entityId) {
+    private boolean isTaskDue(Task task, String currentTime, String currentDay, LocalDateTime now) {
         if (!WeekdayFilter.isAllowed(task, currentDay)) {
             return false;
         }

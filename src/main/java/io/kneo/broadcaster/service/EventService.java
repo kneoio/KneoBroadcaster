@@ -1,25 +1,31 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.event.EventDTO;
+import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
+import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
+import io.kneo.broadcaster.dto.scheduler.TaskDTO;
+import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.scheduler.OnceTrigger;
+import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Task;
+import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.repository.EventRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,21 +33,21 @@ import java.util.stream.Collectors;
 public class EventService extends AbstractService<Event, EventDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventService.class);
     private final EventRepository repository;
-    private final Validator validator;
+    private final RadioStationService radioStationService;
 
     protected EventService() {
         super();
         this.repository = null;
-        this.validator = null;
+        this.radioStationService = null;
     }
 
     @Inject
     public EventService(UserService userService,
-                        Validator validator,
-                        EventRepository repository) {
+                        EventRepository repository,
+                        RadioStationService radioStationService) {
         super(userService);
-        this.validator = validator;
         this.repository = repository;
+        this.radioStationService = radioStationService;
     }
 
     public Uni<List<EventDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -93,15 +99,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
 
     public Uni<EventDTO> upsert(String id, EventDTO dto, IUser user) {
         assert repository != null;
-        assert validator != null;
-        Set<ConstraintViolation<EventDTO>> violations = validator.validate(dto);
-        if (!violations.isEmpty()) {
-            String errorMessage = violations.stream()
-                    .map(ConstraintViolation::getMessage)
-                    .collect(Collectors.joining(", "));
-            return Uni.createFrom().failure(new IllegalArgumentException("Validation failed: " + errorMessage));
-        }
-
         if (id == null) {
             Event entity = buildEntity(dto);
             return repository.insert(entity, user)
@@ -128,9 +125,13 @@ public class EventService extends AbstractService<Event, EventDTO> {
     }
 
     private Uni<EventDTO> mapToDTO(Event doc) {
+        assert radioStationService != null;
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
-                userService.getUserName(doc.getLastModifier())
+                userService.getUserName(doc.getLastModifier()),
+                radioStationService.getById(doc.getBrand(), SuperUser.build())
+                        .onItem().transform(radioStation -> radioStation.getLocalizedName().get(LanguageCode.en))
+                        .onFailure().recoverWithItem("Unknown Brand")
         ).asTuple().map(tuple -> {
             EventDTO dto = new EventDTO();
             dto.setId(doc.getId());
@@ -138,13 +139,56 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
-            dto.setBrand(doc.getBrand().toString());
+            dto.setBrand(tuple.getItem3());
             dto.setType(doc.getType().name());
             dto.setTimestampEvent(doc.getTimestampEvent());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
+
+            if (doc.getSchedule() != null) {
+                ScheduleDTO scheduleDTO = new ScheduleDTO();
+                Schedule schedule = doc.getSchedule();
+                scheduleDTO.setEnabled(schedule.isEnabled());
+                if (schedule.isEnabled() && schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
+                    List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
+                        TaskDTO taskDTO = new TaskDTO();
+                        taskDTO.setId(task.getId());
+                        taskDTO.setType(task.getType());
+                        taskDTO.setTarget(task.getTarget());
+                        taskDTO.setTriggerType(task.getTriggerType());
+
+                        if (task.getOnceTrigger() != null) {
+                            OnceTriggerDTO onceTriggerDTO = new OnceTriggerDTO();
+                            onceTriggerDTO.setStartTime(task.getOnceTrigger().getStartTime());
+                            onceTriggerDTO.setDuration(task.getOnceTrigger().getDuration());
+                            onceTriggerDTO.setWeekdays(task.getOnceTrigger().getWeekdays());
+                            taskDTO.setOnceTrigger(onceTriggerDTO);
+                        }
+
+                        if (task.getTimeWindowTrigger() != null) {
+                            TimeWindowTriggerDTO timeWindowTriggerDTO = new TimeWindowTriggerDTO();
+                            timeWindowTriggerDTO.setStartTime(task.getTimeWindowTrigger().getStartTime());
+                            timeWindowTriggerDTO.setEndTime(task.getTimeWindowTrigger().getEndTime());
+                            timeWindowTriggerDTO.setWeekdays(task.getTimeWindowTrigger().getWeekdays());
+                            taskDTO.setTimeWindowTrigger(timeWindowTriggerDTO);
+                        }
+
+                        return taskDTO;
+                    }).collect(Collectors.toList());
+
+                    scheduleDTO.setTasks(taskDTOs);
+                }
+                dto.setSchedule(scheduleDTO);
+            }
             return dto;
         });
+    }
+
+    private String normalizeTimeString(String timeString) {
+        if ("24:00".equals(timeString)) {
+            return "00:00";
+        }
+        return timeString;
     }
 
     private Event buildEntity(EventDTO dto) {
@@ -154,6 +198,44 @@ public class EventService extends AbstractService<Event, EventDTO> {
         doc.setTimestampEvent(dto.getTimestampEvent());
         doc.setDescription(dto.getDescription());
         doc.setPriority(EventPriority.valueOf(dto.getPriority()));
+
+        // Build Schedule
+        if (dto.getSchedule() != null) {
+            Schedule schedule = new Schedule();
+            ScheduleDTO scheduleDTO = dto.getSchedule();
+            schedule.setEnabled(scheduleDTO.isEnabled());
+            if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
+                List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
+                    Task task = new Task();
+                    task.setId(UUID.randomUUID());
+                    task.setType(taskDTO.getType());
+                    task.setTarget("default");
+                    task.setTriggerType(taskDTO.getTriggerType());
+
+                    if (taskDTO.getOnceTrigger() != null) {
+                        OnceTrigger onceTrigger = new OnceTrigger();
+                        OnceTriggerDTO onceTriggerDTO = taskDTO.getOnceTrigger();
+                        onceTrigger.setStartTime(normalizeTimeString(onceTriggerDTO.getStartTime()));
+                        onceTrigger.setDuration(onceTriggerDTO.getDuration());
+                        onceTrigger.setWeekdays(onceTriggerDTO.getWeekdays());
+                        task.setOnceTrigger(onceTrigger);
+                    }
+
+                    if (taskDTO.getTimeWindowTrigger() != null) {
+                        TimeWindowTrigger timeWindowTrigger = new TimeWindowTrigger();
+                        TimeWindowTriggerDTO timeWindowTriggerDTO = taskDTO.getTimeWindowTrigger();
+                        timeWindowTrigger.setStartTime(normalizeTimeString(timeWindowTriggerDTO.getStartTime()));
+                        timeWindowTrigger.setEndTime(normalizeTimeString(timeWindowTriggerDTO.getEndTime()));
+                        timeWindowTrigger.setWeekdays(timeWindowTriggerDTO.getWeekdays());
+                        task.setTimeWindowTrigger(timeWindowTrigger);
+                    }
+
+                    return task;
+                }).collect(Collectors.toList());
+                schedule.setTasks(tasks);
+            }
+            doc.setSchedule(schedule);
+        }
         return doc;
     }
 

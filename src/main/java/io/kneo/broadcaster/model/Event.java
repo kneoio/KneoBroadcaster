@@ -3,6 +3,8 @@ package io.kneo.broadcaster.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.scheduler.Schedulable;
+import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,11 +17,13 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Event extends SecureDataEntity<UUID> {
+public class Event extends SecureDataEntity<UUID> implements Schedulable {
     private UUID brand;
     private EventType type;
     private LocalDateTime timestampEvent;
     private String description;
     private EventPriority priority;
+    private Schedule schedule;
     private Integer archived;
+
 }

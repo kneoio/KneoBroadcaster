@@ -29,6 +29,7 @@ public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final int SELF_MANAGING_INTERVAL_SECONDS = 300;
     private static final int READY_QUEUE_MAX_SIZE = 3;
+    private static final int READY_REGULAR_QUEUE_MAX_SIZE = 6;
     private static final int TRIGGER_SELF_MANAGING = 1;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
 
@@ -161,6 +162,7 @@ public class PlaylistManager {
                 if (prioritizedQueue.size() < READY_QUEUE_MAX_SIZE &&
                         radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
+                    LOGGER.info("Queue capacity available - switching back to ON_LINE (case 1)");
                 }
                 BrandSoundFragment nextFragment = prioritizedQueue.poll();
                 moveFragmentToProcessedList(nextFragment);
@@ -171,10 +173,10 @@ public class PlaylistManager {
                 BrandSoundFragment nextFragment = regularQueue.poll();
                 moveFragmentToProcessedList(nextFragment);
 
-                if (regularQueue.size() < READY_QUEUE_MAX_SIZE &&
+                if (regularQueue.size() < READY_REGULAR_QUEUE_MAX_SIZE &&
                         radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    LOGGER.info("Queue capacity available - switching back to ON_LINE");
+                    LOGGER.info("Queue capacity available - switching back to ON_LINE (case 2)");
                 }
 
                 return nextFragment;

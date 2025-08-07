@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -14,6 +15,7 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -30,7 +32,7 @@ import java.util.UUID;
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.EVENT;
 
 @ApplicationScoped
-public class EventRepository extends AsyncRepository {
+public class EventRepository extends AsyncRepository implements SchedulableRepository<Event> {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(EVENT);
 
     @Inject
@@ -106,7 +108,7 @@ public class EventRepository extends AsyncRepository {
             sql += " AND (e.archived IS NULL OR e.archived = 0)";
         }
 
-        sql += " ORDER BY e.timestamp_event DESC";
+        sql += " ORDER BY e.last_mod_date DESC";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
@@ -136,33 +138,42 @@ public class EventRepository extends AsyncRepository {
     }
 
     public Uni<Event> insert(Event event, IUser user) {
-        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+        return Uni.createFrom().deferred(() -> {
+            try {
+                LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
-        String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, brand_id, type, timestamp_event, description, priority, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+                String sql = "INSERT INTO " + entityData.getTableName() +
+                        " (author, reg_date, last_mod_user, last_mod_date, brand_id, type, description, priority, archived, scheduler) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
-        Tuple params = Tuple.tuple()
-                .addLong(user.getId())
-                .addLocalDateTime(nowTime)
-                .addLong(user.getId())
-                .addLocalDateTime(nowTime)
-                .addUUID(event.getBrand())
-                .addString(event.getType().toString())
-                .addOffsetDateTime(event.getTimestampEvent().atOffset(ZoneOffset.UTC))
-                .addString(event.getDescription())
-                .addString(event.getPriority().name())
-                .addInteger(0);
+                Tuple params = Tuple.tuple()
+                        .addLong(user.getId())
+                        .addLocalDateTime(nowTime)
+                        .addLong(user.getId())
+                        .addLocalDateTime(nowTime)
+                        .addUUID(event.getBrand())
+                        .addString(event.getType().toString())
+                        .addString(event.getDescription())
+                        .addString(event.getPriority().name())
+                        .addInteger(0)
+                        .addJsonObject(event.getSchedule() != null ?
+                                JsonObject.of("scheduler", JsonObject.mapFrom(event.getSchedule())) : null);
 
-        return client.withTransaction(tx ->
-                tx.preparedQuery(sql)
-                        .execute(params)
-                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id ->
-                                insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transform(ignored -> id)
-                        )
-        ).onItem().transformToUni(id -> findById(id, user, true));
+                return client.withTransaction(tx ->
+                        tx.preparedQuery(sql)
+                                .execute(params)
+                                .onFailure().invoke(throwable -> LOGGER.error("Failed to insert event for user: {}", user.getId(), throwable))
+                                .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                                .onItem().transformToUni(id ->
+                                        insertRLSPermissions(tx, id, entityData, user)
+                                                .onItem().transform(ignored -> id)
+                                )
+                ).onItem().transformToUni(id -> findById(id, user, true));
+            } catch (Exception e) {
+                LOGGER.error("Failed to prepare insert parameters for event, user: {}", user.getId(), e);
+                return Uni.createFrom().failure(e);
+            }
+        });
     }
 
     public Uni<Event> update(UUID id, Event event, IUser user) {
@@ -179,15 +190,16 @@ public class EventRepository extends AsyncRepository {
                             LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET brand_id=$1, type=$2, timestamp_event=$3, description=$4, priority=$5, last_mod_user=$6, last_mod_date=$7 " +
+                                    " SET brand_id=$1, type=$2, description=$3, priority=$4, scheduler=$5, last_mod_user=$6, last_mod_date=$7 " +
                                     "WHERE id=$8";
 
                             Tuple params = Tuple.tuple()
                                     .addUUID(event.getBrand())
                                     .addString(event.getType().name())
-                                    .addOffsetDateTime(event.getTimestampEvent().atOffset(ZoneOffset.UTC))
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
+                                    .addJsonObject(event.getSchedule() != null ?
+                                            JsonObject.of("scheduler", JsonObject.mapFrom(event.getSchedule())) : null)
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -233,15 +245,42 @@ public class EventRepository extends AsyncRepository {
                 });
     }
 
+    @Override
+    public Uni<List<Event>> findActiveScheduled() {
+        String sql = "SELECT * FROM " + entityData.getTableName() +
+                " WHERE archived = 0 AND scheduler IS NOT NULL";
+
+        return client.query(sql)
+                .execute()
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled events", throwable))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(this::from)
+                .concatenate()
+                .select().where(e -> e.getSchedule() != null && e.getSchedule().isEnabled())
+                .collect().asList();
+    }
+
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
         doc.setBrand(row.getUUID("brand_id"));
         doc.setType(EventType.valueOf(row.getString("type")));
-        doc.setTimestampEvent(row.getOffsetDateTime("timestamp_event").toLocalDateTime());
         doc.setDescription(row.getString("description"));
         doc.setPriority(EventPriority.valueOf(row.getString("priority")));
         doc.setArchived(row.getInteger("archived"));
+
+        JsonObject scheduleJson = row.getJsonObject("scheduler");
+        if (scheduleJson != null) {
+            try {
+                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
+                if (scheduleData != null) {
+                    Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
+                    doc.setSchedule(schedule);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Failed to parse scheduler JSON for event: {}", row.getUUID("id"), e);
+            }
+        }
 
         return Uni.createFrom().item(doc);
     }

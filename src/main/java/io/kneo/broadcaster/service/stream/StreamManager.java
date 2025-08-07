@@ -69,6 +69,8 @@ public class StreamManager implements IStreamManager {
     private BrandSoundFragment currentPlayingFragment;
     private final BrandSoundFragmentUpdateService updateService;
 
+    private final Object fragmentRetrievalLock = new Object();
+
     public
     StreamManager(
             SliderTimer sliderTimer,
@@ -123,6 +125,8 @@ public class StreamManager implements IStreamManager {
     }
 
 
+
+
     public void feedSegments() {
         int drippedCountThisCall = 0;
         if (!pendingFragmentSegmentsQueue.isEmpty()) {
@@ -149,23 +153,25 @@ public class StreamManager implements IStreamManager {
 
         if (pendingFragmentSegmentsQueue.size() < PENDING_QUEUE_REFILL_THRESHOLD) {
             try {
-                BrandSoundFragment fragment = playlistManager.getNextFragment();
-                if (fragment != null && !fragment.getSegments().isEmpty()) {
-                    final long[] firstSeqInBatch = {-1L};
-                    final long[] lastSeqInBatch = {-1L};
+                synchronized (fragmentRetrievalLock) {
+                    BrandSoundFragment fragment = playlistManager.getNextFragment();
+                    if (fragment != null && !fragment.getSegments().isEmpty()) {
+                        final long[] firstSeqInBatch = {-1L};
+                        final long[] lastSeqInBatch = {-1L};
 
-                    boolean isFirst = true;
-                    for (HlsSegment segment : fragment.getSegments()) {
-                        long seq = currentSequence.getAndIncrement();
-                        if (firstSeqInBatch[0] == -1L) {
-                            firstSeqInBatch[0] = seq;
+                        boolean isFirst = true;
+                        for (HlsSegment segment : fragment.getSegments()) {
+                            long seq = currentSequence.getAndIncrement();
+                            if (firstSeqInBatch[0] == -1L) {
+                                firstSeqInBatch[0] = seq;
+                            }
+                            lastSeqInBatch[0] = seq;
+                            segment.setSequence(seq);
+                            segment.setSourceFragment(fragment);
+                            segment.setFirstSegmentOfFragment(isFirst);
+                            pendingFragmentSegmentsQueue.offer(segment);
+                            isFirst = false;
                         }
-                        lastSeqInBatch[0] = seq;
-                        segment.setSequence(seq);
-                        segment.setSourceFragment(fragment);
-                        segment.setFirstSegmentOfFragment(isFirst);
-                        pendingFragmentSegmentsQueue.offer(segment);
-                        isFirst = false;
                     }
                 }
             } catch (Exception e) {

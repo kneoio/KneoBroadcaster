@@ -1,11 +1,13 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.event.EventDTO;
+import io.kneo.broadcaster.dto.event.EventEntryDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
@@ -50,15 +52,15 @@ public class EventService extends AbstractService<Event, EventDTO> {
         this.radioStationService = radioStationService;
     }
 
-    public Uni<List<EventDTO>> getAll(final int limit, final int offset, final IUser user) {
+    public Uni<List<EventEntryDTO>> getAll(final int limit, final int offset, final IUser user) {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     } else {
-                        List<Uni<EventDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
+                        List<Uni<EventEntryDTO>> unis = list.stream()
+                                .map(this::mapToEntryDTO)
                                 .collect(Collectors.toList());
                         return Uni.join().all(unis).andFailFast();
                     }
@@ -124,14 +126,26 @@ public class EventService extends AbstractService<Event, EventDTO> {
         return repository.delete(UUID.fromString(id), user);
     }
 
+    private Uni<EventEntryDTO> mapToEntryDTO(Event doc) {
+        assert radioStationService != null;
+        return radioStationService.getById(doc.getBrand(), SuperUser.build())
+                .onItem().transform(RadioStation::getSlugName)
+                .onFailure().recoverWithItem("Unknown Brand")
+                .map(brand -> new EventEntryDTO(
+                        doc.getId(),
+                        brand,
+                        doc.getType().name(),
+                        doc.getPriority().name(),
+                        doc.getDescription()
+                ));
+    }
+
     private Uni<EventDTO> mapToDTO(Event doc) {
         assert radioStationService != null;
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
                 radioStationService.getById(doc.getBrand(), SuperUser.build())
-                        .onItem().transform(radioStation -> radioStation.getLocalizedName().get(LanguageCode.en))
-                        .onFailure().recoverWithItem("Unknown Brand")
         ).asTuple().map(tuple -> {
             EventDTO dto = new EventDTO();
             dto.setId(doc.getId());
@@ -139,9 +153,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
-            dto.setBrand(tuple.getItem3());
+            dto.setBrand(tuple.getItem3().getId().toString());
+            dto.setTimeZone(tuple.getItem3().getTimeZone());
             dto.setType(doc.getType().name());
-            dto.setTimestampEvent(doc.getTimestampEvent());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
 
@@ -195,14 +209,13 @@ public class EventService extends AbstractService<Event, EventDTO> {
         Event doc = new Event();
         doc.setBrand(UUID.fromString(dto.getBrand()));
         doc.setType(EventType.valueOf(dto.getType()));
-        doc.setTimestampEvent(dto.getTimestampEvent());
         doc.setDescription(dto.getDescription());
         doc.setPriority(EventPriority.valueOf(dto.getPriority()));
 
-        // Build Schedule
         if (dto.getSchedule() != null) {
             Schedule schedule = new Schedule();
             ScheduleDTO scheduleDTO = dto.getSchedule();
+            schedule.setTimeZone(dto.getTimeZone());
             schedule.setEnabled(scheduleDTO.isEnabled());
             if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {

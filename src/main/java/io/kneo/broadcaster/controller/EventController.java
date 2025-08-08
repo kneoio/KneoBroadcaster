@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.event.EventDTO;
+import io.kneo.broadcaster.dto.event.EventEntryDTO;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.service.EventService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -21,7 +23,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -62,7 +63,7 @@ public class EventController extends AbstractSecuredController<Event, EventDTO> 
                         service.getAllCount(user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<EventDTO> dtoEntries = new View<>(tuple.getItem1(),
+                    View<EventEntryDTO> dtoEntries = new View<>(tuple.getItem1(),
                             tuple.getItem2(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem2(), size),
                             size);
@@ -82,8 +83,7 @@ public class EventController extends AbstractSecuredController<Event, EventDTO> 
                 .chain(user -> {
                     if ("new".equals(id)) {
                         EventDTO dto = new EventDTO();
-                        dto.setTimestampEvent(LocalDateTime.now());
-                        dto.setPriority("medium");
+                        dto.setPriority(EventPriority.LOW.name());
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))

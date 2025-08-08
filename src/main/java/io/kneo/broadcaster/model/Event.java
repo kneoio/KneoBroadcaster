@@ -10,7 +10,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Getter
@@ -19,8 +19,8 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Event extends SecureDataEntity<UUID> implements Schedulable {
     private UUID brand;
+    private ZoneId timeZone;
     private EventType type;
-    private LocalDateTime timestampEvent;
     private String description;
     private EventPriority priority;
     private Schedule schedule;

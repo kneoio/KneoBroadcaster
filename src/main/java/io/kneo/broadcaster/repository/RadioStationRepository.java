@@ -147,7 +147,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                 });
     }
 
-    public Uni<RadioStation> findByBrandName(String name) {
+    public Uni<RadioStation>  findByBrandName(String name) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))
@@ -350,7 +350,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                 JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
                 if (scheduleData != null) {
                     Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
-                    schedule.setTimeZone(doc.getTimeZone());
+                    //schedule.setTimeZone(doc.getTimeZone());
                     doc.setSchedule(schedule);
                 }
             } catch (Exception e) {

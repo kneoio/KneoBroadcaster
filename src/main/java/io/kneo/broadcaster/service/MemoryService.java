@@ -45,42 +45,47 @@ public class MemoryService {
     private final ConcurrentMap<String, ConcurrentMap<String, Memory>> memories = new ConcurrentHashMap<>();
 
     public Uni<List<MemoryDTO<?>>> getAll(final int limit, final int offset, final IUser user) {
-        return Uni.createFrom().item(() -> {
-            List<MemoryDTO<?>> allMemories = flattenMemories();
-            return allMemories.stream()
-                    .skip(offset)
-                    .limit(limit > 0 ? limit : allMemories.size())
-                    .collect(Collectors.toList());
-        });
+        return flattenMemories().map(allMemories ->
+                allMemories.stream()
+                        .skip(offset)
+                        .limit(limit > 0 ? limit : allMemories.size())
+                        .collect(Collectors.toList())
+        );
     }
 
     public Uni<Integer> getAllCount(IUser user) {
-        return Uni.createFrom().item(() -> {
-            return flattenMemories().size();
-        });
+        return flattenMemories().map(List::size);
     }
 
     public Uni<List<MemoryDTO<?>>> getByBrandId(String brand, int limit, int offset) {
-        return Uni.createFrom().item(() -> {
-            List<MemoryDTO<?>> brandMemories = new ArrayList<>();
-            ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-            if (brandMap != null) {
-                brandMap.values().forEach(memory -> brandMemories.add(mapToDTO(memory)));
-            }
-            return brandMemories.stream()
-                    .skip(offset)
-                    .limit(limit > 0 ? limit : brandMemories.size())
-                    .collect(Collectors.toList());
-        });
+        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
+        if (brandMap == null) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<MemoryDTO<?>>> uniList = brandMap.values().stream()
+                .map(this::mapToDTOWithColor)
+                .collect(Collectors.toList());
+
+        if (uniList.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        return Uni.join().all(uniList).andFailFast()
+                .map(brandMemories -> brandMemories.stream()
+                        .skip(offset)
+                        .limit(limit > 0 ? limit : brandMemories.size())
+                        .collect(Collectors.toList())
+                );
     }
 
     public Uni<MemoryDTO<?>> getDTO(UUID id, IUser user, LanguageCode code) {
-        return Uni.createFrom().item(() -> {
-            return flattenMemories().stream()
-                    .filter(memory -> id.equals(memory.getId()))
-                    .findFirst()
-                    .orElse(null);
-        });
+        return flattenMemories().map(allMemories ->
+                allMemories.stream()
+                        .filter(memory -> id.equals(memory.getId()))
+                        .findFirst()
+                        .orElse(null)
+        );
     }
 
     public Uni<JsonObject> getByType(String brand, String... types) {
@@ -293,71 +298,85 @@ public class MemoryService {
     }
 
     public Uni<List<MemoryDTO<?>>> retrieveAndRemoveInstantMessages(String brand) {
-        return Uni.createFrom().item(() -> {
-            ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-            if (brandMap != null) {
-                List<MemoryDTO<?>> messages = new ArrayList<>();
-                List<String> toRemove = new ArrayList<>();
+        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
+        if (brandMap == null) {
+            return Uni.createFrom().item(List.of());
+        }
 
-                brandMap.forEach((key, value) -> {
-                    if (value.getMemoryType() == MemoryType.INSTANT_MESSAGE) {
-                        messages.add(mapToDTO(value));
-                        toRemove.add(key);
-                    }
-                });
+        List<Memory> messagesToRemove = brandMap.values().stream()
+                .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
+                .collect(Collectors.toList());
 
-                toRemove.forEach(brandMap::remove);
-                return messages;
-            }
-            return List.of();
-        });
+        if (messagesToRemove.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<MemoryDTO<?>>> uniList = messagesToRemove.stream()
+                .map(this::mapToDTOWithColor)
+                .collect(Collectors.toList());
+
+        messagesToRemove.forEach(memory -> brandMap.remove(memory.getId().toString()));
+
+        return Uni.join().all(uniList).andFailFast();
     }
 
     public Uni<List<MemoryDTO<?>>> peekInstantMessages(String brand) {
-        return Uni.createFrom().item(() -> {
-            ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-            if (brandMap != null) {
-                return brandMap.values().stream()
-                        .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
-                        .map(this::mapToDTO)
-                        .collect(Collectors.toList());
-            }
-            return List.of();
-        });
+        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
+        if (brandMap == null) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<MemoryDTO<?>>> uniList = brandMap.values().stream()
+                .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
+                .map(this::mapToDTOWithColor)
+                .collect(Collectors.toList());
+
+        if (uniList.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        return Uni.join().all(uniList).andFailFast();
     }
 
     public Uni<List<MemoryDTO<?>>> retrieveAndRemoveEvents(String brand) {
-        return Uni.createFrom().item(() -> {
-            ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-            if (brandMap != null) {
-                List<MemoryDTO<?>> events = new ArrayList<>();
-                List<String> toRemove = new ArrayList<>();
+        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
+        if (brandMap == null) {
+            return Uni.createFrom().item(List.of());
+        }
 
-                brandMap.forEach((key, value) -> {
-                    if (value.getMemoryType() == MemoryType.EVENT) {
-                        events.add(mapToDTO(value));
-                        toRemove.add(key);
-                    }
-                });
+        List<Memory> eventsToRemove = brandMap.values().stream()
+                .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
+                .collect(Collectors.toList());
 
-                toRemove.forEach(brandMap::remove);
-                return events;
-            }
-            return List.of();
-        });
+        if (eventsToRemove.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<MemoryDTO<?>>> uniList = eventsToRemove.stream()
+                .map(this::mapToDTOWithColor)
+                .collect(Collectors.toList());
+
+        eventsToRemove.forEach(memory -> brandMap.remove(memory.getId().toString()));
+
+        return Uni.join().all(uniList).andFailFast();
     }
 
     public Uni<List<MemoryDTO<?>>> peekEvents(String brand) {
-        return Uni.createFrom().item(() -> {
-            ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-            if (brandMap != null) {
-                return brandMap.values().stream()
-                        .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
-                        .map(this::mapToDTO)
-                        .collect(Collectors.toList());
-            }
-            return List.of();
-        });
+        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
+        if (brandMap == null) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<MemoryDTO<?>>> uniList = brandMap.values().stream()
+                .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
+                .map(this::mapToDTOWithColor)
+                .collect(Collectors.toList());
+
+        if (uniList.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        return Uni.join().all(uniList).andFailFast();
     }
 
     public Uni<Integer> resetMemory(String brand, MemoryType memoryType) {
@@ -385,25 +404,41 @@ public class MemoryService {
         };
     }
 
-    private List<MemoryDTO<?>> flattenMemories() {
-        List<MemoryDTO<?>> allMemories = new ArrayList<>();
+    private Uni<List<MemoryDTO<?>>> flattenMemories() {
+        List<Uni<MemoryDTO<?>>> uniList = new ArrayList<>();
         for (ConcurrentMap<String, Memory> brandMap : memories.values()) {
             for (Memory memory : brandMap.values()) {
-                allMemories.add(mapToDTO(memory));
+                uniList.add(mapToDTOWithColor(memory));
             }
         }
-        return allMemories;
+        if (uniList.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+        return Uni.join().all(uniList).andFailFast();
     }
 
-    private MemoryDTO<?> mapToDTO(Memory memory) {
-        MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
-        dto.setId(memory.getId());
-        dto.setBrand(memory.getBrand());
-        //dto.setColor(memory.getBrand());
-        dto.setMemoryType(memory.getMemoryType());
-        dto.setContent(memory.getContent());
-        dto.setRegDate(memory.getRegDate());
-        dto.setLastModifiedDate(memory.getLastModifiedDate());
-        return dto;
+    private Uni<MemoryDTO<?>> mapToDTOWithColor(Memory memory) {
+        return radioStationService.findByBrandName(memory.getBrand())
+                .<MemoryDTO<?>>map(radioStation -> {
+                    MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
+                    dto.setId(memory.getId());
+                    dto.setBrand(memory.getBrand());
+                    dto.setColor(radioStation.getColor());
+                    dto.setMemoryType(memory.getMemoryType());
+                    dto.setContent(memory.getContent());
+                    dto.setRegDate(memory.getRegDate());
+                    dto.setLastModifiedDate(memory.getLastModifiedDate());
+                    return dto;
+                })
+                .onFailure().recoverWithItem(() -> {
+                    MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
+                    dto.setId(memory.getId());
+                    dto.setBrand(memory.getBrand());
+                    dto.setMemoryType(memory.getMemoryType());
+                    dto.setContent(memory.getContent());
+                    dto.setRegDate(memory.getRegDate());
+                    dto.setLastModifiedDate(memory.getLastModifiedDate());
+                    return dto;
+                });
     }
 }

@@ -245,22 +245,23 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     }
 
     private RadioStation buildEntity(RadioStationDTO dto) {
-        RadioStation entity = new RadioStation();
-        entity.setLocalizedName(dto.getLocalizedName());
-        entity.setCountry(CountryCode.fromString(dto.getCountry()));
-        entity.setArchived(dto.getArchived());
-        entity.setManagedBy(dto.getManagedBy());
-        entity.setColor(dto.getColor());
-        entity.setDescription(dto.getDescription());
-        entity.setTimeZone(ZoneId.of(dto.getTimeZone()));
-        entity.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
-        entity.setAiAgentId(dto.getAiAgentId());
-        entity.setProfileId(dto.getProfileId());
+        RadioStation doc = new RadioStation();
+        doc.setLocalizedName(dto.getLocalizedName());
+        doc.setCountry(CountryCode.fromString(dto.getCountry()));
+        doc.setArchived(dto.getArchived());
+        doc.setManagedBy(dto.getManagedBy());
+        doc.setColor(dto.getColor());
+        doc.setDescription(dto.getDescription());
+        doc.setTimeZone(ZoneId.of(dto.getTimeZone()));
+        doc.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
+        doc.setAiAgentId(dto.getAiAgentId());
+        doc.setProfileId(dto.getProfileId());
 
         if (dto.getSchedule() != null) {
             Schedule schedule = new Schedule();
             ScheduleDTO scheduleDTO = dto.getSchedule();
             schedule.setEnabled(scheduleDTO.isEnabled());
+            schedule.setTimeZone(doc.getTimeZone());
             if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
                     Task task = new Task();
@@ -301,9 +302,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 }).collect(Collectors.toList());
                 schedule.setTasks(tasks);
             }
-            entity.setSchedule(schedule);
+            doc.setSchedule(schedule);
         }
-        return entity;
+        return doc;
     }
 
 

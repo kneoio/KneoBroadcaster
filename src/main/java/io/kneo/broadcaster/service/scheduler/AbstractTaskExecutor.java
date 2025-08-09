@@ -49,7 +49,7 @@ public abstract class AbstractTaskExecutor implements TaskExecutor, TaskTracker 
     @Override
     public Collection<TaskState> getTasksForBrand(String brand) {
         return runningTasks.values().stream()
-                .filter(task -> task.getBrand().equals(brand))
+                .filter(task -> task.brand().equals(brand))
                 .collect(Collectors.toList());
     }
 
@@ -59,7 +59,7 @@ public abstract class AbstractTaskExecutor implements TaskExecutor, TaskTracker 
         runningTasks.entrySet().removeIf(entry -> {
             String taskKey = entry.getKey();
             TaskState taskState = entry.getValue();
-            if (taskState.getBrand() != null && taskState.getBrand().equals(brand)) {
+            if (taskState.brand() != null && taskState.brand().equals(brand)) {
                 LOGGER.info("Resetting task for brand: {} (key: {})", brand, taskKey);
                 return true;
             }

@@ -10,11 +10,11 @@ public interface TaskExecutor {
     boolean supports(CronTaskType taskType);
 
     default boolean isWithinTimeWindow(ScheduleExecutionContext context) {
-        if (context.getTask().getTimeWindowTrigger() == null) return false;
+        if (context.task().getTimeWindowTrigger() == null) return false;
 
-        String currentTime = context.getCurrentTime();
-        String startTime = context.getTask().getTimeWindowTrigger().getStartTime();
-        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+        String currentTime = context.currentTime();
+        String startTime = context.task().getTimeWindowTrigger().getStartTime();
+        String endTime = context.task().getTimeWindowTrigger().getEndTime();
 
         LocalTime current = LocalTime.parse(currentTime);
         LocalTime start = LocalTime.parse(startTime);

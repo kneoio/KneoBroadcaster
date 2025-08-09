@@ -24,13 +24,13 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
 
     @Override
     protected Uni<Void> executeTask(ScheduleExecutionContext context) {
-        if (!(context.getEntity() instanceof RadioStation radioStation)) {
+        if (!(context.entity() instanceof RadioStation radioStation)) {
             return Uni.createFrom().voidItem();
         } else if (radioStation.getStatus() == null || radioStation.getStatus() == RadioStationStatus.OFF_LINE) {
             return Uni.createFrom().voidItem();
         }
-        CronTaskType taskType = context.getTask().getType();
-        String target = context.getTask().getTarget();
+        CronTaskType taskType = context.task().getType();
+        String target = context.task().getTarget();
         String taskKey = TaskKeyGenerator.generate(radioStation.getSlugName(), taskType.toString(), target);
 
         LOGGER.info("Checking task execution for: {} (key: {})", taskType, taskKey);
@@ -58,9 +58,9 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
         //LOGGER.info("Current state exists: {}", currentState != null);
         //LOGGER.info("Current time: {}", context.getCurrentTime());
 
-        if (context.getTask().getTimeWindowTrigger() != null) {
-            LOGGER.info("Start time: {}", context.getTask().getTimeWindowTrigger().getStartTime());
-            LOGGER.info("End time: {}", context.getTask().getTimeWindowTrigger().getEndTime());
+        if (context.task().getTimeWindowTrigger() != null) {
+            LOGGER.info("Start time: {}", context.task().getTimeWindowTrigger().getStartTime());
+            LOGGER.info("End time: {}", context.task().getTimeWindowTrigger().getEndTime());
         } else {
             LOGGER.warn("TimeWindowTrigger is null");
         }
@@ -86,7 +86,7 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
             return startDjControl(station, target)
                     .onItem().invoke(() -> {
                         addRunningTask(taskKey, station.getId(), "run_dj", target, station.getSlugName());
-                        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+                        String endTime = context.task().getTimeWindowTrigger().getEndTime();
                         LOGGER.info("DJ control for station {} will stop at {}", station.getSlugName(), endTime);
                     });
         } else if (atStart) {
@@ -100,7 +100,7 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
             return startDjControl(station, target)
                     .onItem().invoke(() -> {
                         addRunningTask(taskKey, station.getId(), "run_dj", target, station.getSlugName());
-                        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+                        String endTime = context.task().getTimeWindowTrigger().getEndTime();
                         LOGGER.info("DJ control for station {} will stop at {} (recovery start)", station.getSlugName(), endTime);
                     });
         }
@@ -158,34 +158,34 @@ public class BrandScheduledTaskExecutor extends AbstractTaskExecutor {
 
 
     private boolean isAtWarningTime(ScheduleExecutionContext context) {
-        if (context.getTask().getTimeWindowTrigger() == null) {
+        if (context.task().getTimeWindowTrigger() == null) {
             return false;
         }
 
-        String currentTime = context.getCurrentTime();
-        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+        String currentTime = context.currentTime();
+        String endTime = context.task().getTimeWindowTrigger().getEndTime();
 
         return TimeUtils.isWarningTime(currentTime, endTime, DJ_SHIFT_WARNING_MINUTES);
     }
 
     private boolean isAtWindowStart(ScheduleExecutionContext context) {
-        if (context.getTask().getTimeWindowTrigger() == null) {
+        if (context.task().getTimeWindowTrigger() == null) {
             return false;
         }
 
-        String currentTime = context.getCurrentTime();
-        String startTime = context.getTask().getTimeWindowTrigger().getStartTime();
+        String currentTime = context.currentTime();
+        String startTime = context.task().getTimeWindowTrigger().getStartTime();
 
         return TimeUtils.isAtTime(currentTime, startTime);
     }
 
     private boolean isAtWindowEnd(ScheduleExecutionContext context) {
-        if (context.getTask().getTimeWindowTrigger() == null) {
+        if (context.task().getTimeWindowTrigger() == null) {
             return false;
         }
 
-        String currentTime = context.getCurrentTime();
-        String endTime = context.getTask().getTimeWindowTrigger().getEndTime();
+        String currentTime = context.currentTime();
+        String endTime = context.task().getTimeWindowTrigger().getEndTime();
 
         return TimeUtils.isAtTime(currentTime, endTime);
     }

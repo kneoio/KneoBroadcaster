@@ -3,8 +3,6 @@ package io.kneo.broadcaster.service.dashboard;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.radio.PlaylistManager;
-import io.kneo.broadcaster.service.scheduler.TaskState;
-import io.kneo.broadcaster.service.scheduler.TaskTracker;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.StreamManagerStats;
@@ -12,7 +10,6 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.util.Collection;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -20,9 +17,6 @@ public class StationDashboardService {
 
     @Inject
     RadioStationPool radioStationPool;
-
-    @Inject
-    TaskTracker taskTracker;
 
     public Uni<Optional<StationStatsDTO>> getStationStats(String brand) {
         return Uni.createFrom().item(() ->
@@ -38,9 +32,6 @@ public class StationDashboardService {
         stationStats.setStatusHistory(station.getStatusHistory());
         stationStats.setManagedBy(station.getManagedBy());
         stationStats.setAlived(station.getCurrentAliveDurationMinutes());
-
-        Collection<TaskState> stationTasks = taskTracker.getTasksForBrand(brand);
-        stationStats.setRunningTasks(stationTasks);
 
         if (station.getPlaylist() != null) {
             IStreamManager playlist = station.getPlaylist();

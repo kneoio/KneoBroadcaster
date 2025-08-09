@@ -9,6 +9,6 @@ import java.util.List;
 public class PeriodicTrigger {
     private String startTime;
     private String endTime;
-    private String interval;
+    private int interval;
     private List<String> weekdays;
 }

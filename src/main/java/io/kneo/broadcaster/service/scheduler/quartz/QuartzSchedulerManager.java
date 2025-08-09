@@ -41,19 +41,13 @@ public class QuartzSchedulerManager {
     }
 
     public void scheduleEntity(Schedulable entity) {
-        if (entity instanceof io.kneo.broadcaster.model.RadioStation radioStation) {
-            quartzSchedulerService.scheduleRadioStation(radioStation);
-            LOGGER.debug("Scheduled radio station: {}", radioStation.getSlugName());
-        } else {
-            LOGGER.debug("Entity type not supported for Quartz scheduling: {}", entity.getClass().getSimpleName());
-        }
+        quartzSchedulerService.scheduleEntity(entity);
+        LOGGER.debug("Scheduled entity: {}", entity.getClass().getSimpleName());
     }
 
     public void removeScheduleForEntity(Schedulable entity) {
-        if (entity instanceof io.kneo.broadcaster.model.RadioStation radioStation) {
-            quartzSchedulerService.removeScheduleForStation(radioStation.getSlugName());
-            LOGGER.debug("Removed schedule for radio station: {}", radioStation.getSlugName());
-        }
+        quartzSchedulerService.removeForEntity(entity);
+        LOGGER.debug("Removed schedule for entity: {}", entity.getClass().getSimpleName());
     }
 
     public void refreshSchedules() {

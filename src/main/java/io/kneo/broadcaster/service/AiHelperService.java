@@ -63,6 +63,7 @@ public class AiHelperService {
                                     .map(agent -> {
                                         LiveAgentDTO liveAgentDTO = new LiveAgentDTO();
                                         liveAgentDTO.setName(agent.getName());
+                                        liveAgentDTO.setLlmType(agent.getLlmType());
                                         List<String> prompts = agent.getPrompts();
                                         Random random = new Random();
                                         String randomPrompt = prompts.get(random.nextInt(prompts.size()));

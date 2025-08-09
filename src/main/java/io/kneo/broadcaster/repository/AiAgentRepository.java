@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -137,7 +138,7 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, main_prompt, prompts, " +
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, prompts, " +
                 "filler_prompt, preferred_voice, enabled_tools, talkativity) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
 
@@ -148,7 +149,7 @@ public class AiAgentRepository extends AsyncRepository {
                 .addOffsetDateTime(nowTime)
                 .addString(agent.getName())
                 .addString(agent.getPreferredLang().name())
-                .addString(agent.getMainPrompt())
+                .addString(agent.getLlmType().name())
                 .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
                 .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
                 .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
@@ -181,7 +182,7 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "main_prompt=$5, prompts=$6, filler_prompt=$7, preferred_voice=$8, enabled_tools=$9, talkativity=$10 " +
+                                    "llm_type=$5, prompts=$6, filler_prompt=$7, preferred_voice=$8, enabled_tools=$9, talkativity=$10 " +
                                     "WHERE id=$11";
 
                             Tuple params = Tuple.tuple()
@@ -189,7 +190,7 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addOffsetDateTime(nowTime)
                                     .addString(agent.getName())
                                     .addString(agent.getPreferredLang().name())
-                                    .addString(agent.getMainPrompt())
+                                    .addString(agent.getLlmType().name())
                                     .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
                                     .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
                                     .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
@@ -257,6 +258,7 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setName(row.getString("name"));
         doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
+        doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
         doc.setTalkativity(row.getDouble("talkativity"));
 
         try {

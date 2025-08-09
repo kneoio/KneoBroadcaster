@@ -16,9 +16,7 @@ public class AiAgent extends SimpleReferenceEntity {
     private LanguageCode preferredLang;
     private ZoneId timeZone;
 
-    @Deprecated
-    private String mainPrompt;
-
+    private LlmType llmType;
     private List<String> prompts;
     private List<String> fillerPrompt;
     private List<Voice> preferredVoice;

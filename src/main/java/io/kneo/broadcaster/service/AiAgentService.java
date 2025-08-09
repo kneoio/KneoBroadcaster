@@ -89,25 +89,26 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         }
     }
 
-    private Uni<AiAgentDTO> mapToDTO(AiAgent agent) {
+    private Uni<AiAgentDTO> mapToDTO(AiAgent doc) {
         return Uni.combine().all().unis(
-                userService.getUserName(agent.getAuthor()),
-                userService.getUserName(agent.getLastModifier())
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
         ).asTuple().map(tuple -> {
             AiAgentDTO dto = new AiAgentDTO();
-            dto.setId(agent.getId());
+            dto.setId(doc.getId());
             dto.setAuthor(tuple.getItem1());
-            dto.setRegDate(agent.getRegDate());
+            dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
-            dto.setLastModifiedDate(agent.getLastModifiedDate());
-            dto.setName(agent.getName());
-            dto.setPreferredLang(agent.getPreferredLang());
-            dto.setPrompts(agent.getPrompts());
-            dto.setFillerPrompt(agent.getFillerPrompt());
-            dto.setTalkativity(agent.getTalkativity());
+            dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setName(doc.getName());
+            dto.setPreferredLang(doc.getPreferredLang());
+            dto.setLlmType(doc.getLlmType());
+            dto.setPrompts(doc.getPrompts());
+            dto.setFillerPrompt(doc.getFillerPrompt());
+            dto.setTalkativity(doc.getTalkativity());
 
-            if (agent.getPreferredVoice() != null && !agent.getPreferredVoice().isEmpty()) {
-                List<VoiceDTO> voiceDTOs = agent.getPreferredVoice().stream()
+            if (doc.getPreferredVoice() != null && !doc.getPreferredVoice().isEmpty()) {
+                List<VoiceDTO> voiceDTOs = doc.getPreferredVoice().stream()
                         .map(voice -> {
                             VoiceDTO voiceDTO = new VoiceDTO();
                             voiceDTO.setId(voice.getId());
@@ -119,8 +120,8 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             }
 
             // Map enabled tools
-            if (agent.getEnabledTools() != null && !agent.getEnabledTools().isEmpty()) {
-                List<ToolDTO> toolDTOs = agent.getEnabledTools().stream()
+            if (doc.getEnabledTools() != null && !doc.getEnabledTools().isEmpty()) {
+                List<ToolDTO> toolDTOs = doc.getEnabledTools().stream()
                         .map(tool -> {
                             ToolDTO toolDTO = new ToolDTO();
                             toolDTO.setName(tool.getName());
@@ -137,14 +138,14 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
     }
 
     private AiAgent buildEntity(AiAgentDTO dto) {
-        AiAgent entity = new AiAgent();
-        entity.setId(dto.getId());
-        entity.setName(dto.getName());
-        entity.setPreferredLang(dto.getPreferredLang());
-        entity.setPrompts(dto.getPrompts());
-        entity.setFillerPrompt(dto.getFillerPrompt());
-        entity.setTalkativity(dto.getTalkativity());
-
+        AiAgent doc = new AiAgent();
+        doc.setId(dto.getId());
+        doc.setName(dto.getName());
+        doc.setPreferredLang(dto.getPreferredLang());
+        doc.setPrompts(dto.getPrompts());
+        doc.setFillerPrompt(dto.getFillerPrompt());
+        doc.setTalkativity(dto.getTalkativity());
+        doc.setLlmType(dto.getLlmType());
         if (dto.getPreferredVoice() != null && !dto.getPreferredVoice().isEmpty()) {
             List<Voice> voices = dto.getPreferredVoice().stream()
                     .map(voiceDto -> {
@@ -154,7 +155,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                         return voice;
                     })
                     .collect(Collectors.toList());
-            entity.setPreferredVoice(voices);
+            doc.setPreferredVoice(voices);
         }
 
         if (dto.getEnabledTools() != null && !dto.getEnabledTools().isEmpty()) {
@@ -167,10 +168,10 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                         return tool;
                     })
                     .collect(Collectors.toList());
-            entity.setEnabledTools(tools);
+            doc.setEnabledTools(tools);
         }
 
-        return entity;
+        return doc;
     }
 
 

@@ -38,47 +38,73 @@ public class MCPServer extends AbstractVerticle {
 
     @Override
     public void start(Promise<Void> startPromise) {
-        server = vertx.createHttpServer();
+        try {
+            server = vertx.createHttpServer();
 
-        server.webSocketHandler(webSocket -> {
-                    LOGGER.info("WebSocket connection attempt: path={}, remote={}",
-                            webSocket.path(), webSocket.remoteAddress());
-                    handleWebSocket(webSocket);
-                })
-                .listen(mcpConfig.getServerPort())
-                .onSuccess(result -> {
-                    LOGGER.info("MCP Server started on port {}", mcpConfig.getServerPort());
-                    startPromise.complete();
-                })
-                .onFailure(startPromise::fail);
+            // Add HTTP request handler to prevent null handler errors
+            server.requestHandler(request -> {
+                LOGGER.debug("HTTP request received: {} {}", request.method(), request.path());
+                if (!request.headers().contains("Upgrade", "websocket", true)) {
+                    request.response()
+                            .setStatusCode(400)
+                            .end("WebSocket connections only");
+                }
+            });
+
+            server.webSocketHandler(webSocket -> {
+                        LOGGER.info("WebSocket connection attempt: path={}, remote={}",
+                                webSocket.path(), webSocket.remoteAddress());
+
+                        // Accept all WebSocket connections for MCP
+                        handleWebSocket(webSocket);
+                    })
+                    .listen(mcpConfig.getServerPort(), mcpConfig.getServerHost())
+                    .onSuccess(result -> {
+                        LOGGER.info("MCP Server started on {}:{}", mcpConfig.getServerHost(), mcpConfig.getServerPort());
+                        startPromise.complete();
+                    })
+                    .onFailure(throwable -> {
+                        LOGGER.error("Failed to start MCP Server on {}:{}",
+                                mcpConfig.getServerHost(), mcpConfig.getServerPort(), throwable);
+                        startPromise.fail(throwable);
+                    });
+        } catch (Exception e) {
+            LOGGER.error("Error during MCP Server startup", e);
+            startPromise.fail(e);
+        }
     }
 
     private void handleWebSocket(ServerWebSocket webSocket) {
-        LOGGER.info("WebSocket handshake initiated from: {}", webSocket.remoteAddress());
-        LOGGER.info("WebSocket path: {}", webSocket.path());
-        LOGGER.info("WebSocket headers: {}", webSocket.headers());
+        try {
+            LOGGER.info("WebSocket handshake initiated from: {}", webSocket.remoteAddress());
+            LOGGER.info("WebSocket path: {}", webSocket.path());
+            LOGGER.info("WebSocket headers: {}", webSocket.headers());
 
-        LOGGER.info("MCP client connected from: {}", webSocket.remoteAddress());
-        LOGGER.info("Connection established, ready to receive MCP requests");
+            LOGGER.info("MCP client connected from: {}", webSocket.remoteAddress());
+            LOGGER.info("Connection established, ready to receive MCP requests");
 
-        webSocket.textMessageHandler(message -> {
-            try {
-                LOGGER.debug("Received MCP message: {}", message);
-                JsonNode request = objectMapper.readTree(message);
-                handleMCPRequest(webSocket, request);
-            } catch (Exception e) {
-                LOGGER.error("Error processing MCP request: {}", e.getMessage(), e);
-                sendError(webSocket, "parse_error", "Invalid JSON", null);
-            }
-        });
+            webSocket.textMessageHandler(message -> {
+                try {
+                    LOGGER.debug("Received MCP message: {}", message);
+                    JsonNode request = objectMapper.readTree(message);
+                    handleMCPRequest(webSocket, request);
+                } catch (Exception e) {
+                    LOGGER.error("Error processing MCP request: {}", e.getMessage(), e);
+                    sendError(webSocket, "parse_error", "Invalid JSON", null);
+                }
+            });
 
-        webSocket.closeHandler(v -> {
-            LOGGER.info("MCP client disconnected: {}", webSocket.remoteAddress());
-        });
+            webSocket.closeHandler(v -> {
+                LOGGER.info("MCP client disconnected: {}", webSocket.remoteAddress());
+            });
 
-        webSocket.exceptionHandler(throwable -> {
-            LOGGER.error("WebSocket error for client {}: {}", webSocket.remoteAddress(), throwable.getMessage(), throwable);
-        });
+            webSocket.exceptionHandler(throwable -> {
+                LOGGER.error("WebSocket error for client {}: {}", webSocket.remoteAddress(), throwable.getMessage(), throwable);
+            });
+        } catch (Exception e) {
+            LOGGER.error("Error handling WebSocket connection", e);
+            webSocket.close();
+        }
     }
 
     private void handleMCPRequest(ServerWebSocket webSocket, JsonNode request) {
@@ -237,7 +263,7 @@ public class MCPServer extends AbstractVerticle {
     private ObjectNode createAddToQueueTool() {
         ObjectNode tool = objectMapper.createObjectNode();
         tool.put("name", "add_to_queue");
-        tool.put("description", "Add a song to the queue for a specific brand with optional file paths");
+        tool.put("description", "Add a song to the queue for a specific brand");
 
         ObjectNode schema = objectMapper.createObjectNode();
         schema.put("type", "object");
@@ -258,7 +284,7 @@ public class MCPServer extends AbstractVerticle {
 
         ObjectNode metadataProp = objectMapper.createObjectNode();
         metadataProp.put("type", "object");
-        metadataProp.put("description", "Additional metadata for the song (artist, album, duration, genre, etc.)");
+        metadataProp.put("description", "Additional metadata for the song");
         props.set("metadata", metadataProp);
 
         schema.set("properties", props);
@@ -396,27 +422,22 @@ public class MCPServer extends AbstractVerticle {
     }
 
     private CompletableFuture<Object> handleAddToQueueCall(JsonNode arguments) {
-        String brandName = null;
-        if (arguments.has("brandName")) {
-            brandName = arguments.get("brandName").asText();
-        }
+        // Fixed parameter mapping
+        String brand = arguments.has("brand") ? arguments.get("brand").asText() : null;
+        String songId = arguments.has("songId") ? arguments.get("songId").asText() : null;
 
-        String soundFragmentUUID = null;
-        if (arguments.has("soundFragmentUUID")) {
-            soundFragmentUUID = arguments.get("soundFragmentUUID").asText();
-        }
-
+        // Handle filePaths array
         String filePath = null;
-        if (arguments.has("filePath")) {
-            filePath = arguments.get("filePath").asText();
+        if (arguments.has("filePaths") && arguments.get("filePaths").isArray()) {
+            ArrayNode filePathsArray = (ArrayNode) arguments.get("filePaths");
+            if (filePathsArray.size() > 0) {
+                filePath = filePathsArray.get(0).asText();
+            }
         }
 
-        Integer priority = null;
-        if (arguments.has("priority")) {
-            priority = arguments.get("priority").asInt();
-        }
+        Integer priority = arguments.has("priority") ? arguments.get("priority").asInt() : null;
 
-        return queueMCPTools.addToQueue(brandName, soundFragmentUUID, filePath, priority)
+        return queueMCPTools.addToQueue(brand, songId, filePath, priority)
                 .thenApply(result -> (Object) result);
     }
 
@@ -460,18 +481,22 @@ public class MCPServer extends AbstractVerticle {
     }
 
     private void sendError(ServerWebSocket webSocket, String code, String message, String id) {
-        ObjectNode response = objectMapper.createObjectNode();
-        response.put("jsonrpc", "2.0");
-        if (id != null) {
-            response.put("id", id);
+        try {
+            ObjectNode response = objectMapper.createObjectNode();
+            response.put("jsonrpc", "2.0");
+            if (id != null) {
+                response.put("id", id);
+            }
+
+            ObjectNode error = objectMapper.createObjectNode();
+            error.put("code", code);
+            error.put("message", message);
+            response.set("error", error);
+
+            webSocket.writeTextMessage(response.toString());
+        } catch (Exception e) {
+            LOGGER.error("Failed to send error response", e);
         }
-
-        ObjectNode error = objectMapper.createObjectNode();
-        error.put("code", code);
-        error.put("message", message);
-        response.set("error", error);
-
-        webSocket.writeTextMessage(response.toString());
     }
 
     @Override
@@ -484,9 +509,5 @@ public class MCPServer extends AbstractVerticle {
         } else {
             stopPromise.complete();
         }
-    }
-
-    public void startServer() {
-        vertx.deployVerticle(this);
     }
 }

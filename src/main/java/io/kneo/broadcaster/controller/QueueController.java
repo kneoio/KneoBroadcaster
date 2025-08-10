@@ -135,15 +135,36 @@ public class QueueController {
                 return Uni.createFrom().failure(new IllegalStateException("Source file not found: " + uploadedPath));
             }
 
-            LOGGER.debug("FILE_EXISTS - Moving file from '{}' to '{}'", uploadedPath, newFilePath);
+            return checkAndResolveDestination(newFilePath, fs)
+                    .onItem().transformToUni(finalPath -> {
+                        LOGGER.debug("FILE_MOVE - Moving file from '{}' to '{}'", uploadedPath, finalPath);
 
-            return Uni.createFrom().completionStage(
-                            fs.move(uploadedPath, newFilePath).toCompletionStage()
-                    ).onItem().invoke(v -> LOGGER.info("FILE_MOVED - Success: {}", newFilePath))
-                    .onFailure().invoke(error -> LOGGER.error("FILE_MOVE_FAILED - Error moving '{}' to '{}': {}",
-                            uploadedPath, newFilePath, error.getMessage()))
-                    .onItem().transform(v -> newFilePath);
+                        return Uni.createFrom().completionStage(
+                                        fs.move(uploadedPath, finalPath).toCompletionStage()
+                                ).onItem().invoke(v -> LOGGER.info("FILE_MOVED - Success: {}", finalPath))
+                                .onFailure().invoke(error -> LOGGER.error("FILE_MOVE_FAILED - Error moving '{}' to '{}': {}",
+                                        uploadedPath, finalPath, error.getMessage()))
+                                .onItem().transform(v -> finalPath);
+                    });
         });
+    }
+
+    private Uni<String> checkAndResolveDestination(String originalPath, io.vertx.core.file.FileSystem fs) {
+        return Uni.createFrom().completionStage(fs.exists(originalPath).toCompletionStage())
+                .onItem().transform(exists -> {
+                    if (!exists) {
+                        return originalPath;
+                    }
+
+                    String directory = originalPath.substring(0, originalPath.lastIndexOf('/'));
+                    String filename = originalPath.substring(originalPath.lastIndexOf('/') + 1);
+                    String name = filename.contains(".") ?
+                            filename.substring(0, filename.lastIndexOf('.')) : filename;
+                    String extension = filename.contains(".") ?
+                            filename.substring(filename.lastIndexOf('.')) : "";
+
+                    return directory + "/" + name + "_" + System.currentTimeMillis() + extension;
+                });
     }
 
     private String sanitizeFileName(String fileName) {

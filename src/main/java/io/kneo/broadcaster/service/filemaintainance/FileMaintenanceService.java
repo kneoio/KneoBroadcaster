@@ -106,7 +106,7 @@ public class FileMaintenanceService {
 
         for (String outputDir : outputDirs) {
             try {
-                LOGGER.info("Starting cleanup for: {} (tick: {})", outputDir, tick);
+                //LOGGER.info("Starting cleanup for: {} (tick: {})", outputDir, tick);
                 Path outputPath = Path.of(outputDir);
 
                 if (!Files.exists(outputPath)) {

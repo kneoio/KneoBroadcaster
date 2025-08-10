@@ -276,10 +276,15 @@ public class SpacesFileOrphanCleanup {
 
     private boolean isAudioFile(String fileKey) {
         String lowerKey = fileKey.toLowerCase();
-        return lowerKey.endsWith(".mp3") || lowerKey.endsWith(".wav") ||
-                lowerKey.endsWith(".flac") || lowerKey.endsWith(".m4a") ||
-                lowerKey.endsWith(".aac") || lowerKey.endsWith(".ogg") ||
-                lowerKey.endsWith(".wma") || lowerKey.endsWith(".ape");
+        try {
+            UUID.fromString(fileKey);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return lowerKey.endsWith(".mp3") || lowerKey.endsWith(".wav") ||
+                    lowerKey.endsWith(".flac") || lowerKey.endsWith(".m4a") ||
+                    lowerKey.endsWith(".aac") || lowerKey.endsWith(".ogg") ||
+                    lowerKey.endsWith(".wma") || lowerKey.endsWith(".ape");
+        }
     }
 
     private Path downloadFileTemporarily(String fileKey) {

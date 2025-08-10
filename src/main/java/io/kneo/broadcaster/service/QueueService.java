@@ -42,7 +42,7 @@ public class QueueService {
     private SoundFragmentService soundFragmentService;
 
     public Uni<List<SoundFragmentDTO>> getQueueForBrand(String brandName) {
-        return getPlaylist(brandName)
+        return getRadioStation(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation != null && radioStation.getPlaylist() != null && radioStation.getPlaylist().getPlaylistManager() != null) {
                         var playlistManager = radioStation.getPlaylist().getPlaylistManager();
@@ -86,7 +86,7 @@ public class QueueService {
                                         return Uni.createFrom().failure(e);
                                     }
 
-                                    return getPlaylist(brandName)
+                                    return getRadioStation(brandName)
                                             .onItem().transformToUni(radioStation -> {
                                                 if (radioStation == null) {
                                                     return Uni.createFrom().item(Boolean.FALSE);
@@ -160,7 +160,7 @@ public class QueueService {
                                     }
                                 }
 
-                                return getPlaylist(brandName)
+                                return getRadioStation(brandName)
                                         .onItem().transformToUni(radioStation -> {
                                             if (radioStation == null) {
                                                 LOGGER.warn("RadioStation {} not found", brandName);
@@ -200,7 +200,7 @@ public class QueueService {
                 });
     }
 
-    private Uni<RadioStation> getPlaylist(String brand) {
+    private Uni<RadioStation> getRadioStation(String brand) {
         return radioStationPool.get(brand)
                 .onItem().transform(v -> {
                     if (v == null) {

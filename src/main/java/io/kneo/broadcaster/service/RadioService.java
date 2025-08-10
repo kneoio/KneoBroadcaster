@@ -56,13 +56,6 @@ public class RadioService {
                 });
     }
 
-    public Uni<Void> feed(String brand) {
-        return radioStationPool.feedStation(brand)
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Failed to initialize station for brand: {}", brand, failure)
-                );
-    }
-
     public Uni<RadioStation> stopStation(String brand) {
         LOGGER.info("Stop brand: {}", brand);
         return radioStationPool.stopAndRemove(brand)

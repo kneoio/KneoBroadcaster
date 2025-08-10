@@ -107,26 +107,6 @@ public class RadioStationPool {
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
-    public Uni<Void> feedStation(String brandName) {
-        LOGGER.info("Attempting to feed {} station", brandName);
-
-        return Uni.createFrom().item(brandName)
-                .onItem().transformToUni(bn -> {
-                    RadioStation station = pool.get(bn);
-                    if (station != null &&
-                            (station.getStatus() == RadioStationStatus.ON_LINE ||
-                                    station.getStatus() == RadioStationStatus.WARMING_UP)) {
-                        StreamManager playlists = (StreamManager) station.getPlaylist();
-                        playlists.feedSegments();
-                        return Uni.createFrom().voidItem();
-                    }
-                    return Uni.createFrom().voidItem();
-                })
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Overall failure to feed station {}: {}", brandName,
-                                failure.getMessage(), failure));
-    }
-
     public Uni<RadioStation> get(String brandName) {
         RadioStation radioStation = pool.get(brandName);
         return Uni.createFrom().item(radioStation);

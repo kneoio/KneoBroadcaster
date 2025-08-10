@@ -5,7 +5,7 @@ import io.kneo.core.localization.LanguageCode;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.EnumMap;
-import java.util.Locale;
+import java.util.Random;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -68,5 +68,35 @@ public class WebHelper {
         }
 
         return generateSlug(name);
+    }
+
+    public static String generateRandomBrightColor() {
+        Random random = new Random();
+        int r, g, b;
+
+        do {
+            r = 100 + random.nextInt(156); // 100-255
+            g = 100 + random.nextInt(156); // 100-255
+            b = 100 + random.nextInt(156); // 100-255
+
+            if (Math.max(Math.max(r, g), b) < 200) {
+                int brightComponent = random.nextInt(3);
+                switch (brightComponent) {
+                    case 0: r = 200 + random.nextInt(56); break;
+                    case 1: g = 200 + random.nextInt(56); break;
+                    case 2: b = 200 + random.nextInt(56); break;
+                }
+            }
+        } while (isGrayish(r, g, b) || isBrownish(r, g, b));
+
+        return String.format("#%02X%02X%02X", r, g, b);
+    }
+
+    private static boolean isGrayish(int r, int g, int b) {
+        return Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
+    }
+
+    private static boolean isBrownish(int r, int g, int b) {
+        return r > g && g > b && r < 180 && g < 120;
     }
 }

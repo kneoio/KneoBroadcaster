@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -97,6 +98,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                         dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
                         dto.getLocalizedName().put(LanguageCode.en, "");
                         dto.setManagedBy(ManagedBy.MIX);
+                        dto.setColor(WebHelper.generateRandomBrightColor());
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)

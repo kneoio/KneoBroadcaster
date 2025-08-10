@@ -20,8 +20,6 @@ public interface DOConfig {
     @WithDefault("fra1")
     String getRegion();
 
-    //https://soundfragments.fra1.digitaloceanspaces.com
-
     @WithName("endpoint")
     @WithDefault("digitaloceanspaces.com")
     String getEndpoint();

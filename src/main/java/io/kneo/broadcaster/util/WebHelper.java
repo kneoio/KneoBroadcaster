@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class WebHelper {
-    private static final Pattern NON_LATIN = Pattern.compile("[^\\w-]");
+    private static final Pattern UNSAFE_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\s]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s");
 
     public static String generateSlug(String title, String artist) {
@@ -18,9 +18,9 @@ public class WebHelper {
         if (artist == null) artist = "";
         String input = title + " " + artist;
         String noWhitespace = WHITESPACE.matcher(input).replaceAll("-");
-        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFD);
-        String slug = NON_LATIN.matcher(normalized).replaceAll("");
-        return slug.toLowerCase(Locale.ENGLISH);
+        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFC);
+        String slug = UNSAFE_CHARS.matcher(normalized).replaceAll("");
+        return slug.toLowerCase();
     }
 
     public static String generateSlug(String input) {
@@ -36,9 +36,9 @@ public class WebHelper {
         }
 
         String noWhitespace = WHITESPACE.matcher(fileName).replaceAll("-");
-        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFD);
-        String slugPart = NON_LATIN.matcher(normalized).replaceAll("");
-        String slug = slugPart.toLowerCase(Locale.ENGLISH);
+        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFC);
+        String slugPart = UNSAFE_CHARS.matcher(normalized).replaceAll("");
+        String slug = slugPart.toLowerCase();
 
         return slug + extension;
     }

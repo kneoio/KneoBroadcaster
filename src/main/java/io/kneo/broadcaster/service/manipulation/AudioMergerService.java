@@ -73,8 +73,8 @@ public class AudioMergerService {
 
         return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
-                    //double gainValue = aiAgent.getMerger().getGainIntro();
-                    double gainValue = 2;
+                    double gainValue = aiAgent.getMerger().getGainIntro();
+
 
                     if (silenceDurationSeconds > 0) {
                         if (silenceDurationSeconds > config.getMaxSilenceDuration()) {

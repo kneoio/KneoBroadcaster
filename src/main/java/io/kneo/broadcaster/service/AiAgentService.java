@@ -1,9 +1,12 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
+import io.kneo.broadcaster.dto.ai.MergerDTO;
 import io.kneo.broadcaster.dto.ai.ToolDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.MergeMethod;
+import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.AiAgentRepository;
@@ -107,6 +110,11 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setFillerPrompt(doc.getFillerPrompt());
             dto.setTalkativity(doc.getTalkativity());
 
+            MergerDTO mergerDTO = new MergerDTO();
+            mergerDTO.setMethod(doc.getMerger().getMethod().name());
+            mergerDTO.setGainIntro(doc.getMerger().getGainIntro());
+            dto.setMerger(mergerDTO);
+
             if (doc.getPreferredVoice() != null && !doc.getPreferredVoice().isEmpty()) {
                 List<VoiceDTO> voiceDTOs = doc.getPreferredVoice().stream()
                         .map(voice -> {
@@ -146,6 +154,10 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setFillerPrompt(dto.getFillerPrompt());
         doc.setTalkativity(dto.getTalkativity());
         doc.setLlmType(dto.getLlmType());
+        Merger merger = new Merger();
+        merger.setMethod(MergeMethod.valueOf(dto.getMerger().getMethod()));
+        merger.setGainIntro(dto.getMerger().getGainIntro());
+        doc.setMerger(merger);
         if (dto.getPreferredVoice() != null && !dto.getPreferredVoice().isEmpty()) {
             List<Voice> voices = dto.getPreferredVoice().stream()
                     .map(voiceDto -> {

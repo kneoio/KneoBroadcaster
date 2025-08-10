@@ -17,6 +17,7 @@ public class AiAgent extends SimpleReferenceEntity {
     private ZoneId timeZone;
 
     private LlmType llmType;
+    private Merger merger;
     private List<String> prompts;
     private List<String> fillerPrompt;
     private List<Voice> preferredVoice;

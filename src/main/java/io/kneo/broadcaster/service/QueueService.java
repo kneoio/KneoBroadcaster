@@ -69,44 +69,43 @@ public class QueueService {
     public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO) {
         if (toQueueDTO.getMergingMethod() instanceof IntroPlusSong method) {
             UUID soundFragmentId = method.getSoundFragmentUUID();
-            return soundFragmentService.getById(soundFragmentId, SuperUser.build())
-                    .chain(soundFragment -> {
-                        return repository.getFileById(soundFragment.getId())
-                                .chain(metadata -> {
-                                    try {
-                                        Path mergedPath = metadata.getFilePath();
-                                        mergedPath = audioMergerService.mergeAudioFiles(
-                                                method.getFilePath(),
-                                                mergedPath, 0);
-                                        metadata.setFilePath(mergedPath);
-                                        soundFragment.setFileMetadataList(List.of(metadata));
-                                        soundFragment.setTitle(soundFragment.getTitle());
-                                    } catch (Exception e) {
-                                        LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
-                                        return Uni.createFrom().failure(e);
-                                    }
+            return getRadioStation(brandName)
+                    .chain(radioStation -> {
+                        if (radioStation == null) {
+                            return Uni.createFrom().item(Boolean.FALSE);
+                        }
 
-                                    return getRadioStation(brandName)
-                                            .onItem().transformToUni(radioStation -> {
-                                                if (radioStation == null) {
-                                                    return Uni.createFrom().item(Boolean.FALSE);
-                                                }
-
-                                                radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
-                                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                                brandSoundFragment.setId(soundFragment.getId());
-                                                brandSoundFragment.setSoundFragment(soundFragment);
-                                                brandSoundFragment.setQueueNum(toQueueDTO.getPriority());
-
-                                                return radioStation.getPlaylist().getPlaylistManager()
-                                                        .addFragmentToSlice(brandSoundFragment)
-                                                        .onItem().invoke(result -> {
-                                                            if (result) {
-                                                                LOGGER.info("Added song to queue for brand {}: {}",
-                                                                        brandName, soundFragment.getTitle());
-                                                            }
+                        return soundFragmentService.getById(soundFragmentId, SuperUser.build())
+                                .chain(soundFragment -> {
+                                    return repository.getFileById(soundFragment.getId())
+                                            .chain(metadata -> {
+                                                return audioMergerService.mergeAudioFiles(
+                                                                method.getFilePath(),
+                                                                metadata.getFilePath(), 0, radioStation)
+                                                        .onItem().transform(mergedPath -> {
+                                                            metadata.setFilePath(mergedPath);
+                                                            soundFragment.setFileMetadataList(List.of(metadata));
+                                                            soundFragment.setTitle(soundFragment.getTitle());
+                                                            return metadata;
                                                         })
-                                                        .onItem().transform(Boolean::valueOf);
+                                                        .chain(updatedMetadata -> {
+
+                                                            radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                                            BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                                            brandSoundFragment.setId(soundFragment.getId());
+                                                            brandSoundFragment.setSoundFragment(soundFragment);
+                                                            brandSoundFragment.setQueueNum(toQueueDTO.getPriority());
+
+                                                            return radioStation.getPlaylist().getPlaylistManager()
+                                                                    .addFragmentToSlice(brandSoundFragment)
+                                                                    .onItem().invoke(result -> {
+                                                                        if (result) {
+                                                                            LOGGER.info("Added song to queue for brand {}: {}",
+                                                                                    brandName, soundFragment.getTitle());
+                                                                        }
+                                                                    })
+                                                                    .onItem().transform(Boolean::valueOf);
+                                                        });
                                             });
                                 });
                     })
@@ -130,57 +129,77 @@ public class QueueService {
     }
 
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, List<String> filePaths) {
-        return soundFragmentService.getById(soundFragmentId, SuperUser.build())
-                .chain(soundFragment -> {
-                    return repository.getFileById(soundFragment.getId())
-                            .chain(metadata -> {
-                                if (filePaths != null && !filePaths.isEmpty()) {
-                                    try {
-                                        Path mergedPath = metadata.getFilePath();
-                                        String dashPrefix = " - ";
+        return getRadioStation(brandName)
+                .chain(radioStation -> {
+                    if (radioStation == null) {
+                        LOGGER.warn("RadioStation {} not found", brandName);
+                        return Uni.createFrom().item(false);
+                    }
 
-                                        String firstFilePath = filePaths.get(0);
-                                        String fileName = Path.of(firstFilePath).getFileName().toString();
-                                        if (fileName.contains("_--")) {
-                                            dashPrefix = " -- ";
-                                        }
+                    return soundFragmentService.getById(soundFragmentId, SuperUser.build())
+                            .chain(soundFragment -> {
+                                return repository.getFileById(soundFragment.getId())
+                                        .chain(metadata -> {
+                                            if (filePaths != null && !filePaths.isEmpty()) {
+                                                Path initialPath = metadata.getFilePath();
+                                                String dashPrefix;
 
-                                        for (String filePath : filePaths) {
-                                            mergedPath = audioMergerService.mergeAudioFiles(
-                                                    Path.of(filePath),
-                                                    mergedPath, 0
-                                            );
-                                        }
-                                        metadata.setFilePath(mergedPath);
-                                        soundFragment.setFileMetadataList(List.of(metadata));
-                                        soundFragment.setTitle(String.format("%s%s", dashPrefix, soundFragment.getTitle()));
-                                    } catch (Exception e) {
-                                        LOGGER.error("Failed to merge audio files: {}", e.getMessage(), e);
-                                        return Uni.createFrom().failure(e);
-                                    }
-                                }
+                                                String firstFilePath = filePaths.get(0);
+                                                String fileName = Path.of(firstFilePath).getFileName().toString();
+                                                if (fileName.contains("_--")) {
+                                                    dashPrefix = " -- ";
+                                                } else {
+                                                    dashPrefix = " - ";
+                                                }
 
-                                return getRadioStation(brandName)
-                                        .onItem().transformToUni(radioStation -> {
-                                            if (radioStation == null) {
-                                                LOGGER.warn("RadioStation {} not found", brandName);
-                                                return Uni.createFrom().item(false);
+                                                Uni<Path> mergeChain = Uni.createFrom().item(initialPath);
+                                                for (String filePath : filePaths) {
+                                                    mergeChain = mergeChain.chain(currentPath ->
+                                                            audioMergerService.mergeAudioFiles(
+                                                                    Path.of(filePath),
+                                                                    currentPath, 0, radioStation
+                                                            )
+                                                    );
+                                                }
+
+                                                return mergeChain.onItem().transform(finalPath -> {
+                                                    metadata.setFilePath(finalPath);
+                                                    soundFragment.setFileMetadataList(List.of(metadata));
+                                                    soundFragment.setTitle(String.format("%s%s", dashPrefix, soundFragment.getTitle()));
+                                                    return metadata;
+                                                }).chain(updatedMetadata -> {
+                                                    radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                                    BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                                    brandSoundFragment.setId(soundFragment.getId());
+                                                    brandSoundFragment.setSoundFragment(soundFragment);
+                                                    brandSoundFragment.setQueueNum(10);
+
+                                                    return radioStation.getPlaylist().getPlaylistManager()
+                                                            .addFragmentToSlice(brandSoundFragment)
+                                                            .onItem().invoke(result -> {
+                                                                if (result) {
+                                                                    LOGGER.info("Added merged song to queue for brand {}: {}",
+                                                                            brandName, soundFragment.getTitle());
+                                                                }
+                                                            });
+                                                });
+                                            } else {
+
+                                                radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+                                                brandSoundFragment.setId(soundFragment.getId());
+                                                brandSoundFragment.setSoundFragment(soundFragment);
+                                                brandSoundFragment.setQueueNum(10);
+
+                                                return radioStation.getPlaylist().getPlaylistManager()
+                                                        .addFragmentToSlice(brandSoundFragment)
+                                                        .onItem().invoke(result -> {
+                                                            if (result) {
+                                                                LOGGER.info("Added merged song to queue for brand {}: {}",
+                                                                        brandName, soundFragment.getTitle());
+                                                            }
+                                                        });
                                             }
-
-                                            radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
-                                            BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                            brandSoundFragment.setId(soundFragment.getId());
-                                            brandSoundFragment.setSoundFragment(soundFragment);
-                                            brandSoundFragment.setQueueNum(10);
-
-                                            return radioStation.getPlaylist().getPlaylistManager()
-                                                    .addFragmentToSlice(brandSoundFragment)
-                                                    .onItem().invoke(result -> {
-                                                        if (result) {
-                                                            LOGGER.info("Added merged song to queue for brand {}: {}",
-                                                                    brandName, soundFragment.getTitle());
-                                                        }
-                                                    });
                                         });
                             });
                 })

@@ -22,6 +22,7 @@ public class AiAgentDTO extends AbstractDTO {
     @ValidLanguageCode(enumClass = LanguageCode.class)
     private LanguageCode preferredLang;
     private LlmType llmType;
+    private MergerDTO merger;
     private List<String> prompts;
     private List<String> fillerPrompt;
     private List<VoiceDTO> preferredVoice;

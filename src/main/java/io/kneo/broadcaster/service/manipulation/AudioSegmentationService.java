@@ -78,21 +78,24 @@ public class AudioSegmentationService {
 
         LOGGER.debug("Creating temporary file: {}", tempFile);
 
-        try (InputStream stream = inputStream;
-             FileOutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
+        // This is the input stream we will use for reading.
+        // It starts as the original inputStream and might be wrapped.
+        InputStream effectiveStream = inputStream;
 
-            // Check if stream is still open
-          /*  if (!stream.markSupported()) {
-                // Add mark support if needed
-                stream = new java.io.BufferedInputStream(stream);
-            }*/
+        // Check if stream needs a buffered wrapper.
+        if (!effectiveStream.markSupported()) {
+            effectiveStream = new java.io.BufferedInputStream(effectiveStream);
+        }
+
+        try (InputStream streamToUse = effectiveStream;
+             FileOutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
 
             // Stream efficiently with buffer
             byte[] buffer = new byte[8192];
             int bytesRead;
             long totalBytes = 0;
 
-            while ((bytesRead = stream.read(buffer)) != -1) {
+            while ((bytesRead = streamToUse.read(buffer)) != -1) {
                 outputStream.write(buffer, 0, bytesRead);
                 totalBytes += bytesRead;
             }

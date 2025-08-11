@@ -15,7 +15,6 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.PriorityQueue;
@@ -78,10 +77,9 @@ public class PlaylistManager {
         }, 0, SELF_MANAGING_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
+
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
         try {
-
-            //TODO it is not decoupled enough for microservices
             var metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
             if (metadataList == null || metadataList.isEmpty()) {
                 LOGGER.warn("Skipping fragment with empty metadata list: {}",
@@ -90,26 +88,22 @@ public class PlaylistManager {
             }
 
             FileMetadata metadata = metadataList.get(0);
-            Path filePath = metadata.getFilePath();
 
-            if (filePath != null) {
-                LOGGER.debug("Found pre-populated file path: {}. Slicing directly.", filePath);
-                return this.addFragmentToSlice(brandSoundFragment, filePath);
+            // Check if we already have stream data
+            if (metadata.getInputStream() != null) {
+                LOGGER.debug("Found pre-populated stream data. Slicing directly.");
+                return this.addFragmentToSlice(brandSoundFragment, metadata);
             }
 
-            Uni<Path> pathUni = soundFragmentService.getFile(
+            // Otherwise fetch the file metadata with stream
+            return soundFragmentService.getFile(
                             brandSoundFragment.getSoundFragment().getId(),
                             metadata.getSlugName(),
                             SuperUser.build()
                     )
-                    .onItem().transform(fetchedMetadata -> {
-                        metadata.setFilePath(fetchedMetadata.getFilePath());
-                        return fetchedMetadata.getFilePath();
-                    });
-
-            return pathUni.onItem().transformToUni(resolvedPath ->
-                    this.addFragmentToSlice(brandSoundFragment, resolvedPath)
-            );
+                    .onItem().transformToUni(fetchedMetadata ->
+                            this.addFragmentToSlice(brandSoundFragment, fetchedMetadata)
+                    );
 
         } catch (Exception e) {
             LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
@@ -117,11 +111,11 @@ public class PlaylistManager {
         }
     }
 
-    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, Path filePath) {
-        return segmentationService.slice(brandSoundFragment.getSoundFragment(), filePath)
+    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, FileMetadata fileMetadata) {
+        return segmentationService.slice(brandSoundFragment.getSoundFragment(), fileMetadata)
                 .onItem().transformToUni(segments -> {
                     if (segments.isEmpty()) {
-                        LOGGER.warn("Slicing from path {} resulted in zero segments.", filePath);
+                        LOGGER.warn("Slicing from metadata {} resulted in zero segments.", fileMetadata.getFileKey());
                         return Uni.createFrom().item(false);
                     }
 
@@ -132,20 +126,19 @@ public class PlaylistManager {
                         boolean isAiDjSubmit = brandSoundFragment.getQueueNum() == 10;
                         int totalQueueSize = prioritizedQueue.size() + regularQueue.size();
 
-
-                        if (isAiDjSubmit) {  //for manual always allow to add but status changed
+                        if (isAiDjSubmit) {
                             if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
                             }
                             prioritizedQueue.add(brandSoundFragment);
-                            LOGGER.info("Added AI submit fragment for brand {}: {}", brand, filePath.getFileName().toString());
+                            LOGGER.info("Added AI submit fragment for brand {}: {}", brand, fileMetadata.getFileOriginalName());
                         } else {
                             if (totalQueueSize >= READY_QUEUE_MAX_SIZE) {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
                                 return Uni.createFrom().item(false);
                             } else {
                                 regularQueue.add(brandSoundFragment);
-                                LOGGER.info("Added and sliced fragment from path for brand {}: {}", brand, filePath.getFileName().toString());
+                                LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, fileMetadata.getFileOriginalName());
                             }
                         }
                         return Uni.createFrom().item(true);

@@ -29,6 +29,7 @@ public class FileMetadata {
     private byte[] fileBin;
     private AccessType accessType;
     private Path filePath;
+    private Path temporaryFilePath;
 
     // New streaming fields
     private InputStream inputStream;

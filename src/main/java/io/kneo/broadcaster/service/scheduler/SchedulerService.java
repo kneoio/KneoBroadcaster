@@ -17,7 +17,7 @@ public class SchedulerService {
     QuartzSchedulerManager quartzSchedulerManager;
 
     void onStart(@Observes StartupEvent event) {
-        LOGGER.info("Scheduler service now using Quartz-based implementation");
+        LOGGER.info("Scheduler service starting ...");
     }
 
     public void scheduleEntity(Schedulable entity) {

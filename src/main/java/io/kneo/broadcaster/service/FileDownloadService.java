@@ -135,7 +135,7 @@ public class FileDownloadService {
             }
         }
 
-        return soundFragmentService.getFile(UUID.fromString(id), safeFileName, user)
+        return soundFragmentService.getFileBySlugName(UUID.fromString(id), safeFileName, user)
                 .onItem().transform(fileMetadata ->
                         new FileData(fileMetadata.getFileBin(), fileMetadata.getMimeType()));
     }

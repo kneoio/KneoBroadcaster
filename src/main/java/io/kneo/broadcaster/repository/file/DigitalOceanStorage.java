@@ -3,8 +3,6 @@ package io.kneo.broadcaster.repository.file;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.AccessType;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
-import io.kneo.broadcaster.service.FileOperationLockService;
-import io.kneo.broadcaster.service.TransactionCoordinatorService;
 import io.kneo.broadcaster.service.external.digitalocean.DigitalOceanSpacesService;
 import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
 import io.smallrye.mutiny.Uni;
@@ -17,7 +15,6 @@ import io.vertx.pgclient.PgException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
-import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +24,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -38,159 +34,16 @@ public class DigitalOceanStorage implements IFileStorage {
 
     private final DigitalOceanSpacesService digitalOceanSpacesService;
     private final LocalFileCleanupService localFileCleanupService;
-    private final TransactionCoordinatorService transactionCoordinator;
-    private final FileOperationLockService lockService;
     private final Vertx vertx;
     private final PgPool client;
 
     @Inject
-    public DigitalOceanStorage(PgPool client, DigitalOceanSpacesService digitalOceanSpacesService, LocalFileCleanupService localFileCleanupService, TransactionCoordinatorService transactionCoordinator, FileOperationLockService lockService, Vertx vertx) {
+    public DigitalOceanStorage(PgPool client, DigitalOceanSpacesService digitalOceanSpacesService, LocalFileCleanupService localFileCleanupService, Vertx vertx) {
         this.client = client;
         this.digitalOceanSpacesService = digitalOceanSpacesService;
         this.localFileCleanupService = localFileCleanupService;
-        this.transactionCoordinator = transactionCoordinator;
-        this.lockService = lockService;
         this.vertx = vertx;
     }
-
-
-    public Uni<String> storeFileCoordinated(String key, String filePath, String mimeType,
-                                            String tableName, UUID id, String username) {
-
-        return lockService.withFileLock(username, id.toString(), Paths.get(filePath).getFileName().toString(), () -> {
-            return transactionCoordinator.executeCoordinatedTransaction(context -> {
-
-                // First, upload to DigitalOcean
-                return digitalOceanSpacesService.uploadFile(key, filePath, mimeType)
-                        .onItem().transformToUni(uploadResult -> {
-
-                            // Register compensation action (delete from DigitalOcean if DB fails)
-                            Uni<Void> compensation = digitalOceanSpacesService.deleteFile(key)
-                                    .onFailure().invoke(ex ->
-                                            LOGGER.error("Failed to compensate - delete file from DigitalOcean: {}", key, ex))
-                                    .onFailure().recoverWithNull()
-                                    .replaceWithVoid();
-
-                            context.addCompensationAction(compensation);
-
-                            // Now update/insert database record within the transaction
-                            return storeFileMetadataInTransaction(context, key, mimeType, tableName, id);
-                        })
-                        .onItem().transformToUni(dbResult -> {
-                            // Cleanup local file after successful storage
-                            Path path = Paths.get(filePath);
-                            String fileName = path.getFileName().toString();
-
-                            Path pathObj = path.getParent();
-                            if (pathObj != null) {
-                                String entityId = pathObj.getFileName().toString();
-                                Path userPath = pathObj.getParent();
-                                if (userPath != null) {
-                                    String extractedUsername = userPath.getFileName().toString();
-
-                                    return localFileCleanupService.cleanupAfterSuccessfulUpload(
-                                                    extractedUsername, entityId, fileName)
-                                            .onItem().transform(ignored -> key)
-                                            .onFailure().invoke(ex ->
-                                                    LOGGER.warn("Failed to cleanup local file after upload: {}", filePath, ex));
-                                }
-                            }
-                            return Uni.createFrom().item(key);
-                        });
-            });
-        });
-    }
-
-    // Helper method to store file metadata within transaction
-    private Uni<String> storeFileMetadataInTransaction(TransactionCoordinatorService.CoordinatedTransactionContext context,
-                                                       String key, String mimeType,
-                                                       String tableName, UUID id) {
-
-        String updateSql = "UPDATE _files SET file_bin = NULL, mime_type = $2, parent_table = $3, parent_id = $4, last_mod_date = NOW() WHERE file_key = $1";
-        String insertSql = "INSERT INTO _files (file_key, file_bin, mime_type, parent_table, parent_id, storage_type, archived)" +
-                " VALUES ($1, NULL, $2, $3, $4, 'DIGITAL_OCEAN', 0)";
-
-        return context.getSqlConnection().preparedQuery(updateSql)
-                .execute(Tuple.of(key, mimeType, tableName, id))
-                .onItem().transformToUni(updateResult -> {
-                    if (updateResult.rowCount() > 0) {
-                        LOGGER.debug("Updated existing file metadata with key: {}", key);
-                        return Uni.createFrom().item(key);
-                    } else {
-                        return context.getSqlConnection().preparedQuery(insertSql)
-                                .execute(Tuple.of(key, mimeType, tableName, id))
-                                .onItem().transform(insertResult -> {
-                                    LOGGER.debug("Inserted new file metadata with key: {}", key);
-                                    return key;
-                                });
-                    }
-                });
-    }
-
-    // Add batch storage method for multiple files
-    public Uni<List<String>> storeMultipleFilesCoordinated(List<FileUploadRequest> requests, String username) {
-
-        // Create lock keys for all files
-        String[] lockKeys = requests.stream()
-                .map(req -> "file:" + username + ":" + req.getEntityId() + ":" +
-                        Paths.get(req.getFilePath()).getFileName().toString())
-                .toArray(String[]::new);
-
-        return lockService.withMultipleLocks(lockKeys, () -> {
-            return transactionCoordinator.executeCoordinatedTransaction(context -> {
-
-                List<TransactionCoordinatorService.FileOperation> fileOps = requests.stream()
-                        .map(req -> new FileUploadOperation(req, context))
-                        .collect(java.util.stream.Collectors.toList());
-
-                return transactionCoordinator.executeAtomicFileOperations(context, fileOps)
-                        .onItem().transform(ignored ->
-                                requests.stream()
-                                        .map(FileUploadRequest::getKey)
-                                        .collect(java.util.stream.Collectors.toList()));
-            });
-        }, "batch file upload for user: " + username);
-    }
-
-    // File upload operation implementation
-    private class FileUploadOperation implements TransactionCoordinatorService.FileOperation {
-        private final FileUploadRequest request;
-        private final TransactionCoordinatorService.CoordinatedTransactionContext context;
-
-        public FileUploadOperation(FileUploadRequest request, TransactionCoordinatorService.CoordinatedTransactionContext context) {
-            this.request = request;
-            this.context = context;
-        }
-
-        @Override
-        public Uni<Void> execute() {
-            return digitalOceanSpacesService.uploadFile(request.getKey(), request.getFilePath(), request.getMimeType())
-                    .onItem().transformToUni(uploadResult ->
-                            storeFileMetadataInTransaction(context, request.getKey(), request.getMimeType(),
-                                    request.getTableName(), request.getEntityId())
-                                    .replaceWithVoid()
-                    );
-        }
-
-        @Override
-        public Uni<Void> getCompensation() {
-            return digitalOceanSpacesService.deleteFile(request.getKey())
-                    .onFailure().invoke(ex ->
-                            LOGGER.error("Failed to compensate - delete file: {}", request.getKey(), ex))
-                    .onFailure().recoverWithNull()
-                    .replaceWithVoid();
-        }
-    }
-
-
-
-
-
-
-
-
-
-
 
     @Override
     public Uni<String> storeFile(String key, String filePath, String mimeType, String tableName, UUID id) {
@@ -311,9 +164,9 @@ public class DigitalOceanStorage implements IFileStorage {
                     metadata.setFileKey(row.getString("file_key"));
 
                     return digitalOceanSpacesService.getFileStream(key)
-                            .onItem().transform(streamedFile -> {
-                                metadata.setInputStream(streamedFile.getInputStream());
-                                metadata.setContentLength(streamedFile.getContentLength());
+                            .onItem().transform(streamMetadata -> {
+                                metadata.setInputStream(streamMetadata.getInputStream());
+                                metadata.setContentLength(streamMetadata.getContentLength());
                                 return metadata;
                             });
                 })
@@ -352,22 +205,4 @@ public class DigitalOceanStorage implements IFileStorage {
         return FileStorageType.DIGITAL_OCEAN;
     }
 
-    @Getter
-    public static class FileUploadRequest {
-        // Getters
-        private final String key;
-        private final String filePath;
-        private final String mimeType;
-        private final String tableName;
-        private final UUID entityId;
-
-        public FileUploadRequest(String key, String filePath, String mimeType, String tableName, UUID entityId) {
-            this.key = key;
-            this.filePath = filePath;
-            this.mimeType = mimeType;
-            this.tableName = tableName;
-            this.entityId = entityId;
-        }
-
-    }
 }

@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.stream;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
@@ -26,6 +27,9 @@ public class RadioStationPool {
 
     @Inject
     RadioStationService radioStationService;
+
+    @Inject
+    BroadcasterConfig broadcasterConfig;
 
     @Inject
     HlsPlaylistConfig config;
@@ -88,6 +92,7 @@ public class RadioStationPool {
                                     StreamManager newPlaylist = new StreamManager(
                                             sliderTimer,
                                             feederTimer,
+                                            broadcasterConfig,
                                             config,
                                             soundFragmentService,
                                             segmentationService,

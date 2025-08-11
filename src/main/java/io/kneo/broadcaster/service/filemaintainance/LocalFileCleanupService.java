@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
@@ -30,8 +31,9 @@ public class LocalFileCleanupService {
     private static final Duration ENTITY_FILE_MAX_AGE = Duration.ofDays(1);
     private static final Duration CLEANUP_INTERVAL = Duration.ofHours(1);
     private static final Duration INITIAL_DELAY = Duration.ofMinutes(10);
+
     private final FileSystem fileSystem;
-    private final String uploadDir;
+    private final List<String> managedDirectories;
     private Cancellable cleanupSubscription;
 
     private final AtomicLong tempFilesDeleted = new AtomicLong(0);
@@ -42,11 +44,16 @@ public class LocalFileCleanupService {
     @Inject
     public LocalFileCleanupService(BroadcasterConfig config, Vertx vertx) {
         this.fileSystem = vertx.fileSystem();
-        this.uploadDir = config.getPathUploads() + "/sound-fragments-controller";
+        String baseUploadPath = config.getPathUploads();
+        this.managedDirectories = List.of(
+                baseUploadPath + "/sound-fragments-controller",
+                baseUploadPath + "/audio-processing",
+                baseUploadPath + "/playlist-processing"
+        );
     }
 
     void onStart(@Observes StartupEvent event) {
-        LOGGER.info("Starting Local File Cleanup Service");
+        LOGGER.info("Starting Local File Cleanup Service for directories: {}", managedDirectories);
         startCleanupTask();
     }
 
@@ -78,21 +85,17 @@ public class LocalFileCleanupService {
         long bytesFreedSession = 0;
 
         try {
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                LOGGER.debug("Upload directory does not exist: {}", uploadPath);
-                return;
-            }
-
-            try (Stream<Path> userDirs = Files.list(uploadPath)) {
-                for (Path userDir : userDirs.toArray(Path[]::new)) {
-                    if (Files.isDirectory(userDir)) {
-                        CleanupResult result = cleanupUserDirectory(userDir).await().atMost(Duration.ofMinutes(5));
-                        tempDeleted += result.tempFilesDeleted;
-                        entityDeleted += result.entityFilesDeleted;
-                        bytesFreedSession += result.bytesFreed;
-                    }
+            for (String directoryPath : managedDirectories) {
+                Path uploadPath = Paths.get(directoryPath);
+                if (!Files.exists(uploadPath)) {
+                    LOGGER.debug("Directory does not exist: {}", uploadPath);
+                    continue;
                 }
+
+                CleanupResult result = cleanupDirectory(uploadPath).await().atMost(Duration.ofMinutes(5));
+                tempDeleted += result.tempFilesDeleted;
+                entityDeleted += result.entityFilesDeleted;
+                bytesFreedSession += result.bytesFreed;
             }
 
             tempFilesDeleted.addAndGet(tempDeleted);
@@ -111,43 +114,98 @@ public class LocalFileCleanupService {
         }
     }
 
-    private Uni<CleanupResult> cleanupUserDirectory(Path userDir) {
+    private Uni<CleanupResult> cleanupDirectory(Path baseDir) {
         return Uni.createFrom().item(() -> {
             CleanupResult result = new CleanupResult();
 
-            try (Stream<Path> entityDirs = Files.list(userDir)) {
-                for (Path entityDir : entityDirs.toArray(Path[]::new)) {
-                    if (Files.isDirectory(entityDir)) {
-                        String dirName = entityDir.getFileName().toString();
-
-                        if ("temp".equals(dirName)) {
-                            result.add(cleanupTempDirectory(entityDir));
-                        } else {
-                            result.add(cleanupEntityDirectory(entityDir));
+            try {
+                if (isSpecialTempDirectory(baseDir)) {
+                    // Handle audio-processing and playlist-processing directories
+                    result.add(cleanupTempDirectory(baseDir));
+                } else {
+                    // Handle sound-fragments-controller structure with user directories
+                    try (Stream<Path> userDirs = Files.list(baseDir)) {
+                        for (Path userDir : userDirs.toArray(Path[]::new)) {
+                            if (Files.isDirectory(userDir)) {
+                                result.add(cleanupUserDirectory(userDir));
+                            }
                         }
                     }
                 }
             } catch (Exception e) {
-                LOGGER.error("Failed to cleanup user directory: {}", userDir, e);
-            }
-
-            try {
-                if (isDirectoryEmpty(userDir)) {
-                    Files.delete(userDir);
-                    LOGGER.debug("Removed empty user directory: {}", userDir);
-                }
-            } catch (Exception e) {
-                LOGGER.debug("Could not remove user directory: {}", userDir);
+                LOGGER.error("Failed to cleanup directory: {}", baseDir, e);
             }
 
             return result;
         }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }
 
+    private boolean isSpecialTempDirectory(Path directory) {
+        String dirName = directory.getFileName().toString();
+        return "audio-processing".equals(dirName) || "playlist-processing".equals(dirName);
+    }
+
+    private CleanupResult cleanupUserDirectory(Path userDir) {
+        CleanupResult result = new CleanupResult();
+
+        try (Stream<Path> entityDirs = Files.list(userDir)) {
+            for (Path entityDir : entityDirs.toArray(Path[]::new)) {
+                if (Files.isDirectory(entityDir)) {
+                    String dirName = entityDir.getFileName().toString();
+
+                    if ("temp".equals(dirName)) {
+                        result.add(cleanupTempDirectory(entityDir));
+                    } else {
+                        result.add(cleanupEntityDirectory(entityDir));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to cleanup user directory: {}", userDir, e);
+        }
+
+        try {
+            if (isDirectoryEmpty(userDir)) {
+                Files.delete(userDir);
+                LOGGER.debug("Removed empty user directory: {}", userDir);
+            }
+        } catch (Exception e) {
+            LOGGER.debug("Could not remove user directory: {}", userDir);
+        }
+
+        return result;
+    }
+
     private CleanupResult cleanupTempDirectory(Path tempDir) {
         CleanupResult result = new CleanupResult();
 
-        try (Stream<Path> files = Files.list(tempDir)) {
+        try {
+            if (isSpecialTempDirectory(tempDir.getParent())) {
+                // Direct cleanup for audio-processing and playlist-processing
+                cleanupTempFiles(tempDir, result);
+            } else {
+                // Check if it's a temp subdirectory or direct temp files
+                if (Files.exists(tempDir.resolve("temp"))) {
+                    cleanupTempFiles(tempDir.resolve("temp"), result);
+                } else {
+                    cleanupTempFiles(tempDir, result);
+                }
+            }
+
+            if (isDirectoryEmpty(tempDir)) {
+                Files.delete(tempDir);
+                LOGGER.debug("Removed empty temp directory: {}", tempDir);
+            }
+
+        } catch (Exception e) {
+            LOGGER.error("Failed to cleanup temp directory: {}", tempDir, e);
+        }
+
+        return result;
+    }
+
+    private void cleanupTempFiles(Path directory, CleanupResult result) {
+        try (Stream<Path> files = Files.list(directory)) {
             Instant cutoffTime = Instant.now().minus(TEMP_FILE_MAX_AGE);
 
             for (Path file : files.toArray(Path[]::new)) {
@@ -166,17 +224,9 @@ public class LocalFileCleanupService {
                     }
                 }
             }
-
-            if (isDirectoryEmpty(tempDir)) {
-                Files.delete(tempDir);
-                LOGGER.debug("Removed empty temp directory: {}", tempDir);
-            }
-
         } catch (Exception e) {
-            LOGGER.error("Failed to cleanup temp directory: {}", tempDir, e);
+            LOGGER.error("Failed to cleanup temp files in directory: {}", directory, e);
         }
-
-        return result;
     }
 
     private CleanupResult cleanupEntityDirectory(Path entityDir) {
@@ -224,7 +274,7 @@ public class LocalFileCleanupService {
 
     public Uni<Void> cleanupTempFilesForUser(String username) {
         return Uni.createFrom().item(() -> {
-                    Path tempDir = Paths.get(uploadDir, username, "temp");
+                    Path tempDir = Paths.get(managedDirectories.get(0), username, "temp");
                     if (Files.exists(tempDir)) {
                         cleanupTempDirectory(tempDir);
                         LOGGER.info("Cleaned up temp files for user: {}", username);
@@ -236,7 +286,7 @@ public class LocalFileCleanupService {
 
     public Uni<Void> cleanupEntityFiles(String username, String entityId) {
         return Uni.createFrom().item(() -> {
-                    Path entityDir = Paths.get(uploadDir, username, entityId);
+                    Path entityDir = Paths.get(managedDirectories.get(0), username, entityId);
                     if (Files.exists(entityDir)) {
                         CleanupResult result = cleanupEntityDirectory(entityDir);
                         LOGGER.info("Cleaned up entity files for user: {}, entity: {} - {} files, {} bytes",
@@ -248,7 +298,7 @@ public class LocalFileCleanupService {
     }
 
     public Uni<Void> cleanupAfterSuccessfulUpload(String username, String entityId, String fileName) {
-        return fileSystem.delete(Paths.get(uploadDir, username, entityId, fileName).toString())
+        return fileSystem.delete(Paths.get(managedDirectories.get(0), username, entityId, fileName).toString())
                 .onItem().invoke(() -> LOGGER.debug("Cleaned up local file after successful upload: {}/{}/{}",
                         username, entityId, fileName))
                 .onFailure().invoke(e -> LOGGER.warn("Failed to cleanup local file: {}/{}/{}",

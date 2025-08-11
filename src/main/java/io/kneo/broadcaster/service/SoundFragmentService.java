@@ -170,9 +170,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<FileMetadata> getFile(UUID soundFragmentId, String slugName, IUser user) {
+    public Uni<FileMetadata> getFileBySlugName(UUID soundFragmentId, String slugName, IUser user) {
         assert repository != null;
-        return repository.getFileById(soundFragmentId, slugName, user, false);
+        return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
     }
 
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user) {

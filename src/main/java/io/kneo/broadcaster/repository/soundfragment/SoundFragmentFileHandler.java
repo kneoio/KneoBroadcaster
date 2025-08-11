@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 @ApplicationScoped
 public class SoundFragmentFileHandler {
@@ -22,21 +21,19 @@ public class SoundFragmentFileHandler {
 
     private final PgPool client;
     private final IFileStorage fileStorage;
-    private final Supplier<Uni<Integer>> corruptionMarker;
 
     @Inject
     public SoundFragmentFileHandler(PgPool client, @Named("digitalOcean") IFileStorage fileStorage) {
         this.client = client;
         this.fileStorage = fileStorage;
-        this.corruptionMarker = null; // Will be set by repository
     }
 
-    public Uni<FileMetadata> getFileById(UUID id) {
+    public Uni<FileMetadata> getFirstFile(UUID id) {
         String sql = "SELECT f.file_key FROM _files f WHERE f.parent_id = $1";
         return retrieveFileFromStorage(id, sql, Tuple.of(id));
     }
 
-    public Uni<FileMetadata> getFileById(UUID id, String slugName) {
+    public Uni<FileMetadata> getFileBySlugName(UUID id, String slugName) {
         String sql = "SELECT f.file_key FROM _files f WHERE f.parent_id = $1 AND f.slug_name = $2";
         return retrieveFileFromStorage(id, sql, Tuple.of(id, slugName));
     }

@@ -2,7 +2,6 @@ package io.kneo.broadcaster.service.manipulation;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SegmentInfo;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.service.stream.HlsSegment;
@@ -16,9 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -47,89 +44,13 @@ public class AudioSegmentationService {
         new File(outputDir).mkdirs();
     }
 
-    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, FileMetadata fileMetadata) {
+    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath) {
         return Uni.createFrom().item(() -> {
-                    Path tempFile = null;
-                    try {
-                        tempFile = createTempFileFromStream(fileMetadata.getInputStream(), fileMetadata.getMimeType());
-                        return segmentAudioFile(tempFile, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId());
-                    } catch (IOException e) {
-                        LOGGER.error("Failed to create temporary file from stream for fragment: {}", soundFragment.getId(), e);
-                        throw new RuntimeException("Failed to process audio stream", e);
-                    } finally {
-                        if (tempFile != null) {
-                            try {
-                                Files.deleteIfExists(tempFile);
-                                LOGGER.debug("Cleaned up temporary file: {}", tempFile);
-                            } catch (IOException e) {
-                                LOGGER.warn("Failed to cleanup temporary file: {}", tempFile, e);
-                            }
-                        }
-                    }
+                    return segmentAudioFile(filePath, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId());
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file for fragment: {}", soundFragment.getId(), e))
+                .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e))
                 .chain(this::createHlsQueueFromSegments);
-    }
-
-    private Path createTempFileFromStream(InputStream inputStream, String mimeType) throws IOException {
-        String extension = getFileExtension(mimeType);
-        Path tempFile = Files.createTempFile("audio_segment_", extension);
-
-        LOGGER.debug("Creating temporary file: {}", tempFile);
-
-        // This is the input stream we will use for reading.
-        // It starts as the original inputStream and might be wrapped.
-        InputStream effectiveStream = inputStream;
-
-        // Check if stream needs a buffered wrapper.
-        if (!effectiveStream.markSupported()) {
-            effectiveStream = new java.io.BufferedInputStream(effectiveStream);
-        }
-
-        try (InputStream streamToUse = effectiveStream;
-             FileOutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
-
-            // Stream efficiently with buffer
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            long totalBytes = 0;
-
-            while ((bytesRead = streamToUse.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, bytesRead);
-                totalBytes += bytesRead;
-            }
-
-            if (totalBytes == 0) {
-                throw new IOException("No data read from stream - stream may be closed or empty");
-            }
-
-            LOGGER.debug("Temporary file created successfully: {} bytes", totalBytes);
-        } catch (IOException e) {
-            // Clean up temp file if creation failed
-            try {
-                Files.deleteIfExists(tempFile);
-            } catch (IOException deleteEx) {
-                LOGGER.warn("Failed to cleanup temp file after stream error: {}", tempFile, deleteEx);
-            }
-            throw new IOException("Failed to create temp file from stream: " + e.getMessage(), e);
-        }
-
-        return tempFile;
-    }
-
-    private String getFileExtension(String mimeType) {
-        if (mimeType == null) return ".tmp";
-
-        return switch (mimeType.toLowerCase()) {
-            case "audio/mpeg", "audio/mp3" -> ".mp3";
-            case "audio/wav", "audio/wave" -> ".wav";
-            case "audio/flac" -> ".flac";
-            case "audio/aac" -> ".aac";
-            case "audio/ogg" -> ".ogg";
-            case "audio/m4a" -> ".m4a";
-            default -> ".tmp";
-        };
     }
 
     private Uni<ConcurrentLinkedQueue<HlsSegment>> createHlsQueueFromSegments(List<SegmentInfo> segments) {

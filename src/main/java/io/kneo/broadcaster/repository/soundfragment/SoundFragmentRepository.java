@@ -127,8 +127,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<FileMetadata> getFileById(UUID id) {
-        return fileHandler.getFileById(id)
+    public Uni<FileMetadata> getFirstFile(UUID id) {
+        return fileHandler.getFirstFile(id)
                 .onFailure(DocumentHasNotFoundException.class)
                 .recoverWithUni(ex -> {
                     markAsCorrupted(id).subscribe().with(
@@ -147,8 +147,8 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<FileMetadata> getFileById(UUID id, String slugName, IUser user, boolean includeArchived) {
-        return fileHandler.getFileById(id, slugName)
+    public Uni<FileMetadata> getFileBySlugName(UUID id, String slugName, IUser user, boolean includeArchived) {
+        return fileHandler.getFileBySlugName(id, slugName)
                 .onFailure().recoverWithUni(ex -> {
                     markAsCorrupted(id).subscribe().with(
                             result -> LOGGER.info("Marked file {} as corrupted", id),

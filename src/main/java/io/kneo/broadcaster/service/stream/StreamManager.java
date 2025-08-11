@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.stream;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.BrandSoundFragment;
@@ -52,6 +53,7 @@ public class StreamManager implements IStreamManager {
     private RadioStation radioStation;
     @Getter
     private PlaylistManager playlistManager;
+    private BroadcasterConfig broadcasterConfig;
     @Getter
     private final HlsPlaylistConfig config;
     @Getter
@@ -71,10 +73,10 @@ public class StreamManager implements IStreamManager {
 
     private final Object fragmentRetrievalLock = new Object();
 
-    public
-    StreamManager(
+    public StreamManager(
             SliderTimer sliderTimer,
             SegmentFeederTimer segmentFeederTimer,
+            BroadcasterConfig broadcasterConfig,
             HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService,
@@ -83,6 +85,7 @@ public class StreamManager implements IStreamManager {
     ) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
+        this.broadcasterConfig = broadcasterConfig;
         this.config = config;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
@@ -105,7 +108,7 @@ public class StreamManager implements IStreamManager {
 
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
-        playlistManager = new PlaylistManager(this);
+        playlistManager = new PlaylistManager(broadcasterConfig, this);
         if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
             playlistManager.startSelfManaging();
         }
@@ -317,6 +320,7 @@ public class StreamManager implements IStreamManager {
                 config
         );
     }
+
 
     @Override
     public void shutdown() {

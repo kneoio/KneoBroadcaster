@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.external.digitalocean;
 
-import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.DOConfig;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.annotation.PostConstruct;
@@ -19,8 +19,6 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import java.io.File;
-import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Paths;
 
@@ -30,13 +28,10 @@ public class DigitalOceanSpacesService {
 
     private final DOConfig doConfig;
     private S3Client s3Client;
-    private final String outputDir;
 
     @Inject
-    public DigitalOceanSpacesService(DOConfig doConfig, BroadcasterConfig broadcasterConfig) {
+    public DigitalOceanSpacesService(DOConfig doConfig) {
         this.doConfig = doConfig;
-        this.outputDir = broadcasterConfig.getPathForExternalServiceUploads() + File.separator + "digital_ocean";
-        new File(outputDir).mkdirs();
     }
 
     @PostConstruct
@@ -51,8 +46,7 @@ public class DigitalOceanSpacesService {
                 .build();
     }
 
-    // ===== NEW STREAMING METHOD =====
-    public Uni<StreamedFile> getFileStream(String keyName) {
+    public Uni<FileMetadata> getFileStream(String keyName) {
         return Uni.createFrom().item(() -> {
                     LOGGER.debug("Retrieving file stream for key: {}", keyName);
 
@@ -61,18 +55,16 @@ public class DigitalOceanSpacesService {
                             .key(keyName)
                             .build();
 
-                    // Get object as stream - NO disk download
                     var responseInputStream = s3Client.getObject(getObjectRequest, ResponseTransformer.toInputStream());
 
-                    StreamedFile streamedFile = new StreamedFile();
-                    streamedFile.setInputStream(responseInputStream);
-                    streamedFile.setContentType(responseInputStream.response().contentType());
-                    streamedFile.setContentLength(responseInputStream.response().contentLength());
-                    streamedFile.setLastModified(responseInputStream.response().lastModified());
-                    streamedFile.setKey(keyName);
+                    FileMetadata metadata = new FileMetadata();
+                    metadata.setInputStream(responseInputStream);
+                    metadata.setMimeType(responseInputStream.response().contentType());
+                    metadata.setContentLength(responseInputStream.response().contentLength());
+                    metadata.setFileKey(keyName);
 
                     LOGGER.debug("Stream created for key: {}, size: {} bytes", keyName, responseInputStream.response().contentLength());
-                    return streamedFile;
+                    return metadata;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().invoke(throwable -> LOGGER.error("Error retrieving file stream: {} from S3 bucket: {}", keyName, doConfig.getBucketName(), throwable))
@@ -115,30 +107,5 @@ public class DigitalOceanSpacesService {
         if (s3Client != null) {
             s3Client.close();
         }
-    }
-
-    // ===== STREAMING FILE WRAPPER =====
-    public static class StreamedFile {
-        private InputStream inputStream;
-        private String contentType;
-        private Long contentLength;
-        private java.time.Instant lastModified;
-        private String key;
-
-        // Getters and setters
-        public InputStream getInputStream() { return inputStream; }
-        public void setInputStream(InputStream inputStream) { this.inputStream = inputStream; }
-
-        public String getContentType() { return contentType; }
-        public void setContentType(String contentType) { this.contentType = contentType; }
-
-        public Long getContentLength() { return contentLength; }
-        public void setContentLength(Long contentLength) { this.contentLength = contentLength; }
-
-        public java.time.Instant getLastModified() { return lastModified; }
-        public void setLastModified(java.time.Instant lastModified) { this.lastModified = lastModified; }
-
-        public String getKey() { return key; }
-        public void setKey(String key) { this.key = key; }
     }
 }

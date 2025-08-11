@@ -367,61 +367,99 @@ public class SoundFragmentRepository extends AsyncRepository {
                     String doKey = row.getString("file_key");
                     LOGGER.info("Retrieved file key: {} for ID: {} - Attempting Digital Ocean retrieval", doKey, id);
 
+                    // Add detailed pre-retrieval logging
+                    LOGGER.debug("File retrieval context - ID: {}, Key: {}, Key length: {}, Key contains spaces: {}",
+                            id, doKey, doKey != null ? doKey.length() : 0, doKey != null && doKey.contains(" "));
+
                     return fileStorage.retrieveFile(doKey)
                             .onItem().invoke(file -> {
                                 LOGGER.info("SUCCESS: Digital Ocean retrieval completed for key: {} (ID: {})", doKey, id);
-                                LOGGER.debug("File mime: {}", file != null ? file.getMimeType() : "null");
+                                LOGGER.debug("File details - ID: {}, Key: {}, MimeType: {}, Size: {}",
+                                        id, doKey, file != null ? file.getMimeType() : "null",
+                                        file != null && file.getFileBin() != null ? file.getFileBin().length : "null");
                             })
                             .onFailure().invoke(failure -> {
-                                LOGGER.error("DIGITAL OCEAN FAILURE: Storage retrieval failed for key: {} (ID: {})", doKey, id, failure);
-                                LOGGER.error("Failure type: {}", failure.getClass().getSimpleName());
-                                LOGGER.error("Failure message: {}", failure.getMessage());
+                                // Comprehensive failure analysis
+                                LOGGER.error("=== DIGITAL OCEAN RETRIEVAL FAILURE ANALYSIS ===");
+                                LOGGER.error("File ID: {}", id);
+                                LOGGER.error("File Key: '{}'", doKey);
+                                LOGGER.error("Key Details: length={}, isEmpty={}, isBlank={}",
+                                        doKey != null ? doKey.length() : "null",
+                                        doKey != null ? doKey.isEmpty() : "null",
+                                        doKey != null ? doKey.isBlank() : "null");
+                                LOGGER.error("Exception Type: {}", failure.getClass().getName());
+                                LOGGER.error("Exception Message: '{}'", failure.getMessage());
+
                                 if (failure.getCause() != null) {
-                                    LOGGER.error("Root cause: {} - {}", failure.getCause().getClass().getSimpleName(), failure.getCause().getMessage());
+                                    LOGGER.error("Root Cause Type: {}", failure.getCause().getClass().getName());
+                                    LOGGER.error("Root Cause Message: '{}'", failure.getCause().getMessage());
+
+                                    if (failure.getCause().getCause() != null) {
+                                        LOGGER.error("Deep Root Cause Type: {}", failure.getCause().getCause().getClass().getName());
+                                        LOGGER.error("Deep Root Cause Message: '{}'", failure.getCause().getCause().getMessage());
+                                    }
                                 }
+
+                                // Check for specific error patterns
+                                String errorMsg = failure.getMessage() != null ? failure.getMessage().toLowerCase() : "";
+                                if (errorMsg.contains("404") || errorMsg.contains("not found")) {
+                                    LOGGER.error("DIAGNOSIS: File not found in Digital Ocean storage (404)");
+                                } else if (errorMsg.contains("403") || errorMsg.contains("forbidden") || errorMsg.contains("access denied")) {
+                                    LOGGER.error("DIAGNOSIS: Access denied - check Digital Ocean credentials/permissions");
+                                } else if (errorMsg.contains("timeout") || errorMsg.contains("connection")) {
+                                    LOGGER.error("DIAGNOSIS: Network connectivity issue to Digital Ocean");
+                                } else if (errorMsg.contains("auth") || errorMsg.contains("credential")) {
+                                    LOGGER.error("DIAGNOSIS: Authentication issue with Digital Ocean");
+                                } else {
+                                    LOGGER.error("DIAGNOSIS: Unknown Digital Ocean error - needs investigation");
+                                }
+
+                                LOGGER.error("=== END FAILURE ANALYSIS ===");
                             })
-                            .onFailure().transform(ex -> {
-                                if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
-                                    LOGGER.warn("File not found in Digital Ocean storage - Key: {} (ID: {})", doKey, id, ex);
-                                    return ex;
-                                }
+                            .onFailure().recoverWithUni(ex -> {
+                                LOGGER.warn("Initiating corruption marking for file - Key: {} (ID: {})", doKey, id);
 
-                                LOGGER.error("CRITICAL: Unexpected Digital Ocean storage error - Key: {} (ID: {})", doKey, id, ex);
-                                LOGGER.error("About to mark file as corrupted due to storage error");
+                                return markAsCorrupted(id)
+                                        .onItem().transformToUni(result -> {
+                                            LOGGER.info("Successfully marked file {} as corrupted (archived = -1) due to storage error", id);
 
-                                markAsCorrupted(id).subscribe().with(
-                                        result -> LOGGER.info("Marked file {} as corrupted (archived = -1) due to storage error", id),
-                                        markFailure -> LOGGER.error("Failed to mark file {} as corrupted", id, markFailure)
-                                );
+                                            // Create detailed error message for upstream handling
+                                            String detailedError = String.format(
+                                                    "Digital Ocean file retrieval failed - ID: %s, Key: '%s', Error: %s%s",
+                                                    id, doKey, ex.getClass().getSimpleName(),
+                                                    ex.getMessage() != null ? " - " + ex.getMessage() : ""
+                                            );
 
-                                return new FileNotFoundException(
-                                        String.format("Failed to retrieve file (ID: %s, Key: %s) - Cause: %s",
-                                                id, doKey, ex.getMessage()));
+                                            if (ex instanceof FileNotFoundException || ex instanceof DocumentHasNotFoundException) {
+                                                FileNotFoundException fnf = new FileNotFoundException(detailedError);
+                                                fnf.initCause(ex);
+                                                return Uni.createFrom().<FileMetadata>failure(fnf);
+                                            }
+                                            FileNotFoundException fnf = new FileNotFoundException(detailedError);
+                                            fnf.initCause(ex);
+                                            return Uni.createFrom().<FileMetadata>failure(fnf);
+                                        })
+                                        .onFailure().recoverWithUni(markFailure -> {
+                                            LOGGER.error("CRITICAL: Failed to mark file {} as corrupted after storage failure", id, markFailure);
+
+                                            String criticalError = String.format(
+                                                    "Double failure - Storage retrieval failed AND corruption marking failed - ID: %s, Key: '%s', Storage Error: %s, Mark Error: %s",
+                                                    id, doKey, ex.getMessage(), markFailure.getMessage()
+                                            );
+
+                                            return Uni.createFrom().<FileMetadata>failure(
+                                                    new RuntimeException(criticalError, ex)
+                                            );
+                                        });
                             });
-                })
-                .onFailure(FileNotFoundException.class)
-                .invoke(fnf -> LOGGER.error("File not found flow executed for ID: {}", id, fnf))
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Unexpected failure processing ID: {} - Error type: {}", id, failure.getClass().getSimpleName(), failure))
-                .onFailure().recoverWithUni(otherException -> {
-                    if (otherException instanceof DocumentHasNotFoundException) {
-                        LOGGER.warn("Document not found recovery for ID: {}", id, otherException);
-                        return Uni.createFrom().failure(otherException);
-                    }
-                    LOGGER.error("Unexpected error recovery for ID: {}", id, otherException);
-                    return Uni.createFrom().failure(new RuntimeException(
-                            "Unexpected error fetching file data for ID: " + id, otherException));
                 })
                 .onTermination().invoke((res, fail, cancelled) -> {
                     if (cancelled) {
-                        LOGGER.warn("Operation cancelled for ID: {}", id);
-                    }
-                    if (fail != null) {
-                        LOGGER.error("Operation terminated with failure for ID: {} - {}", id, fail.getMessage());
-                    }
-                    if (res != null) {
-                        LOGGER.info("Operation completed successfully for ID: {} - File key: {}", id,
-                                res != null && res.getFileKey() != null ? res.getFileKey() : "unknown");
+                        LOGGER.warn("File retrieval operation cancelled for ID: {}", id);
+                    } else if (fail != null) {
+                        LOGGER.error("File retrieval operation failed for ID: {} - Final error: {}", id, fail.getClass().getSimpleName());
+                    } else if (res != null) {
+                        LOGGER.info("File retrieval operation completed successfully for ID: {}", id);
                     }
                 });
     }

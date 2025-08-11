@@ -75,14 +75,43 @@ public class AudioSegmentationService {
     private Path createTempFileFromStream(InputStream inputStream, String mimeType) throws IOException {
         String extension = getFileExtension(mimeType);
         Path tempFile = Files.createTempFile("audio_segment_", extension);
-        //TODO should be custom tem folder for better control
+
         LOGGER.debug("Creating temporary file: {}", tempFile);
 
-        try (FileOutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
-            inputStream.transferTo(outputStream);
+        try (InputStream stream = inputStream;
+             FileOutputStream outputStream = new FileOutputStream(tempFile.toFile())) {
+
+            // Check if stream is still open
+          /*  if (!stream.markSupported()) {
+                // Add mark support if needed
+                stream = new java.io.BufferedInputStream(stream);
+            }*/
+
+            // Stream efficiently with buffer
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            long totalBytes = 0;
+
+            while ((bytesRead = stream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+                totalBytes += bytesRead;
+            }
+
+            if (totalBytes == 0) {
+                throw new IOException("No data read from stream - stream may be closed or empty");
+            }
+
+            LOGGER.debug("Temporary file created successfully: {} bytes", totalBytes);
+        } catch (IOException e) {
+            // Clean up temp file if creation failed
+            try {
+                Files.deleteIfExists(tempFile);
+            } catch (IOException deleteEx) {
+                LOGGER.warn("Failed to cleanup temp file after stream error: {}", tempFile, deleteEx);
+            }
+            throw new IOException("Failed to create temp file from stream: " + e.getMessage(), e);
         }
 
-        LOGGER.debug("Temporary file created successfully: {} bytes", Files.size(tempFile));
         return tempFile;
     }
 

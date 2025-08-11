@@ -10,7 +10,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
-import io.kneo.broadcaster.repository.SoundFragmentRepository;
+import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
 import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
 import io.kneo.broadcaster.util.FileSecurityUtils;

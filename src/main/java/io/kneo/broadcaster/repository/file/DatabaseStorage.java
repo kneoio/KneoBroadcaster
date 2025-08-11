@@ -1,15 +1,15 @@
 package io.kneo.broadcaster.repository.file;
 
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.AccessType;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
-import io.kneo.broadcaster.model.FileMetadata;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Default;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +20,7 @@ import java.time.ZoneId;
 import java.util.UUID;
 
 @ApplicationScoped
-@Default
+@Named("database")
 public class DatabaseStorage implements IFileStorage {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseStorage.class);

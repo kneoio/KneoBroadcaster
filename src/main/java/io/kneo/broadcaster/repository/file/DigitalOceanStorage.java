@@ -16,6 +16,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import io.vertx.pgclient.PgException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
+@Named("digitalOcean")
 public class DigitalOceanStorage implements IFileStorage {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DigitalOceanStorage.class);

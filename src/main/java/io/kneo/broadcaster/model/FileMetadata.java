@@ -5,6 +5,7 @@ import io.kneo.broadcaster.model.cnst.FileStorageType;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
@@ -28,4 +29,8 @@ public class FileMetadata {
     private byte[] fileBin;
     private AccessType accessType;
     private Path filePath;
+
+    // New streaming fields
+    private InputStream inputStream;
+    private Long contentLength;
 }

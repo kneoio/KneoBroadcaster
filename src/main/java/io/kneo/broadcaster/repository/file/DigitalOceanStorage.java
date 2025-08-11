@@ -310,20 +310,11 @@ public class DigitalOceanStorage implements IFileStorage {
                     metadata.setFileOriginalName(row.getString("file_original_name"));
                     metadata.setFileKey(row.getString("file_key"));
 
-                    return digitalOceanSpacesService.getFile(key)
-                            .onItem().transformToUni(filePath -> {
-                                if (filePath == null) {
-                                    return Uni.createFrom().failure(new IOException("Failed to get file path for key: " + key));
-                                }
-
-                                FileSystem fs = vertx.fileSystem();
-                                return fs.readFile(String.valueOf(filePath))
-                                        .onItem().transform(buffer -> {
-                                            //For get_slug we will keep also byte[]
-                                            metadata.setFileBin(buffer.getBytes());
-                                            metadata.setFilePath(filePath);
-                                            return metadata;
-                                        });
+                    return digitalOceanSpacesService.getFileStream(key)
+                            .onItem().transform(streamedFile -> {
+                                metadata.setInputStream(streamedFile.getInputStream());
+                                metadata.setContentLength(streamedFile.getContentLength());
+                                return metadata;
                             });
                 })
                 .onFailure().transform(ex -> {

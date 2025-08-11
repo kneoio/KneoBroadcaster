@@ -20,8 +20,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.File;
+import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 @ApplicationScoped
@@ -51,26 +51,31 @@ public class DigitalOceanSpacesService {
                 .build();
     }
 
-    public Uni<Path> getFile(String keyName) {
+    // ===== NEW STREAMING METHOD =====
+    public Uni<StreamedFile> getFileStream(String keyName) {
         return Uni.createFrom().item(() -> {
-                    Path destinationPath = Paths.get(outputDir, keyName);
-                    File destinationFile = destinationPath.toFile();
-                    File parentDir = destinationFile.getParentFile();
-                    if (parentDir != null && !parentDir.exists()) {
-                        parentDir.mkdirs();
-                    }
-                    if (destinationFile.exists()) {
-                        return destinationPath;
-                    }
+                    LOGGER.debug("Retrieving file stream for key: {}", keyName);
+
                     GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                             .bucket(doConfig.getBucketName())
                             .key(keyName)
                             .build();
-                    s3Client.getObject(getObjectRequest, ResponseTransformer.toFile(destinationFile));
-                    return destinationPath;
+
+                    // Get object as stream - NO disk download
+                    var responseInputStream = s3Client.getObject(getObjectRequest, ResponseTransformer.toInputStream());
+
+                    StreamedFile streamedFile = new StreamedFile();
+                    streamedFile.setInputStream(responseInputStream);
+                    streamedFile.setContentType(responseInputStream.response().contentType());
+                    streamedFile.setContentLength(responseInputStream.response().contentLength());
+                    streamedFile.setLastModified(responseInputStream.response().lastModified());
+                    streamedFile.setKey(keyName);
+
+                    LOGGER.debug("Stream created for key: {}, size: {} bytes", keyName, responseInputStream.response().contentLength());
+                    return streamedFile;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .onFailure().invoke(throwable -> LOGGER.error("Error retrieving file: {} from S3 bucket: {}", keyName, doConfig.getBucketName(), throwable))
+                .onFailure().invoke(throwable -> LOGGER.error("Error retrieving file stream: {} from S3 bucket: {}", keyName, doConfig.getBucketName(), throwable))
                 .onFailure().recoverWithUni(Uni.createFrom()::failure);
     }
 
@@ -110,5 +115,30 @@ public class DigitalOceanSpacesService {
         if (s3Client != null) {
             s3Client.close();
         }
+    }
+
+    // ===== STREAMING FILE WRAPPER =====
+    public static class StreamedFile {
+        private InputStream inputStream;
+        private String contentType;
+        private Long contentLength;
+        private java.time.Instant lastModified;
+        private String key;
+
+        // Getters and setters
+        public InputStream getInputStream() { return inputStream; }
+        public void setInputStream(InputStream inputStream) { this.inputStream = inputStream; }
+
+        public String getContentType() { return contentType; }
+        public void setContentType(String contentType) { this.contentType = contentType; }
+
+        public Long getContentLength() { return contentLength; }
+        public void setContentLength(Long contentLength) { this.contentLength = contentLength; }
+
+        public java.time.Instant getLastModified() { return lastModified; }
+        public void setLastModified(java.time.Instant lastModified) { this.lastModified = lastModified; }
+
+        public String getKey() { return key; }
+        public void setKey(String key) { this.key = key; }
     }
 }

@@ -33,6 +33,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private ZoneId timeZone;
     private Integer archived;
     private CountryCode country;
+    private String bitRate;
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
     private String description;

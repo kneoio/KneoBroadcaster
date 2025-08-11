@@ -162,6 +162,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setDescription(doc.getDescription());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());
+            dto.setBitRate(doc.getBitRate());
             dto.setAiAgentId(doc.getAiAgentId());
             dto.setProfileId(doc.getProfileId());
 
@@ -210,7 +211,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
             dto.setSchedule(scheduleDTO);
 
-
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
@@ -237,13 +237,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         });
     }
 
-    private String normalizeTimeString(String timeString) {
-        if ("24:00".equals(timeString)) {
-            return "00:00";
-        }
-        return timeString;
-    }
-
     private RadioStation buildEntity(RadioStationDTO dto) {
         RadioStation doc = new RadioStation();
         doc.setLocalizedName(dto.getLocalizedName());
@@ -254,6 +247,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setDescription(dto.getDescription());
         doc.setTimeZone(ZoneId.of(dto.getTimeZone()));
         doc.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
+        doc.setBitRate(dto.getBitRate());
         doc.setAiAgentId(dto.getAiAgentId());
         doc.setProfileId(dto.getProfileId());
 
@@ -307,6 +301,12 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return doc;
     }
 
+    private String normalizeTimeString(String timeString) {
+        if ("24:00".equals(timeString)) {
+            return "00:00";
+        }
+        return timeString;
+    }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
         assert repository != null;

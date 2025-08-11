@@ -18,6 +18,7 @@ import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.JsonArray;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -38,7 +39,7 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.R
 
 @ApplicationScoped
 public class RadioStationRepository extends AsyncRepository implements SchedulableRepository<RadioStation>{
-private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
     private static final EntityData brandStats = KneoBroadcasterNameResolver.create().getEntityNames(BRAND_STATS);
 
@@ -166,11 +167,13 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, slug_name, description, profile_id, ai_agent_id) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, bit_rate, slug_name, description, profile_id, ai_agent_id) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
+                JsonArray bitRateArray = station.getBitRate() != null ?
+                        JsonArray.of(station.getBitRate()) : new JsonArray().add("128000");
 
                 Tuple params = Tuple.tuple()
                         .addLong(user.getId())
@@ -183,6 +186,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                         .addString(station.getColor())
                         .addJsonObject(localizedNameJson)
                         .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getSchedule())))
+                        .addJsonArray(bitRateArray)
                         .addString(station.getSlugName())
                         .addString(station.getDescription())
                         .addUUID(station.getProfileId())
@@ -218,11 +222,13 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, schedule=$6, " +
-                                    "slug_name=$7, description=$8, profile_id=$9, ai_agent_id=$10, last_mod_user=$11, last_mod_date=$12 " +
-                                    "WHERE id=$13";
+                                    "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, last_mod_user=$12, last_mod_date=$13 " +
+                                    "WHERE id=$14";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
+                            JsonArray bitRateArray = station.getBitRate() != null ?
+                                    JsonArray.of(station.getBitRate()) : new JsonArray().add("128000");
 
                             Tuple params = Tuple.tuple()
                                     .addString(station.getCountry().name())
@@ -231,6 +237,7 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
                                     .addString(station.getColor())
                                     .addValue(localizedNameJson)
                                     .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getSchedule())))
+                                    .addJsonArray(bitRateArray)
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())
                                     .addUUID(station.getProfileId())
@@ -343,6 +350,13 @@ private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationReposit
         doc.setTimeZone(java.time.ZoneId.of(row.getString("time_zone")));
         doc.setColor(row.getString("color"));
         doc.setDescription(row.getString("description"));
+
+        JsonArray bitRateJson = row.getJsonArray("bit_rate");
+        if (bitRateJson != null && !bitRateJson.isEmpty()) {
+            doc.setBitRate(bitRateJson.getString(0));
+        } else {
+            doc.setBitRate("128000"); // Default bitrate
+        }
 
         JsonObject scheduleJson = row.getJsonObject("schedule");
         if (scheduleJson != null) {

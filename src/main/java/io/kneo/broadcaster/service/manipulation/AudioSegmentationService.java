@@ -120,7 +120,7 @@ public class AudioSegmentationService {
                     .setInput(audioFilePath.toString())
                     .addOutput(segmentPattern)
                     .setAudioCodec("aac")
-                    .setAudioBitRate(128000)
+                    .setAudioBitRate(320000)
                     .setFormat("segment")
                     .addExtraArgs("-segment_time", String.valueOf(segmentDuration))
                     .addExtraArgs("-segment_format", "mpegts")

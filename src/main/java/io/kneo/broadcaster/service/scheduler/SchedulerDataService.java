@@ -137,17 +137,10 @@ public class SchedulerDataService {
             List<JobExecutionDTO> executions = new ArrayList<>();
             String entityId = entity.getId().toString();
             
-            LOGGER.info("Looking for jobs for entity: {} (ID: {})", 
-                entity instanceof RadioStation ? ((RadioStation) entity).getSlugName() : entity.getClass().getSimpleName(), 
-                entityId);
-            
             for (String groupName : scheduler.getJobGroupNames()) {
-                LOGGER.info("Checking job group: {}", groupName);
                 Set<JobKey> jobKeys = scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName));
-                LOGGER.info("Found {} jobs in group {}", jobKeys.size(), groupName);
                 
                 for (JobKey jobKey : jobKeys) {
-                    LOGGER.info("Checking job: {} in group: {}", jobKey.getName(), jobKey.getGroup());
                     if (jobKey.getName().contains(entityId) || 
                         (entity instanceof RadioStation station && jobKey.getName().contains(station.getSlugName()))) {
                         

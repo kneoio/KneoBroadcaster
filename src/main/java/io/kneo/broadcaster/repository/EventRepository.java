@@ -156,8 +156,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                         .addString(event.getDescription())
                         .addString(event.getPriority().name())
                         .addInteger(0)
-                        .addJsonObject(event.getSchedule() != null ?
-                                JsonObject.of("scheduler", JsonObject.mapFrom(event.getSchedule())) : null);
+                        .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getSchedule())));
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -198,8 +197,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     .addString(event.getType().name())
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
-                                    .addJsonObject(event.getSchedule() != null ?
-                                            JsonObject.of("scheduler", JsonObject.mapFrom(event.getSchedule())) : null)
+                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getSchedule())))
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -272,7 +270,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
         JsonObject scheduleJson = row.getJsonObject("scheduler");
         if (scheduleJson != null) {
             try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
+                JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
                 if (scheduleData != null) {
                     Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
                     doc.setSchedule(schedule);

@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
-import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.EventPriority;
@@ -15,7 +14,6 @@ import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.scheduler.Task;
-import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.repository.EventRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -174,7 +172,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
                         taskDTO.setTarget(task.getTarget());
                         taskDTO.setTriggerType(task.getTriggerType());
 
-                        if (task.getOnceTrigger() != null) {
+                        if (task.getTriggerType() == TriggerType.ONCE) {
                             OnceTriggerDTO onceTriggerDTO = new OnceTriggerDTO();
                             onceTriggerDTO.setStartTime(task.getOnceTrigger().getStartTime());
                             onceTriggerDTO.setDuration(task.getOnceTrigger().getDuration());
@@ -182,12 +180,14 @@ public class EventService extends AbstractService<Event, EventDTO> {
                             taskDTO.setOnceTrigger(onceTriggerDTO);
                         }
 
-                        if (task.getTimeWindowTrigger() != null) {
-                            TimeWindowTriggerDTO timeWindowTriggerDTO = new TimeWindowTriggerDTO();
-                            timeWindowTriggerDTO.setStartTime(task.getTimeWindowTrigger().getStartTime());
-                            timeWindowTriggerDTO.setEndTime(task.getTimeWindowTrigger().getEndTime());
-                            timeWindowTriggerDTO.setWeekdays(task.getTimeWindowTrigger().getWeekdays());
-                            taskDTO.setTimeWindowTrigger(timeWindowTriggerDTO);
+                        if (task.getTriggerType() == TriggerType.PERIODIC) {
+                            PeriodicTriggerDTO periodicTriggerDTO = new PeriodicTriggerDTO();
+                            PeriodicTrigger trigger = task.getPeriodicTrigger();
+                            periodicTriggerDTO.setStartTime(trigger.getStartTime());
+                            periodicTriggerDTO.setEndTime(trigger.getEndTime());
+                            periodicTriggerDTO.setWeekdays(trigger.getWeekdays());
+                            periodicTriggerDTO.setInterval(trigger.getInterval());
+                            taskDTO.setPeriodicTrigger(periodicTriggerDTO);
                         }
 
                         return taskDTO;
@@ -240,9 +240,10 @@ public class EventService extends AbstractService<Event, EventDTO> {
                     if (taskDTO.getTriggerType() == TriggerType.PERIODIC) {
                         PeriodicTrigger periodicTrigger = new PeriodicTrigger();
                         PeriodicTriggerDTO periodicTriggerDTO = taskDTO.getPeriodicTrigger();
-                        periodicTriggerDTO.setStartTime(normalizeTimeString(periodicTriggerDTO.getStartTime()));
-                        periodicTriggerDTO.setEndTime(normalizeTimeString(periodicTriggerDTO.getEndTime()));
-                        periodicTriggerDTO.setWeekdays(periodicTriggerDTO.getWeekdays());
+                        periodicTrigger.setStartTime(normalizeTimeString(periodicTriggerDTO.getStartTime()));
+                        periodicTrigger.setEndTime(normalizeTimeString(periodicTriggerDTO.getEndTime()));
+                        periodicTrigger.setInterval(periodicTriggerDTO.getInterval());
+                        periodicTrigger.setWeekdays(periodicTriggerDTO.getWeekdays());
                         task.setPeriodicTrigger(periodicTrigger);
                     }
 

@@ -118,11 +118,21 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {
         assert repository != null;
         RadioStation entity = buildEntity(dto);
+
+        Uni<RadioStation> saveOperation;
         if (id == null) {
-            return repository.insert(entity, user).chain(this::mapToDTO);
+            saveOperation = repository.insert(entity, user);
         } else {
-            return repository.update(UUID.fromString(id), entity, user).chain(this::mapToDTO);
+            saveOperation = repository.update(UUID.fromString(id), entity, user);
         }
+
+        return saveOperation.chain(savedEntity -> {
+            if (radiostationPool.getStation(savedEntity.getSlugName()).isPresent()) {
+                return radiostationPool.updateStationConfig(savedEntity.getSlugName(), savedEntity);
+            } else {
+                return Uni.createFrom().item(savedEntity);
+            }
+        }).chain(this::mapToDTO);
     }
 
     public Uni<Integer> archive(String id, IUser user) {

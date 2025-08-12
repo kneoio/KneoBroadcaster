@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.stream;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.BrandSoundFragmentUpdateService;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -110,6 +112,60 @@ public class RadioStationPool {
                             });
                 })
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
+    }
+
+    public Uni<RadioStation> updateStationConfig(String brandName, RadioStation updatedStation) {
+        LOGGER.info("Hot-updating configuration for station: {}", brandName);
+
+        return Uni.createFrom().item(brandName)
+                .onItem().transform(bn -> {
+                    RadioStation currentStation = pool.get(bn);
+                    if (currentStation == null) {
+                        LOGGER.warn("Station {} not found in pool during config update", bn);
+                        return null;
+                    }
+
+                    RadioStationStatus currentStatus = currentStation.getStatus();
+                    AiAgentStatus currentAiStatus = currentStation.getAiAgentStatus();
+                    List<RadioStation.StatusChangeRecord> currentHistory = currentStation.getStatusHistory();
+                    boolean currentAiControlAllowed = currentStation.isAiControlAllowed();
+                    IStreamManager currentPlaylist = currentStation.getPlaylist();
+
+                    updatePersistentFields(currentStation, updatedStation);
+
+                    currentStation.setStatus(currentStatus);
+                    currentStation.setAiAgentStatus(currentAiStatus);
+                    currentStation.setStatusHistory(currentHistory);
+                    currentStation.setAiControlAllowed(currentAiControlAllowed);
+                    currentStation.setPlaylist(currentPlaylist);
+
+                    if (currentPlaylist != null) {
+                        currentPlaylist.setRadioStation(currentStation);
+                    }
+
+                    LOGGER.info("Station {} configuration updated without downtime", bn);
+                    return currentStation;
+                });
+    }
+
+    private void updatePersistentFields(RadioStation current, RadioStation updated) {
+        current.setLocalizedName(updated.getLocalizedName());
+        current.setSlugName(updated.getSlugName());
+        current.setTimeZone(updated.getTimeZone());
+        current.setArchived(updated.getArchived());
+        current.setCountry(updated.getCountry());
+        current.setBitRate(updated.getBitRate());
+        current.setManagedBy(updated.getManagedBy());
+        current.setColor(updated.getColor());
+        current.setDescription(updated.getDescription());
+        current.setSchedule(updated.getSchedule());
+        current.setAiAgentId(updated.getAiAgentId());
+        current.setProfileId(updated.getProfileId());
+        current.setLabelList(updated.getLabelList());
+        current.setAuthor(updated.getAuthor());
+        current.setLastModifier(updated.getLastModifier());
+        current.setRegDate(updated.getRegDate());
+        current.setLastModifiedDate(updated.getLastModifiedDate());
     }
 
     public Uni<RadioStation> get(String brandName) {

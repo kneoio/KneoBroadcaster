@@ -7,6 +7,7 @@ import io.smallrye.config.WithName;
 @ConfigMapping(prefix = "broadcaster")
 public interface BroadcasterConfig {
     @WithName("host")
+    @WithDefault("localhost")
     String getHost();
 
     @WithName("controller.upload.files.path")
@@ -26,12 +27,15 @@ public interface BroadcasterConfig {
     String getPathForExternalServiceUploads();
 
     @WithName("quarkus.file.upload.path")
+    @WithDefault("/tmp/file-uploads")
     String getQuarkusFileUploadsPath();
 
     @WithName("ffmpeg.path")
+    @WithDefault("ffmpeg")
     String getFfmpegPath();
 
     @WithName("ffprobe.path")
+    @WithDefault("ffprobe")
     String getFfprobePath();
 
     @WithName("audio.sample-rate")

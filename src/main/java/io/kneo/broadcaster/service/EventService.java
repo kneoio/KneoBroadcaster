@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.dto.event.EventEntryDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
+import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
@@ -11,9 +12,11 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
+import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
+import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.repository.EventRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -225,7 +228,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
                     task.setTarget("default");
                     task.setTriggerType(taskDTO.getTriggerType());
 
-                    if (taskDTO.getOnceTrigger() != null) {
+                    if (taskDTO.getTriggerType() == TriggerType.ONCE) {
                         OnceTrigger onceTrigger = new OnceTrigger();
                         OnceTriggerDTO onceTriggerDTO = taskDTO.getOnceTrigger();
                         onceTrigger.setStartTime(normalizeTimeString(onceTriggerDTO.getStartTime()));
@@ -234,13 +237,13 @@ public class EventService extends AbstractService<Event, EventDTO> {
                         task.setOnceTrigger(onceTrigger);
                     }
 
-                    if (taskDTO.getTimeWindowTrigger() != null) {
-                        TimeWindowTrigger timeWindowTrigger = new TimeWindowTrigger();
-                        TimeWindowTriggerDTO timeWindowTriggerDTO = taskDTO.getTimeWindowTrigger();
-                        timeWindowTrigger.setStartTime(normalizeTimeString(timeWindowTriggerDTO.getStartTime()));
-                        timeWindowTrigger.setEndTime(normalizeTimeString(timeWindowTriggerDTO.getEndTime()));
-                        timeWindowTrigger.setWeekdays(timeWindowTriggerDTO.getWeekdays());
-                        task.setTimeWindowTrigger(timeWindowTrigger);
+                    if (taskDTO.getTriggerType() == TriggerType.PERIODIC) {
+                        PeriodicTrigger periodicTrigger = new PeriodicTrigger();
+                        PeriodicTriggerDTO periodicTriggerDTO = taskDTO.getPeriodicTrigger();
+                        periodicTriggerDTO.setStartTime(normalizeTimeString(periodicTriggerDTO.getStartTime()));
+                        periodicTriggerDTO.setEndTime(normalizeTimeString(periodicTriggerDTO.getEndTime()));
+                        periodicTriggerDTO.setWeekdays(periodicTriggerDTO.getWeekdays());
+                        task.setPeriodicTrigger(periodicTrigger);
                     }
 
                     return task;

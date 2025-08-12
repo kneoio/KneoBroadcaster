@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 
 import static org.quartz.CronScheduleBuilder.cronSchedule;
 import static org.quartz.JobBuilder.newJob;
@@ -42,11 +43,12 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
         String startTime = task.getTimeWindowTrigger().getStartTime();
         String endTime = task.getTimeWindowTrigger().getEndTime();
         String target = task.getTarget();
+        List<String> weekdays = task.getTimeWindowTrigger().getWeekdays();
         removeFor(entity);
-        scheduleStartJob(stationSlug, startTime, target, timeZone);
-        scheduleStopJob(stationSlug, endTime, timeZone);
-        scheduleWarningJob(stationSlug, endTime, timeZone);
-        LOGGER.info("Scheduled DJ control for station {} from {} to {}", stationSlug, startTime, endTime);
+        scheduleStartJob(stationSlug, startTime, target, timeZone, weekdays);
+        scheduleStopJob(stationSlug, endTime, timeZone, weekdays);
+        scheduleWarningJob(stationSlug, endTime, timeZone, weekdays);
+        LOGGER.info("Scheduled DJ control for station {} from {} to {} on {}", stationSlug, startTime, endTime, weekdays);
     }
 
     @Override
@@ -58,9 +60,9 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
         scheduler.deleteJob(JobKey.jobKey(slug + "_dj_warning", "dj-control"));
     }
 
-    private void scheduleStartJob(String stationSlug, String startTime, String target, ZoneId timeZone) throws SchedulerException {
+    private void scheduleStartJob(String stationSlug, String startTime, String target, ZoneId timeZone, List<String> weekdays) throws SchedulerException {
         String jobKey = stationSlug + "_dj_start";
-        String cronExpression = convertTimeToCron(startTime);
+        String cronExpression = convertTimeToCron(startTime, weekdays);
         JobDetail job = newJob(DjControlJob.class)
                 .withIdentity(jobKey, "dj-control")
                 .usingJobData("stationSlugName", stationSlug)
@@ -74,9 +76,9 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
         scheduler.scheduleJob(job, trigger);
     }
 
-    private void scheduleStopJob(String stationSlug, String endTime, ZoneId timeZone) throws SchedulerException {
+    private void scheduleStopJob(String stationSlug, String endTime, ZoneId timeZone, List<String> weekdays) throws SchedulerException {
         String jobKey = stationSlug + "_dj_stop";
-        String cronExpression = convertTimeToCron(endTime);
+        String cronExpression = convertTimeToCron(endTime, weekdays);
         JobDetail job = newJob(DjControlJob.class)
                 .withIdentity(jobKey, "dj-control")
                 .usingJobData("stationSlugName", stationSlug)
@@ -89,11 +91,11 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
         scheduler.scheduleJob(job, trigger);
     }
 
-    private void scheduleWarningJob(String stationSlug, String endTime, ZoneId timeZone) throws SchedulerException {
+    private void scheduleWarningJob(String stationSlug, String endTime, ZoneId timeZone, List<String> weekdays) throws SchedulerException {
         LocalTime end = LocalTime.parse(endTime);
         LocalTime warning = end.minusMinutes(7);
         String jobKey = stationSlug + "_dj_warning";
-        String cronExpression = convertTimeToCron(warning.toString());
+        String cronExpression = convertTimeToCron(warning.toString(), weekdays);
         JobDetail job = newJob(DjControlJob.class)
                 .withIdentity(jobKey, "dj-control")
                 .usingJobData("stationSlugName", stationSlug)
@@ -106,8 +108,33 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
         scheduler.scheduleJob(job, trigger);
     }
 
-    private String convertTimeToCron(String time) {
+    private String convertTimeToCron(String time, List<String> weekdays) {
         LocalTime localTime = LocalTime.parse(time);
-        return String.format("0 %d %d * * ?", localTime.getMinute(), localTime.getHour());
+        String dayOfWeek = convertWeekdaysToCron(weekdays);
+        return String.format("0 %d %d ? * %s", localTime.getMinute(), localTime.getHour(), dayOfWeek);
+    }
+
+    private String convertWeekdaysToCron(List<String> weekdays) {
+        if (weekdays == null || weekdays.isEmpty()) {
+            return "*";
+        }
+        
+        return weekdays.stream()
+                .map(this::convertWeekdayToCronFormat)
+                .reduce((first, second) -> first + "," + second)
+                .orElse("*");
+    }
+
+    private String convertWeekdayToCronFormat(String weekday) {
+        return switch (weekday.toUpperCase()) {
+            case "MONDAY" -> "MON";
+            case "TUESDAY" -> "TUE";
+            case "WEDNESDAY" -> "WED";
+            case "THURSDAY" -> "THU";
+            case "FRIDAY" -> "FRI";
+            case "SATURDAY" -> "SAT";
+            case "SUNDAY" -> "SUN";
+            default -> weekday.substring(0, 3).toUpperCase();
+        };
     }
 }

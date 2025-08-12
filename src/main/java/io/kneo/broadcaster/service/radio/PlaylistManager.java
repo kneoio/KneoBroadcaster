@@ -95,7 +95,7 @@ public class PlaylistManager {
                                 )
                                 .chain(fetchedMetadata -> fetchedMetadata.materializeFileStream(tempBaseDir)
                                         .onItem().transform(tempFilePath -> fetchedMetadata))
-                                .chain(materializedMetadata -> addFragmentToSlice(fragment, materializedMetadata));
+                                .chain(materializedMetadata -> addFragmentToSlice(fragment, materializedMetadata, radioStation.getBitRate()));
                     } catch (Exception e) {
                         LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
                         return Uni.createFrom().item(false);
@@ -111,20 +111,20 @@ public class PlaylistManager {
                 );
     }
 
-    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment) {
+    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, long bitRate) {
         try {
             List<FileMetadata> metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
             FileMetadata metadata = metadataList.get(0);
             LOGGER.debug("Found pre-populated stream data. Slicing directly.");
-            return this.addFragmentToSlice(brandSoundFragment, metadata);
+            return this.addFragmentToSlice(brandSoundFragment, metadata, bitRate);
         } catch (Exception e) {
             LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
             return Uni.createFrom().item(false);
         }
     }
 
-    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, FileMetadata fileMetadata) {
-        return segmentationService.slice(brandSoundFragment.getSoundFragment(), fileMetadata.getTemporaryFilePath())
+    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, FileMetadata fileMetadata, long bitRate) {
+        return segmentationService.slice(brandSoundFragment.getSoundFragment(), fileMetadata.getTemporaryFilePath(), bitRate)
                 .onItem().transformToUni(segments -> {
                     if (segments.isEmpty()) {
                         LOGGER.warn("Slicing from metadata {} resulted in zero segments.", fileMetadata.getFileKey());

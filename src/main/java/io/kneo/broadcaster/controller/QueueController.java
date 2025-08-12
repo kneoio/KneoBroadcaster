@@ -211,14 +211,11 @@ public class QueueController {
                                         .end("Failed to stop radio station: " + throwable.getMessage());
                             }
                     );
-        } else if ("reset_scheduler".equalsIgnoreCase(action)) {
-            LOGGER.info("Resetting tasks for brand: {}", brand);
-
         } else {
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
-                    .end("Invalid action. Supported actions: 'start', 'feed', 'stop', 'reset'");
+                    .end("Invalid action. Supported actions: 'start', 'stop'");
         }
     }
 }

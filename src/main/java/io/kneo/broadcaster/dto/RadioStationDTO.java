@@ -49,8 +49,7 @@ public class RadioStationDTO extends AbstractDTO {
     private String timeZone;
     private String color;
     private String description;
-    @NotBlank
-    private String bitRate;
+    private long bitRate;
     private ScheduleDTO schedule;
     private boolean aiControlAllowed;
     private Integer archived;

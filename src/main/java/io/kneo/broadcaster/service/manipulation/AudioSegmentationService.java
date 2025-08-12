@@ -44,9 +44,9 @@ public class AudioSegmentationService {
         new File(outputDir).mkdirs();
     }
 
-    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath) {
+    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath, long bitRate) {
         return Uni.createFrom().item(() -> {
-                    return segmentAudioFile(filePath, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId());
+                    return segmentAudioFile(filePath, soundFragment.getTitle(), soundFragment.getArtist(), soundFragment.getId(), bitRate);
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e))
@@ -76,23 +76,7 @@ public class AudioSegmentationService {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private void debugAudioProperties(Path audioFilePath) {
-        try {
-            FFmpegBuilder probeBuilder = new FFmpegBuilder()
-                    .setInput(audioFilePath.toString())
-                    .addOutput("/dev/null")
-                    .addExtraArgs("-f", "null")
-                    .done();
-
-            LOGGER.info("Probing audio file properties for: {}", audioFilePath);
-            FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
-            executor.createJob(probeBuilder).run();
-        } catch (Exception e) {
-            LOGGER.error("Failed to probe audio file: {}", audioFilePath, e);
-        }
-    }
-
-    public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songTitle, String songArtist, UUID fragmentId) {
+    public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songTitle, String songArtist, UUID fragmentId, long bitRate) {
         List<SegmentInfo> segments = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         String today = now.format(DATE_FORMATTER);
@@ -109,8 +93,6 @@ public class AudioSegmentationService {
             return segments;
         }
 
-        debugAudioProperties(audioFilePath);
-
         String baseName = UUID.randomUUID().toString();
         String segmentPattern = songDir + File.separator + baseName + "_%03d.ts";
         String segmentListFile = songDir + File.separator + baseName + "_segments.txt";
@@ -120,7 +102,7 @@ public class AudioSegmentationService {
                     .setInput(audioFilePath.toString())
                     .addOutput(segmentPattern)
                     .setAudioCodec("aac")
-                    .setAudioBitRate(320000)
+                    .setAudioBitRate(bitRate)
                     .setFormat("segment")
                     .addExtraArgs("-segment_time", String.valueOf(segmentDuration))
                     .addExtraArgs("-segment_format", "mpegts")
@@ -145,7 +127,6 @@ public class AudioSegmentationService {
                 String firstSegment = segmentFiles.get(0).trim();
                 Path firstSegmentPath = Paths.get(songDir.toString(), firstSegment);
                 LOGGER.info("Debugging first segment: {}", firstSegmentPath);
-                debugAudioProperties(firstSegmentPath);
             }
 
             for (int i = 0; i < segmentFiles.size(); i++) {

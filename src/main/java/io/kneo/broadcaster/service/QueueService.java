@@ -97,7 +97,7 @@ public class QueueService {
                                                             brandSoundFragment.setQueueNum(toQueueDTO.getPriority());
 
                                                             return radioStation.getPlaylist().getPlaylistManager()
-                                                                    .addFragmentToSlice(brandSoundFragment)
+                                                                    .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                                     .onItem().invoke(result -> {
                                                                         if (result) {
                                                                             LOGGER.info("Added song to queue for brand {}: {}",
@@ -167,7 +167,7 @@ public class QueueService {
                                                         brandSoundFragment.setQueueNum(10);
 
                                                         return radioStation.getPlaylist().getPlaylistManager()
-                                                                .addFragmentToSlice(brandSoundFragment)
+                                                                .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                                 .onItem().invoke(result -> {
                                                                     if (result) {
                                                                         LOGGER.info("Added merged song to queue for brand {}: {}",
@@ -183,7 +183,7 @@ public class QueueService {
                                             brandSoundFragment.setQueueNum(10);
 
                                             return radioStation.getPlaylist().getPlaylistManager()
-                                                    .addFragmentToSlice(brandSoundFragment)
+                                                    .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                     .onItem().invoke(result -> {
                                                         if (result) {
                                                             LOGGER.info("Added song to queue for brand {}: {}",

@@ -172,8 +172,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
-                JsonArray bitRateArray = station.getBitRate() != null ?
-                        JsonArray.of(station.getBitRate()) : new JsonArray().add("128000");
+                JsonArray bitRateArray = JsonArray.of(station.getBitRate());
 
                 Tuple params = Tuple.tuple()
                         .addLong(user.getId())
@@ -227,8 +226,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
-                            JsonArray bitRateArray = station.getBitRate() != null ?
-                                    JsonArray.of(station.getBitRate()) : new JsonArray().add("128000");
+                            JsonArray bitRateArray = JsonArray.of(station.getBitRate());
 
                             Tuple params = Tuple.tuple()
                                     .addString(station.getCountry().name())
@@ -353,9 +351,9 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         JsonArray bitRateJson = row.getJsonArray("bit_rate");
         if (bitRateJson != null && !bitRateJson.isEmpty()) {
-            doc.setBitRate(bitRateJson.getString(0));
+            doc.setBitRate(Long.parseLong(bitRateJson.getString(0)));
         } else {
-            doc.setBitRate("128000"); // Default bitrate
+            doc.setBitRate(128000);
         }
 
         JsonObject scheduleJson = row.getJsonObject("schedule");

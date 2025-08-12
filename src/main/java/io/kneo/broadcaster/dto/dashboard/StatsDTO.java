@@ -17,6 +17,6 @@ public class StatsDTO {
     private FileMaintenanceStatsDTO fileMaintenanceStats;
     private int slidingWindowSize;
     private List<StationEntry> stations;
-    private ConfigurationStats configurationStats; // Added field
-
+    private ConfigurationStats configurationStats;
+    private SchedulerStatsDTO schedulerStats;
 }

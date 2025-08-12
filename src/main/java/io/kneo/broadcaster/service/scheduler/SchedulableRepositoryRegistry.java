@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.scheduler;
 
 import io.kneo.broadcaster.model.scheduler.Schedulable;
+import io.kneo.broadcaster.repository.EventRepository;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.repository.SchedulableRepository;
 import io.quarkus.runtime.StartupEvent;
@@ -20,8 +21,12 @@ public class SchedulableRepositoryRegistry {
     @Inject
     RadioStationRepository radioStationRepository;
 
+    @Inject
+    EventRepository eventRepository;
+
     void onStart(@Observes StartupEvent event) {
         repositories.add(radioStationRepository);
+        repositories.add(eventRepository);
     }
 
 }

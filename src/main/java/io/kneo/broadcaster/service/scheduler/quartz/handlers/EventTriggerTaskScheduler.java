@@ -103,13 +103,41 @@ public class EventTriggerTaskScheduler implements TaskSchedulerHandler {
                 .build();
 
         Set<Trigger> triggers = new HashSet<>();
-        for (LocalTime t = start; !t.isAfter(end); t = t.plusMinutes(interval)) {
-            String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
-            Trigger trig = newTrigger()
-                    .withIdentity(jobKey + "_trg_" + t.toString(), "event")
-                    .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
-                    .build();
-            triggers.add(trig);
+        
+        // Handle cross-midnight periods (e.g., 19:00 to 05:45 next day)
+        if (end.isBefore(start)) {
+            // Schedule from start time to midnight
+            for (LocalTime t = start; t.isBefore(LocalTime.MAX) || t.equals(LocalTime.MAX); t = t.plusMinutes(interval)) {
+                String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
+                Trigger trig = newTrigger()
+                        .withIdentity(jobKey + "_trg_" + t.toString(), "event")
+                        .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
+                        .build();
+                triggers.add(trig);
+                
+                // Stop if next interval would exceed midnight
+                if (t.plusMinutes(interval).isBefore(t)) break;
+            }
+            
+            // Schedule from midnight to end time
+            for (LocalTime t = LocalTime.MIDNIGHT; !t.isAfter(end); t = t.plusMinutes(interval)) {
+                String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
+                Trigger trig = newTrigger()
+                        .withIdentity(jobKey + "_trg_midnight_" + t.toString(), "event")
+                        .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
+                        .build();
+                triggers.add(trig);
+            }
+        } else {
+            // Normal same-day scheduling
+            for (LocalTime t = start; !t.isAfter(end); t = t.plusMinutes(interval)) {
+                String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
+                Trigger trig = newTrigger()
+                        .withIdentity(jobKey + "_trg_" + t.toString(), "event")
+                        .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
+                        .build();
+                triggers.add(trig);
+            }
         }
         scheduler.scheduleJob(job, triggers, true);
         LOGGER.info("Scheduled periodic event {} interval {}m from {} to {}", id, interval, start, end);

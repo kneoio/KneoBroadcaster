@@ -9,7 +9,6 @@ import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.repository.SchedulableRepository;
-import io.kneo.broadcaster.service.scheduler.quartz.QuartzJobRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -22,6 +21,7 @@ import org.quartz.impl.matchers.GroupMatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class SchedulerDataService {
     private static final Logger LOGGER = LoggerFactory.getLogger(SchedulerDataService.class);
+    private static final Duration CACHE_TTL = Duration.ofSeconds(10); // 10-second cache
 
     @Inject
     Scheduler scheduler;
@@ -43,14 +44,37 @@ public class SchedulerDataService {
     @Inject
     SchedulableRepositoryRegistry repositoryRegistry;
 
-    @Inject
-    QuartzJobRepository quartzJobRepository;
+    // Cache variables
+    private SchedulerStatsDTO cachedStats;
+    private LocalDateTime lastCacheUpdate;
 
     public Uni<SchedulerStatsDTO> getSchedulerStats() {
+        // Check if cache is still valid
+        if (cachedStats != null && lastCacheUpdate != null &&
+                Duration.between(lastCacheUpdate, LocalDateTime.now()).compareTo(CACHE_TTL) < 0) {
+            LOGGER.debug("Returning cached scheduler stats");
+            return Uni.createFrom().item(cachedStats);
+        }
+
+        // Fetch fresh data
+        LOGGER.debug("Fetching fresh scheduler stats");
+        return fetchFreshStats()
+                .onItem().invoke(stats -> {
+                    cachedStats = stats;
+                    lastCacheUpdate = LocalDateTime.now();
+                })
+                .onFailure().invoke(throwable -> {
+                    LOGGER.error("Failed to fetch fresh stats, clearing cache", throwable);
+                    cachedStats = null;
+                    lastCacheUpdate = null;
+                });
+    }
+
+    private Uni<SchedulerStatsDTO> fetchFreshStats() {
         return Uni.createFrom().deferred(() -> {
             try {
                 SchedulerStatsDTO stats = new SchedulerStatsDTO();
-                
+
                 stats.setSchedulerRunning(scheduler.isStarted() && !scheduler.isInStandbyMode());
                 stats.setSchedulerName(scheduler.getSchedulerName());
                 stats.setJobGroups(scheduler.getJobGroupNames());
@@ -68,7 +92,7 @@ public class SchedulerDataService {
                             stats.setTotalScheduledTasks(tasks.size());
                             return stats;
                         });
-                        
+
             } catch (SchedulerException e) {
                 LOGGER.error("Failed to get scheduler stats", e);
                 throw new RuntimeException(e);
@@ -76,10 +100,12 @@ public class SchedulerDataService {
         });
     }
 
+
+
     public Uni<List<ScheduledTaskDTO>> getScheduledTasks() {
         return Uni.createFrom().deferred(() -> {
             List<ScheduledTaskDTO> allTasks = new ArrayList<>();
-            
+
             List<Uni<List<ScheduledTaskDTO>>> repositoryUnis = repositoryRegistry.getRepositories().stream()
                     .map(this::getTasksFromRepository)
                     .toList();
@@ -95,49 +121,55 @@ public class SchedulerDataService {
     private Uni<List<ScheduledTaskDTO>> getTasksFromRepository(
             SchedulableRepository<? extends Schedulable> repository) {
         return repository.findActiveScheduled()
-                .onItem().transform(entities -> 
-                    entities.stream()
-                            .map(this::mapToScheduledTaskDTO)
-                            .toList()
+                .onItem().transform(entities ->
+                        entities.stream()
+                                .map(this::mapToDTO)
+                                .toList()
                 );
     }
 
-    private ScheduledTaskDTO mapToScheduledTaskDTO(Schedulable entity) {
+    private ScheduledTaskDTO mapToDTO(Schedulable entity) {
         ScheduledTaskDTO dto = new ScheduledTaskDTO();
-        
+
         dto.setEntityId(entity.getId().toString());
         dto.setEntityType(entity.getClass().getSimpleName());
-        
-        if (entity instanceof RadioStation station) {
-            dto.setEntityName(station.getSlugName());
-        } else if (entity instanceof Event event) {
-            dto.setEntityName(event.getDescription());
-        }
-        
+
         Schedule schedule = entity.getSchedule();
         if (schedule != null) {
-            dto.setEnabled(schedule.isEnabled());
-            if (schedule.getTimeZone() != null) {
-                dto.setTimeZone(schedule.getTimeZone().getId());
+            ZoneId entityTimeZone = schedule.getTimeZone();
+
+            if (entity instanceof RadioStation station) {
+                dto.setEntityName(station.getSlugName());
+            } else if (entity instanceof Event event) {
+                dto.setEntityName(event.getDescription());
             }
-            
+
+            dto.setEnabled(schedule.isEnabled());
+            dto.setTimeZone(entityTimeZone.getId());
+
             if (!schedule.getTasks().isEmpty()) {
                 Task firstTask = schedule.getTasks().get(0);
                 dto.setTaskType(firstTask.getType() != null ? firstTask.getType().name() : "UNKNOWN");
                 dto.setTriggerType(firstTask.getTriggerType() != null ? firstTask.getTriggerType().name() : "UNKNOWN");
             }
-        }
-        
-        List<JobExecutionDTO> executions = getJobExecutionsForEntity(entity);
-        dto.setUpcomingExecutions(executions);
 
-        if (!executions.isEmpty()) {
-            dto.setNextExecution(executions.get(0).getScheduledTime());
-            dto.setCronExpression(getCronExpressionForEntity(entity));
+            List<JobExecutionDTO> executions = getJobExecutionsForEntity(entity);
+            dto.setUpcomingExecutions(executions);
+
+            if (!executions.isEmpty()) {
+                dto.setNextExecution(executions.get(0).getScheduledTime().atZone(ZoneId.systemDefault()).withZoneSameInstant(entityTimeZone).toLocalDateTime());
+                dto.setCronExpression(getCronExpressionForEntity(entity));
+            }
+
+           // LocalDateTime lastExecution = jobExecutionTracker.getLastExecution(entity.getId().toString());
+           // if (lastExecution != null) {
+           //     dto.setLastExecution(lastExecution.atZone(ZoneId.systemDefault()).withZoneSameInstant(entityTimeZone).toLocalDateTime());
+           // }
+
+            dto.setStatus(determineTaskStatus(dto, executions));
+        } else {
+            dto.setEnabled(false);
         }
-        
-        dto.setStatus(determineTaskStatus(dto, executions));
-        
         return dto;
     }
 
@@ -145,20 +177,20 @@ public class SchedulerDataService {
         try {
             List<JobExecutionDTO> executions = new ArrayList<>();
             String entityId = entity.getId().toString();
-            
+
             for (String groupName : scheduler.getJobGroupNames()) {
                 Set<JobKey> jobKeys = scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName));
-                
+
                 for (JobKey jobKey : jobKeys) {
-                    if (jobKey.getName().contains(entityId) || 
-                        (entity instanceof RadioStation station && jobKey.getName().contains(station.getSlugName()))) {
-                        
+                    if (jobKey.getName().contains(entityId) ||
+                            (entity instanceof RadioStation station && jobKey.getName().contains(station.getSlugName()))) {
+
                         List<? extends Trigger> triggers = scheduler.getTriggersOfJob(jobKey);
-                        
+
                         for (Trigger trigger : triggers) {
                             JobExecutionDTO execution = new JobExecutionDTO();
                             execution.setJobName(jobKey.getName());
-                            
+
                             if (jobKey.getName().contains("_dj_start")) {
                                 execution.setAction("START");
                             } else if (jobKey.getName().contains("_dj_stop")) {
@@ -168,28 +200,28 @@ public class SchedulerDataService {
                             } else if (jobKey.getName().contains("_event_trigger")) {
                                 execution.setAction("EVENT_TRIGGER");
                             }
-                            
+
                             Date nextFireTime = trigger.getNextFireTime();
                             if (nextFireTime != null) {
                                 execution.setScheduledTime(LocalDateTime.ofInstant(
-                                    nextFireTime.toInstant(), ZoneId.systemDefault()));
+                                        nextFireTime.toInstant(), ZoneId.systemDefault()));
                             }
-                            
+
                             Trigger.TriggerState state = scheduler.getTriggerState(trigger.getKey());
                             execution.setTriggerState(state.name());
-                            
+
                             executions.add(execution);
                         }
                     }
                 }
             }
-            
+
             return executions.stream()
                     .filter(e -> e.getScheduledTime() != null)
                     .sorted(Comparator.comparing(JobExecutionDTO::getScheduledTime))
                     .limit(5)
                     .collect(Collectors.toList());
-                    
+
         } catch (SchedulerException e) {
             LOGGER.error("Failed to get job executions for entity: {}", entity.getId(), e);
             return new ArrayList<>();
@@ -199,16 +231,16 @@ public class SchedulerDataService {
     private String getCronExpressionForEntity(Schedulable entity) {
         try {
             String entityId = entity.getId().toString();
-            
+
             for (String groupName : scheduler.getJobGroupNames()) {
                 Set<JobKey> jobKeys = scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName));
-                
+
                 for (JobKey jobKey : jobKeys) {
-                    if (jobKey.getName().contains(entityId) || 
-                        (entity instanceof RadioStation station && jobKey.getName().contains(station.getSlugName()))) {
-                        
+                    if (jobKey.getName().contains(entityId) ||
+                            (entity instanceof RadioStation station && jobKey.getName().contains(station.getSlugName()))) {
+
                         List<? extends Trigger> triggers = scheduler.getTriggersOfJob(jobKey);
-                        
+
                         for (Trigger trigger : triggers) {
                             if (trigger instanceof CronTrigger cronTrigger) {
                                 return cronTrigger.getCronExpression();
@@ -220,7 +252,7 @@ public class SchedulerDataService {
         } catch (SchedulerException e) {
             LOGGER.error("Failed to get cron expression for entity: {}", entity.getId(), e);
         }
-        
+
         return null;
     }
 
@@ -230,16 +262,16 @@ public class SchedulerDataService {
         counts.put("PAUSED", 0);
         counts.put("COMPLETE", 0);
         counts.put("ERROR", 0);
-        
+
         for (String groupName : scheduler.getJobGroupNames()) {
             Set<JobKey> jobKeys = scheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName));
-            
+
             for (JobKey jobKey : jobKeys) {
                 List<? extends Trigger> triggers = scheduler.getTriggersOfJob(jobKey);
-                
+
                 for (Trigger trigger : triggers) {
                     Trigger.TriggerState state = scheduler.getTriggerState(trigger.getKey());
-                    
+
                     switch (state) {
                         case NORMAL -> counts.put("ACTIVE", counts.get("ACTIVE") + 1);
                         case PAUSED -> counts.put("PAUSED", counts.get("PAUSED") + 1);
@@ -252,7 +284,7 @@ public class SchedulerDataService {
                 }
             }
         }
-        
+
         return counts;
     }
 
@@ -260,22 +292,22 @@ public class SchedulerDataService {
         if (!dto.isEnabled()) {
             return "DISABLED";
         }
-        
+
         if (executions.isEmpty()) {
             return "NOT_SCHEDULED";
         }
-        
+
         boolean hasActiveJobs = executions.stream()
                 .anyMatch(job -> "NORMAL".equals(job.getTriggerState()));
-        
+
         boolean hasErrorJobs = executions.stream()
-                .anyMatch(job -> "ERROR".equals(job.getTriggerState()) || 
-                               "BLOCKED".equals(job.getTriggerState()));
-        
+                .anyMatch(job -> "ERROR".equals(job.getTriggerState()) ||
+                        "BLOCKED".equals(job.getTriggerState()));
+
         if (hasErrorJobs) {
             return "ERROR";
         }
-        
+
         return hasActiveJobs ? "ACTIVE" : "INACTIVE";
     }
 }

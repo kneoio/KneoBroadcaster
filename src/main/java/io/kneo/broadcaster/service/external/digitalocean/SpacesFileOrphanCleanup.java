@@ -48,8 +48,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @ApplicationScoped
 public class SpacesFileOrphanCleanup {
     private static final Logger LOGGER = LoggerFactory.getLogger(SpacesFileOrphanCleanup.class);
-    private static final int INTERVAL_SECONDS = 3600;
-    private static final Duration INITIAL_DELAY = Duration.ofMinutes(5);
+    private static final int INTERVAL_SECONDS = 6000;
+    private static final Duration INITIAL_DELAY = Duration.ofMinutes(10);
     private static final String ADDRESS_ORPHAN_CLEANUP_STATS = "spaces-orphan-cleanup-stats";
     private LocalDateTime lastCleanupTime;
     private String lastError;
@@ -252,12 +252,33 @@ public class SpacesFileOrphanCleanup {
                     return OrphanProcessingResult.SKIPPED;
                 }
             } else {
-                LOGGER.warn("Orphan file lacks required metadata (Title: {}, Artist: {}), deleting: {}",
-                        metadata.getTitle(), metadata.getArtist(), fileKey);
-                if (deleteOrphanFile(fileKey)) {
-                    return OrphanProcessingResult.DELETED;
+                FileKeyMetadata keyMetadata = extractMetadataFromFileKey(fileKey);
+                if (keyMetadata != null) {
+                    metadata.setTitle(keyMetadata.getTitle());
+                    metadata.setArtist(keyMetadata.getArtist());
+                    metadata.setGenre(keyMetadata.getGenre());
+
+                    LOGGER.info("Extracted metadata from file key - Title: {}, Artist: {}, Genre: {}, File: {}",
+                            metadata.getTitle(), metadata.getArtist(), metadata.getGenre(), fileKey);
+
+                    if (saveOrphanToDatabase(metadata, fileKey)) {
+                        LOGGER.info("Successfully saved orphan file using key metadata to database: {}", fileKey);
+                        return OrphanProcessingResult.SAVED;
+                    } else {
+                        LOGGER.warn("Failed to save orphan file with key metadata to database, deleting: {}", fileKey);
+                        if (deleteOrphanFile(fileKey)) {
+                            return OrphanProcessingResult.DELETED;
+                        }
+                        return OrphanProcessingResult.SKIPPED;
+                    }
+                } else {
+                    LOGGER.warn("Orphan file lacks required metadata and invalid key structure (Title: {}, Artist: {}), deleting: {}",
+                            metadata.getTitle(), metadata.getArtist(), fileKey);
+                    if (deleteOrphanFile(fileKey)) {
+                        return OrphanProcessingResult.DELETED;
+                    }
+                    return OrphanProcessingResult.SKIPPED;
                 }
-                return OrphanProcessingResult.SKIPPED;
             }
 
         } catch (Exception e) {
@@ -271,6 +292,54 @@ public class SpacesFileOrphanCleanup {
                     LOGGER.warn("Failed to delete temporary file: {}", tempFile, e);
                 }
             }
+        }
+    }
+
+    private FileKeyMetadata extractMetadataFromFileKey(String fileKey) {
+        try {
+            String[] parts = fileKey.split("/");
+
+            if (parts.length != 4) {
+                LOGGER.debug("File key doesn't match expected structure (4 parts): {}", fileKey);
+                return null;
+            }
+
+            if (!"soundfragments".equals(parts[0])) {
+                LOGGER.debug("File key doesn't start with 'soundfragments': {}", fileKey);
+                return null;
+            }
+
+            String genre = parts[1];
+            String artist = parts[2];
+            String filename = parts[3];
+
+            if (genre.trim().isEmpty() || artist.trim().isEmpty() || filename.trim().isEmpty()) {
+                LOGGER.debug("File key has empty parts - Genre: '{}', Artist: '{}', Filename: '{}'",
+                        genre, artist, filename);
+                return null;
+            }
+
+            String title = filename;
+            int dotIndex = filename.lastIndexOf('.');
+            if (dotIndex > 0) {
+                title = filename.substring(0, dotIndex);
+            }
+
+            try {
+                UUID.fromString(title);
+                title = artist + " - Track " + title.substring(0, 8);
+            } catch (IllegalArgumentException e) {
+            }
+
+            return FileKeyMetadata.builder()
+                    .title(title)
+                    .artist(artist)
+                    .genre(genre)
+                    .build();
+
+        } catch (Exception e) {
+            LOGGER.debug("Failed to extract metadata from file key: {}", fileKey, e);
+            return null;
         }
     }
 
@@ -478,6 +547,14 @@ public class SpacesFileOrphanCleanup {
 
             return totalCount;
         }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
+    }
+
+    @lombok.Builder
+    @lombok.Getter
+    private static class FileKeyMetadata {
+        private final String title;
+        private final String artist;
+        private final String genre;
     }
 
     private enum OrphanProcessingResult {

@@ -7,6 +7,7 @@ import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import org.quartz.Scheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +20,10 @@ public class QuartzSchedulerManager {
 
     @Inject
     QuartzSchedulerService quartzSchedulerService;
+
+    @Inject
+    Scheduler scheduler;
+
 
     void onStart(@Observes StartupEvent event) {
         LOGGER.info("Starting Quartz scheduler manager");

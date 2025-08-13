@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.scheduler.quartz;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -9,6 +10,8 @@ import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Map;
 
 @ApplicationScoped
 public class EventTriggerJob implements Job {
@@ -24,9 +27,14 @@ public class EventTriggerJob implements Job {
         String type = context.getJobDetail().getJobDataMap().getString("type");
         String description = context.getJobDetail().getJobDataMap().getString("description");
         String priority = context.getJobDetail().getJobDataMap().getString("priority");
+
         LOGGER.info("Executing event trigger {} for brand {}", eventId, brandId);
+
         try {
-            String message = type + ": " + description + " [" + priority + "]";
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, String> eventData = Map.of("type", type);
+            String message = mapper.writeValueAsString(eventData);
+
             memoryService.upsert(brandId, MemoryType.EVENT, message).subscribe().with(
                     id -> LOGGER.debug("Memory created with ID: {} for event {}", id, eventId),
                     failure -> LOGGER.error("Failed to create memory for event {}", eventId, failure)

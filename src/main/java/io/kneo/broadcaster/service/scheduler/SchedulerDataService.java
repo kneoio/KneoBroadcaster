@@ -1,27 +1,36 @@
 package io.kneo.broadcaster.service.scheduler;
 
-import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
-import io.kneo.broadcaster.dto.dashboard.ScheduledTaskDTO;
 import io.kneo.broadcaster.dto.dashboard.JobExecutionDTO;
+import io.kneo.broadcaster.dto.dashboard.ScheduledTaskDTO;
+import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.repository.SchedulableRepository;
-import io.kneo.broadcaster.service.scheduler.SchedulableRepositoryRegistry;
 import io.kneo.broadcaster.service.scheduler.quartz.QuartzJobRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.quartz.*;
+import org.quartz.CronTrigger;
+import org.quartz.JobKey;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.Trigger;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -112,16 +121,16 @@ public class SchedulerDataService {
                 dto.setTimeZone(schedule.getTimeZone().getId());
             }
             
-            if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
+            if (!schedule.getTasks().isEmpty()) {
                 Task firstTask = schedule.getTasks().get(0);
-                dto.setTaskType(firstTask.getType().name());
-                dto.setTriggerType(firstTask.getTriggerType().name());
+                dto.setTaskType(firstTask.getType() != null ? firstTask.getType().name() : "UNKNOWN");
+                dto.setTriggerType(firstTask.getTriggerType() != null ? firstTask.getTriggerType().name() : "UNKNOWN");
             }
         }
         
         List<JobExecutionDTO> executions = getJobExecutionsForEntity(entity);
         dto.setUpcomingExecutions(executions);
-        
+
         if (!executions.isEmpty()) {
             dto.setNextExecution(executions.get(0).getScheduledTime());
             dto.setCronExpression(getCronExpressionForEntity(entity));

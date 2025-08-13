@@ -16,6 +16,7 @@ import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.repository.EventRepository;
+import io.kneo.broadcaster.service.scheduler.quartz.QuartzSchedulerService;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -38,16 +39,14 @@ public class EventService extends AbstractService<Event, EventDTO> {
     private final EventRepository repository;
     private final RadioStationService radioStationService;
 
-    protected EventService() {
-        super();
-        this.repository = null;
-        this.radioStationService = null;
-    }
+    @Inject
+    private QuartzSchedulerService quartzSchedulerService;
 
     @Inject
     public EventService(UserService userService,
                         EventRepository repository,
-                        RadioStationService radioStationService) {
+                        RadioStationService radioStationService
+    ) {
         super(userService);
         this.repository = repository;
         this.radioStationService = radioStationService;
@@ -102,18 +101,22 @@ public class EventService extends AbstractService<Event, EventDTO> {
 
     public Uni<EventDTO> upsert(String id, EventDTO dto, IUser user) {
         assert repository != null;
+
+        Event entity = buildEntity(dto);
+
+        Uni<Event> saveOperation;
         if (id == null) {
-            Event entity = buildEntity(dto);
-            return repository.insert(entity, user)
-                    .chain(this::mapToDTO)
-                    .onFailure().invoke(throwable -> {
-                        LOGGER.error("Failed to create event", throwable);
-                    });
+            saveOperation = repository.insert(entity, user);
         } else {
-            Event entity = buildEntity(dto);
-            return repository.update(UUID.fromString(id), entity, user)
-                    .chain(this::mapToDTO);
+            saveOperation = repository.update(UUID.fromString(id), entity, user);
         }
+
+        return saveOperation.chain(savedEntity -> {
+            quartzSchedulerService.removeForEntity(savedEntity);
+            quartzSchedulerService.scheduleEntity(savedEntity);
+
+            return Uni.createFrom().item(savedEntity);
+        }).chain(this::mapToDTO);
     }
 
     public Uni<Integer> archive(String id, IUser user) {

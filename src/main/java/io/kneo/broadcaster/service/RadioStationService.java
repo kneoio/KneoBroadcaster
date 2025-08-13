@@ -17,6 +17,7 @@ import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.RadioStationRepository;
+import io.kneo.broadcaster.service.scheduler.quartz.QuartzSchedulerService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -48,6 +49,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     BroadcasterConfig broadcasterConfig;
 
     RadioStationPool radiostationPool;
+
+    @Inject
+    private QuartzSchedulerService quartzSchedulerService;
 
     @Inject
     public RadioStationService(
@@ -127,6 +131,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         }
 
         return saveOperation.chain(savedEntity -> {
+            quartzSchedulerService.removeForEntity(savedEntity);
+            quartzSchedulerService.scheduleEntity(savedEntity);
+
             if (radiostationPool.getStation(savedEntity.getSlugName()).isPresent()) {
                 return radiostationPool.updateStationConfig(savedEntity.getSlugName(), savedEntity);
             } else {

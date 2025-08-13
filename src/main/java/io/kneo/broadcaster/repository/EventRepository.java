@@ -263,7 +263,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
-{{ ... }}
+        doc.setBrand(row.getUUID("brand_id"));
         doc.setType(EventType.valueOf(row.getString("type")));
         doc.setDescription(row.getString("description"));
         doc.setPriority(EventPriority.valueOf(row.getString("priority")));

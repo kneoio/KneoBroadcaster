@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -245,11 +246,12 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
 
     @Override
     public Uni<List<Event>> findActiveScheduled() {
-        String sql = "SELECT * FROM " + entityData.getTableName() +
-                " WHERE archived = 0 AND scheduler IS NOT NULL";
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE t.archived = 0 AND t.scheduler IS NOT NULL AND rls.reader = $1";
 
-        return client.query(sql)
-                .execute()
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(SuperUser.build().getId()))
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled events", throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(this::from)
@@ -261,7 +263,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
-        doc.setBrand(row.getUUID("brand_id"));
+{{ ... }}
         doc.setType(EventType.valueOf(row.getString("type")));
         doc.setDescription(row.getString("description"));
         doc.setPriority(EventPriority.valueOf(row.getString("priority")));

@@ -9,6 +9,7 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -319,15 +320,16 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
     @Override
     public Uni<List<RadioStation>> findActiveScheduled() {
-        String sql = "SELECT * FROM " + entityData.getTableName() +
-                " WHERE archived = 0 AND schedule IS NOT NULL";
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE t.archived = 0 AND t.schedule IS NOT NULL AND rls.reader = $1";
 
-        return client.query(sql)
-                .execute()
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(SuperUser.build().getId()))
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled radio stations", throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
-                .select().where(r -> r.getSchedule().isEnabled())
+                .select().where(r -> r.getSchedule() != null && r.getSchedule().isEnabled())
                 .collect().asList();
     }
 

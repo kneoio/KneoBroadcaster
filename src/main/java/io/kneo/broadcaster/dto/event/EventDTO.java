@@ -18,6 +18,7 @@ import java.time.ZoneId;
 @NoArgsConstructor
 public class EventDTO extends AbstractDTO {
     private String brand;
+    private String brandId;
     private ZoneId timeZone;
     private String type;
     @NotNull(message = "Description is required")

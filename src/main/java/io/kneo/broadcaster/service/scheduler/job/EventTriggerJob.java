@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service.scheduler.job;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -29,11 +28,9 @@ public class EventTriggerJob implements Job {
         LOGGER.info("Executing event trigger {} for brand {}", eventId, slugName);
 
         try {
-            ObjectMapper mapper = new ObjectMapper();
             Map<String, String> eventData = Map.of("type", type);
-            String message = mapper.writeValueAsString(eventData);
 
-            memoryService.upsert(slugName, MemoryType.EVENT, message).subscribe().with(
+            memoryService.upsert(slugName, MemoryType.EVENT, eventData).subscribe().with(
                     id -> LOGGER.debug("Memory created with ID: {} for event {}", id, eventId),
                     failure -> LOGGER.error("Failed to create memory for event {}", eventId, failure)
             );

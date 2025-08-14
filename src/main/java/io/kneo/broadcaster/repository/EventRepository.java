@@ -152,7 +152,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                         .addLocalDateTime(nowTime)
                         .addLong(user.getId())
                         .addLocalDateTime(nowTime)
-                        .addUUID(event.getBrand())
+                        .addUUID(event.getBrandId())
                         .addString(event.getType().toString())
                         .addString(event.getDescription())
                         .addString(event.getPriority().name())
@@ -194,7 +194,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     "WHERE id=$8";
 
                             Tuple params = Tuple.tuple()
-                                    .addUUID(event.getBrand())
+                                    .addUUID(event.getBrandId())
                                     .addString(event.getType().name())
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
@@ -263,7 +263,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
     private Uni<Event> from(Row row) {
         Event doc = new Event();
         setDefaultFields(doc, row);
-        doc.setBrand(row.getUUID("brand_id"));
+        doc.setBrandId(row.getUUID("brand_id"));
         doc.setType(EventType.valueOf(row.getString("type")));
         doc.setDescription(row.getString("description"));
         doc.setPriority(EventPriority.valueOf(row.getString("priority")));

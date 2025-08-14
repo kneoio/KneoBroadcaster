@@ -157,7 +157,7 @@ public class SchedulerDataService {
             dto.setUpcomingExecutions(executions);
 
             if (!executions.isEmpty()) {
-                dto.setNextExecution(executions.get(0).getScheduledTime().atZone(ZoneId.systemDefault()).withZoneSameInstant(entityTimeZone).toLocalDateTime());
+                dto.setNextExecution(executions.get(0).getScheduledTime());
                 dto.setCronExpression(getCronExpressionForEntity(entity));
             }
 

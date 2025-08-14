@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.scheduler.quartz.handlers;
+package io.kneo.broadcaster.service.scheduler.quartz.runners;
 
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
@@ -8,6 +8,7 @@ import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.scheduler.ScheduledTaskType;
 import io.kneo.broadcaster.service.scheduler.job.EventTriggerJob;
 import io.kneo.broadcaster.service.scheduler.quartz.QuartzUtils;
+import io.kneo.core.model.user.SuperUser;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.quartz.JobDetail;
@@ -55,8 +56,8 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
     public void schedule(Schedulable entity, Task task, ZoneId timeZone) throws SchedulerException {
         Event event = (Event) entity;
         removeFor(entity);
-
-        radioStationService.findByBrandName(event.getBrand().toString())
+        LOGGER.info("Found scheduled periodic event {}", event.getBrandId());
+        radioStationService.getById(event.getBrandId(), SuperUser.build())
                 .subscribe().with(
                         radioStation -> {
                             try {
@@ -69,7 +70,7 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
                             }
                         },
                         failure -> LOGGER.error("Failed to find radio station for brand {}: {}",
-                                event.getBrand(), failure.getMessage())
+                                event.getBrandId(), failure.getMessage())
                 );
     }
 
@@ -89,6 +90,15 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
         LocalTime end = LocalTime.parse(task.getPeriodicTrigger().getEndTime());
         int interval = task.getPeriodicTrigger().getInterval();
         List<String> dows = QuartzUtils.convertWeekdaysToAbbrev(task.getPeriodicTrigger().getWeekdays());
+
+        // Validate interval to prevent infinite loops
+        if (interval <= 0) {
+            LOGGER.error("Invalid interval {} for event {}", interval, id);
+            return;
+        }
+
+        LOGGER.info("Scheduling event {} from {} to {} with interval {}m", id, start, end, interval);
+
         JobDetail job = newJob(EventTriggerJob.class)
                 .withIdentity(jobKey, "event")
                 .usingJobData("eventId", id.toString())
@@ -97,39 +107,89 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
                 .build();
 
         Set<Trigger> triggers = new HashSet<>();
+        int triggerCount = 0;
+        final int MAX_TRIGGERS = 1000; // Safety limit
 
         if (end.isBefore(start)) {
-            for (LocalTime t = start; t.isBefore(LocalTime.MAX) || t.equals(LocalTime.MAX); t = t.plusMinutes(interval)) {
+            // Cross-midnight schedule: start to 23:59, then 00:00 to end
+
+            // Schedule from start to end of day
+            LocalTime t = start;
+            while (!t.isAfter(LocalTime.of(23, 59)) && triggerCount < MAX_TRIGGERS) {
                 String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
+                LOGGER.debug("Creating trigger for time {} with cron: {}", t, cron);
+
                 Trigger trig = newTrigger()
-                        .withIdentity(jobKey + "_trg_" + t.toString(), "event")
+                        .withIdentity(jobKey + "_trg_" + t.toString().replace(":", ""), "event")
                         .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
                         .build();
                 triggers.add(trig);
+                triggerCount++;
 
-                if (t.plusMinutes(interval).isBefore(t)) break;
+                LocalTime nextTime = t.plusMinutes(interval);
+                if (nextTime.isBefore(t) || nextTime.equals(t)) {
+                    // Overflow protection - break if time wraps or doesn't advance
+                    break;
+                }
+                t = nextTime;
             }
 
-            for (LocalTime t = LocalTime.MIDNIGHT; !t.isAfter(end); t = t.plusMinutes(interval)) {
+            // Schedule from midnight to end time
+            t = LocalTime.MIDNIGHT;
+            while (!t.isAfter(end) && triggerCount < MAX_TRIGGERS) {
                 String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
+                LOGGER.debug("Creating midnight trigger for time {} with cron: {}", t, cron);
+
                 Trigger trig = newTrigger()
-                        .withIdentity(jobKey + "_trg_midnight_" + t.toString(), "event")
+                        .withIdentity(jobKey + "_trg_midnight_" + t.toString().replace(":", ""), "event")
                         .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
                         .build();
                 triggers.add(trig);
+                triggerCount++;
+
+                LocalTime nextTime = t.plusMinutes(interval);
+                if (nextTime.isBefore(t) || nextTime.equals(t)) {
+                    // Overflow protection
+                    break;
+                }
+                t = nextTime;
             }
         } else {
-            for (LocalTime t = start; !t.isAfter(end); t = t.plusMinutes(interval)) {
+            // Same day schedule: start to end
+            LocalTime t = start;
+            while (!t.isAfter(end) && triggerCount < MAX_TRIGGERS) {
                 String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
+                LOGGER.debug("Creating same-day trigger for time {} with cron: {}", t, cron);
+
                 Trigger trig = newTrigger()
-                        .withIdentity(jobKey + "_trg_" + t.toString(), "event")
+                        .withIdentity(jobKey + "_trg_" + t.toString().replace(":", ""), "event")
                         .withSchedule(cronSchedule(cron).inTimeZone(TimeZone.getTimeZone(timeZone)))
                         .build();
                 triggers.add(trig);
+                triggerCount++;
+
+                LocalTime nextTime = t.plusMinutes(interval);
+                if (nextTime.isBefore(t) || nextTime.equals(t)) {
+                    // Overflow protection
+                    break;
+                }
+                t = nextTime;
             }
         }
+
+        if (triggerCount >= MAX_TRIGGERS) {
+            LOGGER.error("Hit maximum trigger limit for event {}. Check interval configuration.", id);
+            return;
+        }
+
+        if (triggers.isEmpty()) {
+            LOGGER.warn("No triggers created for event {} with schedule {} to {}", id, start, end);
+            return;
+        }
+
         scheduler.scheduleJob(job, triggers, true);
-        LOGGER.info("Scheduled periodic event {} interval {}m from {} to {}", id, interval, start, end);
+        LOGGER.info("Scheduled periodic event {} with {} triggers, interval {}m from {} to {}",
+                id, triggers.size(), interval, start, end);
     }
 
 }

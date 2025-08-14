@@ -132,7 +132,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
 
     private Uni<EventEntryDTO> mapToEntryDTO(Event doc) {
         assert radioStationService != null;
-        return radioStationService.getById(doc.getBrand(), SuperUser.build())
+        return radioStationService.getById(doc.getBrandId(), SuperUser.build())
                 .onItem().transform(RadioStation::getSlugName)
                 .onFailure().recoverWithItem("Unknown Brand")
                 .map(brand -> new EventEntryDTO(
@@ -149,7 +149,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                radioStationService.getById(doc.getBrand(), SuperUser.build())
+                radioStationService.getById(doc.getBrandId(), SuperUser.build())
         ).asTuple().map(tuple -> {
             EventDTO dto = new EventDTO();
             dto.setId(doc.getId());
@@ -157,7 +157,8 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
-            dto.setBrand(tuple.getItem3().getId().toString());
+            dto.setBrandId(tuple.getItem3().getId().toString());
+            dto.setBrand(tuple.getItem3().getSlugName());
             dto.setTimeZone(tuple.getItem3().getTimeZone());
             dto.setType(doc.getType().name());
             dto.setDescription(doc.getDescription());
@@ -213,7 +214,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
 
     private Event buildEntity(EventDTO dto) {
         Event doc = new Event();
-        doc.setBrand(UUID.fromString(dto.getBrand()));
+        doc.setBrandId(UUID.fromString(dto.getBrandId()));
         doc.setType(EventType.valueOf(dto.getType()));
         doc.setDescription(dto.getDescription());
         doc.setPriority(EventPriority.valueOf(dto.getPriority()));

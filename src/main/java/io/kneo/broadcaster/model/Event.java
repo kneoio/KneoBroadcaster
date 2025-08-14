@@ -18,7 +18,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Event extends SecureDataEntity<UUID> implements Schedulable {
-    private UUID brand;
+    private UUID brandId;
+    private String brand;
     private ZoneId timeZone;
     private EventType type;
     private String description;

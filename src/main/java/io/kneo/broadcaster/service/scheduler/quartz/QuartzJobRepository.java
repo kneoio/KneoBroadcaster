@@ -6,6 +6,8 @@ import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -119,6 +121,8 @@ public class QuartzJobRepository {
         return jobs;
     }
 
+    @Setter
+    @Getter
     public static class QuartzJobInfo {
         private String jobName;
         private String jobGroup;
@@ -131,25 +135,5 @@ public class QuartzJobRepository {
         private LocalDateTime nextFireTime;
         private LocalDateTime prevFireTime;
 
-        public String getJobName() { return jobName; }
-        public void setJobName(String jobName) { this.jobName = jobName; }
-        public String getJobGroup() { return jobGroup; }
-        public void setJobGroup(String jobGroup) { this.jobGroup = jobGroup; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-        public String getTriggerName() { return triggerName; }
-        public void setTriggerName(String triggerName) { this.triggerName = triggerName; }
-        public String getTriggerGroup() { return triggerGroup; }
-        public void setTriggerGroup(String triggerGroup) { this.triggerGroup = triggerGroup; }
-        public String getTriggerState() { return triggerState; }
-        public void setTriggerState(String triggerState) { this.triggerState = triggerState; }
-        public String getCronExpression() { return cronExpression; }
-        public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }
-        public String getTimeZoneId() { return timeZoneId; }
-        public void setTimeZoneId(String timeZoneId) { this.timeZoneId = timeZoneId; }
-        public LocalDateTime getNextFireTime() { return nextFireTime; }
-        public void setNextFireTime(LocalDateTime nextFireTime) { this.nextFireTime = nextFireTime; }
-        public LocalDateTime getPrevFireTime() { return prevFireTime; }
-        public void setPrevFireTime(LocalDateTime prevFireTime) { this.prevFireTime = prevFireTime; }
     }
 }

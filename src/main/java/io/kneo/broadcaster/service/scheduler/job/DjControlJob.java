@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.scheduler.quartz;
+package io.kneo.broadcaster.service.scheduler.job;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;

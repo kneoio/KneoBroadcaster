@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.scheduler.quartz;
+package io.kneo.broadcaster.service.scheduler.job;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.cnst.MemoryType;
@@ -23,19 +23,17 @@ public class EventTriggerJob implements Job {
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         String eventId = context.getJobDetail().getJobDataMap().getString("eventId");
-        String brandId = context.getJobDetail().getJobDataMap().getString("brandId");
+        String slugName = context.getJobDetail().getJobDataMap().getString("slugName");
         String type = context.getJobDetail().getJobDataMap().getString("type");
-        String description = context.getJobDetail().getJobDataMap().getString("description");
-        String priority = context.getJobDetail().getJobDataMap().getString("priority");
 
-        LOGGER.info("Executing event trigger {} for brand {}", eventId, brandId);
+        LOGGER.info("Executing event trigger {} for brand {}", eventId, slugName);
 
         try {
             ObjectMapper mapper = new ObjectMapper();
             Map<String, String> eventData = Map.of("type", type);
             String message = mapper.writeValueAsString(eventData);
 
-            memoryService.upsert(brandId, MemoryType.EVENT, message).subscribe().with(
+            memoryService.upsert(slugName, MemoryType.EVENT, message).subscribe().with(
                     id -> LOGGER.debug("Memory created with ID: {} for event {}", id, eventId),
                     failure -> LOGGER.error("Failed to create memory for event {}", eventId, failure)
             );

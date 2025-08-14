@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.scheduler.quartz.spi;
+package io.kneo.broadcaster.service.scheduler.quartz.handlers;
 
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.Schedulable;

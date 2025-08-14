@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.service.scheduler.quartz;
 
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Schedule;
 import io.kneo.broadcaster.model.scheduler.Task;
-import io.kneo.broadcaster.model.scheduler.Schedulable;
-import io.kneo.broadcaster.service.scheduler.quartz.spi.TaskSchedulerHandler;
+import io.kneo.broadcaster.service.scheduler.quartz.handlers.TaskSchedulerHandler;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.quartz.SchedulerException;
 import org.slf4j.Logger;
@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.ZoneId;
 import java.util.List;
-import jakarta.enterprise.inject.Instance;
 
 @ApplicationScoped
 public class QuartzSchedulerService {
@@ -43,13 +42,6 @@ public class QuartzSchedulerService {
                 }
             }
         }
-    }
-
-    public void scheduleRadioStation(RadioStation station) {
-        scheduleEntity(station);
-    }
-    public void removeScheduleForStation(RadioStation station) {
-        removeForEntity(station);
     }
 
     public void removeForEntity(Schedulable entity) {

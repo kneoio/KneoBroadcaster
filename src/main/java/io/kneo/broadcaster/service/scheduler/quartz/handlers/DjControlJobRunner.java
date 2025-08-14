@@ -4,12 +4,16 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TriggerType;
-import io.kneo.broadcaster.service.scheduler.CronTaskType;
-import io.kneo.broadcaster.service.scheduler.quartz.DjControlJob;
-import io.kneo.broadcaster.service.scheduler.quartz.spi.TaskSchedulerHandler;
+import io.kneo.broadcaster.service.scheduler.ScheduledTaskType;
+import io.kneo.broadcaster.service.scheduler.job.DjControlJob;
+import io.kneo.broadcaster.service.scheduler.quartz.QuartzUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.quartz.*;
+import org.quartz.JobDetail;
+import org.quartz.JobKey;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.Trigger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,13 +21,14 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 
+import static io.kneo.broadcaster.service.scheduler.quartz.QuartzUtils.convertWeekdaysToCron;
 import static org.quartz.CronScheduleBuilder.cronSchedule;
 import static org.quartz.JobBuilder.newJob;
 import static org.quartz.TriggerBuilder.newTrigger;
 
 @ApplicationScoped
-public class DjControlTaskScheduler implements TaskSchedulerHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(DjControlTaskScheduler.class);
+public class DjControlJobRunner implements TaskSchedulerHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DjControlJobRunner.class);
 
     @Inject
     Scheduler scheduler;
@@ -32,7 +37,7 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
     public boolean supports(Schedulable entity, Task task) {
         if (!(entity instanceof RadioStation)) return false;
         if (task == null) return false;
-        if (task.getType() != CronTaskType.PROCESS_DJ_CONTROL) return false;
+        if (task.getType() != ScheduledTaskType.PROCESS_DJ_CONTROL) return false;
         return task.getTriggerType() == TriggerType.TIME_WINDOW && task.getTimeWindowTrigger() != null;
     }
 
@@ -62,7 +67,7 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
 
     private void scheduleStartJob(String stationSlug, String startTime, String target, ZoneId timeZone, List<String> weekdays) throws SchedulerException {
         String jobKey = stationSlug + "_dj_start";
-        String cronExpression = convertTimeToCron(startTime, weekdays);
+        String cronExpression = QuartzUtils.convertTimeToCron(startTime, weekdays);
         JobDetail job = newJob(DjControlJob.class)
                 .withIdentity(jobKey, "dj-control")
                 .usingJobData("stationSlugName", stationSlug)
@@ -112,29 +117,5 @@ public class DjControlTaskScheduler implements TaskSchedulerHandler {
         LocalTime localTime = LocalTime.parse(time);
         String dayOfWeek = convertWeekdaysToCron(weekdays);
         return String.format("0 %d %d ? * %s", localTime.getMinute(), localTime.getHour(), dayOfWeek);
-    }
-
-    private String convertWeekdaysToCron(List<String> weekdays) {
-        if (weekdays == null || weekdays.isEmpty()) {
-            return "*";
-        }
-        
-        return weekdays.stream()
-                .map(this::convertWeekdayToCronFormat)
-                .reduce((first, second) -> first + "," + second)
-                .orElse("*");
-    }
-
-    private String convertWeekdayToCronFormat(String weekday) {
-        return switch (weekday.toUpperCase()) {
-            case "MONDAY" -> "MON";
-            case "TUESDAY" -> "TUE";
-            case "WEDNESDAY" -> "WED";
-            case "THURSDAY" -> "THU";
-            case "FRIDAY" -> "FRI";
-            case "SATURDAY" -> "SAT";
-            case "SUNDAY" -> "SUN";
-            default -> weekday.substring(0, 3).toUpperCase();
-        };
     }
 }

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.scheduler.quartz.runners;
+package io.kneo.broadcaster.service.scheduler.runners;
 
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
@@ -64,6 +64,8 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
                                 String slugName = radioStation.getSlugName();
                                 if (task.getTriggerType() == TriggerType.PERIODIC) {
                                     schedulePeriodicEventWithSlugName(event, timeZone, task, slugName);
+                                    // Add recovery check after scheduling
+                                    checkAndResumeIfActive(event, task, timeZone, slugName);
                                 }
                             } catch (SchedulerException e) {
                                 LOGGER.error("Failed to schedule event {}: {}", event.getId(), e.getMessage());
@@ -81,6 +83,53 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
         if (id == null) return;
         String key = id + "_event_trigger";
         scheduler.deleteJob(JobKey.jobKey(key, "event"));
+    }
+
+    private void checkAndResumeIfActive(Event event, Task task, ZoneId timeZone, String slugName) {
+        try {
+            LocalTime now = LocalTime.now(timeZone);
+            LocalTime start = LocalTime.parse(task.getPeriodicTrigger().getStartTime());
+            LocalTime end = LocalTime.parse(task.getPeriodicTrigger().getEndTime());
+
+            if (isWithinActiveWindow(now, start, end)) {
+                LOGGER.info("Event {} is currently active, triggering immediate start", event.getId());
+                triggerEventImmediately(event, slugName);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to check recovery for event {}: {}", event.getId(), e.getMessage());
+        }
+    }
+
+    private boolean isWithinActiveWindow(LocalTime now, LocalTime start, LocalTime end) {
+        if (end.isBefore(start)) {
+            return !now.isBefore(start) || !now.isAfter(end);
+        } else {
+            return !now.isBefore(start) && !now.isAfter(end);
+        }
+    }
+
+    private void triggerEventImmediately(Event event, String slugName) {
+        try {
+            String jobKey = event.getId() + "_recovery_trigger";
+
+            JobDetail recoveryJob = newJob(EventTriggerJob.class)
+                    .withIdentity(jobKey, "recovery")
+                    .usingJobData("eventId", event.getId().toString())
+                    .usingJobData("slugName", slugName)
+                    .usingJobData("type", event.getType().name())
+                    .build();
+
+            Trigger immediateTrigger = newTrigger()
+                    .withIdentity(jobKey + "_trigger", "recovery")
+                    .startNow()
+                    .build();
+
+            scheduler.scheduleJob(recoveryJob, immediateTrigger);
+            LOGGER.info("Triggered immediate recovery for event {}", event.getId());
+
+        } catch (SchedulerException e) {
+            LOGGER.error("Failed to trigger immediate recovery for event {}: {}", event.getId(), e.getMessage());
+        }
     }
 
     private void schedulePeriodicEventWithSlugName(Event event, ZoneId timeZone, Task task, String slugName) throws SchedulerException {
@@ -111,9 +160,6 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
         final int MAX_TRIGGERS = 1000; // Safety limit
 
         if (end.isBefore(start)) {
-            // Cross-midnight schedule: start to 23:59, then 00:00 to end
-
-            // Schedule from start to end of day
             LocalTime t = start;
             while (!t.isAfter(LocalTime.of(23, 59)) && triggerCount < MAX_TRIGGERS) {
                 String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);
@@ -128,13 +174,11 @@ public class EventTriggerJobRunner implements TaskSchedulerHandler {
 
                 LocalTime nextTime = t.plusMinutes(interval);
                 if (nextTime.isBefore(t) || nextTime.equals(t)) {
-                    // Overflow protection - break if time wraps or doesn't advance
                     break;
                 }
                 t = nextTime;
             }
 
-            // Schedule from midnight to end time
             t = LocalTime.MIDNIGHT;
             while (!t.isAfter(end) && triggerCount < MAX_TRIGGERS) {
                 String cron = buildCronForInstant(t.getHour(), t.getMinute(), dows);

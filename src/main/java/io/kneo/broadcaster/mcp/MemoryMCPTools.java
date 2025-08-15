@@ -34,7 +34,6 @@ public class MemoryMCPTools {
 
         return getCurrentUser()
                 .chain(user -> {
-                    LOGGER.info("MCP Tool: Got user context: {}", user.getClass().getSimpleName());
                     return service.getByType(brandName, types);
                 })
                 .map(result -> {

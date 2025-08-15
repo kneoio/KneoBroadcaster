@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service.scheduler.quartz;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
-import io.kneo.broadcaster.service.scheduler.quartz.runners.TaskSchedulerHandler;
+import io.kneo.broadcaster.service.scheduler.runners.TaskSchedulerHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;

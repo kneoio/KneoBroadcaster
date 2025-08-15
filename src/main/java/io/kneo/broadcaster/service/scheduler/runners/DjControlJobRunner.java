@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.scheduler.quartz.runners;
+package io.kneo.broadcaster.service.scheduler.runners;
 
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Schedulable;

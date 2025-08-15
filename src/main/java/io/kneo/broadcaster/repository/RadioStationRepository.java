@@ -235,7 +235,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getManagedBy().name())
                                     .addString(station.getColor())
                                     .addValue(localizedNameJson)
-                                    .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getScheduler())))
+                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getScheduler())))
                                     .addJsonArray(bitRateArray)
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())

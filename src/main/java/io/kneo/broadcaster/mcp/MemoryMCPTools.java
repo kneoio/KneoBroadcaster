@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.mcp;
 
 import io.kneo.broadcaster.service.MemoryService;
-import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.UserService;
+import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -41,8 +41,6 @@ public class MemoryMCPTools {
                     BrandActivityLogger.logActivity(brandName, "memory_results",
                             "Retrieved memory data for %d types", types.length);
                     LOGGER.info("MCP Tool: Memory retrieval completed for brand: {}", brandName);
-
-                    // Return the result as-is, no wrapping needed
                     return result;
                 })
                 .onFailure().invoke(failure -> {

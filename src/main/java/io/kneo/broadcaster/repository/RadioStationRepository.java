@@ -185,7 +185,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getManagedBy().name())
                         .addString(station.getColor())
                         .addJsonObject(localizedNameJson)
-                        .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getSchedule())))
+                        .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getSchedule())))
                         .addJsonArray(bitRateArray)
                         .addString(station.getSlugName())
                         .addString(station.getDescription())
@@ -235,7 +235,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getManagedBy().name())
                                     .addString(station.getColor())
                                     .addValue(localizedNameJson)
-                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getSchedule())))
+                                    .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getSchedule())))
                                     .addJsonArray(bitRateArray)
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())
@@ -358,10 +358,10 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
             doc.setBitRate(128000);
         }
 
-        JsonObject scheduleJson = row.getJsonObject("schedule");
+        JsonObject scheduleJson = row.getJsonObject("scheduler");
         if (scheduleJson != null) {
             try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
+                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
                 if (scheduleData != null) {
                     Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
                     //schedule.setTimeZone(doc.getTimeZone());

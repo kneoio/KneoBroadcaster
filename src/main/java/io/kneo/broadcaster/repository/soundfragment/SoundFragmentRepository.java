@@ -71,8 +71,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         this.brandHandler = brandHandler;
     }
 
-    // ===== QUERY METHODS =====
-
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived,
                                            final IUser user, final SoundFragmentFilter filter) {
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),

@@ -5,6 +5,7 @@ import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.UserService;
 import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -41,7 +42,21 @@ public class MemoryMCPTools {
                     BrandActivityLogger.logActivity(brandName, "memory_results",
                             "Retrieved memory data for %d types", types.length);
                     LOGGER.info("MCP Tool: Memory retrieval completed for brand: {}", brandName);
-                    return result;
+
+                    // Wrap the result in the expected format
+                    JsonObject wrappedResult = new JsonObject();
+                    JsonObject mapData = new JsonObject();
+
+                    for (String key : result.fieldNames()) {
+                        JsonArray data = result.getJsonArray(key);
+                        JsonObject typeData = new JsonObject()
+                                .put("list", data);
+                        mapData.put(key, typeData);
+                    }
+
+                    wrappedResult.put("map", mapData);
+
+                    return wrappedResult;
                 })
                 .onFailure().invoke(failure -> {
                     BrandActivityLogger.logActivity(brandName, "memory_error",

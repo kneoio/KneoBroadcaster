@@ -23,6 +23,7 @@ public class SoundFragmentFileHandler {
     private final IFileStorage fileStorage;
 
     @Inject
+    //public SoundFragmentFileHandler(PgPool client, @Named("hetzner") IFileStorage fileStorage) {
     public SoundFragmentFileHandler(PgPool client, @Named("digitalOcean") IFileStorage fileStorage) {
         this.client = client;
         this.fileStorage = fileStorage;
@@ -47,26 +48,25 @@ public class SoundFragmentFileHandler {
                         return handleMissingFileRecord(id);
                     }
 
-                    String doKey = rows.iterator().next().getString("file_key");
-                    LOGGER.debug("Retrieving file with key: {} for ID: {}", doKey, id);
+                    String fileKey = rows.iterator().next().getString("file_key");
+                    LOGGER.debug("Retrieving file with key: {} for ID: {}", fileKey, id);
 
-                    return fileStorage.retrieveFile(doKey)
+                    return fileStorage.retrieveFile(fileKey)
                             .onItem().invoke(file -> LOGGER.debug("File retrieval successful for ID: {}", id))
-                            .onFailure().recoverWithUni(ex -> handleFileRetrievalFailure(id, doKey, ex));
+                            .onFailure().recoverWithUni(ex -> handleFileRetrievalFailure(id, fileKey, ex));
                 });
     }
 
     private Uni<FileMetadata> handleMissingFileRecord(UUID id) {
         LOGGER.warn("No file record found for ID: {}", id);
-        // Mark as corrupted through repository callback
         return Uni.createFrom().failure(new DocumentHasNotFoundException("File not found: " + id));
     }
 
-    private Uni<FileMetadata> handleFileRetrievalFailure(UUID id, String doKey, Throwable ex) {
-        LOGGER.error("File retrieval failed - ID: {}, Key: {}, Error: {}", id, doKey, ex.getMessage());
+    private Uni<FileMetadata> handleFileRetrievalFailure(UUID id, String fileKey, Throwable ex) {
+        LOGGER.error("File retrieval failed - ID: {}, Key: {}, Error: {}", id, fileKey, ex.getMessage());
 
         String errorMsg = String.format("File retrieval failed - ID: %s, Key: %s, Error: %s",
-                id, doKey, ex.getClass().getSimpleName());
+                id, fileKey, ex.getClass().getSimpleName());
         FileNotFoundException fnf = new FileNotFoundException(errorMsg);
         fnf.initCause(ex);
         return Uni.createFrom().<FileMetadata>failure(fnf);

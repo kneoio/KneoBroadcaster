@@ -218,11 +218,12 @@ public class EventService extends AbstractService<Event, EventDTO> {
         doc.setType(EventType.valueOf(dto.getType()));
         doc.setDescription(dto.getDescription());
         doc.setPriority(EventPriority.valueOf(dto.getPriority()));
+        doc.setTimeZone(dto.getTimeZone());
 
         if (dto.getSchedule() != null) {
             Schedule schedule = new Schedule();
             ScheduleDTO scheduleDTO = dto.getSchedule();
-            schedule.setTimeZone(dto.getTimeZone());
+            schedule.setTimeZone(doc.getTimeZone());
             schedule.setEnabled(scheduleDTO.isEnabled());
             if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {

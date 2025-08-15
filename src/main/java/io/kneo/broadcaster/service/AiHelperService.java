@@ -36,7 +36,7 @@ public class AiHelperService {
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
                         .filter(station -> statuses.contains(station.getStatus()))
                         .filter(station -> {
-                            if (station.getSchedule().isEnabled()) {
+                            if (station.getScheduler().isEnabled()) {
                                 if (station.isAiControlAllowed()) {
                                     return true;
                                 } else {

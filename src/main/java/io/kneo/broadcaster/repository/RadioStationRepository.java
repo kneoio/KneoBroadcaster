@@ -3,7 +3,7 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -168,7 +168,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, schedule, bit_rate, slug_name, description, profile_id, ai_agent_id) " +
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, bit_rate, slug_name, description, profile_id, ai_agent_id) " +
                         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
@@ -185,7 +185,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getManagedBy().name())
                         .addString(station.getColor())
                         .addJsonObject(localizedNameJson)
-                        .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getSchedule())))
+                        .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getScheduler())))
                         .addJsonArray(bitRateArray)
                         .addString(station.getSlugName())
                         .addString(station.getDescription())
@@ -221,7 +221,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, schedule=$6, " +
+                                    " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, " +
                                     "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, last_mod_user=$12, last_mod_date=$13 " +
                                     "WHERE id=$14";
 
@@ -235,7 +235,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getManagedBy().name())
                                     .addString(station.getColor())
                                     .addValue(localizedNameJson)
-                                    .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getSchedule())))
+                                    .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getScheduler())))
                                     .addJsonArray(bitRateArray)
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())
@@ -329,7 +329,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled radio stations", throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
-                .select().where(r -> r.getSchedule() != null && r.getSchedule().isEnabled())
+                .select().where(r -> r.getScheduler() != null && r.getScheduler().isEnabled())
                 .collect().asList();
     }
 
@@ -361,11 +361,11 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         JsonObject scheduleJson = row.getJsonObject("scheduler");
         if (scheduleJson != null) {
             try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
+                JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
                 if (scheduleData != null) {
-                    Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
+                    Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
                     //schedule.setTimeZone(doc.getTimeZone());
-                    doc.setSchedule(schedule);
+                    doc.setScheduler(schedule);
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to parse schedule JSON for radio station: {}", row.getUUID("id"), e);

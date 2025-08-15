@@ -12,7 +12,7 @@ import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.repository.EventRepository;
@@ -164,9 +164,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
 
-            if (doc.getSchedule() != null) {
+            if (doc.getScheduler() != null) {
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
-                Schedule schedule = doc.getSchedule();
+                Scheduler schedule = doc.getScheduler();
                 scheduleDTO.setEnabled(schedule.isEnabled());
                 if (schedule.isEnabled() && schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
                     List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
@@ -221,7 +221,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
         doc.setTimeZone(dto.getTimeZone());
 
         if (dto.getSchedule() != null) {
-            Schedule schedule = new Schedule();
+            Scheduler schedule = new Scheduler();
             ScheduleDTO scheduleDTO = dto.getSchedule();
             schedule.setTimeZone(doc.getTimeZone());
             schedule.setEnabled(scheduleDTO.isEnabled());
@@ -256,7 +256,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
                 }).collect(Collectors.toList());
                 schedule.setTasks(tasks);
             }
-            doc.setSchedule(schedule);
+            doc.setScheduler(schedule);
         }
         return doc;
     }

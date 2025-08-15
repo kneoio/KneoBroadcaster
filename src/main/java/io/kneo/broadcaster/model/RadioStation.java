@@ -4,7 +4,7 @@ import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -37,7 +37,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
     private String description;
-    private Schedule schedule;
+    private Scheduler scheduler;
     private UUID aiAgentId;
     private UUID profileId;
     private List<Label> labelList;

@@ -12,7 +12,7 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.model.stats.BrandAgentStats;
@@ -184,7 +184,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setProfileId(doc.getProfileId());
 
             ScheduleDTO scheduleDTO = new ScheduleDTO();
-            Schedule schedule = doc.getSchedule();
+            Scheduler schedule = doc.getScheduler();
             scheduleDTO.setEnabled(schedule.isEnabled());
             if (schedule.isEnabled()) {
                 if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
@@ -269,7 +269,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setProfileId(dto.getProfileId());
 
         if (dto.getSchedule() != null) {
-            Schedule schedule = new Schedule();
+            Scheduler schedule = new Scheduler();
             ScheduleDTO scheduleDTO = dto.getSchedule();
             schedule.setEnabled(scheduleDTO.isEnabled());
             schedule.setTimeZone(doc.getTimeZone());
@@ -313,7 +313,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 }).collect(Collectors.toList());
                 schedule.setTasks(tasks);
             }
-            doc.setSchedule(schedule);
+            doc.setScheduler(schedule);
         }
         return doc;
     }

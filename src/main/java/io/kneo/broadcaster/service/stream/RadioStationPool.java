@@ -158,7 +158,7 @@ public class RadioStationPool {
         current.setManagedBy(updated.getManagedBy());
         current.setColor(updated.getColor());
         current.setDescription(updated.getDescription());
-        current.setSchedule(updated.getSchedule());
+        current.setScheduler(updated.getScheduler());
         current.setAiAgentId(updated.getAiAgentId());
         current.setProfileId(updated.getProfileId());
         current.setLabelList(updated.getLabelList());

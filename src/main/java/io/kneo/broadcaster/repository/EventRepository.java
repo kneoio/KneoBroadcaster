@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -157,7 +157,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                         .addString(event.getDescription())
                         .addString(event.getPriority().name())
                         .addInteger(0)
-                        .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getSchedule())));
+                        .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getScheduler())));
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -198,7 +198,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     .addString(event.getType().name())
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
-                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getSchedule())))
+                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getScheduler())))
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -256,7 +256,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(this::from)
                 .concatenate()
-                .select().where(e -> e.getSchedule() != null && e.getSchedule().isEnabled())
+                .select().where(e -> e.getScheduler() != null && e.getScheduler().isEnabled())
                 .collect().asList();
     }
 
@@ -274,8 +274,8 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
             try {
                 JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
                 if (scheduleData != null) {
-                    Schedule schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Schedule.class);
-                    doc.setSchedule(schedule);
+                    Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
+                    doc.setScheduler(schedule);
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to parse scheduler JSON for event: {}", row.getUUID("id"), e);

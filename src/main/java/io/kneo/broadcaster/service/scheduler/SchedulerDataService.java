@@ -6,7 +6,7 @@ import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.repository.SchedulableRepository;
 import io.smallrye.mutiny.Uni;
@@ -14,7 +14,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.quartz.CronTrigger;
 import org.quartz.JobKey;
-import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -39,7 +38,7 @@ public class SchedulerDataService {
     private static final Duration CACHE_TTL = Duration.ofSeconds(10); // 10-second cache
 
     @Inject
-    Scheduler scheduler;
+    org.quartz.Scheduler scheduler;
 
     @Inject
     SchedulableRepositoryRegistry repositoryRegistry;
@@ -134,7 +133,7 @@ public class SchedulerDataService {
         dto.setEntityId(entity.getId().toString());
         dto.setEntityType(entity.getClass().getSimpleName());
 
-        Schedule schedule = entity.getSchedule();
+        Scheduler schedule = entity.getScheduler();
         if (schedule != null) {
             ZoneId entityTimeZone = schedule.getTimeZone();
 

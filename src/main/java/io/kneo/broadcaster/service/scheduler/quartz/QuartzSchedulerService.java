@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.scheduler.quartz;
 
 import io.kneo.broadcaster.model.scheduler.Schedulable;
-import io.kneo.broadcaster.model.scheduler.Schedule;
+import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.service.scheduler.quartz.runners.TaskSchedulerHandler;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,7 +22,7 @@ public class QuartzSchedulerService {
     Instance<TaskSchedulerHandler> handlers;
 
     public void scheduleEntity(Schedulable entity) {
-        Schedule schedule = entity.getSchedule();
+        Scheduler schedule = entity.getScheduler();
         if (schedule == null || !schedule.isEnabled()) {
             removeForEntity(entity);
             return;

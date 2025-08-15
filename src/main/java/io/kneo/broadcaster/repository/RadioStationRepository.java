@@ -322,7 +322,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
     public Uni<List<RadioStation>> findActiveScheduled() {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
                 "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE t.archived = 0 AND t.schedule IS NOT NULL AND rls.reader = $1";
+                "WHERE t.archived = 0 AND t.scheduler IS NOT NULL AND rls.reader = $1";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(SuperUser.build().getId()))

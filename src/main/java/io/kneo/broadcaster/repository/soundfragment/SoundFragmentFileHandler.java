@@ -23,8 +23,8 @@ public class SoundFragmentFileHandler {
     private final IFileStorage fileStorage;
 
     @Inject
-    //public SoundFragmentFileHandler(PgPool client, @Named("hetzner") IFileStorage fileStorage) {
-    public SoundFragmentFileHandler(PgPool client, @Named("digitalOcean") IFileStorage fileStorage) {
+    public SoundFragmentFileHandler(PgPool client, @Named("hetzner") IFileStorage fileStorage) {
+    //public SoundFragmentFileHandler(PgPool client, @Named("digitalOcean") IFileStorage fileStorage) {
         this.client = client;
         this.fileStorage = fileStorage;
     }

@@ -1,6 +1,6 @@
-package io.kneo.broadcaster.service.external.digitalocean;
+package io.kneo.broadcaster.service.external;
 
-import io.kneo.broadcaster.config.DOConfig;
+import io.kneo.broadcaster.config.HetznerConfig;
 import io.kneo.broadcaster.dto.AudioMetadataDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.dashboard.SpacesOrphanCleanupStatsDTO;
@@ -19,6 +19,7 @@ import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import lombok.Builder;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,8 +47,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
-public class SpacesFileOrphanCleanup {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SpacesFileOrphanCleanup.class);
+public class FileOrphanCleanup {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileOrphanCleanup.class);
     private static final int INTERVAL_SECONDS = 6000;
     private static final Duration INITIAL_DELAY = Duration.ofMinutes(10);
     private static final String ADDRESS_ORPHAN_CLEANUP_STATS = "spaces-orphan-cleanup-stats";
@@ -55,7 +56,7 @@ public class SpacesFileOrphanCleanup {
     private String lastError;
     private static final int BATCH_SIZE = 1000;
 
-    private final DOConfig doConfig;
+    private final HetznerConfig hetznerConfig;
     private final PgPool pgPool;
     private final EventBus eventBus;
     private final AudioMetadataService audioMetadataService;
@@ -73,10 +74,10 @@ public class SpacesFileOrphanCleanup {
     private final AtomicLong totalFilesScanned = new AtomicLong(0);
 
     @Inject
-    public SpacesFileOrphanCleanup(DOConfig doConfig, PgPool pgPool, EventBus eventBus,
-                                   AudioMetadataService audioMetadataService,
-                                   SoundFragmentService soundFragmentService) {
-        this.doConfig = doConfig;
+    public FileOrphanCleanup(HetznerConfig hetznerConfig, PgPool pgPool, EventBus eventBus,
+                             AudioMetadataService audioMetadataService,
+                             SoundFragmentService soundFragmentService) {
+        this.hetznerConfig = hetznerConfig;
         this.pgPool = pgPool;
         this.eventBus = eventBus;
         this.audioMetadataService = audioMetadataService;
@@ -90,12 +91,12 @@ public class SpacesFileOrphanCleanup {
     }
 
     private void initializeS3Client() {
-        String endpointUrl = "https://" + doConfig.getRegion() + "." + doConfig.getEndpoint();
+        String endpointUrl = "https://" + hetznerConfig.getRegion() + "." + hetznerConfig.getEndpoint();
         this.s3Client = S3Client.builder()
                 .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(doConfig.getAccessKey(), doConfig.getSecretKey())
+                        AwsBasicCredentials.create(hetznerConfig.getAccessKey(), hetznerConfig.getSecretKey())
                 ))
-                .region(Region.of(doConfig.getRegion()))
+                .region(Region.of(hetznerConfig.getRegion()))
                 .endpointOverride(URI.create(endpointUrl))
                 .build();
     }
@@ -145,7 +146,7 @@ public class SpacesFileOrphanCleanup {
             String continuationToken = null;
             do {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
-                        .bucket(doConfig.getBucketName())
+                        .bucket(hetznerConfig.getBucketName())
                         .maxKeys(BATCH_SIZE);
 
                 if (continuationToken != null) {
@@ -369,7 +370,7 @@ public class SpacesFileOrphanCleanup {
             }
 
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                    .bucket(doConfig.getBucketName())
+                    .bucket(hetznerConfig.getBucketName())
                     .key(fileKey)
                     .build();
 
@@ -431,10 +432,10 @@ public class SpacesFileOrphanCleanup {
         try {
             String sql = """
             INSERT INTO _files (
-                parent_table, parent_id, storage_type, file_key, file_original_name, 
+                parent_table, parent_id, storage_type, file_key, file_original_name,
                 slug_name, mime_type, reg_date, last_mod_date, archived
             ) VALUES (
-                'kneobroadcaster__sound_fragments', $1, 'DIGITAL_OCEAN', $2, $3,
+                'kneobroadcaster__sound_fragments', $1, 'HETZNER', $2, $3,
                 $4, 'audio/mpeg', NOW(), NOW(), 0
             )
             """;
@@ -505,13 +506,13 @@ public class SpacesFileOrphanCleanup {
 
     private boolean deleteOrphanFile(String fileKey) {
         try {
-            if (doConfig.isDeleteDisabled()) {
+            if (hetznerConfig.isDeleteDisabled()) {
                 LOGGER.info("Deletion disabled by configuration. Would delete orphan file: {}", fileKey);
                 return false;
             }
 
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
-                    .bucket(doConfig.getBucketName())
+                    .bucket(hetznerConfig.getBucketName())
                     .key(fileKey)
                     .build();
 
@@ -532,7 +533,7 @@ public class SpacesFileOrphanCleanup {
 
             do {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
-                        .bucket(doConfig.getBucketName())
+                        .bucket(hetznerConfig.getBucketName())
                         .maxKeys(BATCH_SIZE);
 
                 if (continuationToken != null) {
@@ -549,8 +550,8 @@ public class SpacesFileOrphanCleanup {
         }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }
 
-    @lombok.Builder
-    @lombok.Getter
+    @Builder
+    @Getter
     private static class FileKeyMetadata {
         private final String title;
         private final String artist;

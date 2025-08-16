@@ -8,7 +8,7 @@ import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
+import io.kneo.broadcaster.repository.file.HetznerStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
@@ -62,7 +62,7 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     @Inject
     public SoundFragmentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository,
-                                   DigitalOceanStorage fileStorage, SoundFragmentFileHandler fileHandler,
+                                   HetznerStorage fileStorage, SoundFragmentFileHandler fileHandler,
                                    SoundFragmentQueryBuilder queryBuilder, SoundFragmentBrandAssociationHandler brandHandler) {
         super(client, mapper, rlsRepository);
         this.fileStorage = fileStorage;
@@ -338,7 +338,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .map(meta -> Tuple.of(
                                         entityData.getTableName(),
                                         id,
-                                        FileStorageType.DIGITAL_OCEAN,
+                                        FileStorageType.HETZNER,
                                         meta.getMimeType(),
                                         meta.getFileOriginalName(),
                                         meta.getFileKey()
@@ -587,7 +587,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         Tuple fileParams = Tuple.of(
                         entityData.getTableName(),
                         id,
-                        FileStorageType.DIGITAL_OCEAN,
+                        FileStorageType.HETZNER,
                         meta.getMimeType(),
                         meta.getFileOriginalName(),
                         meta.getFileKey()

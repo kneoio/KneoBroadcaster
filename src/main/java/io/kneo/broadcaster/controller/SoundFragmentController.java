@@ -50,6 +50,7 @@ import java.util.UUID;
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
     private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
+    private static final int STREAM_BUFFER_SIZE = 262144; // 256KB buffer for file streaming
 
     private SoundFragmentService service;
     private FileUploadService fileUploadService;
@@ -379,7 +380,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 response.setChunked(true);
                                 
                                 // Create reactive stream from InputStream
-                                InputStreamReadStream inputStreamReadStream = new InputStreamReadStream(vertx, fileData.getInputStream(), 131072); // 128KB buffer
+                                InputStreamReadStream inputStreamReadStream = new InputStreamReadStream(vertx, fileData.getInputStream(), STREAM_BUFFER_SIZE);
                                 inputStreamReadStream.pipeTo(response)
                                     .onComplete(ar -> {
                                         if (ar.failed()) {

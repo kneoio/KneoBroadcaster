@@ -50,7 +50,7 @@ import java.util.UUID;
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
     private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
-    private static final int STREAM_BUFFER_SIZE = 262144; // 256KB buffer for file streaming
+    private static final int STREAM_BUFFER_SIZE = 524288; // 512KB buffer for file streaming
 
     private SoundFragmentService service;
     private FileUploadService fileUploadService;

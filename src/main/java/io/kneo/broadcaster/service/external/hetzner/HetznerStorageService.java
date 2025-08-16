@@ -37,17 +37,22 @@ public class HetznerStorageService {
     @PostConstruct
     public void init() {
         String endpointUrl = "https://" + hetznerConfig.getEndpoint();
+        LOGGER.info("Initializing Hetzner S3 client with endpoint: {}, bucket: {}", 
+                endpointUrl, hetznerConfig.getBucketName());
         this.s3Client = S3Client.builder()
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(hetznerConfig.getAccessKey(), hetznerConfig.getSecretKey())
                 ))
-                .region(Region.of(hetznerConfig.getRegion()))
+                .region(Region.EU_CENTRAL_1)
                 .endpointOverride(URI.create(endpointUrl))
+                .forcePathStyle(true)
                 .build();
     }
 
     public Uni<FileMetadata> getFileStream(String keyName) {
         return Uni.createFrom().item(() -> {
+                    LOGGER.info("Retrieving file stream for key: {} from bucket: {} at endpoint: {}", 
+                            keyName, hetznerConfig.getBucketName(), hetznerConfig.getEndpoint());
                     LOGGER.debug("Retrieving file stream for key: {}", keyName);
 
                     GetObjectRequest getObjectRequest = GetObjectRequest.builder()
@@ -63,22 +68,31 @@ public class HetznerStorageService {
                     metadata.setContentLength(responseInputStream.response().contentLength());
                     metadata.setFileKey(keyName);
 
+                    LOGGER.info("S3 response for key: {}, contentLength: {}, contentType: {}, hasInputStream: {}", 
+                            keyName, responseInputStream.response().contentLength(), 
+                            responseInputStream.response().contentType(), responseInputStream != null);
                     LOGGER.debug("Stream created for key: {}, size: {} bytes", keyName, responseInputStream.response().contentLength());
                     return metadata;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .onFailure().invoke(throwable -> LOGGER.error("Error retrieving file stream: {} from Hetzner bucket: {}", keyName, hetznerConfig.getBucketName(), throwable))
+                .onFailure().invoke(throwable -> {
+                    LOGGER.error("Error retrieving file stream: {} from Hetzner bucket: {}", keyName, hetznerConfig.getBucketName(), throwable);
+                    LOGGER.error("Full error details:", throwable);
+                })
                 .onFailure().recoverWithUni(Uni.createFrom()::failure);
     }
 
     public Uni<Void> uploadFile(String keyName, String fileToUpload, String mimeType) {
         return Uni.createFrom().<Void>item(() -> {
+                    LOGGER.info("Uploading file with key: {} to bucket: {} at endpoint: {}", 
+                            keyName, hetznerConfig.getBucketName(), hetznerConfig.getEndpoint());
                     PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                             .bucket(hetznerConfig.getBucketName())
                             .key(keyName)
                             .contentType(mimeType)
                             .build();
                     s3Client.putObject(putObjectRequest, RequestBody.fromFile(Paths.get(fileToUpload)));
+                    LOGGER.info("Successfully uploaded file with key: {}", keyName);
                     return null;
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())

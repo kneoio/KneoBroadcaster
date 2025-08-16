@@ -29,6 +29,7 @@ import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.Router;
@@ -356,17 +357,43 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .chain(user -> fileDownloadService.getFile(id, requestedFileName, user))
                 .subscribe().with(
                         fileData -> {
-                            if (fileData == null || fileData.getData() == null || fileData.getData().length == 0) {
+                            if (fileData == null || 
+                                (fileData.getData() == null && fileData.getInputStream() == null) ||
+                                (fileData.hasByteArray() && fileData.getData().length == 0)) {
                                 rc.fail(404, new IllegalArgumentException("File content not available"));
                                 return;
                             }
 
-                            rc.response()
+                            HttpServerResponse response = rc.response()
                                     .putHeader("Content-Disposition", "attachment; filename=\"" +
                                             FileSecurityUtils.sanitizeFilename(requestedFileName) + "\"")
                                     .putHeader("Content-Type", fileData.getMimeType())
-                                    .putHeader("Content-Length", String.valueOf(fileData.getData().length))
-                                    .end(Buffer.buffer(fileData.getData()));
+                                    .putHeader("Content-Length", String.valueOf(fileData.getContentLength()));
+
+                            if (fileData.hasByteArray()) {
+                                // Handle byte[] data (existing local files)
+                                response.end(Buffer.buffer(fileData.getData()));
+                            } else if (fileData.hasInputStream()) {
+                                // Handle InputStream data (cloud storage) - stream reactively
+                                response.setChunked(true);
+                                
+                                // Read from InputStream and write to response
+                                vertx.executeBlocking(promise -> {
+                                    try {
+                                        byte[] buffer = new byte[8192];
+                                        int bytesRead;
+                                        while ((bytesRead = fileData.getInputStream().read(buffer)) != -1) {
+                                            byte[] chunk = new byte[bytesRead];
+                                            System.arraycopy(buffer, 0, chunk, 0, bytesRead);
+                                            response.write(Buffer.buffer(chunk));
+                                        }
+                                        response.end();
+                                        promise.complete();
+                                    } catch (Exception e) {
+                                        promise.fail(e);
+                                    }
+                                }, false);
+                            }
                         },
                         throwable -> {
                             if (throwable instanceof SecurityException) {

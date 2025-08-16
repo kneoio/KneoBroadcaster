@@ -14,6 +14,7 @@ import io.kneo.broadcaster.service.FileUploadService;
 import io.kneo.broadcaster.service.SoundFragmentService;
 import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
+import io.kneo.broadcaster.util.InputStreamReadStream;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -377,22 +378,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                 // Handle InputStream data (cloud storage) - stream reactively
                                 response.setChunked(true);
                                 
-                                // Read from InputStream and write to response
-                                vertx.executeBlocking(promise -> {
-                                    try {
-                                        byte[] buffer = new byte[8192];
-                                        int bytesRead;
-                                        while ((bytesRead = fileData.getInputStream().read(buffer)) != -1) {
-                                            byte[] chunk = new byte[bytesRead];
-                                            System.arraycopy(buffer, 0, chunk, 0, bytesRead);
-                                            response.write(Buffer.buffer(chunk));
+                                // Create reactive stream from InputStream
+                                InputStreamReadStream inputStreamReadStream = new InputStreamReadStream(vertx, fileData.getInputStream(), 131072); // 128KB buffer
+                                inputStreamReadStream.pipeTo(response)
+                                    .onComplete(ar -> {
+                                        if (ar.failed()) {
+                                            LOGGER.error("Stream failed", ar.cause());
+                                            if (!response.ended()) {
+                                                response.setStatusCode(500).end();
+                                            }
                                         }
-                                        response.end();
-                                        promise.complete();
-                                    } catch (Exception e) {
-                                        promise.fail(e);
-                                    }
-                                }, false);
+                                    });
                             }
                         },
                         throwable -> {

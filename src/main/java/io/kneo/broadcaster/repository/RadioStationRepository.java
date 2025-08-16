@@ -235,7 +235,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getManagedBy().name())
                                     .addString(station.getColor())
                                     .addValue(localizedNameJson)
-                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(station.getScheduler())))
+                                    .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getScheduler())))
                                     .addJsonArray(bitRateArray)
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())
@@ -361,7 +361,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         JsonObject scheduleJson = row.getJsonObject("scheduler");
         if (scheduleJson != null) {
             try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
+                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
                 if (scheduleData != null) {
                     Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
                     //schedule.setTimeZone(doc.getTimeZone());

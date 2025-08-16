@@ -157,7 +157,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                         .addString(event.getDescription())
                         .addString(event.getPriority().name())
                         .addInteger(0)
-                        .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getScheduler())));
+                        .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())));
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -198,7 +198,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     .addString(event.getType().name())
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
-                                    .addJsonObject(JsonObject.of("schedule", JsonObject.mapFrom(event.getScheduler())))
+                                    .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())))
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -272,7 +272,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
         JsonObject scheduleJson = row.getJsonObject("scheduler");
         if (scheduleJson != null) {
             try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("schedule");
+                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
                 if (scheduleData != null) {
                     Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
                     doc.setScheduler(schedule);

@@ -215,8 +215,9 @@ public class RadioController {
             return;
         }
         //TODO differnet
+        LOGGER.info(referer);
         if (referer != null &&
-                (referer.equals("https://mixpla.online/") || referer.equals("http://localhost:8090/"))  &&
+                (referer.equals("https://mixpla.io/") || referer.equals("http://localhost:8090/"))  &&
                 clientId != null && clientId.equals("mixpla-web")) {
             rc.next();
             return;

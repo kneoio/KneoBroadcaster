@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.dto.aihelper;
 
 import io.kneo.broadcaster.dto.ai.LiveAgentDTO;
+import io.kneo.broadcaster.dto.aihelper.AnimationDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,4 +12,5 @@ public class BrandInfoDTO {
     private String radioStationName;
     private RadioStationStatus radioStationStatus;
     private LiveAgentDTO agent;
+    private AnimationDTO animation;
 }

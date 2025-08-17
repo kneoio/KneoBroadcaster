@@ -38,6 +38,9 @@ public class RadioService {
     @Inject
     RadioStationService radioStationService;
 
+    @Inject
+    AnimationService animationService;
+
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
@@ -163,7 +166,8 @@ public class RadioService {
                                         null,
                                         station.getCountry(),
                                         station.getColor(),
-                                        station.getDescription()
+                                        station.getDescription(),
+                                        animationService.generateRandomAnimation()
                                 )))
                                 .collect(Collectors.toList());
                         return Uni.join().all(statusUnis).andFailFast();
@@ -199,7 +203,8 @@ public class RadioService {
                             currentStatus,
                             stationCountryCode,
                             radioStation.getColor(),
-                            ""
+                            "",
+                            animationService.generateRandomAnimation()
                     ))
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
                             stationName,
@@ -211,7 +216,8 @@ public class RadioService {
                             currentStatus,
                             stationCountryCode,
                             radioStation.getColor(),
-                            ""
+                            "",
+                            animationService.generateRandomAnimation()
                     ));
         }
 
@@ -225,7 +231,8 @@ public class RadioService {
                 currentStatus,
                 stationCountryCode,
                 radioStation.getColor(),
-                radioStation.getDescription()
+                radioStation.getDescription(),
+                animationService.generateRandomAnimation()
         ));
     }
 

@@ -81,7 +81,7 @@ public class PlaylistManager {
     private void addFragments() {
         LOGGER.info("Adding {} fragments for brand {}", 2, brand);
 
-        soundFragmentService.getForBrand(brand, 3, true, SuperUser.build())
+        soundFragmentService.getForBrand(brand, 2, true, SuperUser.build())
                 .onItem().transformToMulti(fragments -> Multi.createFrom().iterable(fragments))
                 .onItem().call(fragment -> {
                     try {

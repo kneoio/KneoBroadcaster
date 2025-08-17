@@ -81,7 +81,7 @@ public class AudioSegmentationService {
         LocalDateTime now = LocalDateTime.now();
         String today = now.format(DATE_FORMATTER);
         String currentHour = now.format(HOUR_FORMATTER);
-        String songMetadata = String.format("%s-%s", songTitle, songArtist);
+        String songMetadata = String.format("%s|%s", songTitle, songArtist);
         String sanitizedSongName = sanitizeFileName(songMetadata);
 
         Path songDir = Paths.get(outputDir, today, currentHour, sanitizedSongName);

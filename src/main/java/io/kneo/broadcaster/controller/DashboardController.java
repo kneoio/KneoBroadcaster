@@ -32,14 +32,29 @@ public class DashboardController {
     public void setupRoutes(Router router) {
         router.route().handler(BodyHandler.create());
 
-        router.get("/api/ws/dashboard").handler(rc -> {
-            rc.request().toWebSocket().onSuccess(this::handleDashboardWebSocket)
-                    .onFailure(err -> rc.fail(500, err));
+        router.route("/api/ws/dashboard").handler(rc -> {
+            if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
+                rc.request().toWebSocket().onSuccess(this::handleDashboardWebSocket)
+                        .onFailure(err -> {
+                            System.err.println("WebSocket connection failed: " + err.getMessage());
+                            rc.fail(500, err);
+                        });
+            } else {
+                rc.response().setStatusCode(400).end("WebSocket upgrade required");
+            }
         });
 
-        router.get("/api/ws/dashboard/station/:brand").handler(rc -> {
-            rc.request().toWebSocket().onSuccess(ws -> handleStation(ws, rc.pathParam("brand")))
-                    .onFailure(err -> rc.fail(500, err));
+        router.route("/api/ws/dashboard/station/:brand").handler(rc -> {
+            if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
+                String brand = rc.pathParam("brand");
+                rc.request().toWebSocket().onSuccess(ws -> handleStation(ws, brand))
+                        .onFailure(err -> {
+                            System.err.println("WebSocket connection failed for brand " + brand + ": " + err.getMessage());
+                            rc.fail(500, err);
+                        });
+            } else {
+                rc.response().setStatusCode(400).end("WebSocket upgrade required");
+            }
         });
 
         router.get("/api/dashboard").handler(this::getDashboard);

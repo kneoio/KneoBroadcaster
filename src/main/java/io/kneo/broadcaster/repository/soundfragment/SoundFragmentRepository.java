@@ -407,7 +407,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 "WHERE bsf.brand_id = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         if (filter != null && filter.isActivated()) {

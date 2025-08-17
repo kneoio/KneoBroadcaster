@@ -165,7 +165,7 @@ public class FileOrphanCleanup {
                     if (!dbFileKeys.contains(fileKey)) {
                         try {
                             long fileSize = s3Object.size();
-                            OrphanProcessingResult result = processOrphanFile(fileKey, fileSize);
+                            OrphanProcessingResult result = processOrphanFile(fileKey);
 
                             switch (result) {
                                 case DELETED:
@@ -216,7 +216,7 @@ public class FileOrphanCleanup {
                 duration, filesScanned, filesDeleted, filesSaved, bytesFreedMB);
     }
 
-    private OrphanProcessingResult processOrphanFile(String fileKey, long fileSize) {
+    private OrphanProcessingResult processOrphanFile(String fileKey) {
         if (!isAudioFile(fileKey)) {
             LOGGER.warn("Orphan file is not an audio file, deleting: {}", fileKey);
             if (deleteOrphanFile(fileKey)) {

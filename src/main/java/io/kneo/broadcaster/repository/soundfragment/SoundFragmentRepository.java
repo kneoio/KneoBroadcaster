@@ -390,7 +390,17 @@ public class SoundFragmentRepository extends AsyncRepository {
                             fileMetadata.setFileKey(fileRow.getString("file_key"));
                             files.add(fileMetadata);
                         }
+
                         doc.setFileMetadataList(files);
+
+                        // Mark as corrupted if no files found when files are expected
+                        if (files.isEmpty()) {
+                            markAsCorrupted(doc.getId()).subscribe().with(
+                                    result -> LOGGER.info("Marked SoundFragment {} as corrupted due to missing files", doc.getId()),
+                                    failure -> LOGGER.error("Failed to mark SoundFragment {} as corrupted", doc.getId(), failure)
+                            );
+                        }
+
                         return doc;
                     });
         }

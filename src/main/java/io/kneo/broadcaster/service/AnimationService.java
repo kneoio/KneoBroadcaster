@@ -9,7 +9,7 @@ import java.util.Random;
 public class AnimationService {
     
     private static final String[] ANIMATION_TYPES = {
-        "static", "gradient", "bounce", "wave", "typewriter", "glow"
+        "static", "gradient", "glow"
     };
     
     private static final double MIN_SPEED = 0.1;
@@ -63,13 +63,13 @@ public class AnimationService {
             return random.nextBoolean() ? "gradient" : "glow";
         }
         if (mood.contains("energetic") || mood.contains("happy") || mood.contains("aggressive") || mood.contains("upbeat")) {
-            return random.nextBoolean() ? "bounce" : "wave";
+            return "glow";
         }
         if (mood.contains("calm") || mood.contains("dreamy") || mood.contains("ethereal") || mood.contains("peaceful")) {
-            return "wave";
+            return "gradient";
         }
         if (mood.contains("mysterious") || mood.contains("dramatic") || mood.contains("suspense")) {
-            return "typewriter";
+            return "glow";
         }
         if (mood.contains("dark") || mood.contains("epic") || mood.contains("intense") || mood.contains("powerful")) {
             return "glow";
@@ -102,12 +102,6 @@ public class AnimationService {
                 return 1.0;
             case "gradient":
                 return 0.8 + (random.nextDouble() * 1.2);
-            case "bounce":
-                return 1.5 + (random.nextDouble() * 1.5);
-            case "wave":
-                return 0.7 + (random.nextDouble() * 0.8);
-            case "typewriter":
-                return 1.2 + (random.nextDouble() * 0.8);
             case "glow":
                 return 0.6 + (random.nextDouble() * 1.4);
             default:

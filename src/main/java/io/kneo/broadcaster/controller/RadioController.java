@@ -216,7 +216,7 @@ public class RadioController {
         }
         //TODO differnet
         if (referer != null &&
-                (referer.equals("https://kneo.io/") || referer.equals("http://localhost:8090/"))  &&
+                (referer.equals("https://mixpla.online/") || referer.equals("http://localhost:8090/"))  &&
                 clientId != null && clientId.equals("mixpla-web")) {
             rc.next();
             return;

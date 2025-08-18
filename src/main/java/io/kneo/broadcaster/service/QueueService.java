@@ -28,6 +28,7 @@ import java.util.UUID;
 @ApplicationScoped
 public class QueueService {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueService.class);
+    private static final long AGENT_DISCONNECT_THRESHOLD_MILLIS = 360_000L;
 
     @Inject
     SoundFragmentRepository repository;
@@ -44,6 +45,7 @@ public class QueueService {
     public Uni<List<SoundFragmentDTO>> getQueueForBrand(String brandName) {
         return getRadioStation(brandName)
                 .onItem().transformToUni(radioStation -> {
+                    evaluateAgentPresence(radioStation);
                     if (radioStation != null && radioStation.getPlaylist() != null && radioStation.getPlaylist().getPlaylistManager() != null) {
                         var playlistManager = radioStation.getPlaylist().getPlaylistManager();
 
@@ -91,6 +93,7 @@ public class QueueService {
                                                         })
                                                         .chain(updatedMetadata -> {
                                                             radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                                            radioStation.setLastAgentContactAt(System.currentTimeMillis());
                                                             BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                                             brandSoundFragment.setId(soundFragment.getId());
                                                             brandSoundFragment.setSoundFragment(soundFragment);
@@ -100,8 +103,7 @@ public class QueueService {
                                                                     .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                                     .onItem().invoke(result -> {
                                                                         if (result) {
-                                                                            LOGGER.info("Added song to queue for brand {}: {}",
-                                                                                    brandName, soundFragment.getTitle());
+                                                                            LOGGER.info("Added song to queue for brand {}: {}", brandName, soundFragment.getTitle());
                                                                         }
                                                                     })
                                                                     .onItem().transform(Boolean::valueOf);
@@ -161,6 +163,7 @@ public class QueueService {
                                                         return finalMetadata;
                                                     }).chain(updatedMetadata -> {
                                                         radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                                        radioStation.setLastAgentContactAt(System.currentTimeMillis());
                                                         BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                                         brandSoundFragment.setId(soundFragment.getId());
                                                         brandSoundFragment.setSoundFragment(soundFragment);
@@ -170,13 +173,13 @@ public class QueueService {
                                                                 .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                                 .onItem().invoke(result -> {
                                                                     if (result) {
-                                                                        LOGGER.info("Added merged song to queue for brand {}: {}",
-                                                                                brandName, soundFragment.getTitle());
+                                                                        LOGGER.info("Added merged song to queue for brand {}: {}", brandName, soundFragment.getTitle());
                                                                     }
                                                                 });
                                                     });
                                         } else {
                                             radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+                                            radioStation.setLastAgentContactAt(System.currentTimeMillis());
                                             BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                             brandSoundFragment.setId(soundFragment.getId());
                                             brandSoundFragment.setSoundFragment(soundFragment);
@@ -186,8 +189,7 @@ public class QueueService {
                                                     .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                     .onItem().invoke(result -> {
                                                         if (result) {
-                                                            LOGGER.info("Added song to queue for brand {}: {}",
-                                                                    brandName, soundFragment.getTitle());
+                                                            LOGGER.info("Added song to queue for brand {}: {}", brandName, soundFragment.getTitle());
                                                         }
                                                     });
                                         }
@@ -222,6 +224,27 @@ public class QueueService {
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to get station for brand: {}", brand, failure)
                 );
+    }
+
+    private void evaluateAgentPresence(RadioStation station) {
+        if (station == null) {
+            return;
+        }
+        Long last = station.getLastAgentContactAt();
+        long now = System.currentTimeMillis();
+        if (last == null || now - last > AGENT_DISCONNECT_THRESHOLD_MILLIS) {
+            station.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
+            return;
+        }
+        boolean controlling = station.getStatus() == RadioStationStatus.QUEUE_SATURATED
+                || (station.getPlaylist() != null
+                && station.getPlaylist().getPlaylistManager() != null
+                && !station.getPlaylist().getPlaylistManager().getPrioritizedQueue().isEmpty());
+        if (controlling) {
+            station.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+        } else {
+            station.setAiAgentStatus(AiAgentStatus.IDLE);
+        }
     }
 
     private Uni<SoundFragmentDTO> mapToBrandSoundFragmentDTO(BrandSoundFragment fragment) {

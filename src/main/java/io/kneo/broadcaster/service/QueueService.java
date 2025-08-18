@@ -97,7 +97,7 @@ public class QueueService {
                                                             BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                                             brandSoundFragment.setId(soundFragment.getId());
                                                             brandSoundFragment.setSoundFragment(soundFragment);
-                                                            brandSoundFragment.setQueueNum(toQueueDTO.getPriority());
+                                                            brandSoundFragment.setQueueNum(10);
 
                                                             return radioStation.getPlaylist().getPlaylistManager()
                                                                     .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())

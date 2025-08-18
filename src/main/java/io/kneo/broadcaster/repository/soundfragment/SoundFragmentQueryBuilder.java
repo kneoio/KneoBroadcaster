@@ -8,10 +8,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class SoundFragmentQueryBuilder {
 
     public String buildGetAllQuery(String tableName, String rlsName, IUser user, boolean includeArchived,
-                                   SoundFragmentFilter filter, int limit, int offset) {
+                                   SoundFragmentFilter filter, int limit, int offset, boolean includeGenresJoin) {
         StringBuilder sql = new StringBuilder()
-                .append("SELECT * FROM ").append(tableName).append(" t, ").append(rlsName).append(" rls ")
-                .append("WHERE t.id = rls.entity_id AND rls.reader = ").append(user.getId());
+                .append("SELECT t.*, rls.*");
+
+        sql.append(" FROM ").append(tableName).append(" t ")
+                .append("JOIN ").append(rlsName).append(" rls ON t.id = rls.entity_id ")
+                .append("WHERE rls.reader = ").append(user.getId());
 
         if (!includeArchived) {
             sql.append(" AND (t.archived IS NULL OR t.archived = 0)");
@@ -31,13 +34,16 @@ public class SoundFragmentQueryBuilder {
     }
 
     public String buildSearchQuery(String tableName, String rlsName, String searchTerm, boolean includeArchived,
-                                   SoundFragmentFilter filter, int limit, int offset) {
+                                   SoundFragmentFilter filter, int limit, int offset, boolean includeGenresJoin) {
         StringBuilder sql = new StringBuilder()
-                .append("SELECT * FROM ").append(tableName).append(" t, ").append(rlsName).append(" rls ")
-                .append("WHERE t.id = rls.entity_id AND rls.reader = $1");
+                .append("SELECT t.*, rls.*");
+
+        sql.append(" FROM ").append(tableName).append(" t ")
+                .append("JOIN ").append(rlsName).append(" rls ON t.id = rls.entity_id ")
+                .append("WHERE rls.reader = $1");
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            sql.append(" AND (LOWER(t.title) LIKE $2 OR LOWER(t.artist) LIKE $3 OR LOWER(t.genre) LIKE $4 OR CAST(t.id AS TEXT) LIKE $5)");
+            sql.append(" AND (LOWER(t.title) LIKE $2 OR LOWER(t.artist) LIKE $3 OR EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg JOIN kneobroadcaster__genres g ON g.id = sfg.genre_id WHERE sfg.sound_fragment_id = t.id AND LOWER(g.identifier) LIKE $4) OR CAST(t.id AS TEXT) LIKE $5)");
         }
 
         if (!includeArchived) {
@@ -61,12 +67,12 @@ public class SoundFragmentQueryBuilder {
         StringBuilder conditions = new StringBuilder();
 
         if (filter.getGenres() != null && !filter.getGenres().isEmpty()) {
-            conditions.append(" AND t.genre IN (");
+            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
             for (int i = 0; i < filter.getGenres().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getGenres().get(i).replace("'", "''")).append("'");
+                conditions.append("'").append(filter.getGenres().get(i).toString()).append("'");
             }
-            conditions.append(")");
+            conditions.append("))");
         }
 
         if (filter.getSources() != null && !filter.getSources().isEmpty()) {

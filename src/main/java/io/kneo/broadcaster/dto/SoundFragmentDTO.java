@@ -28,7 +28,7 @@ public class SoundFragmentDTO extends AbstractDTO {
     private String title;
     @NotBlank
     private String artist;
-    private List<String> genres; // Changed from single genre to genres list
+    private List<UUID> genres;
     private String album;
     private String slugName;
     private List<String> brands;
@@ -38,21 +38,5 @@ public class SoundFragmentDTO extends AbstractDTO {
 
     public SoundFragmentDTO(String id) {
         this.id = UUID.fromString(id);
-    }
-
-    // Backward compatibility method - returns first genre or null
-    @Deprecated
-    public String getGenre() {
-        return (genres != null && !genres.isEmpty()) ? genres.get(0) : null;
-    }
-
-    // Backward compatibility method - sets as single-item list
-    @Deprecated
-    public void setGenre(String genre) {
-        if (genre != null) {
-            this.genres = List.of(genre);
-        } else {
-            this.genres = null;
-        }
     }
 }

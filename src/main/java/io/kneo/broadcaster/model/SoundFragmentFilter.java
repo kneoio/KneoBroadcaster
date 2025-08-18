@@ -7,13 +7,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Setter
 @Getter
 @NoArgsConstructor
 public class SoundFragmentFilter {
     private boolean activated = false;
-    private List<String> genres;
+    private List<UUID> genres;
     private List<SourceType> sources;
     private List<PlaylistItemType> types;
 

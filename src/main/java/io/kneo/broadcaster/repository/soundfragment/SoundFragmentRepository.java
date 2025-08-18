@@ -74,11 +74,11 @@ public class SoundFragmentRepository extends AsyncRepository {
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived,
                                            final IUser user, final SoundFragmentFilter filter) {
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),
-                user, includeArchived, filter, limit, offset);
+                user, includeArchived, filter, limit, offset, true);
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false))
+                .onItem().transformToUni(row -> from(row, true, false))
                 .concatenate()
                 .collect().asList();
     }
@@ -104,7 +104,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                            final boolean includeArchived, final IUser user,
                                            final SoundFragmentFilter filter) {
         String sql = queryBuilder.buildSearchQuery(entityData.getTableName(), entityData.getRlsName(),
-                searchTerm, includeArchived, filter, limit, offset);
+                searchTerm, includeArchived, filter, limit, offset, true);
 
         List<Object> params = new ArrayList<>();
         params.add(user.getId());
@@ -120,7 +120,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         return client.preparedQuery(sql)
                 .execute(Tuple.from(params))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false))
+                .onItem().transformToUni(row -> from(row, false, false))
                 .concatenate()
                 .collect().asList();
     }
@@ -156,23 +156,30 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id = $2";
+    public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeArchived, boolean includeGenres, boolean includeFiles) {
+        StringBuilder select = new StringBuilder();
+        select.append("SELECT theTable.*, rls.*");
 
+        StringBuilder joins = new StringBuilder();
+        joins.append(String.format(" FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id ", entityData.getTableName(), entityData.getRlsName()));
+
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(select);
+        sb.append(joins);
+        sb.append("WHERE rls.reader = $1 AND theTable.id = $2");
+        String sql = sb.toString();
         if (!includeArchived) {
             sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
         }
 
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+        return client.preparedQuery(sql)
                 .execute(Tuple.of(userID, uuid))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, true);
+                        return from(row, includeGenres, includeFiles);
                     } else {
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
                     }
@@ -227,7 +234,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                 });
     }
 
-
     public Uni<Integer> markAsCorrupted(UUID uuid) {
         IUser user = SuperUser.build();
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
@@ -250,7 +256,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<Integer> delete(UUID uuid, IUser user) {
-        return findById(uuid, user.getId(), true)
+        return findById(uuid, user.getId(), true, false, false)
                 .onItem().transformToUni(doc -> {
                     String getKeysSql = "SELECT file_key FROM _files WHERE parent_id = $1";
                     return client.preparedQuery(getKeysSql).execute(Tuple.of(uuid))
@@ -323,55 +329,40 @@ public class SoundFragmentRepository extends AsyncRepository {
                                 .onItem().transform(ignored -> id);
                     })
             );
-        }).onItem().transformToUni(id -> findById(id, user.getId(), true));
+        }).onItem().transformToUni(id -> findById(id, user.getId(), true, true, true));
     }
 
-    private Uni<Void> insertGenreAssociations(SqlClient tx, UUID soundFragmentId, List<String> genreIdentifiers) {
-        if (genreIdentifiers == null || genreIdentifiers.isEmpty()) {
+    private Uni<Void> insertGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {
+        if (genreIds == null || genreIds.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
-        // First, get genre IDs for the identifiers
-        String findGenresSql = "SELECT id, identifier FROM kneobroadcaster__genres WHERE identifier = ANY($1)";
-        return tx.preparedQuery(findGenresSql)
-                .execute(Tuple.of(genreIdentifiers.toArray(new String[0])))
-                .onItem().transformToUni(genreRows -> {
-                    List<UUID> genreIds = new ArrayList<>();
-                    genreRows.forEach(row -> genreIds.add(row.getUUID("id")));
+        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
+        List<Tuple> params = genreIds.stream()
+                .map(id -> Tuple.of(soundFragmentId, id))
+                .collect(Collectors.toList());
 
-                    if (genreIds.isEmpty()) {
-                        return Uni.createFrom().voidItem();
-                    }
-
-                    // Insert associations
-                    String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
-                    List<Tuple> params = genreIds.stream()
-                            .map(genreId -> Tuple.of(soundFragmentId, genreId))
-                            .collect(Collectors.toList());
-
-                    return tx.preparedQuery(insertSql)
-                            .executeBatch(params)
-                            .onItem().ignore().andContinueWithNull();
-                });
+        return tx.preparedQuery(insertSql)
+                .executeBatch(params)
+                .onItem().ignore().andContinueWithNull();
     }
 
-    private Uni<Void> updateGenreAssociations(SqlClient tx, UUID soundFragmentId, List<String> genreIdentifiers) {
-        // First delete existing associations
+    private Uni<Void> updateGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {
         String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(soundFragmentId))
-                .onItem().transformToUni(ignored -> insertGenreAssociations(tx, soundFragmentId, genreIdentifiers));
+                .onItem().transformToUni(ignored -> insertGenreAssociations(tx, soundFragmentId, genreIds));
     }
 
-    private Uni<List<String>> loadGenres(UUID soundFragmentId) {
-        String sql = "SELECT g.identifier FROM kneobroadcaster__genres g " +
+    private Uni<List<UUID>> loadGenres(UUID soundFragmentId) {
+        String sql = "SELECT g.id FROM kneobroadcaster__genres g " +
                 "JOIN kneobroadcaster__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
                 "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(soundFragmentId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getString("identifier"))
+                .onItem().transform(row -> row.getUUID("id"))
                 .collect().asList();
     }
 
@@ -380,7 +371,8 @@ public class SoundFragmentRepository extends AsyncRepository {
             return Uni.createFrom().voidItem();
         }
 
-        String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, mime_type, file_original_name, file_key, file_bin, slug_name) " +
+        String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
+                "mime_type, file_original_name, file_key, file_bin, slug_name) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
         List<Tuple> filesParams = doc.getFileMetadataList().stream()
                 .map(meta -> Tuple.of(
@@ -398,7 +390,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
     }
 
-    private Uni<SoundFragment> from(Row row, boolean addAttachedFileMetadata) {
+    private Uni<SoundFragment> from(Row row, boolean includeGenres, boolean includeFiles) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
@@ -410,56 +402,53 @@ public class SoundFragmentRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
 
-        // Load genres from many-to-many relationship
-        return loadGenres(doc.getId())
-                .onItem().transformToUni(genres -> {
-                    doc.setGenres(genres);
+        Uni<SoundFragment> uni = Uni.createFrom().item(doc);
 
-                    if (addAttachedFileMetadata) {
-                        String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date," +
-                                " storage_type, mime_type, slug_name, file_original_name, file_key, file_bin FROM _files" +
-                                " WHERE parent_table = '" + entityData.getTableName() + "' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
+        if (includeGenres) {
+            uni = uni.chain(d -> loadGenres(d.getId()).onItem().transform(genres -> {
+                d.setGenres(genres);
+                return d;
+            }));
+        } else {
+            doc.setGenres(List.of());
+        }
 
-                        return client.preparedQuery(fileQuery)
-                                .execute(Tuple.of(doc.getId()))
-                                .onItem().transform(rowSet -> {
-                                    List<FileMetadata> files = new ArrayList<>();
-                                    for (Row fileRow : rowSet) {
-                                        FileMetadata fileMetadata = new FileMetadata();
-                                        fileMetadata.setId(fileRow.getLong("id"));
-                                        fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
-                                        fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
-                                        fileMetadata.setParentTable(fileRow.getString("parent_table"));
-                                        fileMetadata.setParentId(fileRow.getUUID("parent_id"));
-                                        fileMetadata.setArchived(fileRow.getInteger("archived"));
-                                        if (fileRow.getLocalDateTime("archived_date") != null) {
-                                            fileMetadata.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
-                                        }
-                                        fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
-                                        fileMetadata.setMimeType(fileRow.getString("mime_type"));
-                                        fileMetadata.setSlugName(fileRow.getString("slug_name"));
-                                        fileMetadata.setFileOriginalName(fileRow.getString("file_original_name"));
-                                        fileMetadata.setFileKey(fileRow.getString("file_key"));
-                                        files.add(fileMetadata);
-                                    }
+        if (includeFiles) {
+            String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, storage_type, mime_type, slug_name, file_original_name, file_key FROM _files WHERE parent_table = '" + entityData.getTableName() + "' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
+            uni = uni.chain(d -> client.preparedQuery(fileQuery)
+                    .execute(Tuple.of(d.getId()))
+                    .onItem().transform(rowSet -> {
+                        List<FileMetadata> files = new ArrayList<>();
+                        for (Row fileRow : rowSet) {
+                            FileMetadata fileMetadata = new FileMetadata();
+                            fileMetadata.setId(fileRow.getLong("id"));
+                            fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
+                            fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
+                            fileMetadata.setParentTable(fileRow.getString("parent_table"));
+                            fileMetadata.setParentId(fileRow.getUUID("parent_id"));
+                            fileMetadata.setArchived(fileRow.getInteger("archived"));
+                            if (fileRow.getLocalDateTime("archived_date") != null) {
+                                fileMetadata.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
+                            }
+                            fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
+                            fileMetadata.setMimeType(fileRow.getString("mime_type"));
+                            fileMetadata.setSlugName(fileRow.getString("slug_name"));
+                            fileMetadata.setFileOriginalName(fileRow.getString("file_original_name"));
+                            fileMetadata.setFileKey(fileRow.getString("file_key"));
+                            files.add(fileMetadata);
+                        }
+                        d.setFileMetadataList(files);
+                        if (files.isEmpty()) {
+                            markAsCorrupted(d.getId()).subscribe().with(r -> {}, e -> {});
+                        }
+                        return d;
+                    }));
+        } else {
+            doc.setFileMetadataList(List.of());
+        }
 
-                                    doc.setFileMetadataList(files);
-
-                                    // Mark as corrupted if no files found when files are expected
-                                    if (files.isEmpty()) {
-                                        markAsCorrupted(doc.getId()).subscribe().with(
-                                                result -> LOGGER.info("Marked SoundFragment {} as corrupted due to missing files", doc.getId()),
-                                                failure -> LOGGER.error("Failed to mark SoundFragment {} as corrupted", doc.getId(), failure)
-                                        );
-                                    }
-
-                                    return doc;
-                                });
-                    }
-                    return Uni.createFrom().item(doc);
-                });
+        return uni;
     }
-
 
     public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,
                                                       boolean includeArchived, IUser user, SoundFragmentFilter filter) {
@@ -489,7 +478,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                 .execute(Tuple.of(brandId, user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, true);
+                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
                     return soundFragmentUni.onItem().transform(soundFragment -> {
                         BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                         brandSoundFragment.setId(row.getUUID("id"));
@@ -553,7 +542,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                     }
 
                     Row row = rows.iterator().next();
-                    return from(row, true)
+                    return from(row, true, true)
                             .onItem().transform(soundFragment -> {
                                 BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
                                 brandSoundFragment.setId(soundFragment.getId());
@@ -575,7 +564,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                     }
 
-                    return findById(id, user.getId(), true)
+                    return findById(id, user.getId(), true, true, true)
                             .onItem().transformToUni(existingDoc -> {
                                 final List<FileMetadata> originalFiles = doc.getFileMetadataList();
                                 final List<FileMetadata> newFiles = (originalFiles != null && !originalFiles.isEmpty())
@@ -588,8 +577,12 @@ public class SoundFragmentRepository extends AsyncRepository {
                                     LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
                                     return client.withTransaction(tx -> {
-                                        return deleteExistingFiles(tx, id)
-                                                .onItem().transformToUni(v -> insertNewFiles(tx, id, newFiles))
+                                        Uni<Void> chain = Uni.createFrom().voidItem();
+                                        if (newFiles != null) {
+                                            chain = deleteExistingFiles(tx, id)
+                                                    .onItem().transformToUni(v -> insertNewFiles(tx, id, newFiles));
+                                        }
+                                        return chain
                                                 .onItem().transformToUni(v -> updateGenreAssociations(tx, id, doc.getGenres()))
                                                 .onItem().transformToUni(v -> brandHandler.updateBrandAssociations(tx, id, representedInBrands, user))
                                                 .onItem().transformToUni(v -> updateSoundFragmentRecord(tx, id, doc, user, nowTime));
@@ -597,7 +590,7 @@ public class SoundFragmentRepository extends AsyncRepository {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                         }
-                                        return findById(id, user.getId(), true);
+                                        return findById(id, user.getId(), true, true, true);
                                     });
                                 });
                             });
@@ -712,11 +705,10 @@ public class SoundFragmentRepository extends AsyncRepository {
 
         if (filter.getGenres() != null && !filter.getGenres().isEmpty()) {
             conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 ")
-                    .append("JOIN kneobroadcaster__genres g2 ON sfg2.genre_id = g2.id ")
-                    .append("WHERE sfg2.sound_fragment_id = t.id AND g2.identifier IN (");
+                    .append("WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
             for (int i = 0; i < filter.getGenres().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getGenres().get(i).replace("'", "''")).append("'");
+                conditions.append("'").append(filter.getGenres().get(i).toString()).append("'");
             }
             conditions.append("))");
         }

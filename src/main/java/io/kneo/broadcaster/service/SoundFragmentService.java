@@ -134,14 +134,15 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<SoundFragment> getById(UUID uuid, IUser user) {
         assert repository != null;
-        return repository.findById(uuid, user.getId(), false);
+        return repository.findById(uuid, user.getId(), false, true, false);
     }
 
     @Override
     public Uni<SoundFragmentDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
 
-        Uni<SoundFragment> soundFragmentUni = repository.findById(uuid, user.getId(), false);
+        Uni<SoundFragment> soundFragmentUni = repository.findById(uuid, user.getId(), false, true, true);
+
         Uni<List<UUID>> brandsUni = repository.getBrandsForSoundFragment(uuid, user);
 
         return Uni.combine().all().unis(soundFragmentUni, brandsUni).asTuple()
@@ -473,8 +474,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 .chain(brandUUIDs -> {
                     List<Uni<SoundFragment>> updateUnis = documentIds.stream()
                             .map(documentId ->
-                                    repository.findById(documentId, user.getId(), false)
+                                    repository.findById(documentId, user.getId(), false, false, false)
                                             .chain(fragment -> {
+
                                                 if (fragment == null) {
                                                     return Uni.createFrom().nullItem();
                                                 }

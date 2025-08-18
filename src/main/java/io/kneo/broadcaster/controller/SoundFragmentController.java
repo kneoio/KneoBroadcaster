@@ -492,80 +492,69 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     }
 
     private SoundFragmentFilterDTO parseFilterDTO(RoutingContext rc) {
-        SoundFragmentFilterDTO filterDTO = new SoundFragmentFilterDTO();
-        boolean hasAnyFilter = false;
-
-        // Parse genres filter (comma-separated string values)
-        // Support both 'genre' (legacy) and 'genres' (new) parameter names
-        String genresParam = rc.request().getParam("genres");
-        if (genresParam == null) {
-            genresParam = rc.request().getParam("genre"); // backward compatibility
+        String filterParam = rc.request().getParam("filter");
+        if (filterParam == null || filterParam.trim().isEmpty()) {
+            return null;
         }
-
-        if (genresParam != null && !genresParam.trim().isEmpty()) {
-            List<String> genres = new ArrayList<>();
-            String[] genreArray = genresParam.split(",");
-            for (String genre : genreArray) {
-                String trimmedGenre = genre.trim();
-                if (!trimmedGenre.isEmpty()) {
-                    genres.add(trimmedGenre);
-                }
-            }
-            if (!genres.isEmpty()) {
-                filterDTO.setGenres(genres);
-                hasAnyFilter = true;
-            }
-        }
-
-        // Parse sources filter (comma-separated enum values)
-        String sourcesParam = rc.request().getParam("source");
-        if (sourcesParam != null && !sourcesParam.trim().isEmpty()) {
-            List<SourceType> sources = new ArrayList<>();
-            String[] sourceArray = sourcesParam.split(",");
-            for (String source : sourceArray) {
-                String trimmedSource = source.trim();
-                if (!trimmedSource.isEmpty()) {
-                    try {
-                        sources.add(SourceType.valueOf(trimmedSource));
-                    } catch (IllegalArgumentException e) {
-                        LOGGER.warn("Invalid source type: {}", trimmedSource);
+        SoundFragmentFilterDTO dto = new SoundFragmentFilterDTO();
+        boolean any = false;
+        try {
+            JsonObject json = new JsonObject(filterParam);
+            io.vertx.core.json.JsonArray g = json.getJsonArray("genres");
+            if (g != null && !g.isEmpty()) {
+                List<java.util.UUID> genres = new ArrayList<>();
+                for (Object o : g) {
+                    if (o instanceof String s) {
+                        try {
+                            genres.add(java.util.UUID.fromString(s));
+                        } catch (IllegalArgumentException ignored) {}
                     }
                 }
-            }
-            if (!sources.isEmpty()) {
-                filterDTO.setSources(sources);
-                hasAnyFilter = true;
-            }
-        }
-
-        // Parse types filter (comma-separated enum values)
-        String typesParam = rc.request().getParam("type");
-        if (typesParam != null && !typesParam.trim().isEmpty()) {
-            List<PlaylistItemType> types = new ArrayList<>();
-            String[] typeArray = typesParam.split(",");
-            for (String type : typeArray) {
-                String trimmedType = type.trim();
-                if (!trimmedType.isEmpty()) {
-                    try {
-                        types.add(PlaylistItemType.valueOf(trimmedType));
-                    } catch (IllegalArgumentException e) {
-                        LOGGER.warn("Invalid playlist item type: {}", trimmedType);
-                    }
+                if (!genres.isEmpty()) {
+                    dto.setGenres(genres);
+                    any = true;
                 }
             }
-            if (!types.isEmpty()) {
-                filterDTO.setTypes(types);
-                hasAnyFilter = true;
+            io.vertx.core.json.JsonArray s = json.getJsonArray("sources");
+            if (s != null && !s.isEmpty()) {
+                List<SourceType> sources = new ArrayList<>();
+                for (Object o : s) {
+                    if (o instanceof String str) {
+                        try {
+                            sources.add(SourceType.valueOf(str));
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                }
+                if (!sources.isEmpty()) {
+                    dto.setSources(sources);
+                    any = true;
+                }
             }
+            io.vertx.core.json.JsonArray t = json.getJsonArray("types");
+            if (t != null && !t.isEmpty()) {
+                List<PlaylistItemType> types = new ArrayList<>();
+                for (Object o : t) {
+                    if (o instanceof String str) {
+                        try {
+                            types.add(PlaylistItemType.valueOf(str));
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                }
+                if (!types.isEmpty()) {
+                    dto.setTypes(types);
+                    any = true;
+                }
+            }
+            if (json.containsKey("activated")) {
+                dto.setActivated(json.getBoolean("activated", false));
+                any = true;
+            } else if (json.containsKey("filterActivated")) {
+                dto.setActivated(json.getBoolean("filterActivated", false));
+                any = true;
+            }
+        } catch (Exception e) {
+            return null;
         }
-
-        // Parse activated flag
-        String activatedParam = rc.request().getParam("filterActivated");
-        if (activatedParam != null && !activatedParam.trim().isEmpty()) {
-            filterDTO.setActivated(Boolean.parseBoolean(activatedParam));
-            hasAnyFilter = true;
-        }
-
-        return hasAnyFilter ? filterDTO : null;
+        return any ? dto : null;
     }
 }

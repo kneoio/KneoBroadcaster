@@ -19,7 +19,7 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private PlaylistItemType type;
     private String title;
     private String artist;
-    private List<String> genres; // Changed from single genre to genres list
+    private List<UUID> genres;
     private String album;
     private String slugName;
     private Integer archived;
@@ -28,21 +28,5 @@ public class SoundFragment extends SecureDataEntity<UUID> {
 
     public String getMetadata() {
         return String.format("%s#%s", title, artist);
-    }
-
-    // Backward compatibility method - returns first genre or null
-    @Deprecated
-    public String getGenre() {
-        return (genres != null && !genres.isEmpty()) ? genres.get(0) : null;
-    }
-
-    // Backward compatibility method - sets as single-item list
-    @Deprecated
-    public void setGenre(String genre) {
-        if (genre != null) {
-            this.genres = List.of(genre);
-        } else {
-            this.genres = null;
-        }
     }
 }

@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -145,12 +146,20 @@ public class SoundFragmentMCPTools {
         boolean hasAnyFilter = false;
 
         if (genres != null && !genres.trim().isEmpty()) {
-            List<String> trimmedGenres = Arrays.stream(genres.split(","))
+            List<UUID> parsedGenres = Arrays.stream(genres.split(","))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
+                    .map(s -> {
+                        try {
+                            return UUID.fromString(s);
+                        } catch (IllegalArgumentException e) {
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
-            if (!trimmedGenres.isEmpty()) {
-                filter.setGenres(trimmedGenres);
+            if (!parsedGenres.isEmpty()) {
+                filter.setGenres(parsedGenres);
                 hasAnyFilter = true;
             }
         }

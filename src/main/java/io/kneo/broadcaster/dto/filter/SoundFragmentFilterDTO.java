@@ -8,6 +8,7 @@ import lombok.Setter;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
+import java.util.UUID;
 
 @Setter
 @Getter
@@ -16,7 +17,7 @@ public class SoundFragmentFilterDTO {
     private boolean activated = false;
 
     @NotEmpty(message = "Genres list cannot be empty when provided")
-    private List<String> genres;
+    private List<UUID> genres;
 
     @NotEmpty(message = "Sources list cannot be empty when provided")
     private List<SourceType> sources;

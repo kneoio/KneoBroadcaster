@@ -163,8 +163,23 @@ public class PlaylistManager {
         try {
             if (!prioritizedQueue.isEmpty()) {
                 BrandSoundFragment nextFragment = prioritizedQueue.poll();
+                if (prioritizedQueue.isEmpty() && radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
+                    lastPrioritizedDrainAt = System.currentTimeMillis();
+                    playedRegularSinceDrain = false;
+                }
                 moveFragmentToProcessedList(nextFragment);
                 return nextFragment;
+            }
+
+            if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
+                long now = System.currentTimeMillis();
+                boolean cooldownElapsed = lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS;
+                if (cooldownElapsed) {
+                    radioStation.setStatus(RadioStationStatus.ON_LINE);
+                    lastPrioritizedDrainAt = null;
+                    playedRegularSinceDrain = false;
+                    LOGGER.info("Backpressure released by cooldown - switching back to ON_LINE");
+                }
             }
 
             if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {

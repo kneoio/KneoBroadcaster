@@ -84,9 +84,22 @@ public class PlaylistManager {
     }
 
     private void addFragments() {
-        LOGGER.info("Adding {} fragments for brand {}", 2, brand);
+        int remaining;
+        readyFragmentsLock.readLock().lock();
+        try {
+            remaining = Math.max(0, REGULAR_BUFFER_MAX - regularQueue.size());
+        } finally {
+            readyFragmentsLock.readLock().unlock();
+        }
+        if (remaining == 0) {
+            LOGGER.debug("Skipping addFragments - regular buffer at cap {} for brand {}", REGULAR_BUFFER_MAX, brand);
+            return;
+        }
 
-        soundFragmentService.getForBrand(brand, 2, true, SuperUser.build())
+        int toFetch = Math.min(remaining, 2);
+        LOGGER.info("Adding {} fragments for brand {}", toFetch, brand);
+
+        soundFragmentService.getForBrand(brand, toFetch, true, SuperUser.build())
                 .onItem().transformToMulti(fragments -> Multi.createFrom().iterable(fragments))
                 .onItem().call(fragment -> {
                     try {
@@ -149,6 +162,10 @@ public class PlaylistManager {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
                             }
                         } else {
+                            if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
+                                LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);
+                                return Uni.createFrom().item(false);
+                            }
                             regularQueue.add(brandSoundFragment);
                             LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, fileMetadata.getFileOriginalName());
                         }

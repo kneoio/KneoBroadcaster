@@ -360,9 +360,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .chain(user -> fileDownloadService.getFile(id, requestedFileName, user))
                 .subscribe().with(
                         fileData -> {
-                            if (fileData == null || 
-                                (fileData.getData() == null && fileData.getInputStream() == null) ||
-                                (fileData.hasByteArray() && fileData.getData().length == 0)) {
+                            if (fileData == null ||
+                                    (fileData.getData() == null && fileData.getInputStream() == null) ||
+                                    (fileData.hasByteArray() && fileData.getData().length == 0)) {
                                 rc.fail(404, new IllegalArgumentException("File content not available"));
                                 return;
                             }
@@ -379,18 +379,18 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             } else if (fileData.hasInputStream()) {
                                 // Handle InputStream data (cloud storage) - stream reactively
                                 response.setChunked(true);
-                                
+
                                 // Create reactive stream from InputStream
                                 InputStreamReadStream inputStreamReadStream = new InputStreamReadStream(vertx, fileData.getInputStream(), STREAM_BUFFER_SIZE);
                                 inputStreamReadStream.pipeTo(response)
-                                    .onComplete(ar -> {
-                                        if (ar.failed()) {
-                                            LOGGER.error("Stream failed", ar.cause());
-                                            if (!response.ended()) {
-                                                response.setStatusCode(500).end();
+                                        .onComplete(ar -> {
+                                            if (ar.failed()) {
+                                                LOGGER.error("Stream failed", ar.cause());
+                                                if (!response.ended()) {
+                                                    response.setStatusCode(500).end();
+                                                }
                                             }
-                                        }
-                                    });
+                                        });
                             }
                         },
                         throwable -> {
@@ -496,7 +496,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         boolean hasAnyFilter = false;
 
         // Parse genres filter (comma-separated string values)
-        String genresParam = rc.request().getParam("genre");
+        // Support both 'genre' (legacy) and 'genres' (new) parameter names
+        String genresParam = rc.request().getParam("genres");
+        if (genresParam == null) {
+            genresParam = rc.request().getParam("genre"); // backward compatibility
+        }
+
         if (genresParam != null && !genresParam.trim().isEmpty()) {
             List<String> genres = new ArrayList<>();
             String[] genreArray = genresParam.split(",");

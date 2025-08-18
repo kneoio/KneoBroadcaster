@@ -243,7 +243,7 @@ public class QueueService {
         if (controlling) {
             station.setAiAgentStatus(AiAgentStatus.CONTROLLING);
         } else {
-            station.setAiAgentStatus(AiAgentStatus.IDLE);
+            station.setAiAgentStatus(AiAgentStatus.UNDEFINED);
         }
     }
 

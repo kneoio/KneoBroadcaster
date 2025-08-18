@@ -398,7 +398,7 @@ public class FileOrphanCleanup {
             SoundFragmentDTO dto = SoundFragmentDTO.builder()
                     .title(metadata.getTitle())
                     .artist(metadata.getArtist())
-                    .genres(List.of(genre)) // Updated to use genres list
+                    //.genres(List.of(genre))
                     .album(metadata.getAlbum())
                     .source(SourceType.RECOVERED_FROM_SPACES)
                     .status(1)

@@ -1,8 +1,5 @@
-package io.kneo.broadcaster.factory;
+package io.kneo.broadcaster.dto.scheduler;
 
-import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
-import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
-import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.service.scheduler.ScheduledTaskType;
 

@@ -32,6 +32,8 @@ public class PlaylistManager {
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int READY_REGULAR_QUEUE_MAX_SIZE = 6;
     private static final int TRIGGER_SELF_MANAGING = 2;
+    private static final int PRIOR_BACKPRESSURE_ON_AT = 1;
+    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 90_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
@@ -53,6 +55,8 @@ public class PlaylistManager {
     private final AudioSegmentationService segmentationService;
     private final RadioStation radioStation;
     private final String tempBaseDir;
+    private Long lastPrioritizedDrainAt;
+    private boolean playedRegularSinceDrain;
 
     public PlaylistManager(BroadcasterConfig broadcasterConfig, IStreamManager playlist) {
         this.soundFragmentService = playlist.getSoundFragmentService();
@@ -140,9 +144,8 @@ public class PlaylistManager {
                         if (isAiDjSubmit) {
                             prioritizedQueue.add(brandSoundFragment);
                             LOGGER.info("Added AI submit fragment for brand {}: {}", brand, fileMetadata.getFileOriginalName());
-                            if (prioritizedQueue.size() >= READY_QUEUE_MAX_SIZE) {
+                            if (prioritizedQueue.size() >= PRIOR_BACKPRESSURE_ON_AT) {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
-                                LOGGER.warn("Queue is full for brand {}. AI DJ should stop generating new songs.", brand);
                             }
                         } else {
                             regularQueue.add(brandSoundFragment);
@@ -160,18 +163,34 @@ public class PlaylistManager {
         try {
             if (!prioritizedQueue.isEmpty()) {
                 BrandSoundFragment nextFragment = prioritizedQueue.poll();
-                if (prioritizedQueue.isEmpty() &&
-                        radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
-                    radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    LOGGER.info("Queue is empty - switching back to ON_LINE");
-                }
                 moveFragmentToProcessedList(nextFragment);
                 return nextFragment;
             }
 
+            if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
+                long now = System.currentTimeMillis();
+                if (lastPrioritizedDrainAt == null) {
+                    lastPrioritizedDrainAt = now;
+                    playedRegularSinceDrain = false;
+                }
+            }
+
             if (!regularQueue.isEmpty()) {
                 BrandSoundFragment nextFragment = regularQueue.poll();
+                if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
+                    playedRegularSinceDrain = true;
+                }
                 moveFragmentToProcessedList(nextFragment);
+                if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
+                    long now = System.currentTimeMillis();
+                    boolean cooldownElapsed = lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS;
+                    if (playedRegularSinceDrain || cooldownElapsed) {
+                        radioStation.setStatus(RadioStationStatus.ON_LINE);
+                        lastPrioritizedDrainAt = null;
+                        playedRegularSinceDrain = false;
+                        LOGGER.info("Backpressure released - switching back to ON_LINE");
+                    }
+                }
                 return nextFragment;
             }
 

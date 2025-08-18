@@ -310,16 +310,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
+    // Simplified SoundFragmentService.upsert() - Remove debug and fallback logic
+
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
         SoundFragment entity = buildEntity(dto);
 
         List<FileMetadata> fileMetadataList = new ArrayList<>();
         if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
             for (String fileName : dto.getNewlyUploaded()) {
-
                 String safeFileName;
                 try {
-                    //TODO do we really need the sanitization ?
                     safeFileName = FileSecurityUtils.sanitizeFilename(fileName);
                 } catch (SecurityException e) {
                     LOGGER.error("Security violation: Unsafe filename '{}' from user: {}", fileName, user.getUserName());
@@ -337,6 +337,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Invalid entity ID"));
                     }
                 }
+
                 Path baseDir = Paths.get(uploadDir, user.getUserName(), entityId);
                 Path secureFilePath;
                 try {

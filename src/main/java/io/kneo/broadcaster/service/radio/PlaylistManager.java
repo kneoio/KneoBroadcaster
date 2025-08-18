@@ -114,7 +114,7 @@ public class PlaylistManager {
                                         .onItem().transform(tempFilePath -> fetchedMetadata))
                                 .chain(materializedMetadata -> addFragmentToSlice(fragment, materializedMetadata, radioStation.getBitRate()));
                     } catch (Exception e) {
-                        LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
+                        LOGGER.warn("Skipping fragment due to metadata error, position 789: {}", e.getMessage());
                         return Uni.createFrom().item(false);
                     }
                 })
@@ -135,7 +135,7 @@ public class PlaylistManager {
             LOGGER.debug("Found pre-populated stream data. Slicing directly.");
             return this.addFragmentToSlice(brandSoundFragment, metadata, bitRate);
         } catch (Exception e) {
-            LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
+            LOGGER.warn("Skipping fragment due to metadata error, position 658: {}", e.getMessage());
             return Uni.createFrom().item(false);
         }
     }

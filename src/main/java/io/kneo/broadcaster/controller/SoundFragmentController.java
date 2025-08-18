@@ -244,6 +244,40 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
+    private void uploadFile(RoutingContext rc) {
+        if (rc.fileUploads().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("No file uploaded"));
+            return;
+        }
+
+        String entityId = rc.pathParam("id");
+        FileUpload uploadedFile = rc.fileUploads().get(0);
+        String uploadId = rc.request().getParam("uploadId");
+
+        if (uploadId == null || uploadId.trim().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
+            return;
+        }
+
+        try {
+            fileUploadService.validateUpload(uploadedFile);
+        } catch (IllegalArgumentException e) {
+            int statusCode = e.getMessage().contains("too large") ? 413 : 415;
+            rc.fail(statusCode, e);
+            return;
+        }
+
+        getContextUser(rc, false, true)
+                .chain(user -> {
+                    rc.response().setStatusCode(202).end();
+                    return fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName());
+                })
+                .subscribe().with(
+                        success -> LOGGER.info("Upload done: {}", uploadId),
+                        error -> LOGGER.error("Upload failed: {}", uploadId, error)
+                );
+    }
+
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
         getContextUser(rc, false, true)
@@ -290,40 +324,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 );
     }
 
-    private void uploadFile(RoutingContext rc) {
-        if (rc.fileUploads().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("No file uploaded"));
-            return;
-        }
 
-        String entityId = rc.pathParam("id");
-        FileUpload uploadedFile = rc.fileUploads().get(0);
-        String uploadId = rc.request().getParam("uploadId");
-
-        if (uploadId == null || uploadId.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
-            return;
-        }
-
-        try {
-            fileUploadService.validateUpload(uploadedFile);
-        } catch (IllegalArgumentException e) {
-            int statusCode = e.getMessage().contains("too large") ? 413 : 415;
-            rc.fail(statusCode, e);
-            return;
-        }
-
-        getContextUser(rc, false, true)
-                .chain(user -> {
-                    rc.response().setStatusCode(202).end();
-                    return fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName());
-                })
-                .subscribe().with(
-                        success -> LOGGER.info("Upload done: {}", uploadId),
-                        error -> LOGGER.error("Upload failed: {}", uploadId, error)
-                );
-
-    }
 
     private void streamProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");

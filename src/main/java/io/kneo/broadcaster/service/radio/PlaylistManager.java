@@ -160,10 +160,10 @@ public class PlaylistManager {
         try {
             if (!prioritizedQueue.isEmpty()) {
                 BrandSoundFragment nextFragment = prioritizedQueue.poll();
-                if (prioritizedQueue.size() < READY_QUEUE_MAX_SIZE &&
+                if (prioritizedQueue.isEmpty() &&
                         radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    LOGGER.info("Queue capacity available - switching back to ON_LINE");
+                    LOGGER.info("Queue is empty - switching back to ON_LINE");
                 }
                 moveFragmentToProcessedList(nextFragment);
                 return nextFragment;

@@ -32,7 +32,7 @@ public class PlaylistManager {
     private static final int REGULAR_BUFFER_MAX = 2;
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
-    private static final int PRIOR_BACKPRESSURE_ON_AT = 1;
+    private static final int BACKPRESSURE_ON = 2;
     private static final long BACKPRESSURE_COOLDOWN_MILLIS = 60_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
@@ -157,7 +157,7 @@ public class PlaylistManager {
                         if (isAiDjSubmit) {
                             prioritizedQueue.add(brandSoundFragment);
                             LOGGER.info("Added AI submit fragment for brand {}: {}", brand, fileMetadata.getFileOriginalName());
-                            if (prioritizedQueue.size() >= PRIOR_BACKPRESSURE_ON_AT) {
+                            if (prioritizedQueue.size() >= BACKPRESSURE_ON) {
                                 radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
                             }
                         } else {

@@ -28,7 +28,8 @@ public class StationInactivityChecker {
     private static final int INTERVAL_SECONDS = 300;
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final int IDLE_THRESHOLD_MINUTES = 5;
-    private static final int STOP_REMOVE_THRESHOLD_MINUTES = 15;
+    //TODO now too short , later should be extended
+    private static final int STOP_REMOVE_THRESHOLD_MINUTES = 10;
     private static final int REMOVAL_DELAY_MINUTES = 1;
 
     private static final Set<RadioStationStatus> ACTIVE_STATUSES = Set.of(
@@ -129,11 +130,8 @@ public class StationInactivityChecker {
                                                             BrandActivityLogger.logActivity(slug, "idle", "Inactive for %d minutes, setting status to IDLE", IDLE_THRESHOLD_MINUTES);
                                                             radioStation.setStatus(RadioStationStatus.IDLE);
                                                         } else {
-                                                            if (radioStation.getStatus() == RadioStationStatus.IDLE ||
-                                                                    radioStation.getStatus() == RadioStationStatus.OFF_LINE) {
-                                                                BrandActivityLogger.logActivity(slug, "online", "Station is active, setting status to ON_LINE");
-                                                                radioStation.setStatus(RadioStationStatus.ON_LINE);
-                                                            }
+                                                            BrandActivityLogger.logActivity(slug, "online", "Station is active, setting status to ON_LINE");
+                                                            radioStation.setStatus(RadioStationStatus.ON_LINE);
                                                         }
                                                     } else if (radioStation.getStatus() == RadioStationStatus.OFF_LINE) {
                                                         if (!lastAccessInstant.isBefore(idleThreshold)) {

@@ -176,10 +176,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user) {
-        return getForBrand(brandName, quantity, shuffle, user, null);
-    }
-
     public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user, SoundFragmentFilterDTO filterDTO) {
         assert repository != null;
         assert radioStationService != null;

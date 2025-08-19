@@ -134,21 +134,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<RadioStation> findByIdInternal(UUID id) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(id))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by id (internal): {}", id, throwable))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transformToUni(iterator -> {
-                    if (iterator.hasNext()) {
-                        return Uni.createFrom().item(from(iterator.next()));
-                    } else {
-                        return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                    }
-                });
-    }
-
     public Uni<RadioStation>  findByBrandName(String name) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)

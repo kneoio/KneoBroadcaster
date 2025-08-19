@@ -157,20 +157,11 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<SoundFragment> findById(UUID uuid, Long userID, boolean includeArchived, boolean includeGenres, boolean includeFiles) {
-        StringBuilder select = new StringBuilder();
-        select.append("SELECT theTable.*, rls.*");
-
-        StringBuilder joins = new StringBuilder();
-        joins.append(String.format(" FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id ", entityData.getTableName(), entityData.getRlsName()));
-
-
-        StringBuilder sb = new StringBuilder();
-        sb.append(select);
-        sb.append(joins);
-        sb.append("WHERE rls.reader = $1 AND theTable.id = $2");
-        String sql = sb.toString();
+        String sql = "SELECT theTable.*, rls.*" +
+                String.format(" FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id ", entityData.getTableName(), entityData.getRlsName()) +
+                "WHERE rls.reader = $1 AND theTable.id = $2";
         if (!includeArchived) {
-            sql += " AND (theTable.archived IS NULL OR theTable.archived = 0)";
+            sql += " AND theTable.archived = 0";
         }
 
         return client.preparedQuery(sql)

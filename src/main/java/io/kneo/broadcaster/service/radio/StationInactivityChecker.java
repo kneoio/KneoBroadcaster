@@ -37,7 +37,8 @@ public class StationInactivityChecker {
             RadioStationStatus.WARMING_UP,
             RadioStationStatus.QUEUE_SATURATED,
             RadioStationStatus.WAITING_FOR_CURATOR,
-            RadioStationStatus.SYSTEM_ERROR
+            RadioStationStatus.SYSTEM_ERROR,
+            RadioStationStatus.IDLE
     );
 
     @Inject

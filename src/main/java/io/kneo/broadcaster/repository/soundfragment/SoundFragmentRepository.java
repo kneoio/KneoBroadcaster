@@ -6,7 +6,6 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
-import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.file.HetznerStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
@@ -14,8 +13,6 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
@@ -27,7 +24,6 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.SqlClient;
-import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -39,7 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -50,7 +45,7 @@ import java.util.stream.Collectors;
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SOUND_FRAGMENT;
 
 @ApplicationScoped
-public class SoundFragmentRepository extends AsyncRepository {
+public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SOUND_FRAGMENT);
@@ -59,6 +54,15 @@ public class SoundFragmentRepository extends AsyncRepository {
     private final SoundFragmentFileHandler fileHandler;
     private final SoundFragmentQueryBuilder queryBuilder;
     private final SoundFragmentBrandAssociationHandler brandHandler;
+
+
+    public SoundFragmentRepository() {
+        super();
+        this.fileStorage = null;
+        this.fileHandler = null;
+        this.queryBuilder = null;
+        this.brandHandler = null;
+    }
 
     @Inject
     public SoundFragmentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository,
@@ -73,6 +77,7 @@ public class SoundFragmentRepository extends AsyncRepository {
 
     public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final boolean includeArchived,
                                            final IUser user, final SoundFragmentFilter filter) {
+        assert queryBuilder != null;
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),
                 user, includeArchived, filter, limit, offset, true);
         return client.query(sql)
@@ -92,6 +97,7 @@ public class SoundFragmentRepository extends AsyncRepository {
         }
 
         if (filter != null && filter.isActivated()) {
+            assert queryBuilder != null;
             sql += queryBuilder.buildFilterConditions(filter);
         }
 
@@ -103,6 +109,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     public Uni<List<SoundFragment>> search(String searchTerm, final int limit, final int offset,
                                            final boolean includeArchived, final IUser user,
                                            final SoundFragmentFilter filter) {
+        assert queryBuilder != null;
         String sql = queryBuilder.buildSearchQuery(entityData.getTableName(), entityData.getRlsName(),
                 searchTerm, includeArchived, filter, limit, offset, true);
 
@@ -126,6 +133,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<FileMetadata> getFirstFile(UUID id) {
+        assert fileHandler != null;
         return fileHandler.getFirstFile(id)
                 .onFailure(DocumentHasNotFoundException.class)
                 .recoverWithUni(ex -> {
@@ -146,6 +154,7 @@ public class SoundFragmentRepository extends AsyncRepository {
     }
 
     public Uni<FileMetadata> getFileBySlugName(UUID id, String slugName, IUser user, boolean includeArchived) {
+        assert fileHandler != null;
         return fileHandler.getFileBySlugName(id, slugName)
                 .onFailure().recoverWithUni(ex -> {
                     markAsCorrupted(id).subscribe().with(
@@ -222,23 +231,6 @@ public class SoundFragmentRepository extends AsyncRepository {
                                 });
                     }
                     return Uni.createFrom().item(insertedDoc);
-                });
-    }
-
-    public Uni<Integer> markAsCorrupted(UUID uuid) {
-        IUser user = SuperUser.build();
-        return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
-                .onItem().transformToUni(permissions -> {
-                    if (!permissions[0]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException(
-                                "User does not have edit permission", user.getUserName(), uuid));
-                    }
-
-                    String sql = String.format("UPDATE %s SET archived = -1, last_mod_date = $1, last_mod_user = $2 WHERE id = $3",
-                            entityData.getTableName());
-                    return client.preparedQuery(sql)
-                            .execute(Tuple.of(ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime(), user.getId(), uuid))
-                            .onItem().transform(SqlResult::rowCount);
                 });
     }
 
@@ -381,127 +373,21 @@ public class SoundFragmentRepository extends AsyncRepository {
         return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
     }
 
-    private Uni<SoundFragment> from(Row row, boolean includeGenres, boolean includeFiles) {
-        SoundFragment doc = new SoundFragment();
-        setDefaultFields(doc, row);
-        doc.setSource(SourceType.valueOf(row.getString("source")));
-        doc.setStatus(row.getInteger("status"));
-        doc.setType(PlaylistItemType.valueOf(row.getString("type")));
-        doc.setTitle(row.getString("title"));
-        doc.setArtist(row.getString("artist"));
-        doc.setAlbum(row.getString("album"));
-        doc.setArchived(row.getInteger("archived"));
-        doc.setSlugName(row.getString("slug_name"));
-
-        Uni<SoundFragment> uni = Uni.createFrom().item(doc);
-
-        if (includeGenres) {
-            uni = uni.chain(d -> loadGenres(d.getId()).onItem().transform(genres -> {
-                d.setGenres(genres);
-                return d;
-            }));
-        } else {
-            doc.setGenres(List.of());
-        }
-
-        if (includeFiles) {
-            String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, storage_type, mime_type, slug_name, file_original_name, file_key FROM _files WHERE parent_table = '" + entityData.getTableName() + "' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
-            uni = uni.chain(d -> client.preparedQuery(fileQuery)
-                    .execute(Tuple.of(d.getId()))
-                    .onItem().transform(rowSet -> {
-                        List<FileMetadata> files = new ArrayList<>();
-                        for (Row fileRow : rowSet) {
-                            FileMetadata fileMetadata = new FileMetadata();
-                            fileMetadata.setId(fileRow.getLong("id"));
-                            fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
-                            fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
-                            fileMetadata.setParentTable(fileRow.getString("parent_table"));
-                            fileMetadata.setParentId(fileRow.getUUID("parent_id"));
-                            fileMetadata.setArchived(fileRow.getInteger("archived"));
-                            if (fileRow.getLocalDateTime("archived_date") != null) {
-                                fileMetadata.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
-                            }
-                            fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
-                            fileMetadata.setMimeType(fileRow.getString("mime_type"));
-                            fileMetadata.setSlugName(fileRow.getString("slug_name"));
-                            fileMetadata.setFileOriginalName(fileRow.getString("file_original_name"));
-                            fileMetadata.setFileKey(fileRow.getString("file_key"));
-                            files.add(fileMetadata);
-                        }
-                        d.setFileMetadataList(files);
-                        if (files.isEmpty()) {
-                            markAsCorrupted(d.getId()).subscribe().with(r -> {}, e -> {});
-                        }
-                        return d;
-                    }));
-        } else {
-            doc.setFileMetadataList(List.of());
-        }
-
-        return uni;
-    }
-
+    //TODO will be refactored later (fabric)
     public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,
                                                       boolean includeArchived, IUser user, SoundFragmentFilter filter) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
-
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
-
-        if (filter != null && filter.isActivated()) {
-            sql += buildFilterConditions(filter);
-        }
-
-        sql += " ORDER BY " +
-                "bsf.played_by_brand_count ASC, " +
-                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
-                    return soundFragmentUni.onItem().transform(soundFragment -> {
-                        BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                        brandSoundFragment.setId(row.getUUID("id"));
-                        brandSoundFragment.setDefaultBrandId(brandId);
-                        brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
-                        brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
-                        brandSoundFragment.setSoundFragment(soundFragment);
-                        return brandSoundFragment;
-                    });
-                })
-                .concatenate()
-                .collect().asList();
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findForBrand(brandId, limit, offset, includeArchived, user, filter);
     }
 
     public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
-        String sql = "SELECT COUNT(*) " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findForBrandCount(brandId, includeArchived, user, filter);
+    }
 
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        if (filter != null && filter.isActivated()) {
-            sql += buildFilterConditions(filter);
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    public Uni<List<BrandSoundFragment>> findSongForBrand(UUID brandId, SoundFragmentFilter filter) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findSongsForBrand(brandId, 100, 0, filter);
     }
 
     public Uni<List<UUID>> getBrandsForSoundFragment(UUID soundFragmentId, IUser user) {
@@ -689,40 +575,6 @@ public class SoundFragmentRepository extends AsyncRepository {
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
-    private String buildFilterConditions(SoundFragmentFilter filter) {
-        StringBuilder conditions = new StringBuilder();
-
-        if (filter.getGenres() != null && !filter.getGenres().isEmpty()) {
-            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 ")
-                    .append("WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
-            for (int i = 0; i < filter.getGenres().size(); i++) {
-                if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getGenres().get(i).toString()).append("'");
-            }
-            conditions.append("))");
-        }
-
-        if (filter.getSources() != null && !filter.getSources().isEmpty()) {
-            conditions.append(" AND t.source IN (");
-            for (int i = 0; i < filter.getSources().size(); i++) {
-                if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getSources().get(i).name()).append("'");
-            }
-            conditions.append(")");
-        }
-
-        if (filter.getTypes() != null && !filter.getTypes().isEmpty()) {
-            conditions.append(" AND t.type IN (");
-            for (int i = 0; i < filter.getTypes().size(); i++) {
-                if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getTypes().get(i).name()).append("'");
-            }
-            conditions.append(")");
-        }
-
-        return conditions.toString();
     }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {

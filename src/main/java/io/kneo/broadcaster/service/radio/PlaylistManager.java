@@ -98,21 +98,26 @@ public class PlaylistManager {
         int toFetch = Math.min(remaining, 2);
         LOGGER.info("Adding {} fragments for brand {}", toFetch, brand);
 
-        soundFragmentService.getForBrand(brand, toFetch, true, SuperUser.build(), null)
+        soundFragmentService.getSongsForBrandPlaylist(brand, toFetch, SuperUser.build(), null)
                 .onItem().transformToMulti(fragments -> Multi.createFrom().iterable(fragments))
                 .onItem().call(fragment -> {
                     try {
-                        List<FileMetadata> metadataList = fragment.getSoundFragment().getFileMetadataList();
-                        FileMetadata metadata = metadataList.get(0);
+                        return soundFragmentService.getById(fragment.getSoundFragment().getId())
+                                .chain(completeSoundFragment -> {
+                                    fragment.setSoundFragment(completeSoundFragment);
 
-                        return soundFragmentService.getFileBySlugName(
-                                        fragment.getSoundFragment().getId(),
-                                        metadata.getSlugName(),
-                                        SuperUser.build()
-                                )
-                                .chain(fetchedMetadata -> fetchedMetadata.materializeFileStream(tempBaseDir)
-                                        .onItem().transform(tempFilePath -> fetchedMetadata))
-                                .chain(materializedMetadata -> addFragmentToSlice(fragment, materializedMetadata, radioStation.getBitRate()));
+                                    List<FileMetadata> metadataList = completeSoundFragment.getFileMetadataList();
+                                    FileMetadata metadata = metadataList.get(0);
+
+                                    return soundFragmentService.getFileBySlugName(
+                                                    completeSoundFragment.getId(),
+                                                    metadata.getSlugName(),
+                                                    SuperUser.build()
+                                            )
+                                            .chain(fetchedMetadata -> fetchedMetadata.materializeFileStream(tempBaseDir)
+                                                    .onItem().transform(tempFilePath -> fetchedMetadata))
+                                            .chain(materializedMetadata -> addFragmentToSlice(fragment, materializedMetadata, radioStation.getBitRate()));
+                                });
                     } catch (Exception e) {
                         LOGGER.warn("Skipping fragment due to metadata error, position 789: {}", e.getMessage());
                         return Uni.createFrom().item(false);

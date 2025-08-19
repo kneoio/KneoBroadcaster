@@ -3,16 +3,18 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
+import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
-import io.kneo.broadcaster.repository.file.DigitalOceanStorage;
 import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
+import io.kneo.broadcaster.service.playlist.PlaylistHelper;
+import io.kneo.broadcaster.service.playlist.PlaylistTracker;
+import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -26,7 +28,6 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
-import io.kneo.broadcaster.util.BrandActivityLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,29 +51,32 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final LocalFileCleanupService localFileCleanupService;
     private final TransactionCoordinatorService transactionCoordinator;
     private final FileOperationLockService lockService;
-    private final DigitalOceanStorage digitalOceanStorage;
+    private final PlaylistHelper playlistService;
     private final BroadcasterConfig config;
     private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService(TransactionCoordinatorService transactionCoordinator, FileOperationLockService lockService, DigitalOceanStorage digitalOceanStorage, BroadcasterConfig config) {
+    protected SoundFragmentService(TransactionCoordinatorService transactionCoordinator, FileOperationLockService lockService, BroadcasterConfig config) {
         super(null);
         this.transactionCoordinator = transactionCoordinator;
         this.lockService = lockService;
-        this.digitalOceanStorage = digitalOceanStorage;
         this.localFileCleanupService = null;
         this.config = config;
         this.repository = null;
         this.radioStationService = null;
+        this.playlistService = null;
     }
 
     @Inject
     public SoundFragmentService(UserRepository userRepository,
                                 UserService userService,
                                 RadioStationService radioStationService,
-                                LocalFileCleanupService localFileCleanupService, FileOperationLockService lockService,
+                                LocalFileCleanupService localFileCleanupService,
+                                FileOperationLockService lockService,
                                 Validator validator,
-                                SoundFragmentRepository repository, TransactionCoordinatorService transactionCoordinator, DigitalOceanStorage digitalOceanStorage,
+                                SoundFragmentRepository repository,
+                                TransactionCoordinatorService transactionCoordinator,
+                                PlaylistHelper playlistService,
                                 BroadcasterConfig config) {
         super(userRepository, userService);
         this.localFileCleanupService = localFileCleanupService;
@@ -81,13 +85,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.repository = repository;
         this.radioStationService = radioStationService;
         this.transactionCoordinator = transactionCoordinator;
-        this.digitalOceanStorage = digitalOceanStorage;
+        this.playlistService = playlistService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.config = config;
-    }
-
-    public Uni<List<SoundFragmentDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
-        return getAllDTO(limit, offset, user, null);
     }
 
     public Uni<List<SoundFragmentDTO>> getAllDTO(final int limit, final int offset, final IUser user, final SoundFragmentFilterDTO filterDTO) {
@@ -137,6 +137,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.findById(uuid, user.getId(), false, true, false);
     }
 
+    public Uni<SoundFragment> getById(UUID uuid) {
+        assert repository != null;
+        return repository.findById(uuid, SuperUser.ID, false, false, true);
+    }
+
     @Override
     public Uni<SoundFragmentDTO> getDTO(UUID uuid, IUser user, LanguageCode code) {
         assert repository != null;
@@ -176,16 +181,18 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrand(String brandName, int quantity, boolean shuffle, IUser user, SoundFragmentFilterDTO filterDTO) {
+    public Uni<List<BrandSoundFragment>> getSongsForBrandPlaylist(String brandName, int quantity,  IUser user, SoundFragmentFilterDTO filterDTO) {
         assert repository != null;
         assert radioStationService != null;
 
         SoundFragmentFilter filter = toFilter(filterDTO);
         String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
 
-        BrandActivityLogger.logActivity(brandName, "fragment_request",
-                "Requesting %d fragments, shuffle: %s, user: %s, filter: %s",
-                quantity, shuffle, user.getUserName(), filterStatus);
+        PlaylistTracker tracker = playlistService.getTracker(brandName);
+
+        BrandActivityLogger.logActivity(brandName, "fragments_request_to_play",
+                "Requesting %d fragments, user: %s, filter: %s, already played: %d",
+                quantity, user.getUserName(), filterStatus, tracker.getPlayedCount());
 
         return radioStationService.findByBrandName(brandName)
                 .onItem().transformToUni(radioStation -> {
@@ -195,19 +202,46 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    BrandActivityLogger.logActivity(brandName, "fetching_fragments",
-                            "Fetching up to %d fragments for brand ID: %s with filter", quantity, brandId);
 
-                    return repository.findForBrand(brandId, quantity, 0, false, user, filter)
+                    // Get more fragments than requested to filter out already played ones
+                    int fetchQuantity = Math.max(quantity * 3, quantity + 50);
+
+                    BrandActivityLogger.logActivity(brandName, "fetching_fragments",
+                            "Fetching up to %d fragments for brand ID: %s with filter", fetchQuantity, brandId);
+
+                    return repository.findSongForBrand(brandId, filter)
                             .chain(fragments -> {
                                 BrandActivityLogger.logActivity(brandName, "fragments_retrieved",
                                         "Retrieved %d fragments", fragments.size());
-                                if (shuffle) {
-                                    BrandActivityLogger.logActivity(brandName, "shuffling_fragments",
-                                            "Shuffling fragments");
-                                    Collections.shuffle(fragments);
+
+                                // Check if tracker needs reset
+                                if (playlistService.shouldResetTracker(brandName, fragments.size())) {
+                                    playlistService.resetTracker(brandName);
                                 }
-                                return Uni.createFrom().item(fragments);
+
+                                // Filter out already played songs
+                                List<BrandSoundFragment> unplayedFragments = fragments.stream()
+                                        .filter(fragment -> !tracker.hasPlayed(fragment.getSoundFragment().getId()))
+                                        .collect(Collectors.toList());
+
+                                BrandActivityLogger.logActivity(brandName, "unplayed_fragments",
+                                        "Found %d unplayed fragments out of %d total",
+                                        unplayedFragments.size(), fragments.size());
+
+                                List<BrandSoundFragment> selectedFragments = selectFragments(
+                                        unplayedFragments, fragments, quantity, tracker, brandName);
+
+                                // Mark selected songs as played
+                                selectedFragments.forEach(fragment ->
+                                        tracker.markAsPlayed(fragment.getSoundFragment().getId()));
+
+                                shuffleFragments(selectedFragments, brandName);
+
+                                BrandActivityLogger.logActivity(brandName, "final_playlist",
+                                        "Returning %d unique fragments, total played count now: %d",
+                                        selectedFragments.size(), tracker.getPlayedCount());
+
+                                return Uni.createFrom().item(selectedFragments);
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
@@ -218,8 +252,45 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset) {
-        return getBrandSoundFragments(brandName, limit, offset, null);
+    private List<BrandSoundFragment> selectFragments(List<BrandSoundFragment> unplayedFragments,
+                                                     List<BrandSoundFragment> allFragments,
+                                                     int quantity,
+                                                     PlaylistTracker tracker,
+                                                     String brandName) {
+        List<BrandSoundFragment> selectedFragments = new ArrayList<>();
+
+        if (unplayedFragments.size() >= quantity) {
+            selectedFragments = unplayedFragments.stream()
+                    .limit(quantity)
+                    .collect(Collectors.toList());
+        } else {
+            // Add all unplayed songs
+            selectedFragments.addAll(unplayedFragments);
+
+            // Add some played songs to meet the quantity requirement
+            int needed = quantity - unplayedFragments.size();
+            List<BrandSoundFragment> playedFragments = allFragments.stream()
+                    .filter(fragment -> tracker.hasPlayed(fragment.getSoundFragment().getId()))
+                    .limit(needed)
+                    .toList();
+
+            selectedFragments.addAll(playedFragments);
+
+            BrandActivityLogger.logActivity(brandName, "mixed_playlist",
+                    "Created mixed playlist: %d unplayed + %d played songs",
+                    unplayedFragments.size(), playedFragments.size());
+        }
+
+        return selectedFragments;
+    }
+
+    private void shuffleFragments(List<BrandSoundFragment> fragments, String brandName) {
+        // Use brand-specific seed for consistent randomness per brand
+        long seed = brandName.hashCode() + System.currentTimeMillis() / 86400000; // Changes daily
+        Collections.shuffle(fragments, new java.util.Random(seed));
+
+        BrandActivityLogger.logActivity(brandName, "shuffling_fragments",
+                "Shuffling %d fragments with seed based on brand+date", fragments.size());
     }
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, SoundFragmentFilterDTO filterDTO) {
@@ -243,7 +314,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                             "Fetching fragments for brand ID: %s (limit: %d, offset: %d) with filter",
                             brandId, limit, offset);
 
-                    return repository.findForBrand(brandId, limit, offset, false, SuperUser.build(), filter)
+                    return repository.findSongForBrand(brandId, filter)
                             .chain(fragments -> {
                                 if (fragments.isEmpty()) {
                                     BrandActivityLogger.logActivity(brandName, "no_brand_fragments",
@@ -290,9 +361,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
                     }
                     UUID brandId = radioStation.getId();
-                    BrandActivityLogger.logActivity(brand, "counting_fragments",
-                            "Counting fragments for brand ID: %s with filter", brandId);
-
                     return repository.findForBrandCount(brandId, false, user, filter)
                             .invoke(count -> {
                                 BrandActivityLogger.logActivity(brand, "fragment_count",
@@ -306,8 +374,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return Uni.createFrom().failure(failure);
                 });
     }
-
-    // Simplified SoundFragmentService.upsert() - Remove debug and fallback logic
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
         SoundFragment entity = buildEntity(dto);
@@ -526,7 +592,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             if (exposeFileUrl && doc.getFileMetadataList() != null) {
                 doc.getFileMetadataList()
                         .forEach(meta -> {
-                            //TODO do we need sanitaztion here ?
                             String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
                             files.add(UploadFileDTO.builder()
                                     .id(meta.getSlugName())
@@ -549,7 +614,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .type(doc.getType())
                     .title(doc.getTitle())
                     .artist(doc.getArtist())
-                    .genres(doc.getGenres()) // Updated to use genres list
+                    .genres(doc.getGenres())
                     .album(doc.getAlbum())
                     .uploadedFiles(files)
                     .representedInBrands(representedInBrands)
@@ -564,7 +629,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setType(dto.getType());
         doc.setTitle(dto.getTitle());
         doc.setArtist(dto.getArtist());
-        doc.setGenres(dto.getGenres()); // Updated to use genres list
+        doc.setGenres(dto.getGenres());
         doc.setAlbum(dto.getAlbum());
         doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
         return doc;
@@ -604,9 +669,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 );
     }
 
-    /**
-     * Converts SoundFragmentFilterDTO to SoundFragmentFilter domain model
-     */
     private SoundFragmentFilter toFilter(SoundFragmentFilterDTO dto) {
         if (dto == null) {
             return null;
@@ -620,5 +682,4 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
         return filter;
     }
-
 }

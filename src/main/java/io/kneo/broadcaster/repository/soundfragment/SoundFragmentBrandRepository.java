@@ -1,0 +1,122 @@
+package io.kneo.broadcaster.repository.soundfragment;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.SoundFragmentFilter;
+import io.kneo.core.model.user.IUser;
+import io.kneo.core.repository.rls.RLSRepository;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import io.vertx.mutiny.pgclient.PgPool;
+import io.vertx.mutiny.sqlclient.Row;
+import io.vertx.mutiny.sqlclient.Tuple;
+
+import java.util.List;
+import java.util.UUID;
+
+public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstract {
+
+    public SoundFragmentBrandRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+        super(client, mapper, rlsRepository);
+    }
+
+    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,
+                                                      boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
+
+        if (!includeArchived) {
+            sql += " AND t.archived = 0";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        sql += " ORDER BY t.reg_date DESC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, user.getId()))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> {
+                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
+                    return soundFragmentUni.onItem().transform(soundFragment -> {
+                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
+                        brandSoundFragment.setSoundFragment(soundFragment);
+                        return brandSoundFragment;
+                    });
+                })
+                .concatenate()
+                .collect().asList();
+    }
+
+    public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+        String sql = "SELECT COUNT(*) " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, user.getId()))
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    public Uni<List<BrandSoundFragment>> findSongsForBrand(UUID brandId, final int limit, final int offset, SoundFragmentFilter filter) {
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "WHERE bsf.brand_id = $1 AND t.archived = 0";
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        sql += " ORDER BY " +
+                "bsf.played_by_brand_count ASC, " +
+                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> {
+                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
+                    return soundFragmentUni.onItem().transform(soundFragment -> {
+                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
+                        brandSoundFragment.setSoundFragment(soundFragment);
+                        return brandSoundFragment;
+                    });
+                })
+                .concatenate()
+                .collect().asList();
+    }
+
+    private BrandSoundFragment createBrandSoundFragment(Row row, UUID brandId) {
+        BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
+        brandSoundFragment.setId(row.getUUID("id"));
+        brandSoundFragment.setDefaultBrandId(brandId);
+        brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
+        brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
+        return brandSoundFragment;
+    }
+}

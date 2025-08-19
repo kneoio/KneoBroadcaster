@@ -51,8 +51,6 @@ public class HetznerStorageService {
 
     public Uni<FileMetadata> getFileStream(String keyName) {
         return Uni.createFrom().item(() -> {
-                    LOGGER.info("Retrieving file stream for key: {} from bucket: {} at endpoint: {}", 
-                            keyName, hetznerConfig.getBucketName(), hetznerConfig.getEndpoint());
                     LOGGER.debug("Retrieving file stream for key: {}", keyName);
 
                     GetObjectRequest getObjectRequest = GetObjectRequest.builder()
@@ -84,8 +82,7 @@ public class HetznerStorageService {
 
     public Uni<Void> uploadFile(String keyName, String fileToUpload, String mimeType) {
         return Uni.createFrom().<Void>item(() -> {
-                    LOGGER.info("Uploading file with key: {} to bucket: {} at endpoint: {}", 
-                            keyName, hetznerConfig.getBucketName(), hetznerConfig.getEndpoint());
+                    LOGGER.info("Uploading file with key: {}", keyName);
                     PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                             .bucket(hetznerConfig.getBucketName())
                             .key(keyName)

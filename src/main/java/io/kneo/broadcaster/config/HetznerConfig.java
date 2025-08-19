@@ -21,7 +21,7 @@ public interface HetznerConfig {
     String getRegion();
 
     @WithName("endpoint")
-    @WithDefault("fsn1.your-objectstorage.com")
+    @WithDefault("hel1.your-objectstorage.com")
     String getEndpoint();
 
     @WithName("orphan.cleaning.disabled")

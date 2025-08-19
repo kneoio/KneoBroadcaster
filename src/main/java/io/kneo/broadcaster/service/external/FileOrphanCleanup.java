@@ -91,7 +91,7 @@ public class FileOrphanCleanup {
     }
 
     private void initializeS3Client() {
-        String endpointUrl = "https://" + hetznerConfig.getRegion() + "." + hetznerConfig.getEndpoint();
+        String endpointUrl = "https://" + hetznerConfig.getEndpoint();
         this.s3Client = S3Client.builder()
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(hetznerConfig.getAccessKey(), hetznerConfig.getSecretKey())

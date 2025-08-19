@@ -15,7 +15,7 @@ public interface MCPConfig {
     int getServerPort();
 
     @WithName("server.host")
-    @WithDefault("localhost")
+    @WithDefault("127.0.0.1")  // Changed from "localhost" to "127.0.0.1"
     String getServerHost();
 
     @WithName("protocol.version")

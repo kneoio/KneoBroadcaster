@@ -50,7 +50,10 @@ public class StationInactivityChecker {
     private final ConcurrentHashMap<String, Instant> stationsMarkedForRemoval = new ConcurrentHashMap<>();
 
     void onStart(@Observes StartupEvent event) {
-        LOGGER.info("Starting station inactivity checker.");
+        LOGGER.info("=== Starting station inactivity checker ===");
+        LOGGER.info("Configuration - Interval: {}s, Idle threshold: {}min, Stop threshold: {}min, Removal delay: {}min",
+                INTERVAL_SECONDS, IDLE_THRESHOLD_MINUTES, STOP_REMOVE_THRESHOLD_MINUTES, REMOVAL_DELAY_MINUTES);
+        LOGGER.info("Active statuses: {}", ACTIVE_STATUSES);
         startCleanupTask();
     }
 
@@ -86,23 +89,42 @@ public class StationInactivityChecker {
     }
 
     private Uni<Void> checkStationActivity(Long tick) {
-        LOGGER.info("Station inactivity checking...");
+        LOGGER.info("=== Station inactivity checking - Tick: {} ===", tick);
         Instant now = Instant.now();
         Instant idleThreshold = now.minusSeconds(IDLE_THRESHOLD_MINUTES * 60L);
         Instant stopThreshold = now.minusSeconds(STOP_REMOVE_THRESHOLD_MINUTES * 60L);
         Instant removalThreshold = now.minusSeconds(REMOVAL_DELAY_MINUTES * 60L);
-        Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
 
+        // Log threshold parameters
+        LOGGER.info("Thresholds - Now: {}, Idle: {} ({} min ago), Stop: {} ({} min ago), Removal: {} ({} min ago)",
+                now, idleThreshold, IDLE_THRESHOLD_MINUTES, stopThreshold, STOP_REMOVE_THRESHOLD_MINUTES,
+                removalThreshold, REMOVAL_DELAY_MINUTES);
+
+        Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
+
+        // Log stations marked for removal
+        if (!stationsMarkedForRemoval.isEmpty()) {
+            LOGGER.info("Stations marked for removal: {}", stationsMarkedForRemoval.keySet());
+            stationsMarkedForRemoval.forEach((slug, markedTime) ->
+                    LOGGER.info("  {} marked at: {} ({}s ago)", slug, markedTime,
+                            Duration.between(markedTime, now).getSeconds()));
+        }
 
         return Multi.createFrom().iterable(stationsMarkedForRemoval.entrySet())
                 .onItem().transformToUni(entry -> {
                     String slug = entry.getKey();
                     Instant markedTime = entry.getValue();
+                    long secondsSinceMarked = Duration.between(markedTime, now).getSeconds();
+                    LOGGER.info("Checking removal for {}: marked {}s ago, threshold {}s",
+                            slug, secondsSinceMarked, REMOVAL_DELAY_MINUTES * 60);
+
                     if (markedTime.isBefore(removalThreshold)) {
                         BrandActivityLogger.logActivity(slug, "remove", "Removing station after %d minutes delay", REMOVAL_DELAY_MINUTES);
                         stationsMarkedForRemoval.remove(slug);
                         return radioStationPool.stopAndRemove(slug).replaceWithVoid();
+                    } else {
+                        LOGGER.info("Station {} not ready for removal yet", slug);
                     }
                     return Uni.createFrom().voidItem();
                 })
@@ -112,47 +134,76 @@ public class StationInactivityChecker {
                 .chain(() -> {
                     Collection<RadioStation> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
                     LOGGER.info("After cleanup, there are {} active radio stations.", currentOnlineStations.size());
-                    return Multi.createFrom().iterable(currentOnlineStations)
-                            .onItem().transformToUni(radioStation ->
-                                    radioStationService.getStats(radioStation.getSlugName())
-                                            .onItem().transformToUni(stats -> {
-                                                String slug = radioStation.getSlugName();
-                                                if (stats != null && stats.getLastAccessTime() != null) {
-                                                    Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
-                                                    BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", stats.getLastAccessTime());
 
-                                                    if (ACTIVE_STATUSES.contains(radioStation.getStatus())) {
-                                                        if (lastAccessInstant.isBefore(stopThreshold)) {
-                                                            BrandActivityLogger.logActivity(slug, "offline", "Inactive for %d minutes, setting status to OFF_LINE and marking for removal", STOP_REMOVE_THRESHOLD_MINUTES);
-                                                            radioStation.setStatus(RadioStationStatus.OFF_LINE);
-                                                            stationsMarkedForRemoval.put(slug, now);
-                                                        } else if (lastAccessInstant.isBefore(idleThreshold)) {
-                                                            BrandActivityLogger.logActivity(slug, "idle", "Inactive for %d minutes, setting status to IDLE", IDLE_THRESHOLD_MINUTES);
-                                                            radioStation.setStatus(RadioStationStatus.IDLE);
-                                                        } else {
-                                                            BrandActivityLogger.logActivity(slug, "online", "Station is active, setting status to ON_LINE");
-                                                            radioStation.setStatus(RadioStationStatus.ON_LINE);
-                                                        }
-                                                    } else if (radioStation.getStatus() == RadioStationStatus.OFF_LINE) {
-                                                        if (!lastAccessInstant.isBefore(idleThreshold)) {
-                                                            BrandActivityLogger.logActivity(slug, "online", "Station has activity, setting status to ON_LINE");
-                                                            radioStation.setStatus(RadioStationStatus.ON_LINE);
-                                                            stationsMarkedForRemoval.remove(slug);
-                                                        }
-                                                    }
-                                                } else {
-                                                    if (ACTIVE_STATUSES.contains(radioStation.getStatus())) {
-                                                        BrandActivityLogger.logActivity(slug, "idle", "No last access time recorded, setting status to IDLE (grace period)");
+                    return Multi.createFrom().iterable(currentOnlineStations)
+                            .onItem().transformToUni(radioStation -> {
+                                String slug = radioStation.getSlugName();
+                                RadioStationStatus currentStatus = radioStation.getStatus();
+                                LOGGER.info("Processing station: {} with status: {}", slug, currentStatus);
+
+                                return radioStationService.getStats(radioStation.getSlugName())
+                                        .onItem().transformToUni(stats -> {
+                                            LOGGER.info("Retrieved stats for {}: {}", slug, stats != null ? "available" : "null");
+
+                                            if (stats != null && stats.getLastAccessTime() != null) {
+                                                Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
+                                                long secondsSinceAccess = Duration.between(lastAccessInstant, now).getSeconds();
+
+                                                LOGGER.info("Station {}: Last access: {} ({}s ago), Status: {}",
+                                                        slug, stats.getLastAccessTime(), secondsSinceAccess, currentStatus);
+
+                                                BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", stats.getLastAccessTime());
+
+                                                boolean isActive = ACTIVE_STATUSES.contains(currentStatus);
+                                                boolean isPastStopThreshold = lastAccessInstant.isBefore(stopThreshold);
+                                                boolean isPastIdleThreshold = lastAccessInstant.isBefore(idleThreshold);
+
+                                                LOGGER.info("Station {}: isActive={}, isPastStopThreshold={}, isPastIdleThreshold={}",
+                                                        slug, isActive, isPastStopThreshold, isPastIdleThreshold);
+
+                                                if (isActive) {
+                                                    if (isPastStopThreshold) {
+                                                        LOGGER.info("Station {} transitioning to OFF_LINE (inactive for {}s)", slug, secondsSinceAccess);
+                                                        BrandActivityLogger.logActivity(slug, "offline", "Inactive for %d minutes, setting status to OFF_LINE and marking for removal", STOP_REMOVE_THRESHOLD_MINUTES);
+                                                        radioStation.setStatus(RadioStationStatus.OFF_LINE);
+                                                        stationsMarkedForRemoval.put(slug, now);
+                                                    } else if (isPastIdleThreshold) {
+                                                        LOGGER.info("Station {} transitioning to IDLE (inactive for {}s)", slug, secondsSinceAccess);
+                                                        BrandActivityLogger.logActivity(slug, "idle", "Inactive for %d minutes, setting status to IDLE", IDLE_THRESHOLD_MINUTES);
                                                         radioStation.setStatus(RadioStationStatus.IDLE);
+                                                    } else {
+                                                        LOGGER.info("Station {} has recent activity, transitioning to ON_LINE", slug);
+                                                        BrandActivityLogger.logActivity(slug, "online", "Station is active, setting status to ON_LINE");
+                                                        radioStation.setStatus(RadioStationStatus.ON_LINE);
+                                                    }
+                                                } else if (currentStatus == RadioStationStatus.OFF_LINE) {
+                                                    if (!isPastIdleThreshold) {
+                                                        LOGGER.info("OFF_LINE station {} has activity, transitioning to ON_LINE", slug);
+                                                        BrandActivityLogger.logActivity(slug, "online", "Station has activity, setting status to ON_LINE");
+                                                        radioStation.setStatus(RadioStationStatus.ON_LINE);
+                                                        stationsMarkedForRemoval.remove(slug);
+                                                    } else {
+                                                        LOGGER.info("OFF_LINE station {} still inactive", slug);
                                                     }
                                                 }
-                                                return Uni.createFrom().voidItem();
-                                            })
-                                            .onFailure().recoverWithUni(failure -> {
-                                                BrandActivityLogger.logActivity(radioStation.getSlugName(), "error", "Error processing station: %s", failure.getMessage());
-                                                return Uni.createFrom().voidItem();
-                                            })
-                            )
+                                            } else {
+                                                LOGGER.warn("Station {}: No stats or last access time - stats={}, lastAccessTime={}",
+                                                        slug, stats, stats != null ? stats.getLastAccessTime() : "N/A");
+
+                                                if (ACTIVE_STATUSES.contains(currentStatus)) {
+                                                    LOGGER.info("Station {} has no access time, setting to IDLE (grace period)", slug);
+                                                    BrandActivityLogger.logActivity(slug, "idle", "No last access time recorded, setting status to IDLE (grace period)");
+                                                    radioStation.setStatus(RadioStationStatus.IDLE);
+                                                }
+                                            }
+                                            return Uni.createFrom().voidItem();
+                                        })
+                                        .onFailure().recoverWithUni(failure -> {
+                                            LOGGER.error("Error getting stats for station {}: {}", slug, failure.getMessage(), failure);
+                                            BrandActivityLogger.logActivity(slug, "error", "Error processing station: %s", failure.getMessage());
+                                            return Uni.createFrom().voidItem();
+                                        });
+                            })
                             .merge()
                             .toUni()
                             .replaceWithVoid();

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -30,10 +31,9 @@ public class PlaylistManager {
     private static final int SELF_MANAGING_INTERVAL_SECONDS = 300;
     private static final int REGULAR_BUFFER_MAX = 2;
     private static final int READY_QUEUE_MAX_SIZE = 2;
-    private static final int READY_REGULAR_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
     private static final int PRIOR_BACKPRESSURE_ON_AT = 1;
-    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 90_000L;
+    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 60_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
@@ -68,7 +68,7 @@ public class PlaylistManager {
     }
 
     public void startSelfManaging() {
-       /* scheduler.scheduleAtFixedRate(() -> {
+        scheduler.scheduleAtFixedRate(() -> {
             try {
                 if (regularQueue.size() <= TRIGGER_SELF_MANAGING) {
                     addFragments();
@@ -79,7 +79,7 @@ public class PlaylistManager {
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
             }
-        }, 0, SELF_MANAGING_INTERVAL_SECONDS, TimeUnit.SECONDS);*/
+        }, 0, SELF_MANAGING_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
     private void addFragments() {

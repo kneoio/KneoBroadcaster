@@ -109,7 +109,7 @@ public class StreamManager implements IStreamManager {
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
         playlistManager = new PlaylistManager(broadcasterConfig, this);
-        if (radioStation.getManagedBy() == ManagedBy.ITSELF || radioStation.getManagedBy() == ManagedBy.MIX) {
+        if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();
         }
 

@@ -104,8 +104,8 @@ public class MemoryService {
                                 .filter(memory -> memory.getMemoryType() == MemoryType.CONVERSATION_HISTORY)
                                 .forEach(memory -> {
                                     LinkedHashMap<String, Object> content = memory.getContent();
-                                    List<Object> historyList = (List<Object>) content.get(MemoryType.CONVERSATION_HISTORY.getValue());
-                                    if (historyList != null) {
+                                    Object historyData = content.get(MemoryType.CONVERSATION_HISTORY.getValue());
+                                    if (historyData instanceof List<?> historyList) {
                                         historyList.forEach(intro -> {
                                             JsonObject introWithId = new JsonObject()
                                                     .put("id", memory.getId().toString())
@@ -163,12 +163,12 @@ public class MemoryService {
                                 .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
                                 .forEach(memory -> {
                                     LinkedHashMap<String, Object> content = memory.getContent();
-                                    List<Object> messageList = (List<Object>) content.get(MemoryType.INSTANT_MESSAGE.getValue());
-                                    if (messageList != null) {
-                                        messageList.forEach(messageData -> {
+                                    Object messageData = content.get(MemoryType.INSTANT_MESSAGE.getValue());
+                                    if (messageData instanceof List<?> messageList) {
+                                        messageList.forEach(message -> {
                                             JsonObject messageWithId = new JsonObject()
                                                     .put("id", memory.getId().toString())
-                                                    .put("content", messageData);
+                                                    .put("content", message);
                                             messageArray.add(messageWithId);
                                         });
                                     }
@@ -185,16 +185,17 @@ public class MemoryService {
                         JsonArray eventArray = new JsonArray();
                         brandMap.values().stream()
                                 .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
-                                .forEach(memory -> {
+                                .findFirst()
+                                .ifPresent(memory -> {
                                     LinkedHashMap<String, Object> content = memory.getContent();
-                                    List<Object> eventList = (List<Object>) content.get(MemoryType.EVENT.getValue());
-                                    if (eventList != null) {
-                                        eventList.forEach(eventData -> {
+                                    Object eventData = content.get(MemoryType.EVENT.getValue());
+                                    if (eventData instanceof List<?> eventList) {
+                                        if (!eventList.isEmpty()) {
                                             JsonObject eventWithId = new JsonObject()
                                                     .put("id", memory.getId().toString())
-                                                    .put("content", eventData);
+                                                    .put("content", eventList.get(0));
                                             eventArray.add(eventWithId);
-                                        });
+                                        }
                                     }
                                 });
                         result.put(MemoryType.EVENT.getValue(), eventArray);
@@ -305,7 +306,7 @@ public class MemoryService {
 
         List<Memory> messagesToRemove = brandMap.values().stream()
                 .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
-                .collect(Collectors.toList());
+                .toList();
 
         if (messagesToRemove.isEmpty()) {
             return Uni.createFrom().item(List.of());
@@ -346,7 +347,7 @@ public class MemoryService {
 
         List<Memory> eventsToRemove = brandMap.values().stream()
                 .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
-                .collect(Collectors.toList());
+                .toList();
 
         if (eventsToRemove.isEmpty()) {
             return Uni.createFrom().item(List.of());

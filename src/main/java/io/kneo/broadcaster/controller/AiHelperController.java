@@ -78,7 +78,6 @@ public class AiHelperController {
             }
 
             return statusParams.stream()
-                    .map(String::toUpperCase)
                     .map(RadioStationStatus::valueOf)
                     .collect(Collectors.toList());
         });

@@ -19,7 +19,13 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.DayOfWeek;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static io.kneo.broadcaster.service.scheduler.quartz.QuartzUtils.convertWeekdaysToCron;
 import static org.quartz.CronScheduleBuilder.cronSchedule;
@@ -54,6 +60,7 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
         scheduleStopJob(stationSlug, endTime, timeZone, weekdays);
         scheduleWarningJob(stationSlug, endTime, timeZone, weekdays);
         LOGGER.info("Scheduled DJ control for station {} from {} to {} on {}", stationSlug, startTime, endTime, weekdays);
+        reconcileWindowNow(stationSlug, startTime, endTime, timeZone, weekdays);
     }
 
     @Override
@@ -76,7 +83,9 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
                 .build();
         Trigger trigger = newTrigger()
                 .withIdentity(jobKey + "_trigger", "dj-control")
-                .withSchedule(cronSchedule(cronExpression).inTimeZone(java.util.TimeZone.getTimeZone(timeZone)))
+                .withSchedule(cronSchedule(cronExpression)
+                        .inTimeZone(java.util.TimeZone.getTimeZone(timeZone))
+                        .withMisfireHandlingInstructionFireAndProceed())
                 .build();
         scheduler.scheduleJob(job, trigger);
     }
@@ -91,7 +100,9 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
                 .build();
         Trigger trigger = newTrigger()
                 .withIdentity(jobKey + "_trigger", "dj-control")
-                .withSchedule(cronSchedule(cronExpression).inTimeZone(java.util.TimeZone.getTimeZone(timeZone)))
+                .withSchedule(cronSchedule(cronExpression)
+                        .inTimeZone(java.util.TimeZone.getTimeZone(timeZone))
+                        .withMisfireHandlingInstructionFireAndProceed())
                 .build();
         scheduler.scheduleJob(job, trigger);
     }
@@ -108,7 +119,9 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
                 .build();
         Trigger trigger = newTrigger()
                 .withIdentity(jobKey + "_trigger", "dj-control")
-                .withSchedule(cronSchedule(cronExpression).inTimeZone(java.util.TimeZone.getTimeZone(timeZone)))
+                .withSchedule(cronSchedule(cronExpression)
+                        .inTimeZone(java.util.TimeZone.getTimeZone(timeZone))
+                        .withMisfireHandlingInstructionDoNothing())
                 .build();
         scheduler.scheduleJob(job, trigger);
     }
@@ -117,5 +130,83 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
         LocalTime localTime = LocalTime.parse(time);
         String dayOfWeek = convertWeekdaysToCron(weekdays);
         return String.format("0 %d %d ? * %s", localTime.getMinute(), localTime.getHour(), dayOfWeek);
+    }
+
+    private void reconcileWindowNow(String stationSlug, String startTime, String endTime, ZoneId timeZone, List<String> weekdays) throws SchedulerException {
+        if (!isTodayInWeekdays(weekdays, timeZone)) return;
+        ZonedDateTime now = ZonedDateTime.now(timeZone);
+        LocalTime nowTime = now.toLocalTime();
+        LocalTime start = LocalTime.parse(startTime);
+        LocalTime end = LocalTime.parse(endTime);
+        if (!wrapsMidnight(start, end)) {
+            if (!nowTime.isBefore(start) && nowTime.isBefore(end)) {
+                scheduler.triggerJob(JobKey.jobKey(stationSlug + "_dj_start", "dj-control"));
+                return;
+            }
+            if (!nowTime.isBefore(end)) {
+                scheduler.triggerJob(JobKey.jobKey(stationSlug + "_dj_stop", "dj-control"));
+                return;
+            }
+        }
+    }
+
+    private boolean isTodayInWeekdays(List<String> weekdays, ZoneId timeZone) {
+        if (weekdays == null || weekdays.isEmpty()) return true;
+        Set<String> set = expandWeekdays(weekdays);
+        String today = toAbbrev(ZonedDateTime.now(timeZone).getDayOfWeek());
+        return set.contains(today);
+    }
+
+    private Set<String> expandWeekdays(List<String> weekdays) {
+        Map<String, Integer> order = weekdayOrder();
+        Set<String> result = new LinkedHashSet<>();
+        for (String w : weekdays) {
+            String s = w.trim().toUpperCase();
+            if (s.contains("-")) {
+                String[] parts = s.split("-");
+                String from = parts[0].trim();
+                String to = parts[1].trim();
+                Integer i1 = order.get(from);
+                Integer i2 = order.get(to);
+                if (i1 != null && i2 != null) {
+                    if (i1 <= i2) {
+                        order.entrySet().stream().filter(e -> e.getValue() >= i1 && e.getValue() <= i2).forEach(e -> result.add(e.getKey()));
+                    } else {
+                        order.entrySet().stream().filter(e -> e.getValue() >= i1 || e.getValue() <= i2).forEach(e -> result.add(e.getKey()));
+                    }
+                }
+            } else {
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, Integer> weekdayOrder() {
+        Map<String, Integer> m = new LinkedHashMap<>();
+        m.put("MON", 1);
+        m.put("TUE", 2);
+        m.put("WED", 3);
+        m.put("THU", 4);
+        m.put("FRI", 5);
+        m.put("SAT", 6);
+        m.put("SUN", 7);
+        return m;
+    }
+
+    private String toAbbrev(DayOfWeek d) {
+        return switch (d) {
+            case MONDAY -> "MON";
+            case TUESDAY -> "TUE";
+            case WEDNESDAY -> "WED";
+            case THURSDAY -> "THU";
+            case FRIDAY -> "FRI";
+            case SATURDAY -> "SAT";
+            case SUNDAY -> "SUN";
+        };
+    }
+
+    private boolean wrapsMidnight(LocalTime start, LocalTime end) {
+        return end.isBefore(start);
     }
 }

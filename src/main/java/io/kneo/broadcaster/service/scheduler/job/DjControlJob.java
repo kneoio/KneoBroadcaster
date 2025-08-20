@@ -47,6 +47,7 @@ public class DjControlJob implements Job {
         radioStationPool.getOnlineStationsSnapshot()
                 .stream()
                 .filter(station -> station.getSlugName().equals(stationSlugName))
+                .filter(station -> !station.isAiControlAllowed())
                 /*/.filter(station ->
                         station.getStatus() == RadioStationStatus.ON_LINE ||
                         station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
@@ -69,6 +70,7 @@ public class DjControlJob implements Job {
                         station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                         station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
                         station.getStatus() == RadioStationStatus.IDLE)
+                .filter(station -> station.isAiControlAllowed())
                 .forEach(station -> {
                     station.setAiControlAllowed(false);
                     LOGGER.info("Stopped DJ control for station: {}", stationSlugName);

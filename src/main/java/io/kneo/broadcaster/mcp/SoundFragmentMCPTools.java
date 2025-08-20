@@ -59,7 +59,7 @@ public class SoundFragmentMCPTools {
                     int offset = (pageNum - 1) * pageSize;
                     return Uni.combine().all().unis(
                             service.getBrandSoundFragments(brandName, pageSize, offset, filter),
-                            service.getCountBrandSoundFragments(brandName, user, filter)
+                            service.getBrandSoundFragmentsCount(brandName, filter)
                     ).asTuple();
                 })
                 .<MCPBrandResponse>map(tuple -> {

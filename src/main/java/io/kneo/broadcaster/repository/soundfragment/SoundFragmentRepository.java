@@ -374,13 +374,13 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     }
 
     //TODO will be refactored later (fabric)
-    public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,
-                                                      boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+    public Uni<List<BrandSoundFragment>> getForBrand(UUID brandId, final int limit, final int offset,
+                                                     boolean includeArchived, IUser user, SoundFragmentFilter filter) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findForBrand(brandId, limit, offset, includeArchived, user, filter);
     }
 
-    public Uni<Integer> findForBrandCount(UUID brandId, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+    public Uni<Integer> getForBrandCount(UUID brandId, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findForBrandCount(brandId, includeArchived, user, filter);
     }

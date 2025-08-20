@@ -157,7 +157,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     private void getForBrand(RoutingContext rc) {
         String brandName = rc.request().getParam("brand");
-        String format = rc.request().getParam("format");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
         SoundFragmentFilterDTO filter = parseFilterDTO(rc);
@@ -165,7 +164,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getBrandSoundFragments(brandName, size, (page - 1) * size, filter),
-                        service.getCountBrandSoundFragments(brandName, user, filter)
+                        service.getBrandSoundFragmentsCount(brandName, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<BrandSoundFragmentDTO> dtoEntries = new View<>(tuple.getItem1(),

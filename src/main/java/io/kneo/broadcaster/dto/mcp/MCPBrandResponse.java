@@ -14,10 +14,8 @@ public class MCPBrandResponse {
     private int page;
     private int maxPage;
 
-    public MCPBrandResponse(List<BrandSoundFragmentDTO> fragments, long totalCount, int page, int maxPage) {
+    public MCPBrandResponse(List<BrandSoundFragmentDTO> fragments, long totalCount) {
         this.fragments = fragments;
         this.totalCount = totalCount;
-        this.page = page;
-        this.maxPage = maxPage;
     }
 }

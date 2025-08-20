@@ -62,15 +62,13 @@ public class SoundFragmentMCPTools {
 
         return getCurrentUser()
                 .chain(user -> {
-                    int offset = (pageNum - 1) * pageSize;
-                    return Uni.combine().all().unis(
-                            service.getBrandSoundFragments(brandName, pageSize, offset, filter),
-                            service.getBrandSoundFragmentsCount(brandName, filter)
-                    ).asTuple();
+                    return service.getSongsForBrandPlaylist(brandName, pageSize, user, filter);
                 })
-                .<MCPBrandResponse>map(tuple -> {
-                    List<BrandSoundFragmentDTO> fragments = tuple.getItem1();
-                    long totalCount = tuple.getItem2();
+                .<MCPBrandResponse>map(brandSoundFragments -> {
+                    List<BrandSoundFragmentDTO> fragments = brandSoundFragments.stream()
+                            .map(this::mapToBrandSoundFragmentDTO)
+                            .collect(Collectors.toList());
+                    long totalCount = fragments.size();
                     int maxPage = RuntimeUtil.countMaxPage(totalCount, pageSize);
                     BrandActivityLogger.logActivity(brandName, "fragment_results",
                             "Found %d fragments (page %d of %d) %s",
@@ -81,7 +79,7 @@ public class SoundFragmentMCPTools {
                                 "No fragments found for this query %s", filterDesc);
                     }
 
-                    return new MCPBrandResponse(fragments, totalCount, pageNum, maxPage);
+                    return new MCPBrandResponse(fragments, totalCount);
                 })
                 .onFailure().invoke(failure -> {
                     BrandActivityLogger.logActivity(brandName, "fragment_error",
@@ -228,5 +226,24 @@ public class SoundFragmentMCPTools {
 
     private Uni<IUser> getCurrentUser() {
         return Uni.createFrom().item(io.kneo.core.model.user.SuperUser.build());
+    }
+
+    private BrandSoundFragmentDTO mapToBrandSoundFragmentDTO(io.kneo.broadcaster.model.BrandSoundFragment brandSoundFragment) {
+        BrandSoundFragmentDTO dto = new BrandSoundFragmentDTO();
+        dto.setSoundFragmentDTO(mapSoundFragmentToDTO(brandSoundFragment.getSoundFragment()));
+        dto.setPlayedByBrandCount(brandSoundFragment.getPlayedByBrandCount());
+        dto.setLastTimePlayedByBrand(brandSoundFragment.getPlayedTime());
+        return dto;
+    }
+
+    private SoundFragmentDTO mapSoundFragmentToDTO(io.kneo.broadcaster.model.SoundFragment soundFragment) {
+        return SoundFragmentDTO.builder()
+                .id(soundFragment.getId())
+                .status(soundFragment.getStatus())
+                .title(soundFragment.getTitle())
+                .artist(soundFragment.getArtist())
+                .genres(soundFragment.getGenres())
+                .album(soundFragment.getAlbum())
+                .build();
     }
 }

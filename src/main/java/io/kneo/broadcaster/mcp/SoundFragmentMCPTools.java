@@ -45,11 +45,17 @@ public class SoundFragmentMCPTools {
             @Parameter("sources") String sources,
             @Parameter("types") String types
     ) {
-        int pageNum = page != null ? page : 1;
-        int pageSize = size != null ? size : 10;
+        int pageNum = Objects.requireNonNullElse(page, 1);
+        int pageSize = Objects.requireNonNullElse(size, 10);
 
         SoundFragmentFilterDTO filter = parseFilters(genres, sources, types);
-        String filterDesc = filter != null ? "with filters" : "without filters";
+
+        String filterDesc;
+        if (filter != null) {
+            filterDesc = "with filters";
+        } else {
+            filterDesc = "without filters";
+        }
 
         BrandActivityLogger.logActivity(brandName, "fragment_query",
                 "Fetching page %d with size %d %s", pageNum, pageSize, filterDesc);
@@ -95,11 +101,14 @@ public class SoundFragmentMCPTools {
             @Parameter("types") String types
     ) {
         try {
-            LOGGER.info("MCP Tool: searchSoundFragments called with query='{}', page={}, size={}",
-                    searchTerm, page != null ? page : 1, size != null ? size : 10);
+            int logPageNum = Objects.requireNonNullElse(page, 1);
+            int logPageSize = Objects.requireNonNullElse(size, 10);
 
-            int pageNum = page != null ? page : 1;
-            int pageSize = size != null ? size : 10;
+            LOGGER.info("MCP Tool: searchSoundFragments called with query='{}', page={}, size={}",
+                    searchTerm, logPageNum, logPageSize);
+
+            int pageNum = Objects.requireNonNullElse(page, 1);
+            int pageSize = Objects.requireNonNullElse(size, 10);
 
             if (searchTerm == null || searchTerm.trim().isEmpty()) {
                 LOGGER.error("MCP Tool: Empty search term provided");
@@ -109,7 +118,13 @@ public class SoundFragmentMCPTools {
             }
 
             SoundFragmentFilterDTO filter = parseFilters(genres, sources, types);
-            String filterDesc = filter != null ? "with filters" : "without filters";
+
+            String filterDesc;
+            if (filter != null) {
+                filterDesc = "with filters";
+            } else {
+                filterDesc = "without filters";
+            }
 
             return getCurrentUser()
                     .chain(user -> {
@@ -204,7 +219,11 @@ public class SoundFragmentMCPTools {
             }
         }
 
-        return hasAnyFilter ? filter : null;
+        if (hasAnyFilter) {
+            return filter;
+        } else {
+            return null;
+        }
     }
 
     private Uni<IUser> getCurrentUser() {

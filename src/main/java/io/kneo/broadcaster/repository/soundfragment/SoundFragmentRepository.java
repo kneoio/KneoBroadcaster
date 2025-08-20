@@ -385,7 +385,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findForBrandCount(brandId, includeArchived, user, filter);
     }
 
-    public Uni<List<BrandSoundFragment>> findSongForBrand(UUID brandId, SoundFragmentFilter filter) {
+    public Uni<List<BrandSoundFragment>> findNextSongsForBrand(UUID brandId, SoundFragmentFilter filter) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.findSongsForBrand(brandId, 100, 0, filter);
     }

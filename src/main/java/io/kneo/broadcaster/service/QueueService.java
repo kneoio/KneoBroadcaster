@@ -153,7 +153,6 @@ public class QueueService {
 
                                             return audioMergerService.mergeAudioFiles(Path.of(ttsFilePaths.get(0)), songMetadata, radioStation)
                                                     .onItem().transform(mergedPath -> {
-                                                        //override original file
                                                         songMetadata.setTemporaryFilePath(mergedPath);
                                                         return songMetadata;
                                                     })

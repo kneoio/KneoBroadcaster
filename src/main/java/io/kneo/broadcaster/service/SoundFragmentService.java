@@ -209,7 +209,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     BrandActivityLogger.logActivity(brandName, "fetching_fragments",
                             "Fetching up to %d fragments for brand ID: %s with filter", fetchQuantity, brandId);
 
-                    return repository.findSongForBrand(brandId, filter)
+                    return repository.findNextSongsForBrand(brandId, filter)
                             .chain(fragments -> {
                                 BrandActivityLogger.logActivity(brandName, "fragments_retrieved",
                                         "Retrieved %d fragments", fragments.size());

@@ -60,6 +60,16 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
         scheduleStopJob(stationSlug, endTime, timeZone, weekdays);
         scheduleWarningJob(stationSlug, endTime, timeZone, weekdays);
         LOGGER.info("Scheduled DJ control for station {} from {} to {} on {}", stationSlug, startTime, endTime, weekdays);
+    }
+
+    @Override
+    public void reconcile(Schedulable entity, Task task, ZoneId timeZone) throws SchedulerException {
+        if (!(entity instanceof RadioStation)) return;
+        if (task == null || task.getTriggerType() != TriggerType.TIME_WINDOW || task.getTimeWindowTrigger() == null) return;
+        String stationSlug = ((RadioStation) entity).getSlugName();
+        String startTime = task.getTimeWindowTrigger().getStartTime();
+        String endTime = task.getTimeWindowTrigger().getEndTime();
+        List<String> weekdays = task.getTimeWindowTrigger().getWeekdays();
         reconcileWindowNow(stationSlug, startTime, endTime, timeZone, weekdays);
     }
 
@@ -140,10 +150,23 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
         LocalTime end = LocalTime.parse(endTime);
         if (!wrapsMidnight(start, end)) {
             if (!nowTime.isBefore(start) && nowTime.isBefore(end)) {
+                LOGGER.info("Reconcile DJ start for {}", stationSlug);
                 scheduler.triggerJob(JobKey.jobKey(stationSlug + "_dj_start", "dj-control"));
                 return;
             }
             if (!nowTime.isBefore(end)) {
+                LOGGER.info("Reconcile DJ stop for {}", stationSlug);
+                scheduler.triggerJob(JobKey.jobKey(stationSlug + "_dj_stop", "dj-control"));
+                return;
+            }
+        } else {
+            boolean inWindow = !nowTime.isBefore(start) || nowTime.isBefore(end);
+            if (inWindow) {
+                LOGGER.info("Reconcile DJ start (overnight) for {}", stationSlug);
+                scheduler.triggerJob(JobKey.jobKey(stationSlug + "_dj_start", "dj-control"));
+                return;
+            } else {
+                LOGGER.info("Reconcile DJ stop (overnight) for {}", stationSlug);
                 scheduler.triggerJob(JobKey.jobKey(stationSlug + "_dj_stop", "dj-control"));
                 return;
             }
@@ -161,11 +184,11 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
         Map<String, Integer> order = weekdayOrder();
         Set<String> result = new LinkedHashSet<>();
         for (String w : weekdays) {
-            String s = w.trim().toUpperCase();
+            String s = normalizeWeekToken(w.trim());
             if (s.contains("-")) {
                 String[] parts = s.split("-");
-                String from = parts[0].trim();
-                String to = parts[1].trim();
+                String from = normalizeWeekToken(parts[0].trim());
+                String to = normalizeWeekToken(parts[1].trim());
                 Integer i1 = order.get(from);
                 Integer i2 = order.get(to);
                 if (i1 != null && i2 != null) {
@@ -180,6 +203,20 @@ public class DjControlJobRunner implements TaskSchedulerHandler {
             }
         }
         return result;
+    }
+
+    private String normalizeWeekToken(String token) {
+        String t = token.toUpperCase();
+        return switch (t) {
+            case "MONDAY" -> "MON";
+            case "TUESDAY" -> "TUE";
+            case "WEDNESDAY" -> "WED";
+            case "THURSDAY" -> "THU";
+            case "FRIDAY" -> "FRI";
+            case "SATURDAY" -> "SAT";
+            case "SUNDAY" -> "SUN";
+            default -> t;
+        };
     }
 
     private Map<String, Integer> weekdayOrder() {

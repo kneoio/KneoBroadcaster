@@ -10,4 +10,5 @@ public interface TaskSchedulerHandler {
     boolean supports(Schedulable entity, Task task);
     void schedule(Schedulable entity, Task task, ZoneId timeZone) throws SchedulerException;
     void removeFor(Schedulable entity) throws SchedulerException;
+    default void reconcile(Schedulable entity, Task task, ZoneId timeZone) throws SchedulerException {}
 }

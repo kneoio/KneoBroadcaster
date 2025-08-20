@@ -35,6 +35,7 @@ public class QuartzSchedulerService {
                 if (handler.supports(entity, task)) {
                     try {
                         handler.schedule(entity, task, tz);
+                        handler.reconcile(entity, task, tz);
                     } catch (SchedulerException e) {
                         LOGGER.error("Failed to schedule task for entity: {}", entity.getClass().getSimpleName(), e);
                     }

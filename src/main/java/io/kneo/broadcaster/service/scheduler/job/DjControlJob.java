@@ -47,11 +47,11 @@ public class DjControlJob implements Job {
         radioStationPool.getOnlineStationsSnapshot()
                 .stream()
                 .filter(station -> station.getSlugName().equals(stationSlugName))
-                .filter(station ->
+                /*/.filter(station ->
                         station.getStatus() == RadioStationStatus.ON_LINE ||
                         station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                         station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                        station.getStatus() == RadioStationStatus.WARMING_UP)
+                        station.getStatus() == RadioStationStatus.WARMING_UP)*/
                 .forEach(station -> {
                     station.setAiControlAllowed(true);
                     createMemoryEvent(stationSlugName, "The shift of the dj started");
@@ -76,8 +76,19 @@ public class DjControlJob implements Job {
     }
 
     private void sendDjWarning(String stationSlugName) {
-        createMemoryEvent(stationSlugName, "The shift of the dj ended");
-        LOGGER.info("Sent DJ shift ending warning for station: {}", stationSlugName);
+        radioStationPool.getOnlineStationsSnapshot()
+                .stream()
+                .filter(station -> station.getSlugName().equals(stationSlugName))
+                .filter(station ->
+                        station.getStatus() == RadioStationStatus.ON_LINE ||
+                        station.getStatus() == RadioStationStatus.WARMING_UP ||
+                        station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                        station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                        station.getStatus() == RadioStationStatus.IDLE)
+                .forEach(station -> {
+                    createMemoryEvent(stationSlugName, "The shift of the dj ended");
+                    LOGGER.info("Sent DJ shift ending warning for station: {}", stationSlugName);
+                });
     }
 
     private void createMemoryEvent(String stationSlugName, String message) {

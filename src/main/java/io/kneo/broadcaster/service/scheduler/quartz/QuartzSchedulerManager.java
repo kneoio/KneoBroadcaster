@@ -100,4 +100,21 @@ public class QuartzSchedulerManager {
         LOGGER.info("Refreshing all schedules");
         initializeSchedules();
     }
+
+    public void reconcileAll() {
+        repositoryRegistry.getRepositories().forEach(repository -> {
+            try {
+                repository.findActiveScheduled()
+                        .onItem().transformToMulti(Multi.createFrom()::iterable)
+                        .onItem().invoke(entity -> quartzSchedulerService.reconcileEntity((Schedulable) entity))
+                        .collect().asList()
+                        .subscribe().with(
+                                results -> LOGGER.debug("Reconciled {} entities from {}", results.size(), repository.getClass().getSimpleName()),
+                                throwable -> LOGGER.error("Failed to reconcile entities from repository: {}", repository.getClass().getSimpleName(), throwable)
+                        );
+            } catch (Exception e) {
+                LOGGER.error("Exception during reconciliation for repository: {}", repository.getClass().getSimpleName(), e);
+            }
+        });
+    }
 }

@@ -54,4 +54,24 @@ public class QuartzSchedulerService {
             }
         }
     }
+
+    public void reconcileEntity(Schedulable entity) {
+        Scheduler schedule = entity.getScheduler();
+        if (schedule == null || !schedule.isEnabled()) return;
+        List<Task> tasks = schedule.getTasks();
+        if (tasks == null || tasks.isEmpty()) return;
+        ZoneId tz = schedule.getTimeZone();
+        for (Task task : tasks) {
+            for (TaskSchedulerHandler handler : handlers) {
+                if (handler.supports(entity, task)) {
+                    try {
+                        handler.reconcile(entity, task, tz);
+                    } catch (SchedulerException e) {
+                        LOGGER.error("Failed to reconcile task for entity: {}", entity.getClass().getSimpleName(), e);
+                    }
+                    break;
+                }
+            }
+        }
+    }
 }

@@ -442,10 +442,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         }
     }
 
-    public Uni<List<SoundFragmentDTO>> search(String searchTerm, final int limit, final int offset, final IUser user) {
-        return search(searchTerm, limit, offset, user, null);
-    }
-
     public Uni<List<SoundFragmentDTO>> search(String searchTerm, final int limit, final int offset, final IUser user, final SoundFragmentFilterDTO filterDTO) {
         assert repository != null;
         SoundFragmentFilter filter = toFilter(filterDTO);
@@ -460,10 +456,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.join().all(unis).andFailFast();
                     }
                 });
-    }
-
-    public Uni<Integer> getSearchCount(String searchTerm, final IUser user) {
-        return getSearchCount(searchTerm, user, null);
     }
 
     public Uni<Integer> getSearchCount(String searchTerm, final IUser user, final SoundFragmentFilterDTO filterDTO) {

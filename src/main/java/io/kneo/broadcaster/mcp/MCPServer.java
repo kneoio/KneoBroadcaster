@@ -42,14 +42,14 @@ public class MCPServer extends AbstractVerticle {
             server = vertx.createHttpServer();
 
             // Add HTTP request handler to prevent null handler errors
-            server.requestHandler(request -> {
+            /*server.requestHandler(request -> {
                 LOGGER.debug("HTTP request received: {} {}", request.method(), request.path());
                 if (!request.headers().contains("Upgrade", "websocket", true)) {
                     request.response()
                             .setStatusCode(400)
                             .end("WebSocket connections only");
                 }
-            });
+            });*/
 
             server.webSocketHandler(webSocket -> {
                         LOGGER.info("WebSocket connection attempt: path={}, remote={}",

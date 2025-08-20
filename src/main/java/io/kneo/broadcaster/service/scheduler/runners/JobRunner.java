@@ -6,7 +6,7 @@ import org.quartz.SchedulerException;
 
 import java.time.ZoneId;
 
-public interface TaskSchedulerHandler {
+public interface JobRunner {
     boolean supports(Schedulable entity, Task task);
     void schedule(Schedulable entity, Task task, ZoneId timeZone) throws SchedulerException;
     void removeFor(Schedulable entity) throws SchedulerException;

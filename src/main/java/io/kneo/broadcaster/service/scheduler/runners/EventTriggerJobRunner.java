@@ -33,7 +33,7 @@ import static org.quartz.JobBuilder.newJob;
 import static org.quartz.TriggerBuilder.newTrigger;
 
 @ApplicationScoped
-public class EventTriggerJobRunner implements TaskSchedulerHandler {
+public class EventTriggerJobRunner implements JobRunner {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventTriggerJobRunner.class);
 
     @Inject

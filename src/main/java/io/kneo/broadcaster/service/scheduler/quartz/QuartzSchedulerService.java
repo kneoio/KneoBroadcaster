@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service.scheduler.quartz;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
-import io.kneo.broadcaster.service.scheduler.runners.TaskSchedulerHandler;
+import io.kneo.broadcaster.service.scheduler.runners.JobRunner;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
@@ -19,7 +19,7 @@ public class QuartzSchedulerService {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuartzSchedulerService.class);
 
     @Inject
-    Instance<TaskSchedulerHandler> handlers;
+    Instance<JobRunner> handlers;
 
     public void scheduleEntity(Schedulable entity) {
         Scheduler schedule = entity.getScheduler();
@@ -31,7 +31,7 @@ public class QuartzSchedulerService {
         if (tasks == null || tasks.isEmpty()) return;
         ZoneId tz = schedule.getTimeZone();
         for (Task task : tasks) {
-            for (TaskSchedulerHandler handler : handlers) {
+            for (JobRunner handler : handlers) {
                 if (handler.supports(entity, task)) {
                     try {
                         handler.schedule(entity, task, tz);
@@ -46,7 +46,7 @@ public class QuartzSchedulerService {
     }
 
     public void removeForEntity(Schedulable entity) {
-        for (TaskSchedulerHandler handler : handlers) {
+        for (JobRunner handler : handlers) {
             try {
                 handler.removeFor(entity);
             } catch (SchedulerException e) {
@@ -62,7 +62,7 @@ public class QuartzSchedulerService {
         if (tasks == null || tasks.isEmpty()) return;
         ZoneId tz = schedule.getTimeZone();
         for (Task task : tasks) {
-            for (TaskSchedulerHandler handler : handlers) {
+            for (JobRunner handler : handlers) {
                 if (handler.supports(entity, task)) {
                     try {
                         handler.reconcile(entity, task, tz);

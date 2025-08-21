@@ -11,7 +11,6 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
-import io.kneo.broadcaster.service.FileOperationLockService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.kneo.broadcaster.service.playlist.PlaylistHelper;
@@ -50,15 +49,13 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
-    private final FileOperationLockService lockService;
     private final PlaylistHelper playlistService;
     private final BroadcasterConfig config;
     private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService(FileOperationLockService lockService, BroadcasterConfig config) {
-        super(null);
-        this.lockService = lockService;
+    protected SoundFragmentService(UserService userService, BroadcasterConfig config) {
+        super(userService);
         this.localFileCleanupService = null;
         this.config = config;
         this.repository = null;
@@ -70,14 +67,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public SoundFragmentService(UserService userService,
                                 RadioStationService radioStationService,
                                 LocalFileCleanupService localFileCleanupService,
-                                FileOperationLockService lockService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
                                 PlaylistHelper playlistService,
                                 BroadcasterConfig config) {
         super(userService);
         this.localFileCleanupService = localFileCleanupService;
-        this.lockService = lockService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
@@ -560,8 +555,8 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     private Uni<SoundFragmentDTO> mapToDTO(SoundFragment doc, boolean exposeFileUrl, List<UUID> representedInBrands) {
         return Uni.combine().all().unis(
-                userRepository.getUserName(doc.getAuthor()),
-                userRepository.getUserName(doc.getLastModifier())
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
         ).asTuple().onItem().transform(tuple -> {
             String author = tuple.getItem1();
             String lastModifier = tuple.getItem2();

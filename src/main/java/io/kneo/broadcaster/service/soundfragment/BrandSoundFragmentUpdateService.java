@@ -1,7 +1,4 @@
-// 1. CREATE the BrandSoundFragmentUpdateService class
-// You need to create this entire class in: io.kneo.broadcaster.service.BrandSoundFragmentUpdateService
-
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.soundfragment;
 
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;

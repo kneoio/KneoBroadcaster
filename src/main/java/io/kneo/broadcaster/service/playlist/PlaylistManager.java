@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.radio;
+package io.kneo.broadcaster.service.playlist;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
@@ -6,7 +6,7 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
-import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.SuperUser;
@@ -71,7 +71,7 @@ public class PlaylistManager {
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 if (regularQueue.size() <= TRIGGER_SELF_MANAGING) {
-                    addFragments();
+                    feedFragments();
                 } else {
                     LOGGER.debug("Skipping fragment addition - ready queue is full ({} items)",
                             READY_QUEUE_MAX_SIZE);
@@ -82,7 +82,7 @@ public class PlaylistManager {
         }, 0, SELF_MANAGING_INTERVAL_SECONDS, TimeUnit.SECONDS);
     }
 
-    private void addFragments() {
+    private void feedFragments() {
         int remaining;
         readyFragmentsLock.readLock().lock();
         try {
@@ -137,7 +137,6 @@ public class PlaylistManager {
         try {
             List<FileMetadata> metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
             FileMetadata metadata = metadataList.get(0);
-            LOGGER.debug("Found pre-populated stream data. Slicing directly.");
             return this.addFragmentToSlice(brandSoundFragment, metadata, bitRate);
         } catch (Exception e) {
             LOGGER.warn("Skipping fragment due to metadata error, position 658: {}", e.getMessage());
@@ -145,7 +144,7 @@ public class PlaylistManager {
         }
     }
 
-    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, FileMetadata fileMetadata, long bitRate) {
+    private Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, FileMetadata fileMetadata, long bitRate) {
         return segmentationService.slice(brandSoundFragment.getSoundFragment(), fileMetadata.getTemporaryFilePath(), bitRate)
                 .onItem().transformToUni(segments -> {
                     if (segments.isEmpty()) {
@@ -232,7 +231,7 @@ public class PlaylistManager {
             }
 
             // Starvation case
-            addFragments();
+            feedFragments();
             return null;
 
         } finally {

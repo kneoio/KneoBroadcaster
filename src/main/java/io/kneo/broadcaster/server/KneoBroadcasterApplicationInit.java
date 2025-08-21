@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.server;
 
 import io.kneo.broadcaster.controller.*;
-import io.kneo.broadcaster.service.filemaintainance.FileMaintenanceService;
+import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
 import io.kneo.core.server.AbstractApplicationInit;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.ext.web.Router;

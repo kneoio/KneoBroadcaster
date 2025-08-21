@@ -150,31 +150,56 @@ public class RadioService {
     }
 
     public Uni<List<RadioStationStatusDTO>> getAllStations() {
-        return radioStationService.getAllDTO(10, 0, SuperUser.build())
+        return radioStationService.getAllDTO(5, 0, SuperUser.build())
                 .chain(stations -> {
                     if (stations.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     } else {
                         List<Uni<RadioStationStatusDTO>> statusUnis = stations.stream()
-                                .map(station -> Uni.createFrom().item(new RadioStationStatusDTO(
-                                        station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
-                                        station.getSlugName(),
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        station.getCountry(),
-                                        station.getColor(),
-                                        station.getDescription(),
-                                        animationService.generateRandomAnimation()
-                                )))
+                                .map(station -> {
+                                    // Check if station is online in the pool
+                                    return radioStationPool.get(station.getSlugName())
+                                            .chain(onlineStation -> {
+                                                if (onlineStation != null) {
+                                                    return toStatusDTO(onlineStation);
+                                                } else {
+                                                    return Uni.createFrom().item(new RadioStationStatusDTO(
+                                                            station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
+                                                            station.getSlugName(),
+                                                            null,
+                                                            null,
+                                                            null,
+                                                            null,
+                                                            RadioStationStatus.OFF_LINE.name(),
+                                                            station.getCountry(),
+                                                            station.getColor(),
+                                                            station.getDescription(),
+                                                            null
+                                                    ));
+                                                }
+                                            })
+                                            .onFailure().recoverWithItem(() ->
+                                                    // On failure, assume offline
+                                                    new RadioStationStatusDTO(
+                                                            station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
+                                                            station.getSlugName(),
+                                                            null,
+                                                            null,
+                                                            null,
+                                                            null,
+                                                            RadioStationStatus.OFF_LINE.name(),
+                                                            station.getCountry(),
+                                                            station.getColor(),
+                                                            station.getDescription(),
+                                                            null
+                                                    )
+                                            );
+                                })
                                 .collect(Collectors.toList());
                         return Uni.join().all(statusUnis).andFailFast();
                     }
                 });
     }
-
 
     public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation) {
         if (radioStation == null) {

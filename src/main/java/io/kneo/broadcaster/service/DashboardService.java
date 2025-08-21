@@ -6,7 +6,7 @@ import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.dto.dashboard.StatsDTO;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
-import io.kneo.broadcaster.service.filemaintainance.FileMaintenanceService;
+import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
 import io.kneo.broadcaster.service.scheduler.SchedulerDataService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;

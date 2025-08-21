@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.soundfragment;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
@@ -11,7 +11,9 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
-import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
+import io.kneo.broadcaster.service.FileOperationLockService;
+import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.kneo.broadcaster.service.playlist.PlaylistHelper;
 import io.kneo.broadcaster.service.playlist.PlaylistTracker;
 import io.kneo.broadcaster.util.BrandActivityLogger;
@@ -21,7 +23,6 @@ import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.UserRepository;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -49,16 +50,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
-    private final TransactionCoordinatorService transactionCoordinator;
     private final FileOperationLockService lockService;
     private final PlaylistHelper playlistService;
     private final BroadcasterConfig config;
     private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService(TransactionCoordinatorService transactionCoordinator, FileOperationLockService lockService, BroadcasterConfig config) {
+    protected SoundFragmentService(FileOperationLockService lockService, BroadcasterConfig config) {
         super(null);
-        this.transactionCoordinator = transactionCoordinator;
         this.lockService = lockService;
         this.localFileCleanupService = null;
         this.config = config;
@@ -68,23 +67,20 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     @Inject
-    public SoundFragmentService(UserRepository userRepository,
-                                UserService userService,
+    public SoundFragmentService(UserService userService,
                                 RadioStationService radioStationService,
                                 LocalFileCleanupService localFileCleanupService,
                                 FileOperationLockService lockService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
-                                TransactionCoordinatorService transactionCoordinator,
                                 PlaylistHelper playlistService,
                                 BroadcasterConfig config) {
-        super(userRepository, userService);
+        super(userService);
         this.localFileCleanupService = localFileCleanupService;
         this.lockService = lockService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
-        this.transactionCoordinator = transactionCoordinator;
         this.playlistService = playlistService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.config = config;

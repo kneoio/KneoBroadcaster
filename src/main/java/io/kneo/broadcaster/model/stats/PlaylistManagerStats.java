@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.stats;
 
-import io.kneo.broadcaster.service.radio.PlaylistManager;
+import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import lombok.Builder;
 import lombok.Getter;
 

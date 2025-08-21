@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.radio;
+package io.kneo.broadcaster.service.maintenance;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;

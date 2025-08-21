@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.filemaintainance;
+package io.kneo.broadcaster.service.maintenance;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.quarkus.runtime.StartupEvent;

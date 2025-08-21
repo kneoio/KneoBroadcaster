@@ -4,7 +4,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.AccessType;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.service.external.digitalocean.DigitalOceanSpacesService;
-import io.kneo.broadcaster.service.filemaintainance.LocalFileCleanupService;
+import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.file.FileSystem;

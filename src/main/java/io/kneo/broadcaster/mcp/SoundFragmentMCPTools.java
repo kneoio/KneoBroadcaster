@@ -5,9 +5,11 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.mcp.MCPBrandResponse;
 import io.kneo.broadcaster.dto.mcp.MCPSSoundFragmentResponse;
+import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.UserService;
@@ -20,8 +22,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -228,15 +230,16 @@ public class SoundFragmentMCPTools {
         return Uni.createFrom().item(io.kneo.core.model.user.SuperUser.build());
     }
 
-    private BrandSoundFragmentDTO mapToBrandSoundFragmentDTO(io.kneo.broadcaster.model.BrandSoundFragment brandSoundFragment) {
+    private BrandSoundFragmentDTO mapToBrandSoundFragmentDTO(BrandSoundFragment brandSoundFragment) {
         BrandSoundFragmentDTO dto = new BrandSoundFragmentDTO();
+        dto.setId(brandSoundFragment.getId());
         dto.setSoundFragmentDTO(mapSoundFragmentToDTO(brandSoundFragment.getSoundFragment()));
         dto.setPlayedByBrandCount(brandSoundFragment.getPlayedByBrandCount());
         dto.setLastTimePlayedByBrand(brandSoundFragment.getPlayedTime());
         return dto;
     }
 
-    private SoundFragmentDTO mapSoundFragmentToDTO(io.kneo.broadcaster.model.SoundFragment soundFragment) {
+    private SoundFragmentDTO mapSoundFragmentToDTO(SoundFragment soundFragment) {
         return SoundFragmentDTO.builder()
                 .id(soundFragment.getId())
                 .status(soundFragment.getStatus())

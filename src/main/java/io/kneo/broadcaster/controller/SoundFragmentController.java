@@ -11,7 +11,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.service.FileDownloadService;
 import io.kneo.broadcaster.service.FileUploadService;
-import io.kneo.broadcaster.service.SoundFragmentService;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.InputStreamReadStream;

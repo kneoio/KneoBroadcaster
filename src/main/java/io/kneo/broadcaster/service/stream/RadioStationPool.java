@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
 import io.smallrye.mutiny.Uni;
@@ -50,6 +51,9 @@ public class RadioStationPool {
 
     @Inject
     BrandSoundFragmentUpdateService updateService;
+
+    @Inject
+    MemoryService memoryService;
 
     public Uni<RadioStation> initializeStation(String brandName) {
         LOGGER.info("Attempting to initialize station for brand: {}", brandName);
@@ -183,6 +187,14 @@ public class RadioStationPool {
                 radioStation.getPlaylist().shutdown();
             }
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
+
+            LOGGER.info("Resetting memory for station: {}", brandName);
+            memoryService.deleteByBrand(brandName)
+                    .subscribe().with(
+                            deletedCount -> LOGGER.info("Successfully deleted {} memory entries for station {}", deletedCount, brandName),
+                            failure -> LOGGER.error("Failed to reset memory for station {}: {}", brandName, failure.getMessage(), failure)
+                    );
+
             return Uni.createFrom().item(radioStation);
         } else {
             LOGGER.warn("Station {} not found in pool during stopAndRemove.", brandName);

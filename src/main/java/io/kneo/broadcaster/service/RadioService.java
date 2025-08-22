@@ -157,10 +157,18 @@ public class RadioService {
                     } else {
                         List<Uni<RadioStationStatusDTO>> statusUnis = stations.stream()
                                 .map(station -> {
-                                    // Check if station is online in the pool
                                     return radioStationPool.get(station.getSlugName())
                                             .chain(onlineStation -> {
+                                                //TODO fix the workaround
+                                                String description = station.getDescription();
                                                 if (onlineStation != null) {
+                                                    if (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
+                                                            onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                                                            onlineStation.getStatus() == RadioStationStatus.IDLE ||
+                                                            onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR
+                                                    ){
+                                                        onlineStation.setStatus(RadioStationStatus.ON_LINE);
+                                                    }
                                                     return toStatusDTO(onlineStation);
                                                 } else {
                                                     return Uni.createFrom().item(new RadioStationStatusDTO(
@@ -173,27 +181,12 @@ public class RadioService {
                                                             RadioStationStatus.OFF_LINE.name(),
                                                             station.getCountry(),
                                                             station.getColor(),
-                                                            station.getDescription(),
+                                                            description,
                                                             null
                                                     ));
                                                 }
                                             })
-                                            .onFailure().recoverWithItem(() ->
-                                                    // On failure, assume offline
-                                                    new RadioStationStatusDTO(
-                                                            station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
-                                                            station.getSlugName(),
-                                                            null,
-                                                            null,
-                                                            null,
-                                                            null,
-                                                            RadioStationStatus.OFF_LINE.name(),
-                                                            station.getCountry(),
-                                                            station.getColor(),
-                                                            station.getDescription(),
-                                                            null
-                                                    )
-                                            );
+                                            .onFailure().recoverWithItem(RadioStationStatusDTO::new);
                                 })
                                 .collect(Collectors.toList());
                         return Uni.join().all(statusUnis).andFailFast();
@@ -228,7 +221,7 @@ public class RadioService {
                             currentStatus,
                             stationCountryCode,
                             radioStation.getColor(),
-                            "",
+                            radioStation.getDescription(),
                             animationService.generateRandomAnimation()
                     ))
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
@@ -241,7 +234,7 @@ public class RadioService {
                             currentStatus,
                             stationCountryCode,
                             radioStation.getColor(),
-                            "",
+                            radioStation.getDescription(),
                             animationService.generateRandomAnimation()
                     ));
         }

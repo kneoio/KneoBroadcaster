@@ -192,7 +192,7 @@ public class PlaylistManager {
                 return nextFragment;
             }
 
-            if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
+            if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
                 long now = System.currentTimeMillis();
                 boolean cooldownElapsed = lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS;
                 if (cooldownElapsed) {

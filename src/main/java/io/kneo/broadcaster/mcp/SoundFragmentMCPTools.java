@@ -4,7 +4,6 @@ import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.mcp.MCPBrandResponse;
-import io.kneo.broadcaster.dto.mcp.MCPSSoundFragmentResponse;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -88,72 +87,6 @@ public class SoundFragmentMCPTools {
                             "Failed to get fragments: %s", failure.getMessage());
                 })
                 .convert().toCompletableFuture();
-    }
-
-    @Tool("search_sound_fragments")
-    @Description("Search sound fragments by query term with optional filtering")
-    public CompletableFuture<MCPSSoundFragmentResponse> searchSoundFragments(
-            @Parameter("query") String searchTerm,
-            @Parameter("page") Integer page,
-            @Parameter("size") Integer size,
-            @Parameter("genres") String genres,
-            @Parameter("sources") String sources,
-            @Parameter("types") String types
-    ) {
-        try {
-            int logPageNum = Objects.requireNonNullElse(page, 1);
-            int logPageSize = Objects.requireNonNullElse(size, 10);
-
-            LOGGER.info("MCP Tool: searchSoundFragments called with query='{}', page={}, size={}",
-                    searchTerm, logPageNum, logPageSize);
-
-            int pageNum = Objects.requireNonNullElse(page, 1);
-            int pageSize = Objects.requireNonNullElse(size, 10);
-
-            if (searchTerm == null || searchTerm.trim().isEmpty()) {
-                LOGGER.error("MCP Tool: Empty search term provided");
-                return CompletableFuture.failedFuture(
-                        new IllegalArgumentException("Search term 'query' parameter is required and cannot be empty")
-                );
-            }
-
-            SoundFragmentFilterDTO filter = parseFilters(genres, sources, types);
-
-            String filterDesc;
-            if (filter != null) {
-                filterDesc = "with filters";
-            } else {
-                filterDesc = "without filters";
-            }
-
-            return getCurrentUser()
-                    .chain(user -> {
-                        LOGGER.info("MCP Tool: Got user context: {} {}", user.getClass().getSimpleName(), filterDesc);
-                        int offset = (pageNum - 1) * pageSize;
-
-                        return Uni.combine().all().unis(
-                                service.getSearchCount(searchTerm, user, filter),
-                                service.search(searchTerm, pageSize, offset, user, filter)
-                        ).asTuple();
-                    })
-                    .map(tuple -> {
-                        long totalCount = tuple.getItem1();
-                        List<SoundFragmentDTO> fragments = tuple.getItem2();
-                        int maxPage = RuntimeUtil.countMaxPage(totalCount, pageSize);
-
-                        LOGGER.info("MCP Tool: Search completed {}. Found {} fragments, total count: {}",
-                                filterDesc, fragments.size(), totalCount);
-
-                        return new MCPSSoundFragmentResponse(fragments, totalCount, pageNum, maxPage);
-                    })
-                    .onFailure().invoke(throwable -> {
-                        LOGGER.error("MCP Tool: Search failed", throwable);
-                    })
-                    .convert().toCompletableFuture();
-        } catch (Exception e) {
-            LOGGER.error("MCP Tool: Exception in searchSoundFragments", e);
-            return CompletableFuture.failedFuture(e);
-        }
     }
 
     private SoundFragmentFilterDTO parseFilters(String genres, String sources, String types) {

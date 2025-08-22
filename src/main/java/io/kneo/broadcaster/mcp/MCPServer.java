@@ -40,22 +40,10 @@ public class MCPServer extends AbstractVerticle {
     public void start(Promise<Void> startPromise) {
         try {
             server = vertx.createHttpServer();
-
-            // Add HTTP request handler to prevent null handler errors
-            /*server.requestHandler(request -> {
-                LOGGER.debug("HTTP request received: {} {}", request.method(), request.path());
-                if (!request.headers().contains("Upgrade", "websocket", true)) {
-                    request.response()
-                            .setStatusCode(400)
-                            .end("WebSocket connections only");
-                }
-            });*/
-
             server.webSocketHandler(webSocket -> {
                         LOGGER.info("WebSocket connection attempt: path={}, remote={}",
                                 webSocket.path(), webSocket.remoteAddress());
 
-                        // Accept all WebSocket connections for MCP
                         handleWebSocket(webSocket);
                     })
                     .listen(mcpConfig.getServerPort(), mcpConfig.getServerHost())
@@ -169,10 +157,8 @@ public class MCPServer extends AbstractVerticle {
 
         ArrayNode tools = objectMapper.createArrayNode();
         tools.add(createBrandSoundFragmentsTool());
-        tools.add(createSearchSoundFragmentsTool());
         tools.add(createMemoryTool());
         tools.add(createAddToQueueTool());
-        tools.add(createGetQueueTool());
 
         ObjectNode result = objectMapper.createObjectNode();
         result.set("tools", tools);
@@ -200,31 +186,6 @@ public class MCPServer extends AbstractVerticle {
         schema.set("properties", props);
         ArrayNode required = objectMapper.createArrayNode();
         required.add("brand");
-        schema.set("required", required);
-        tool.set("inputSchema", schema);
-
-        return tool;
-    }
-
-    private ObjectNode createSearchSoundFragmentsTool() {
-        ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "search_sound_fragments");
-        tool.put("description", "Search sound fragments by query term with optional filtering");
-
-        ObjectNode schema = objectMapper.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = objectMapper.createObjectNode();
-
-        addStringProperty(props, "query", "Search term to find matching sound fragments");
-        addIntegerProperty(props, "page", "Page number for pagination (1-based)", 1);
-        addIntegerProperty(props, "size", "Number of items per page", 10);
-        addStringProperty(props, "genres", "Comma-separated list of genres (e.g., 'rock,pop,jazz')");
-        addStringProperty(props, "sources", "Comma-separated list of source types (e.g., 'USERS_UPLOAD,EXTERNAL')");
-        addStringProperty(props, "types", "Comma-separated list of playlist item types (e.g., 'MUSIC,JINGLE')");
-
-        schema.set("properties", props);
-        ArrayNode required = objectMapper.createArrayNode();
-        required.add("query");
         schema.set("required", required);
         tool.set("inputSchema", schema);
 
@@ -297,26 +258,6 @@ public class MCPServer extends AbstractVerticle {
         return tool;
     }
 
-    private ObjectNode createGetQueueTool() {
-        ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_queue");
-        tool.put("description", "Get the current queue for a specific brand");
-
-        ObjectNode schema = objectMapper.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = objectMapper.createObjectNode();
-
-        addStringProperty(props, "brand", "Brand name to get queue for");
-
-        schema.set("properties", props);
-        ArrayNode required = objectMapper.createArrayNode();
-        required.add("brand");
-        schema.set("required", required);
-        tool.set("inputSchema", schema);
-
-        return tool;
-    }
-
     private void addStringProperty(ObjectNode props, String name, String description) {
         ObjectNode prop = objectMapper.createObjectNode();
         prop.put("type", "string");
@@ -345,11 +286,6 @@ public class MCPServer extends AbstractVerticle {
                 case "get_brand_sound_fragments":
                     future = handleBrandSoundFragmentsCall(arguments);
                     break;
-
-                case "search_sound_fragments":
-                    future = handleSearchSoundFragmentsCall(arguments);
-                    break;
-
                 case "get_memory_by_type":
                     future = handleMemoryCall(arguments);
                     break;
@@ -358,9 +294,6 @@ public class MCPServer extends AbstractVerticle {
                     future = handleAddToQueueCall(arguments);
                     break;
 
-                case "get_queue":
-                    future = handleGetQueueCall(arguments);
-                    break;
 
                 default:
                     sendError(webSocket, "tool_not_found", "Tool not found: " + toolName, id);
@@ -392,18 +325,6 @@ public class MCPServer extends AbstractVerticle {
 
         return soundFragmentMCPTools.getBrandSoundFragments(brand, page, size, genres, sources, types)
                 .thenApply(result -> (Object) result);
-    }
-
-    private CompletableFuture<Object> handleSearchSoundFragmentsCall(JsonNode arguments) {
-        String query = arguments.get("query").asText();
-        Integer page = getNullableInt(arguments, "page");
-        Integer size = getNullableInt(arguments, "size");
-        String genres = getNullableString(arguments, "genres");
-        String sources = getNullableString(arguments, "sources");
-        String types = getNullableString(arguments, "types");
-
-        return soundFragmentMCPTools.searchSoundFragments(query, page, size, genres, sources, types)
-                .thenApply(result -> result);
     }
 
     private CompletableFuture<Object> handleMemoryCall(JsonNode arguments) {
@@ -438,12 +359,6 @@ public class MCPServer extends AbstractVerticle {
         Integer priority = arguments.has("priority") ? arguments.get("priority").asInt() : null;
 
         return queueMCPTools.addToQueue(brand, songId, filePath, priority)
-                .thenApply(result -> (Object) result);
-    }
-
-    private CompletableFuture<Object> handleGetQueueCall(JsonNode arguments) {
-        String brand = arguments.get("brand").asText();
-        return queueMCPTools.getQueue(brand)
                 .thenApply(result -> (Object) result);
     }
 

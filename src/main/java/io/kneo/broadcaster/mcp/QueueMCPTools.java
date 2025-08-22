@@ -75,38 +75,6 @@ public class QueueMCPTools {
                 .convert().toCompletableFuture();
     }
 
-    @Tool("get_queue")
-    @Description("Get the current queue for a specific brand")
-    public CompletableFuture<JsonObject> getQueue(
-            @Parameter("brand") String brandName
-    ) {
-        BrandActivityLogger.logActivity(brandName, "queue_get",
-                "Fetching queue for brand");
-
-        return getCurrentUser()
-                .chain(user -> {
-                    LOGGER.info("MCP Tool: Got user context: {}", user.getClass().getSimpleName());
-                    return service.getQueueForBrand(brandName);
-                })
-                .map(items -> {
-                    JsonObject response = new JsonObject()
-                            .put("brand", brandName)
-                            .put("queue", items)
-                            .put("count", items.size());
-
-                    BrandActivityLogger.logActivity(brandName, "queue_get_success",
-                            "Retrieved %d items from queue", items.size());
-                    LOGGER.info("MCP Tool: Queue retrieval completed for brand: {}", brandName);
-                    return response;
-                })
-                .onFailure().invoke(failure -> {
-                    BrandActivityLogger.logActivity(brandName, "queue_get_error",
-                            "Failed to get queue: %s", failure.getMessage());
-                    LOGGER.error("MCP Tool: Queue retrieval failed", failure);
-                })
-                .convert().toCompletableFuture();
-    }
-
     private Uni<IUser> getCurrentUser() {
         return Uni.createFrom().item(io.kneo.core.model.user.SuperUser.build());
     }

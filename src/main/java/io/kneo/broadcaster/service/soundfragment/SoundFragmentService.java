@@ -172,18 +172,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
     }
 
-    public Uni<List<BrandSoundFragment>> getSongsForBrandPlaylist(String brandName, int quantity,  IUser user, SoundFragmentFilterDTO filterDTO) {
+    public Uni<List<BrandSoundFragment>> getSongsForBrandPlaylist(String brandName, int quantity, IUser user, SoundFragmentFilterDTO filterDTO) {
         assert repository != null;
         assert radioStationService != null;
 
         SoundFragmentFilter filter = toFilter(filterDTO);
         String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
 
-        PlaylistTracker tracker = playlistService.getTracker(brandName);
-
         BrandActivityLogger.logActivity(brandName, "fragments_request_to_play",
-                "Requesting %d fragments, user: %s, filter: %s, already played: %d",
-                quantity, user.getUserName(), filterStatus, tracker.getPlayedCount());
+                "Requesting %d fragments, user: %s, filter: %s",
+                quantity, user.getUserName(), filterStatus);
 
         return radioStationService.findByBrandName(brandName)
                 .onItem().transformToUni(radioStation -> {
@@ -193,8 +191,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-
-                    // Get more fragments than requested to filter out already played ones
                     int fetchQuantity = Math.max(quantity * 3, quantity + 50);
 
                     BrandActivityLogger.logActivity(brandName, "fetching_fragments",
@@ -202,37 +198,50 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
                     return repository.findNextSongsForBrand(brandId, filter)
                             .chain(fragments -> {
-                                BrandActivityLogger.logActivity(brandName, "fragments_retrieved",
-                                        "Retrieved %d fragments", fragments.size());
+                                // CRITICAL SECTION: Synchronize
+                                PlaylistTracker tracker = playlistService.getTracker(brandName);
 
-                                // Check if tracker needs reset
-                                if (playlistService.shouldResetTracker(brandName, fragments.size())) {
-                                    playlistService.resetTracker(brandName);
-                                }
+                                synchronized (tracker) {
+                                    BrandActivityLogger.logActivity(brandName, "fragments_retrieved",
+                                            "Retrieved %d fragments, already played: %d",
+                                            fragments.size(), tracker.getPlayedCount());
 
-                                // Filter out already played songs
-                                List<BrandSoundFragment> unplayedFragments = fragments.stream()
-                                        .filter(fragment -> !tracker.hasPlayed(fragment.getSoundFragment().getId()))
-                                        .collect(Collectors.toList());
+                                    if (playlistService.shouldResetTracker(brandName, fragments.size())) {
+                                        BrandActivityLogger.logActivity(brandName, "tracker_reset",
+                                                "Resetting tracker - all songs can be played again");
+                                        playlistService.resetTracker(brandName);
+                                    }
 
-                                BrandActivityLogger.logActivity(brandName, "unplayed_fragments",
-                                        "Found %d unplayed fragments out of %d total",
-                                        unplayedFragments.size(), fragments.size());
+                                    List<BrandSoundFragment> unplayedFragments = fragments.stream()
+                                            .filter(fragment -> !tracker.hasPlayed(fragment.getSoundFragment().getId()))
+                                            .collect(Collectors.toList());
 
-                                List<BrandSoundFragment> selectedFragments = selectFragments(
-                                        unplayedFragments, fragments, quantity, tracker, brandName);
+                                    BrandActivityLogger.logActivity(brandName, "unplayed_fragments",
+                                            "Found %d unplayed fragments out of %d total",
+                                            unplayedFragments.size(), fragments.size());
 
-                                // Mark selected songs as played
-                                selectedFragments.forEach(fragment ->
-                                        tracker.markAsPlayed(fragment.getSoundFragment().getId()));
+                                    List<BrandSoundFragment> selectedFragments = selectFragments(
+                                            unplayedFragments, fragments, quantity, tracker, brandName);
 
-                                shuffleFragments(selectedFragments, brandName);
+                                    selectedFragments.forEach(fragment -> {
+                                        UUID fragmentId = fragment.getSoundFragment().getId();
+                                        tracker.markAsPlayed(fragmentId);
+                                        BrandActivityLogger.logActivity(brandName, "song_marked_played",
+                                                "Marked song as played: %s - %s (ID: %s)",
+                                                fragment.getSoundFragment().getArtist(),
+                                                fragment.getSoundFragment().getTitle(),
+                                                fragmentId);
+                                    });
 
-                                BrandActivityLogger.logActivity(brandName, "final_playlist",
-                                        "Returning %d unique fragments, total played count now: %d",
-                                        selectedFragments.size(), tracker.getPlayedCount());
+                                    // Shuffle after marking (outside critical path)
+                                    shuffleFragments(selectedFragments, brandName);
 
-                                return Uni.createFrom().item(selectedFragments);
+                                    BrandActivityLogger.logActivity(brandName, "final_playlist",
+                                            "Returning %d unique fragments, total played count now: %d",
+                                            selectedFragments.size(), tracker.getPlayedCount());
+
+                                    return Uni.createFrom().item(selectedFragments);
+                                } // End synchronized block
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {

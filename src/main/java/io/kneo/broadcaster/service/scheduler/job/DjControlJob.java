@@ -43,53 +43,56 @@ public class DjControlJob implements Job {
         }
     }
 
-    private void startDjControl(String stationSlugName, String target) {
+    private void startDjControl(String brand, String target) {
         radioStationPool.getOnlineStationsSnapshot()
                 .stream()
-                .filter(station -> station.getSlugName().equals(stationSlugName))
+                .filter(station -> station.getSlugName().equals(brand))
                 .filter(station -> !station.isAiControlAllowed())
-                /*/.filter(station ->
-                        station.getStatus() == RadioStationStatus.ON_LINE ||
-                        station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                        station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                        station.getStatus() == RadioStationStatus.WARMING_UP)*/
                 .forEach(station -> {
                     station.setAiControlAllowed(true);
-                    createMemoryEvent(stationSlugName, "The shift of the dj started");
-                    LOGGER.info("Started DJ control for station: {} with target: {}", stationSlugName, target);
+                    createMemoryEvent(brand, "The shift of the dj started");
+                    LOGGER.info("Started DJ control for station: {} with target: {}", brand, target);
                 });
     }
 
-    private void stopDjControl(String stationSlugName) {
+    private void stopDjControl(String brand) {
         radioStationPool.getOnlineStationsSnapshot()
                 .stream()
-                .filter(station -> station.getSlugName().equals(stationSlugName))
+                .filter(station -> station.getSlugName().equals(brand))
                 .filter(station ->
                         station.getStatus() == RadioStationStatus.ON_LINE ||
-                        station.getStatus() == RadioStationStatus.WARMING_UP ||
-                        station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                        station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                        station.getStatus() == RadioStationStatus.IDLE)
+                                station.getStatus() == RadioStationStatus.WARMING_UP ||
+                                station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                                station.getStatus() == RadioStationStatus.IDLE)
                 .filter(station -> station.isAiControlAllowed())
                 .forEach(station -> {
                     station.setAiControlAllowed(false);
-                    LOGGER.info("Stopped DJ control for station: {}", stationSlugName);
+                    LOGGER.info("Stopped DJ control for station: {}", brand);
                 });
     }
 
-    private void sendDjWarning(String stationSlugName) {
+    private void sendDjWarning(String brand) {
         radioStationPool.getOnlineStationsSnapshot()
                 .stream()
-                .filter(station -> station.getSlugName().equals(stationSlugName))
+                .filter(station -> station.getSlugName().equals(brand))
                 .filter(station ->
                         station.getStatus() == RadioStationStatus.ON_LINE ||
-                        station.getStatus() == RadioStationStatus.WARMING_UP ||
-                        station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                        station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                        station.getStatus() == RadioStationStatus.IDLE)
+                                station.getStatus() == RadioStationStatus.WARMING_UP ||
+                                station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                                station.getStatus() == RadioStationStatus.IDLE)
                 .forEach(station -> {
-                    createMemoryEvent(stationSlugName, "The shift of the dj ended");
-                    LOGGER.info("Sent DJ shift ending warning for station: {}", stationSlugName);
+                    memoryService.resetMemory(brand, MemoryType.EVENT)
+                            .subscribe().with(
+                                    deletedCount -> {
+                                        LOGGER.debug("Deleted {} existing events for station: {}", deletedCount, brand);
+                                        createMemoryEvent(brand, "The shift of the dj ended");
+                                    },
+                                    failure -> LOGGER.error("Failed to delete existing events for station: {}", brand, failure)
+                            );
+
+                    LOGGER.info("Sent DJ shift ending warning for station: {}", brand);
                 });
     }
 

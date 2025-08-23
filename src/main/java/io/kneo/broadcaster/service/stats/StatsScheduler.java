@@ -34,7 +34,7 @@ public class StatsScheduler {
         }
     }
 
-    @Scheduled(every = "5m", identity = "stats-flush")
+    @Scheduled(every = "3m", identity = "stats-flush")
     public Uni<Void> scheduledFlush() {
         long pendingCount = statsAccumulator.getTotalPendingAccesses();
 

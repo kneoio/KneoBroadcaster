@@ -12,6 +12,8 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.AudioMergerService;
+import io.kneo.broadcaster.service.manipulation.AudioMixerService;
+import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.model.user.SuperUser;
@@ -42,6 +44,9 @@ public class QueueService {
 
     @Inject
     private SoundFragmentService soundFragmentService;
+
+    @Inject
+    AudioMixerService audioMixer;
 
     public Uni<List<SoundFragmentDTO>> getQueueForBrand(String brandName) {
         return getRadioStation(brandName)
@@ -140,9 +145,26 @@ public class QueueService {
                         return Uni.createFrom().item(false);
                     }
 
+                    // Get PlaylistManager early
+                    PlaylistManager playlistManager = radioStation.getPlaylist().getPlaylistManager();
+
                     return soundFragmentService.getById(soundFragmentId, SuperUser.build())
                             .chain(soundFragment -> repository.getFirstFile(soundFragment.getId())
                                     .chain(songMetadata -> {
+                                        // Check prioritizedQueue size and remove last if > 2
+                                        if (playlistManager.getPrioritizedQueue().size() > 2) {
+                                            BrandSoundFragment removedFragment  = playlistManager.getPrioritizedQueue().getLast();
+                                            //BrandSoundFragment removedFragment = playlistManager.getPrioritizedQueue().removeLast();
+                                            //removedFragment.getSoundFragment().getFileMetadataList().get(0).materializeFileStream();
+                                            LOGGER.info("Removed last fragment from prioritizedQueue: {}", removedFragment.getSoundFragment().getTitle());
+                                           /* AudioMixerService.MixResult complete = audioMixer.createOutroIntroThenAdd(
+                                                    "/path/to/main.wav",
+                                                    "/path/to/intro.wav",
+                                                    "/path/to/third_song.wav",
+                                                    "/path/to/final_output.wav"
+                                            );*/
+                                        }
+
                                         if (ttsFilePaths != null && !ttsFilePaths.isEmpty()) {
                                             String fileName = Path.of(ttsFilePaths.get(0)).getFileName().toString();
                                             String dashPrefix;
@@ -169,8 +191,7 @@ public class QueueService {
                                                         brandSoundFragment.setSoundFragment(soundFragment);
                                                         brandSoundFragment.setQueueNum(10);
 
-                                                        return radioStation.getPlaylist().getPlaylistManager()
-                                                                .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
+                                                        return playlistManager.addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                                 .onItem().invoke(result -> {
                                                                     if (result) {
                                                                         LOGGER.info("Added merged song to queue for brand {}: {}", brandName, soundFragment.getTitle());
@@ -185,8 +206,7 @@ public class QueueService {
                                             brandSoundFragment.setSoundFragment(soundFragment);
                                             brandSoundFragment.setQueueNum(10);
 
-                                            return radioStation.getPlaylist().getPlaylistManager()
-                                                    .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
+                                            return playlistManager.addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                     .onItem().invoke(result -> {
                                                         if (result) {
                                                             LOGGER.info("Added song to queue for brand {}: {}", brandName, soundFragment.getTitle());

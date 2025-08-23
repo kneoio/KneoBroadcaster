@@ -53,7 +53,7 @@ public class StreamManager implements IStreamManager {
     private RadioStation radioStation;
     @Getter
     private PlaylistManager playlistManager;
-    private BroadcasterConfig broadcasterConfig;
+    private final BroadcasterConfig broadcasterConfig;
     @Getter
     private final HlsPlaylistConfig config;
     @Getter

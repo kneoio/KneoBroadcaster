@@ -8,10 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.Map;
-import java.util.HashMap;
 
 @ApplicationScoped
 public class StatsAccumulator {
@@ -134,9 +134,6 @@ public class StatsAccumulator {
                 );
     }
 
-    /**
-     * Gets the current size of pending stats (for monitoring)
-     */
     public int getPendingStatsCount() {
         return accessCounts.size();
     }
@@ -150,22 +147,8 @@ public class StatsAccumulator {
                 .sum();
     }
 
-    /**
-     * Simple data class to hold accumulated stats
-     */
-    public static class StationStats {
-        private final long accessCount;
-        private final String lastUserAgent;
-        private final OffsetDateTime lastAccessTime;
 
-        public StationStats(long accessCount, String lastUserAgent, OffsetDateTime lastAccessTime) {
-            this.accessCount = accessCount;
-            this.lastUserAgent = lastUserAgent;
-            this.lastAccessTime = lastAccessTime;
-        }
+    public record StationStats(long accessCount, String lastUserAgent, OffsetDateTime lastAccessTime) {
 
-        public long getAccessCount() { return accessCount; }
-        public String getLastUserAgent() { return lastUserAgent; }
-        public OffsetDateTime getLastAccessTime() { return lastAccessTime; }
     }
 }

@@ -35,6 +35,12 @@ public class PlaylistManager {
     private static final int BACKPRESSURE_ON = 2;
     private static final long BACKPRESSURE_COOLDOWN_MILLIS = 60_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
+
+    // Circuit breaker configuration
+    private static final int CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;
+    private static final long CIRCUIT_BREAKER_TIMEOUT_MS = 30_000L; // 30 seconds
+    private static final long CIRCUIT_BREAKER_RETRY_DELAY_MS = 60_000L; // 1 minute
+
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
 
@@ -57,6 +63,11 @@ public class PlaylistManager {
     private final String tempBaseDir;
     private Long lastPrioritizedDrainAt;
     private boolean playedRegularSinceDrain;
+
+    // Circuit breaker state
+    private int consecutiveFailures = 0;
+    private long circuitBreakerOpenedAt = 0;
+    private boolean circuitBreakerOpen = false;
 
     public PlaylistManager(BroadcasterConfig broadcasterConfig, IStreamManager playlist) {
         this.soundFragmentService = playlist.getSoundFragmentService();
@@ -83,6 +94,13 @@ public class PlaylistManager {
     }
 
     private void feedFragments() {
+        // Check circuit breaker state first
+        if (isCircuitBreakerOpen()) {
+            LOGGER.warn("Circuit breaker is OPEN for brand {}. Skipping fragment processing.", brand);
+            radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+            return;
+        }
+
         int remaining;
         readyFragmentsLock.readLock().lock();
         try {
@@ -125,12 +143,118 @@ public class PlaylistManager {
                 })
                 .collect().asList()
                 .subscribe().with(
-                        processedItems -> LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand),
+                        processedItems -> {
+                            LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand);
+                            // Reset circuit breaker on success
+                            resetCircuitBreaker();
+                        },
                         error -> {
                             LOGGER.error("Error during the processing of fragments for brand {}: {}", brand, error.getMessage(), error);
-                            radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+
+                            // Handle specific S3 connection pool errors
+                            if (isS3ConnectionError(error)) {
+                                handleS3ConnectionError(error);
+                            } else {
+                                radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                            }
                         }
                 );
+    }
+
+    private boolean isS3ConnectionError(Throwable error) {
+        if (error == null) return false;
+
+        String errorMessage = error.getMessage();
+        if (errorMessage != null) {
+            return errorMessage.contains("Timeout waiting for connection from pool") ||
+                    errorMessage.contains("ConnectionPoolTimeoutException") ||
+                    errorMessage.contains("Unable to execute HTTP request");
+        }
+
+        // Check cause chain
+        Throwable cause = error.getCause();
+        while (cause != null) {
+            if (cause.getClass().getSimpleName().contains("ConnectionPoolTimeoutException") ||
+                    cause.getClass().getSimpleName().contains("SdkClientException")) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+
+        return false;
+    }
+
+    private void handleS3ConnectionError(Throwable error) {
+        consecutiveFailures++;
+        LOGGER.warn("S3 connection error detected for brand {} (failure #{}/{}): {}",
+                brand, consecutiveFailures, CIRCUIT_BREAKER_FAILURE_THRESHOLD, error.getMessage());
+
+        if (consecutiveFailures >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
+            openCircuitBreaker();
+        } else {
+            // Temporary error state, but don't open circuit breaker yet
+            radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+        }
+    }
+
+    private void openCircuitBreaker() {
+        circuitBreakerOpen = true;
+        circuitBreakerOpenedAt = System.currentTimeMillis();
+        radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+
+        LOGGER.error("Circuit breaker OPENED for brand {} after {} consecutive S3 failures. " +
+                        "Will retry after {} seconds.",
+                brand, consecutiveFailures, CIRCUIT_BREAKER_RETRY_DELAY_MS / 1000);
+
+        // Schedule circuit breaker recovery attempt
+        scheduler.schedule(this::attemptCircuitBreakerRecovery,
+                CIRCUIT_BREAKER_RETRY_DELAY_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private boolean isCircuitBreakerOpen() {
+        if (!circuitBreakerOpen) return false;
+
+        long now = System.currentTimeMillis();
+        if (now - circuitBreakerOpenedAt > CIRCUIT_BREAKER_TIMEOUT_MS) {
+            // Circuit breaker timeout exceeded - move to half-open state
+            LOGGER.info("Circuit breaker timeout exceeded for brand {}. Moving to half-open state.", brand);
+            circuitBreakerOpen = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void attemptCircuitBreakerRecovery() {
+        if (!circuitBreakerOpen) return;
+
+        LOGGER.info("Attempting circuit breaker recovery for brand {}...", brand);
+        circuitBreakerOpen = false; // Move to half-open state
+
+        // Try to process a single fragment to test the connection
+        try {
+            feedFragments();
+        } catch (Exception e) {
+            LOGGER.warn("Circuit breaker recovery failed for brand {}: {}", brand, e.getMessage());
+            // If recovery fails, open circuit breaker again
+            if (isS3ConnectionError(e)) {
+                openCircuitBreaker();
+            }
+        }
+    }
+
+    private void resetCircuitBreaker() {
+        if (consecutiveFailures > 0 || circuitBreakerOpen) {
+            LOGGER.info("Circuit breaker CLOSED for brand {} - operations restored", brand);
+            consecutiveFailures = 0;
+            circuitBreakerOpen = false;
+            circuitBreakerOpenedAt = 0;
+
+            // Only restore status if not in other error states
+            if (radioStation.getStatus() == RadioStationStatus.SYSTEM_ERROR) {
+                radioStation.setStatus(RadioStationStatus.ON_LINE);
+            }
+        }
     }
 
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, long bitRate) {
@@ -230,8 +354,12 @@ public class PlaylistManager {
                 return nextFragment;
             }
 
-            // Starvation case
-            feedFragments();
+            // Starvation case - but check circuit breaker first
+            if (!isCircuitBreakerOpen()) {
+                feedFragments();
+            } else {
+                LOGGER.warn("Cannot feed fragments - circuit breaker is OPEN for brand {}", brand);
+            }
             return null;
 
         } finally {

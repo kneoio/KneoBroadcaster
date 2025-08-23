@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class StationInactivityChecker {
     private static final Logger LOGGER = LoggerFactory.getLogger(StationInactivityChecker.class);
-    private static final int INTERVAL_SECONDS = 300;
+    private static final int INTERVAL_SECONDS = 180;
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final int IDLE_THRESHOLD_MINUTES = 5;
     //TODO now too short , later should be extended

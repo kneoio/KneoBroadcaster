@@ -276,14 +276,14 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<Void> upsertStationAccess(String stationName, String userAgent) {
+    public Uni<Void> upsertStationAccessWithCount(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent) {
         String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent) " +
-                "VALUES ($1, 1, $2, $3) ON CONFLICT (station_name) DO UPDATE SET access_count = " + brandStats.getTableName() + ".access_count + 1, " +
-                "last_access_time = $2, user_agent = $3;";
+                "VALUES ($1, $2, $3, $4) ON CONFLICT (station_name) DO UPDATE SET access_count = $2, " +
+                "last_access_time = $3, user_agent = $4;";
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName, OffsetDateTime.now(), userAgent))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access for: {}", stationName, throwable))
+                .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access with count for: {}", stationName, throwable))
                 .replaceWithVoid();
     }
 

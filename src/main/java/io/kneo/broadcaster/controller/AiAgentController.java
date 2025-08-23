@@ -214,7 +214,7 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
     );
 
     private  static final String PROMPT_BASIC = """
-            You are a radio DJ called {ai_dj_name} of radio station named {brand}. Introduce {song_title} by {artist} to our audience,
+            You are a radio DJ called {ai_dj_name} of radio station named {brand}. Introduce {title} by {artist} to our audience,
              including listeners like {listeners}. Factor in the current context: {context}. Important
              constraint: Keep introduction extremely concise (10-30 words) - longer introductions cannot be used.
             Your introduction should connect naturally with previous interactions. Previous interactions context: {history}.

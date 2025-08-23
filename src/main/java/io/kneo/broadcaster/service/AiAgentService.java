@@ -69,7 +69,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         return repository.findById(id, user, false);
     }
 
-
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;
@@ -127,7 +126,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                 dto.setPreferredVoice(voiceDTOs);
             }
 
-            // Map enabled tools
             if (doc.getEnabledTools() != null && !doc.getEnabledTools().isEmpty()) {
                 List<ToolDTO> toolDTOs = doc.getEnabledTools().stream()
                         .map(tool -> {
@@ -185,7 +183,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
 
         return doc;
     }
-
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
         assert repository != null;

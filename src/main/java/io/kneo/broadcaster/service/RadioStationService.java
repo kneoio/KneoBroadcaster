@@ -102,7 +102,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.findByBrandName(name);
     }
 
-
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;

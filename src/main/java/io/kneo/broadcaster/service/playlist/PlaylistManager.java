@@ -36,10 +36,9 @@ public class PlaylistManager {
     private static final long BACKPRESSURE_COOLDOWN_MILLIS = 60_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
 
-    // Circuit breaker configuration
     private static final int CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;
-    private static final long CIRCUIT_BREAKER_TIMEOUT_MS = 30_000L; // 30 seconds
-    private static final long CIRCUIT_BREAKER_RETRY_DELAY_MS = 60_000L; // 1 minute
+    private static final long CIRCUIT_BREAKER_TIMEOUT_MS = 30_000L;
+    private static final long CIRCUIT_BREAKER_RETRY_DELAY_MS = 60_000L;
 
     private final ReadWriteLock readyFragmentsLock = new ReentrantReadWriteLock();
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
@@ -64,7 +63,6 @@ public class PlaylistManager {
     private Long lastPrioritizedDrainAt;
     private boolean playedRegularSinceDrain;
 
-    // Circuit breaker state
     private int consecutiveFailures = 0;
     private long circuitBreakerOpenedAt = 0;
     private boolean circuitBreakerOpen = false;
@@ -151,7 +149,6 @@ public class PlaylistManager {
                         error -> {
                             LOGGER.error("Error during the processing of fragments for brand {}: {}", brand, error.getMessage(), error);
 
-                            // Handle specific S3 connection pool errors
                             if (isS3ConnectionError(error)) {
                                 handleS3ConnectionError(error);
                             } else {
@@ -171,7 +168,6 @@ public class PlaylistManager {
                     errorMessage.contains("Unable to execute HTTP request");
         }
 
-        // Check cause chain
         Throwable cause = error.getCause();
         while (cause != null) {
             if (cause.getClass().getSimpleName().contains("ConnectionPoolTimeoutException") ||
@@ -192,7 +188,6 @@ public class PlaylistManager {
         if (consecutiveFailures >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
             openCircuitBreaker();
         } else {
-            // Temporary error state, but don't open circuit breaker yet
             radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
         }
     }
@@ -216,7 +211,6 @@ public class PlaylistManager {
 
         long now = System.currentTimeMillis();
         if (now - circuitBreakerOpenedAt > CIRCUIT_BREAKER_TIMEOUT_MS) {
-            // Circuit breaker timeout exceeded - move to half-open state
             LOGGER.info("Circuit breaker timeout exceeded for brand {}. Moving to half-open state.", brand);
             circuitBreakerOpen = false;
             return false;
@@ -229,14 +223,12 @@ public class PlaylistManager {
         if (!circuitBreakerOpen) return;
 
         LOGGER.info("Attempting circuit breaker recovery for brand {}...", brand);
-        circuitBreakerOpen = false; // Move to half-open state
+        circuitBreakerOpen = false;
 
-        // Try to process a single fragment to test the connection
         try {
             feedFragments();
         } catch (Exception e) {
             LOGGER.warn("Circuit breaker recovery failed for brand {}: {}", brand, e.getMessage());
-            // If recovery fails, open circuit breaker again
             if (isS3ConnectionError(e)) {
                 openCircuitBreaker();
             }
@@ -250,7 +242,6 @@ public class PlaylistManager {
             circuitBreakerOpen = false;
             circuitBreakerOpenedAt = 0;
 
-            // Only restore status if not in other error states
             if (radioStation.getStatus() == RadioStationStatus.SYSTEM_ERROR) {
                 radioStation.setStatus(RadioStationStatus.ON_LINE);
             }
@@ -354,7 +345,6 @@ public class PlaylistManager {
                 return nextFragment;
             }
 
-            // Starvation case - but check circuit breaker first
             if (!isCircuitBreakerOpen()) {
                 feedFragments();
             } else {

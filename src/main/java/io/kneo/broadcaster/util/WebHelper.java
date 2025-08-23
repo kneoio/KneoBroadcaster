@@ -10,20 +10,22 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class WebHelper {
-    private static final Pattern UNSAFE_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\s]");
+    private static final Pattern UNSAFE_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\s'`~!@#$%^&()+=\\[\\]{}|;,]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s");
+    private static final Pattern MULTIPLE_DASHES = Pattern.compile("-+");
 
     public static String generateSlug(String title, String artist) {
         if (title == null) title = "";
         if (artist == null) artist = "";
         String input = title + " " + artist;
-        String noWhitespace = WHITESPACE.matcher(input).replaceAll("-");
-        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFC);
-        String slug = UNSAFE_CHARS.matcher(normalized).replaceAll("");
-        return slug.toLowerCase();
+        return processSlug(input);
     }
 
     public static String generateSlug(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return "";
+        }
+
         String fileName;
         String extension = "";
 
@@ -35,11 +37,7 @@ public class WebHelper {
             fileName = input;
         }
 
-        String noWhitespace = WHITESPACE.matcher(fileName).replaceAll("-");
-        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFC);
-        String slugPart = UNSAFE_CHARS.matcher(normalized).replaceAll("");
-        String slug = slugPart.toLowerCase();
-
+        String slug = processSlug(fileName);
         return slug + extension;
     }
 
@@ -68,6 +66,21 @@ public class WebHelper {
         }
 
         return generateSlug(name);
+    }
+
+    private static String processSlug(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return "";
+        }
+
+        String noWhitespace = WHITESPACE.matcher(input).replaceAll("-");
+        String normalized = Normalizer.normalize(noWhitespace, Normalizer.Form.NFD);
+        String cleaned = UNSAFE_CHARS.matcher(normalized).replaceAll("");
+        String lowercase = cleaned.toLowerCase();
+        String finalSlug = MULTIPLE_DASHES.matcher(lowercase).replaceAll("-");
+        finalSlug = finalSlug.replaceAll("^-+|-+$", "");
+
+        return finalSlug;
     }
 
     public static String generateRandomBrightColor() {

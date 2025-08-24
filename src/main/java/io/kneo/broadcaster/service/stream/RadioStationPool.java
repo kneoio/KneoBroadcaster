@@ -10,7 +10,7 @@ import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

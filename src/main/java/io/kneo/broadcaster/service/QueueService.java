@@ -11,8 +11,8 @@ import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
-import io.kneo.broadcaster.service.manipulation.AudioMergerService;
-import io.kneo.broadcaster.service.manipulation.AudioMixerService;
+import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
+import io.kneo.broadcaster.service.manipulation.mixing.AudioMixerService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -153,10 +153,10 @@ public class QueueService {
                                     .chain(songMetadata -> {
                                         // Check prioritizedQueue size and remove last if > 2
                                         if (playlistManager.getPrioritizedQueue().size() > 2) {
-                                            BrandSoundFragment removedFragment  = playlistManager.getPrioritizedQueue().getLast();
+                                            BrandSoundFragment lastFragment  = playlistManager.getPrioritizedQueue().getLast();
                                             //BrandSoundFragment removedFragment = playlistManager.getPrioritizedQueue().removeLast();
                                             //removedFragment.getSoundFragment().getFileMetadataList().get(0).materializeFileStream();
-                                            LOGGER.info("Removed last fragment from prioritizedQueue: {}", removedFragment.getSoundFragment().getTitle());
+                                            LOGGER.info("prioritizedQueue: {}", lastFragment.getSoundFragment().getTitle());
                                            /* AudioMixerService.MixResult complete = audioMixer.createOutroIntroThenAdd(
                                                     "/path/to/main.wav",
                                                     "/path/to/intro.wav",

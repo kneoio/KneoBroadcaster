@@ -7,7 +7,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.broadcaster.service.manipulation.AudioSegmentationService;
+import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Multi;

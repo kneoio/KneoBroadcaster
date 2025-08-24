@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.manipulation;
+package io.kneo.broadcaster.service.manipulation.mixing;
 
 
 import jakarta.enterprise.context.ApplicationScoped;

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.manipulation;
+package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.AudioMetadataDTO;

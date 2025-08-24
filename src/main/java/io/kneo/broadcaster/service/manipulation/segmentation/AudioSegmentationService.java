@@ -1,9 +1,10 @@
-package io.kneo.broadcaster.service.manipulation;
+package io.kneo.broadcaster.service.manipulation.segmentation;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.model.SegmentInfo;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;

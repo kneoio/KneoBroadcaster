@@ -7,7 +7,7 @@ import io.kneo.broadcaster.dto.dashboard.SpacesOrphanCleanupStatsDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.broadcaster.service.manipulation.AudioMetadataService;
+import io.kneo.broadcaster.service.AudioMetadataService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.quarkus.runtime.StartupEvent;

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.manipulation;
+package io.kneo.broadcaster.service.manipulation.segmentation;
 
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.model.SoundFragment;

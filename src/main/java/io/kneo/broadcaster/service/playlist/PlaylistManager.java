@@ -33,7 +33,7 @@ public class PlaylistManager {
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
     private static final int BACKPRESSURE_ON = 2;
-    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 60_000L;
+    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 90_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
 
     private static final int CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;

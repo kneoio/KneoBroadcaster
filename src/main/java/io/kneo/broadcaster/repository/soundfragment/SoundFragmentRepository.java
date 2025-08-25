@@ -385,9 +385,15 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findForBrandCount(brandId, includeArchived, user, filter);
     }
 
-    public Uni<List<BrandSoundFragment>> findNextSongsForBrand(UUID brandId, SoundFragmentFilter filter) {
+    @Deprecated
+    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, SoundFragmentFilter filter) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findSongsForBrand(brandId, 100, 0, filter);
+        return brandRepository.getBrandSongs(brandId, 100, 0, filter);
+    }
+
+    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.getBrandSongs(brandId, 200, 0);
     }
 
     public Uni<List<UUID>> getBrandsForSoundFragment(UUID soundFragmentId, IUser user) {

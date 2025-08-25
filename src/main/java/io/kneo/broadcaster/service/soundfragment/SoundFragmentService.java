@@ -198,7 +198,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     BrandActivityLogger.logActivity(brandName, "fetching_fragments",
                             "Fetching up to %d fragments for brand ID: %s with filter", fetchQuantity, brandId);
 
-                    return repository.findNextSongsForBrand(brandId, filter)
+                    return repository.getBrandSongs(brandId, filter)
                             .chain(fragments -> {
                                 // CRITICAL SECTION: Synchronize the entire selection process per brand
                                 // This prevents multiple threads from selecting overlapping songs

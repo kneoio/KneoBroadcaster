@@ -78,7 +78,8 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<List<BrandSoundFragment>> findSongsForBrand(UUID brandId, final int limit, final int offset, SoundFragmentFilter filter) {
+    @Deprecated
+    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, final int limit, final int offset, SoundFragmentFilter filter) {
         String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
@@ -87,6 +88,35 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         if (filter != null && filter.isActivated()) {
             sql += buildFilterConditions(filter);
         }
+
+        sql += " ORDER BY " +
+                "bsf.played_by_brand_count ASC, " +
+                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> {
+                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
+                    return soundFragmentUni.onItem().transform(soundFragment -> {
+                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
+                        brandSoundFragment.setSoundFragment(soundFragment);
+                        return brandSoundFragment;
+                    });
+                })
+                .concatenate()
+                .collect().asList();
+    }
+
+    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, final int limit, final int offset) {
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "WHERE bsf.brand_id = $1 AND t.archived = 0";
 
         sql += " ORDER BY " +
                 "bsf.played_by_brand_count ASC, " +

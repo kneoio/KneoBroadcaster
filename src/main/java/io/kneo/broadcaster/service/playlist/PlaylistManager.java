@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class PlaylistManager {
+public class PlaylistManager implements IPlaylist{
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final int SELF_MANAGING_INTERVAL_SECONDS = 300;
     private static final int REGULAR_BUFFER_MAX = 2;
@@ -67,10 +67,10 @@ public class PlaylistManager {
     private long circuitBreakerOpenedAt = 0;
     private boolean circuitBreakerOpen = false;
 
-    public PlaylistManager(BroadcasterConfig broadcasterConfig, IStreamManager playlist) {
-        this.soundFragmentService = playlist.getSoundFragmentService();
-        this.segmentationService = playlist.getSegmentationService();
-        this.radioStation = playlist.getRadioStation();
+    public PlaylistManager(BroadcasterConfig broadcasterConfig, IStreamManager streamManager) {
+        this.soundFragmentService = streamManager.getSoundFragmentService();
+        this.segmentationService = streamManager.getSegmentationService();
+        this.radioStation = streamManager.getRadioStation();
         this.brand = radioStation.getSlugName();
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         LOGGER.info("Created PlaylistManager for brand: {}", brand);

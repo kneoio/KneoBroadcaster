@@ -12,4 +12,12 @@ public class PlaylistMemory {
     public void updateLastSelected(List<SoundFragment> selectedFragments) {
             playedSongs.addAll(selectedFragments);
     }
+
+    public boolean wasPlayed(SoundFragment song) {
+        return playedSongs.contains(song);
+    }
+
+    public void reset() {
+        playedSongs.clear();
+    }
 }

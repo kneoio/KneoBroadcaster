@@ -53,18 +53,27 @@ public class BrandPlaylist {
                                     return Uni.createFrom().item(List.<SoundFragment>of());
                                 }
 
+                                PlaylistMemory memory = brandPlaylistMemory.computeIfAbsent(brandName, k -> new PlaylistMemory());
+
+                                List<BrandSoundFragment> unplayedFragments = fragments.stream()
+                                        .filter(bf -> !memory.wasPlayed(bf.getSoundFragment()))
+                                        .collect(Collectors.toList());
+
+                                if (unplayedFragments.isEmpty()) {
+                                    memory.reset();
+                                    unplayedFragments = fragments;
+                                }
+
                                 List<BrandSoundFragment> selectedBrandFragments;
-                                if (quantity >= fragments.size()) {
-                                    selectedBrandFragments = fragments;
+                                if (quantity >= unplayedFragments.size()) {
+                                    selectedBrandFragments = unplayedFragments;
                                 } else {
-                                    selectedBrandFragments = fragments.subList(0, quantity);
+                                    selectedBrandFragments = unplayedFragments.subList(0, quantity);
                                 }
 
                                 List<SoundFragment> soundFragments = selectedBrandFragments.stream()
                                         .map(BrandSoundFragment::getSoundFragment)
                                         .collect(Collectors.toList());
-
-                                PlaylistMemory memory = brandPlaylistMemory.computeIfAbsent(brandName, k -> new PlaylistMemory());
 
                                 memory.updateLastSelected(soundFragments);
                                 return Uni.createFrom().item(soundFragments);

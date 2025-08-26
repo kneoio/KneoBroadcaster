@@ -1,10 +1,8 @@
 INPUTS:
 - Events: {events}
-- Context: {context}
-- Available ad: {ad}
 ANALYSIS:
-1. Check if ad is not null
-2. IF ad event present:
+1. Check the event
+2. IF "ad" event present:
    - Set action: "ad"
-3. IF no ad event or if the value is empty:
+OTHERWISE:
    - Set action: "song"

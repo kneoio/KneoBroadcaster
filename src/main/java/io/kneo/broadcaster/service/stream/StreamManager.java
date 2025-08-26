@@ -158,7 +158,7 @@ public class StreamManager implements IStreamManager {
                         final long[] lastSeqInBatch = {-1L};
 
                         boolean isFirst = true;
-                        for (HlsSegment segment : fragment.getSegments().get(192000L)) {
+                        for (HlsSegment segment : fragment.getSegments().get(256000L)) {
                             long seq = currentSequence.getAndIncrement();
                             if (firstSeqInBatch[0] == -1L) {
                                 firstSeqInBatch[0] = seq;

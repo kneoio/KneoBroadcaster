@@ -112,12 +112,12 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .concatenate()
                 .collect().asList();
     }
-
     public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType, final int limit, final int offset) {
         String sql = "SELECT t.* " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = $2";
+                "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = $2 " +
+                "ORDER BY bsf.played_by_brand_count";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);

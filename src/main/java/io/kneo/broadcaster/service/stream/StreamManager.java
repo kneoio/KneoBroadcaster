@@ -69,7 +69,6 @@ public class StreamManager implements IStreamManager {
     private final int maxVisibleSegments;
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
-    private LiveSoundFragment currentPlayingFragment;
     private final BrandSoundFragmentUpdateService updateService;
 
     private final Object fragmentRetrievalLock = new Object();
@@ -129,9 +128,6 @@ public class StreamManager implements IStreamManager {
         timerSubscriptions.put("slider", slider);
     }
 
-
-
-
     public void feedSegments() {
         if (!pendingFragmentSegmentsQueue.isEmpty()) {
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
@@ -143,9 +139,6 @@ public class StreamManager implements IStreamManager {
                 HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                 liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
 
-                if (segmentToMakeLive.isFirstSegmentOfFragment()) {
-                    handleNewFragmentStarted(segmentToMakeLive);
-                }
             }
         }
 
@@ -158,7 +151,7 @@ public class StreamManager implements IStreamManager {
                         final long[] lastSeqInBatch = {-1L};
 
                         boolean isFirst = true;
-                        for (HlsSegment segment : fragment.getSegments().get(256000L)) {
+                        for (HlsSegment segment : fragment.getSegments().get(radioStation.getBitRate())) {
                             long seq = currentSequence.getAndIncrement();
                             if (firstSeqInBatch[0] == -1L) {
                                 firstSeqInBatch[0] = seq;
@@ -177,10 +170,6 @@ public class StreamManager implements IStreamManager {
             }
         }
     }
-    private void handleNewFragmentStarted(HlsSegment segment) {
-        currentPlayingFragment = segment.getLiveSoundFragment();
-    }
-
 
     private void slideWindow() {
         if (liveSegments.isEmpty()) {

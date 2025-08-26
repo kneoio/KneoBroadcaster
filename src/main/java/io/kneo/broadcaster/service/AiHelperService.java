@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.ai.LiveAgentDTO;
+import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -61,7 +61,7 @@ public class AiHelperService {
                         if (station.getAiAgentId() != null) {
                             return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                                     .map(agent -> {
-                                        LiveAgentDTO liveAgentDTO = new LiveAgentDTO();
+                                        AiLiveAgentDTO liveAgentDTO = new AiLiveAgentDTO();
                                         liveAgentDTO.setName(agent.getName());
                                         liveAgentDTO.setLlmType(agent.getLlmType());
                                         List<String> prompts = agent.getPrompts();

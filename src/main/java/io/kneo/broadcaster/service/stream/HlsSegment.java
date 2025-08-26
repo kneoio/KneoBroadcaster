@@ -1,10 +1,9 @@
 package io.kneo.broadcaster.service.stream;
 
-import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.live.LiveSoundFragment;
+import io.kneo.broadcaster.model.live.SongMetadata;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.util.UUID;
 
 @Getter
 public class HlsSegment {
@@ -15,26 +14,24 @@ public class HlsSegment {
     private final int duration;
     private final int bitrate;
     private final long size;
-    private final UUID soundFragmentId;
-    private final String songName;
+    private final SongMetadata songMetadata;
     @Setter
-    private BrandSoundFragment sourceFragment;
+    private LiveSoundFragment liveSoundFragment;
     @Setter
     private boolean firstSegmentOfFragment = false;
 
-    public HlsSegment(long sequence, byte[] data, int duration, UUID soundFragmentId, String songName, long timestamp) {
+    public HlsSegment(long sequence, byte[] data, int duration, SongMetadata songMetadata, long timestamp) {
         this.sequence = sequence;
         this.data = data;
         this.timestamp = timestamp;
         this.duration = duration;
         this.size = data.length;
         this.bitrate = (int)(size * 8 / (duration * 1000.0));
-        this.soundFragmentId = soundFragmentId;
-        this.songName = songName;
+        this.songMetadata = songMetadata;
     }
 
 
     public String toString() {
-        return String.format("song=%s, duration=%s", songName, duration);
+        return String.format("song=%s, duration=%s", songMetadata, duration);
     }
 }

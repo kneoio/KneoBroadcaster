@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class PlaylistMemory {
+public class SupplierSongMemory {
     private final Set<SoundFragment> playedSongs = new HashSet<>();
 
     public void updateLastSelected(List<SoundFragment> selectedFragments) {

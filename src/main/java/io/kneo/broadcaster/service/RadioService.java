@@ -98,7 +98,7 @@ public class RadioService {
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
                 )
-                .onItem().transform(RadioStation::getPlaylist)
+                .onItem().transform(RadioStation::getStreamManager)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.PLAYLIST_NOT_AVAILABLE)
                 );

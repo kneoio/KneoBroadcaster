@@ -3,14 +3,15 @@ package io.kneo.broadcaster.service.stream;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
-import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
-import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
+import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
 import lombok.Setter;
@@ -60,7 +61,7 @@ public class StreamManager implements IStreamManager {
     private final SoundFragmentService soundFragmentService;
     @Getter
     private final AudioSegmentationService segmentationService;
-
+    private final SongSupplier songSupplier;
     private final SegmentFeederTimer segmentFeederTimer;
     private final SliderTimer sliderTimer;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
@@ -68,7 +69,7 @@ public class StreamManager implements IStreamManager {
     private final int maxVisibleSegments;
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
 
-    private BrandSoundFragment currentPlayingFragment;
+    private LiveSoundFragment currentPlayingFragment;
     private final BrandSoundFragmentUpdateService updateService;
 
     private final Object fragmentRetrievalLock = new Object();
@@ -79,7 +80,7 @@ public class StreamManager implements IStreamManager {
             BroadcasterConfig broadcasterConfig,
             HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
-            AudioSegmentationService segmentationService,
+            AudioSegmentationService segmentationService, SongSupplier songSupplier,
             int maxVisibleSegments,
             BrandSoundFragmentUpdateService updateService
     ) {
@@ -89,6 +90,7 @@ public class StreamManager implements IStreamManager {
         this.config = config;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
+        this.songSupplier = songSupplier;
         this.maxVisibleSegments = maxVisibleSegments;
         this.updateService = updateService;
     }
@@ -108,7 +110,7 @@ public class StreamManager implements IStreamManager {
 
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
-        playlistManager = new PlaylistManager(broadcasterConfig, this);
+        playlistManager = new PlaylistManager(broadcasterConfig, this, songSupplier, updateService);
         if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();
         }
@@ -131,7 +133,6 @@ public class StreamManager implements IStreamManager {
 
 
     public void feedSegments() {
-        int drippedCountThisCall = 0;
         if (!pendingFragmentSegmentsQueue.isEmpty()) {
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
@@ -141,15 +142,9 @@ public class StreamManager implements IStreamManager {
                 }
                 HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
                 liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
-                drippedCountThisCall++;
 
                 if (segmentToMakeLive.isFirstSegmentOfFragment()) {
                     handleNewFragmentStarted(segmentToMakeLive);
-                }
-            }
-            if (drippedCountThisCall > 0) {
-                if (radioStation.getStatus() != RadioStationStatus.ON_LINE && !liveSegments.isEmpty()) {
-                    //radioStation.setStatus(RadioStationStatus.ON_LINE);
                 }
             }
         }
@@ -157,20 +152,20 @@ public class StreamManager implements IStreamManager {
         if (pendingFragmentSegmentsQueue.size() < PENDING_QUEUE_REFILL_THRESHOLD) {
             try {
                 synchronized (fragmentRetrievalLock) {
-                    BrandSoundFragment fragment = playlistManager.getNextFragment();
+                    LiveSoundFragment fragment = playlistManager.getNextFragment();
                     if (fragment != null && !fragment.getSegments().isEmpty()) {
                         final long[] firstSeqInBatch = {-1L};
                         final long[] lastSeqInBatch = {-1L};
 
                         boolean isFirst = true;
-                        for (HlsSegment segment : fragment.getSegments()) {
+                        for (HlsSegment segment : fragment.getSegments().get(192000L)) {
                             long seq = currentSequence.getAndIncrement();
                             if (firstSeqInBatch[0] == -1L) {
                                 firstSeqInBatch[0] = seq;
                             }
                             lastSeqInBatch[0] = seq;
                             segment.setSequence(seq);
-                            segment.setSourceFragment(fragment);
+                            segment.setLiveSoundFragment(fragment);
                             segment.setFirstSegmentOfFragment(isFirst);
                             pendingFragmentSegmentsQueue.offer(segment);
                             isFirst = false;
@@ -182,20 +177,10 @@ public class StreamManager implements IStreamManager {
             }
         }
     }
-
     private void handleNewFragmentStarted(HlsSegment segment) {
-        BrandSoundFragment newFragment = segment.getSourceFragment();
-
-        if (currentPlayingFragment != null && !currentPlayingFragment.equals(newFragment)) {
-            updateService.updatePlayedCountAsync(
-                    radioStation.getId(),
-                    currentPlayingFragment.getSoundFragment().getId(),
-                    radioStation.getSlugName()
-            );
-        }
-
-        currentPlayingFragment = newFragment;
+        currentPlayingFragment = segment.getLiveSoundFragment();
     }
+
 
     private void slideWindow() {
         if (liveSegments.isEmpty()) {
@@ -255,7 +240,7 @@ public class StreamManager implements IStreamManager {
                     playlist.append("#EXTINF:")
                             .append(segment.getDuration())
                             .append(",")
-                            .append(segment.getSongName())
+                            .append(segment.getSongMetadata().toString())
                             .append("\n")
                             .append("segments/")
                             .append(currentRadioSlugForPath)
@@ -337,15 +322,6 @@ public class StreamManager implements IStreamManager {
         LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
-        }
-
-        if (currentPlayingFragment != null) {
-            assert radioStation != null;
-            updateService.updatePlayedCountAsync(
-                    radioStation.getId(),
-                    currentPlayingFragment.getSoundFragment().getId(),
-                    radioStation.getSlugName()
-            );
         }
     }
 

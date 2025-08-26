@@ -15,10 +15,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class BrandSoundFragment {
     private UUID id;
     private UUID defaultBrandId;
+    @Deprecated
     private int queueNum = 1000;
     private int playedByBrandCount;
     private LocalDateTime playedTime;
     private SoundFragment soundFragment;
+    @Deprecated
     private ConcurrentLinkedQueue<HlsSegment> segments;
     private List<UUID> representedInBrands;
 

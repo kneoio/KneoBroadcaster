@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.server.EnvConst;
-import io.kneo.broadcaster.service.DashboardService;
+import io.kneo.broadcaster.service.dashboard.DashboardService;
 import io.kneo.broadcaster.service.dashboard.StationDashboardService;
 import io.kneo.core.dto.view.ViewPage;
 import io.vertx.core.http.ServerWebSocket;
@@ -13,6 +13,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
@@ -62,7 +63,7 @@ public class DashboardController {
     }
 
     private void handleDashboardWebSocket(ServerWebSocket webSocket) {
-        String clientId = java.util.UUID.randomUUID().toString();
+        String clientId = UUID.randomUUID().toString();
         webSocket.accept();
         connectedClients.put(clientId, webSocket);
         sendDashboardData(webSocket);
@@ -77,7 +78,7 @@ public class DashboardController {
     }
 
     private void handleStation(ServerWebSocket webSocket, String brand) {
-        String clientId = java.util.UUID.randomUUID().toString();
+        String clientId = UUID.randomUUID().toString();
         webSocket.accept();
         connectedClients.put(clientId, webSocket);
         sendStationData(webSocket, brand);

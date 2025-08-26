@@ -169,27 +169,32 @@ public class MCPServer extends AbstractVerticle {
 
     private ObjectNode createBrandSoundFragmentsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_brand_sound_fragments");
-        tool.put("description", "Get sound fragments available for a specific brand with optional filtering");
+        tool.put("name", "get_brand_sound_fragment");
+        tool.put("description", "Get a single song for a specific brand filtered by playlist item type. Returns null if no songs found.");
 
         ObjectNode schema = objectMapper.createObjectNode();
         schema.put("type", "object");
         ObjectNode props = objectMapper.createObjectNode();
 
-        addStringProperty(props, "brand", "Brand name to filter sound fragments by");
-        addIntegerProperty(props, "page", "Page number for pagination (1-based)", 1);
-        addIntegerProperty(props, "size", "Number of items per page", 10);
-        addStringProperty(props, "genres", "Comma-separated list of genres (e.g., 'rock,pop,jazz')");
-        addStringProperty(props, "sources", "Comma-separated list of source types (e.g., 'USERS_UPLOAD,EXTERNAL')");
-        addStringProperty(props, "types", "Comma-separated list of playlist item types (e.g., 'MUSIC,JINGLE')");
+        addStringProperty(props, "brand", "Brand name to get song for");
+        addStringProperty(props, "fragment_type", "Playlist item type (must be valid PlaylistItemType enum value)");
 
         schema.set("properties", props);
         ArrayNode required = objectMapper.createArrayNode();
         required.add("brand");
+        required.add("fragment_type");
         schema.set("required", required);
         tool.set("inputSchema", schema);
 
         return tool;
+    }
+
+    private CompletableFuture<Object> handleBrandSoundFragmentsCall(JsonNode arguments) {
+        String brand = arguments.get("brand").asText();
+        String fragmentType = arguments.get("fragment_type").asText();
+
+        return soundFragmentMCPTools.getBrandSoundFragments(brand, fragmentType)
+                .thenApply(result -> (Object) result);
     }
 
     private ObjectNode createMemoryTool() {
@@ -283,13 +288,12 @@ public class MCPServer extends AbstractVerticle {
             CompletableFuture<Object> future;
 
             switch (toolName) {
-                case "get_brand_sound_fragments":
+                case "get_brand_sound_fragment":
                     future = handleBrandSoundFragmentsCall(arguments);
                     break;
                 case "get_memory_by_type":
                     future = handleMemoryCall(arguments);
                     break;
-
                 case "add_to_queue":
                     future = handleAddToQueueCall(arguments);
                     break;
@@ -315,18 +319,6 @@ public class MCPServer extends AbstractVerticle {
         }
     }
 
-    private CompletableFuture<Object> handleBrandSoundFragmentsCall(JsonNode arguments) {
-        String brand = arguments.get("brand").asText();
-        Integer page = getNullableInt(arguments, "page");
-        Integer size = getNullableInt(arguments, "size");
-        String genres = getNullableString(arguments, "genres");
-        String sources = getNullableString(arguments, "sources");
-        String types = getNullableString(arguments, "types");
-
-        return soundFragmentMCPTools.getBrandSoundFragments(brand, page, size, genres, sources, types)
-                .thenApply(result -> (Object) result);
-    }
-
     private CompletableFuture<Object> handleMemoryCall(JsonNode arguments) {
         String brand = arguments.get("brand").asText();
         JsonNode typesNode = arguments.get("types");
@@ -343,15 +335,13 @@ public class MCPServer extends AbstractVerticle {
     }
 
     private CompletableFuture<Object> handleAddToQueueCall(JsonNode arguments) {
-        // Fixed parameter mapping
         String brand = arguments.has("brand") ? arguments.get("brand").asText() : null;
         String songId = arguments.has("songId") ? arguments.get("songId").asText() : null;
 
-        // Handle filePaths array
         String filePath = null;
         if (arguments.has("filePaths") && arguments.get("filePaths").isArray()) {
             ArrayNode filePathsArray = (ArrayNode) arguments.get("filePaths");
-            if (filePathsArray.size() > 0) {
+            if (!filePathsArray.isEmpty()) {
                 filePath = filePathsArray.get(0).asText();
             }
         }
@@ -360,15 +350,6 @@ public class MCPServer extends AbstractVerticle {
 
         return queueMCPTools.addToQueue(brand, songId, filePath, priority)
                 .thenApply(result -> (Object) result);
-    }
-
-    private Integer getNullableInt(JsonNode arguments, String field) {
-        return arguments.has(field) ? arguments.get(field).asInt() : null;
-    }
-
-    private String getNullableString(JsonNode arguments, String field) {
-        return arguments.has(field) && !arguments.get(field).isNull() ?
-                arguments.get(field).asText() : null;
     }
 
     private void sendToolResult(ServerWebSocket webSocket, Object result, String id) {

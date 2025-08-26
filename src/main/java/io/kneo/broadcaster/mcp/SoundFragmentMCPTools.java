@@ -1,28 +1,18 @@
 package io.kneo.broadcaster.mcp;
 
-import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
-import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
-import io.kneo.broadcaster.dto.mcp.MCPBrandResponse;
-import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.dto.ai.AiSoundFragmentDTO;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.broadcaster.util.BrandActivityLogger;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.service.UserService;
-import io.kneo.core.util.RuntimeUtil;
+import io.kneo.broadcaster.service.RefService;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
+import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -31,155 +21,49 @@ public class SoundFragmentMCPTools {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentMCPTools.class);
 
     @Inject
-    SoundFragmentService service;
+    SongSupplier songSupplier;
 
     @Inject
-    UserService userService;
+    RefService refService;
 
-    @Tool("get_brand_sound_fragments")
-    @Description("Get sound fragments available for a specific brand with optional filtering")
-    public CompletableFuture<MCPBrandResponse> getBrandSoundFragments(
+    @Tool("get_brand_sound_fragment")
+    @Description("Get a single sound fragment for a specific brand")
+    public CompletableFuture<AiSoundFragmentDTO> getBrandSoundFragments(
             @Parameter("brand") String brandName,
-            @Parameter("page") Integer page,
-            @Parameter("size") Integer size,
-            @Parameter("genres") String genres,
-            @Parameter("sources") String sources,
-            @Parameter("types") String types
+            @Parameter("fragment_type") String fragmentType
     ) {
-        int pageNum = Objects.requireNonNullElse(page, 1);
-        int pageSize = Objects.requireNonNullElse(size, 10);
-
-        SoundFragmentFilterDTO filter = parseFilters(genres, sources, types);
-
-        String filterDesc;
-        if (filter != null) {
-            filterDesc = "with filters";
-        } else {
-            filterDesc = "without filters";
-        }
-
-        BrandActivityLogger.logActivity(brandName, "fragment_query",
-                "Fetching page %d with size %d %s", pageNum, pageSize, filterDesc);
-
-        return getCurrentUser()
-                .chain(user -> {
-                    return service.getSongsForBrandPlaylist(brandName, pageSize, user, filter);
-                })
-                .<MCPBrandResponse>map(brandSoundFragments -> {
-                    List<BrandSoundFragmentDTO> fragments = brandSoundFragments.stream()
-                            .map(this::mapToBrandSoundFragmentDTO)
-                            .collect(Collectors.toList());
-                    long totalCount = fragments.size();
-                    int maxPage = RuntimeUtil.countMaxPage(totalCount, pageSize);
-                    BrandActivityLogger.logActivity(brandName, "fragment_results",
-                            "Found %d fragments (page %d of %d) %s",
-                            fragments.size(), pageNum, maxPage, filterDesc);
-
-                    if (fragments.isEmpty()) {
-                        BrandActivityLogger.logActivity(brandName, "fragment_warning",
-                                "No fragments found for this query %s", filterDesc);
-                    }
-
-                    return new MCPBrandResponse(fragments, totalCount);
-                })
-                .onFailure().invoke(failure -> {
-                    BrandActivityLogger.logActivity(brandName, "fragment_error",
-                            "Failed to get fragments: %s", failure.getMessage());
-                })
+        return songSupplier.getNextSong(brandName, PlaylistItemType.valueOf(fragmentType))
+                .chain(this::mapSoundFragmentToAiDTO)
                 .convert().toCompletableFuture();
     }
 
-    private SoundFragmentFilterDTO parseFilters(String genres, String sources, String types) {
-        SoundFragmentFilterDTO filter = new SoundFragmentFilterDTO();
-        boolean hasAnyFilter = false;
-
-        if (genres != null && !genres.trim().isEmpty()) {
-            List<UUID> parsedGenres = Arrays.stream(genres.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(s -> {
-                        try {
-                            return UUID.fromString(s);
-                        } catch (IllegalArgumentException e) {
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (!parsedGenres.isEmpty()) {
-                filter.setGenres(parsedGenres);
-                hasAnyFilter = true;
-            }
+    private Uni<AiSoundFragmentDTO> mapSoundFragmentToAiDTO(SoundFragment soundFragment) {
+        if (soundFragment == null) {
+            return Uni.createFrom().nullItem();
         }
 
-        if (sources != null && !sources.trim().isEmpty()) {
-            List<SourceType> sourceTypes = Arrays.stream(sources.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(s -> {
-                        try {
-                            return SourceType.valueOf(s);
-                        } catch (IllegalArgumentException e) {
-                            LOGGER.warn("MCP Tool: Invalid source type: {}", s);
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (!sourceTypes.isEmpty()) {
-                filter.setSources(sourceTypes);
-                hasAnyFilter = true;
-            }
+        if (soundFragment.getGenres() == null || soundFragment.getGenres().isEmpty()) {
+            return Uni.createFrom().item(AiSoundFragmentDTO.builder()
+                    .id(soundFragment.getId())
+                    .title(soundFragment.getTitle())
+                    .artist(soundFragment.getArtist())
+                    .genres(List.of())
+                    .album(soundFragment.getAlbum())
+                    .build());
         }
 
-        if (types != null && !types.trim().isEmpty()) {
-            List<PlaylistItemType> playlistTypes = Arrays.stream(types.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(s -> {
-                        try {
-                            return PlaylistItemType.valueOf(s);
-                        } catch (IllegalArgumentException e) {
-                            LOGGER.warn("MCP Tool: Invalid playlist item type: {}", s);
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (!playlistTypes.isEmpty()) {
-                filter.setTypes(playlistTypes);
-                hasAnyFilter = true;
-            }
-        }
-
-        if (hasAnyFilter) {
-            return filter;
-        } else {
-            return null;
-        }
-    }
-
-    private Uni<IUser> getCurrentUser() {
-        return Uni.createFrom().item(io.kneo.core.model.user.SuperUser.build());
-    }
-
-    private BrandSoundFragmentDTO mapToBrandSoundFragmentDTO(BrandSoundFragment brandSoundFragment) {
-        BrandSoundFragmentDTO dto = new BrandSoundFragmentDTO();
-        dto.setId(brandSoundFragment.getId());
-        dto.setSoundFragmentDTO(mapSoundFragmentToDTO(brandSoundFragment.getSoundFragment()));
-        dto.setPlayedByBrandCount(brandSoundFragment.getPlayedByBrandCount());
-        dto.setLastTimePlayedByBrand(brandSoundFragment.getPlayedTime());
-        return dto;
-    }
-
-    private SoundFragmentDTO mapSoundFragmentToDTO(SoundFragment soundFragment) {
-        return SoundFragmentDTO.builder()
-                .id(soundFragment.getId())
-                .status(soundFragment.getStatus())
-                .title(soundFragment.getTitle())
-                .artist(soundFragment.getArtist())
-                .genres(soundFragment.getGenres())
-                .album(soundFragment.getAlbum())
-                .build();
+        return Uni.join().all(
+                        soundFragment.getGenres().stream()
+                                .map(genreId -> refService.getById(genreId)
+                                        .map(genre -> genre.getLocalizedName().get(LanguageCode.en)))
+                                .collect(Collectors.toList())
+                ).andFailFast()
+                .map(genreNames -> AiSoundFragmentDTO.builder()
+                        .id(soundFragment.getId())
+                        .title(soundFragment.getTitle())
+                        .artist(soundFragment.getArtist())
+                        .genres(genreNames)
+                        .album(soundFragment.getAlbum())
+                        .build());
     }
 }

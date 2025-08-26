@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.BroadcastingStats;
 import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.MemoryService;
@@ -55,6 +56,9 @@ public class RadioStationPool {
     @Inject
     MemoryService memoryService;
 
+    @Inject
+    private SongSupplier songSupplier;
+
     public Uni<RadioStation> initializeStation(String brandName) {
         LOGGER.info("Attempting to initialize station for brand: {}", brandName);
 
@@ -73,9 +77,9 @@ public class RadioStationPool {
                                 if (stationFromDb == null) {
                                     LOGGER.warn("Station with brandName {} not found in database. Cannot initialize.", bn);
                                     RadioStation staleStation = pool.remove(bn);
-                                    if (staleStation != null && staleStation.getPlaylist() != null) {
+                                    if (staleStation != null && staleStation.getStreamManager() != null) {
                                         LOGGER.info("Shutting down playlist for stale pooled station {} (not found in DB).", bn);
-                                        staleStation.getPlaylist().shutdown();
+                                        staleStation.getStreamManager().shutdown();
                                     }
                                     return Uni.createFrom().failure(new RuntimeException("Station not found in DB: " + bn));
                                 }
@@ -88,9 +92,9 @@ public class RadioStationPool {
                                         return currentInPool;
                                     }
 
-                                    if (currentInPool != null && currentInPool.getPlaylist() != null) {
+                                    if (currentInPool != null && currentInPool.getStreamManager() != null) {
                                         LOGGER.info("Shutting down playlist of existing non-active station {} (status: {}) before replacing.", key, currentInPool.getStatus());
-                                        currentInPool.getPlaylist().shutdown();
+                                        currentInPool.getStreamManager().shutdown();
                                     }
 
                                     LOGGER.info("RadioStationPool: Creating new StreamManager instance for station {}.", key);
@@ -102,10 +106,11 @@ public class RadioStationPool {
                                             config,
                                             soundFragmentService,
                                             segmentationService,
+                                            songSupplier,
                                             10,
                                             updateService
                                     );
-                                    stationFromDb.setPlaylist(newPlaylist);
+                                    stationFromDb.setStreamManager(newPlaylist);
                                     newPlaylist.setRadioStation(stationFromDb);
                                     newPlaylist.initialize();
 
@@ -133,7 +138,7 @@ public class RadioStationPool {
                     AiAgentStatus currentAiStatus = currentStation.getAiAgentStatus();
                     List<RadioStation.StatusChangeRecord> currentHistory = currentStation.getStatusHistory();
                     boolean currentAiControlAllowed = currentStation.isAiControlAllowed();
-                    IStreamManager currentPlaylist = currentStation.getPlaylist();
+                    IStreamManager currentPlaylist = currentStation.getStreamManager();
 
                     updatePersistentFields(currentStation, updatedStation);
 
@@ -141,7 +146,7 @@ public class RadioStationPool {
                     currentStation.setAiAgentStatus(currentAiStatus);
                     currentStation.setStatusHistory(currentHistory);
                     currentStation.setAiControlAllowed(currentAiControlAllowed);
-                    currentStation.setPlaylist(currentPlaylist);
+                    currentStation.setStreamManager(currentPlaylist);
 
                     if (currentPlaylist != null) {
                         currentPlaylist.setRadioStation(currentStation);
@@ -183,8 +188,8 @@ public class RadioStationPool {
 
         if (radioStation != null) {
             LOGGER.info("Station {} found in pool and removed. Shutting down its playlist.", brandName);
-            if (radioStation.getPlaylist() != null) {
-                radioStation.getPlaylist().shutdown();
+            if (radioStation.getStreamManager() != null) {
+                radioStation.getStreamManager().shutdown();
             }
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
 

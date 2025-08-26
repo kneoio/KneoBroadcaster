@@ -42,24 +42,11 @@ public class QueueController {
 
     public void setupRoutes(Router router) {
         String path = "/api/:brand/queue";
-        router.route(HttpMethod.GET, path).handler(this::get);
+      //  router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.POST, path + "/:songId").handler(this::add);
     }
 
-    private void get(RoutingContext ctx) {
-        String brand = ctx.pathParam("brand");
-
-        service.getQueueForBrand(brand)
-                .subscribe().with(
-                        items -> {
-                            ctx.response()
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(Json.encode(items));
-                        },
-                        error -> ctx.fail(500, error)
-                );
-    }
 
     private void add(RoutingContext rc) {
         String brand = rc.pathParam("brand");

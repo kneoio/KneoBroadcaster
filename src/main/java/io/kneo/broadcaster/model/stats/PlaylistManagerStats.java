@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model.stats;
 
+import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,18 +18,18 @@ public class PlaylistManagerStats {
         List<String> allReady = new java.util.ArrayList<>();
 
         playlistManager.getPrioritizedQueue().stream()
-                .map(v -> v.getSoundFragment().getMetadata())
-                .forEach(allReady::add);
+                .map(LiveSoundFragment::getMetadata)
+                .forEach(v -> allReady.add(v.toString()));
 
         playlistManager.getRegularQueue().stream()
-                .map(v -> v.getSoundFragment().getMetadata())
-                .forEach(allReady::add);
+                .map(LiveSoundFragment::getMetadata)
+                .forEach(v -> allReady.add(v.toString()));
 
         return PlaylistManagerStats.builder()
                 .brand(playlistManager.getBrand())
                 .readyToBeConsumed(allReady)
                 .obtainedByPlaylist(playlistManager.getObtainedByHlsPlaylist().stream()
-                        .map(v -> v.getSoundFragment().getMetadata()).toList())
+                        .map(v -> v.getMetadata().toString()).toList())
                 .build();
     }
 }

@@ -1,14 +1,12 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.dto.queue.IntroPlusSong;
 import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
@@ -24,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,31 +45,7 @@ public class QueueService {
     @Inject
     AudioMixerService audioMixer;
 
-    public Uni<List<SoundFragmentDTO>> getQueueForBrand(String brandName) {
-        return getRadioStation(brandName)
-                .onItem().transformToUni(radioStation -> {
-                    evaluateAgentPresence(radioStation);
-                    if (radioStation != null && radioStation.getPlaylist() != null && radioStation.getPlaylist().getPlaylistManager() != null) {
-                        var playlistManager = radioStation.getPlaylist().getPlaylistManager();
 
-                        List<Uni<SoundFragmentDTO>> unis = new ArrayList<>();
-                        playlistManager.getPrioritizedQueue().stream()
-                                .map(this::mapToBrandSoundFragmentDTO)
-                                .forEach(unis::add);
-                        playlistManager.getRegularQueue().stream()
-                                .map(this::mapToBrandSoundFragmentDTO)
-                                .forEach(unis::add);
-
-                        if (unis.isEmpty()) {
-                            return Uni.createFrom().item(List.<SoundFragmentDTO>of());
-                        }
-                        return Uni.join().all(unis).andCollectFailures();
-                    } else {
-                        LOGGER.warn("RadioStation or Playlist not found for brand: {}", brandName);
-                        return Uni.createFrom().item(List.<SoundFragmentDTO>of());
-                    }
-                });
-    }
 
     //TODO for MCP call it is not used yet
     public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO) {
@@ -105,7 +78,7 @@ public class QueueService {
                                                             brandSoundFragment.setSoundFragment(soundFragment);
                                                             brandSoundFragment.setQueueNum(10);
 
-                                                            return radioStation.getPlaylist().getPlaylistManager()
+                                                            return radioStation.getStreamManager().getPlaylistManager()
                                                                     .addFragmentToSlice(brandSoundFragment, radioStation.getBitRate())
                                                                     .onItem().invoke(result -> {
                                                                         if (result) {
@@ -145,18 +118,17 @@ public class QueueService {
                         return Uni.createFrom().item(false);
                     }
 
-                    // Get PlaylistManager early
-                    PlaylistManager playlistManager = radioStation.getPlaylist().getPlaylistManager();
+                    PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
 
                     return soundFragmentService.getById(soundFragmentId, SuperUser.build())
                             .chain(soundFragment -> repository.getFirstFile(soundFragment.getId())
                                     .chain(songMetadata -> {
                                         // Check prioritizedQueue size and remove last if > 2
                                         if (playlistManager.getPrioritizedQueue().size() > 2) {
-                                            BrandSoundFragment lastFragment  = playlistManager.getPrioritizedQueue().getLast();
+                                            LiveSoundFragment lastFragment  = playlistManager.getPrioritizedQueue().getLast();
                                             //BrandSoundFragment removedFragment = playlistManager.getPrioritizedQueue().removeLast();
                                             //removedFragment.getSoundFragment().getFileMetadataList().get(0).materializeFileStream();
-                                            LOGGER.info("prioritizedQueue: {}", lastFragment.getSoundFragment().getTitle());
+                                            LOGGER.info("prioritizedQueue: {}", lastFragment.getMetadata());
                                            /* AudioMixerService.MixResult complete = audioMixer.createOutroIntroThenAdd(
                                                     "/path/to/main.wav",
                                                     "/path/to/intro.wav",
@@ -244,40 +216,5 @@ public class QueueService {
                 .onFailure().invoke(failure ->
                         LOGGER.error("Failed to get station for brand: {}", brand, failure)
                 );
-    }
-
-    private void evaluateAgentPresence(RadioStation station) {
-        if (station == null) {
-            return;
-        }
-        Long last = station.getLastAgentContactAt();
-        long now = System.currentTimeMillis();
-        if (last == null || now - last > AGENT_DISCONNECT_THRESHOLD_MILLIS) {
-            station.setAiAgentStatus(AiAgentStatus.DISCONNECTED);
-            return;
-        }
-        boolean controlling = station.getStatus() == RadioStationStatus.QUEUE_SATURATED
-                || (station.getPlaylist() != null
-                && station.getPlaylist().getPlaylistManager() != null
-                && !station.getPlaylist().getPlaylistManager().getPrioritizedQueue().isEmpty());
-        if (controlling) {
-            station.setAiAgentStatus(AiAgentStatus.CONTROLLING);
-        } else {
-            station.setAiAgentStatus(AiAgentStatus.UNDEFINED);
-        }
-    }
-
-    private Uni<SoundFragmentDTO> mapToBrandSoundFragmentDTO(BrandSoundFragment fragment) {
-        return Uni.createFrom().item(() -> {
-            SoundFragment soundFragment = fragment.getSoundFragment();
-
-            SoundFragmentDTO soundFragmentDTO = new SoundFragmentDTO(soundFragment.getId().toString());
-            soundFragmentDTO.setTitle(soundFragment.getTitle());
-            soundFragmentDTO.setArtist(soundFragment.getArtist());
-            soundFragmentDTO.setAlbum(soundFragment.getAlbum());
-            soundFragmentDTO.setSource(SourceType.USERS_UPLOAD);
-
-            return soundFragmentDTO;
-        });
     }
 }

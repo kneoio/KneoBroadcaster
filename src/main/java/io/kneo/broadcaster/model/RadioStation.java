@@ -28,7 +28,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class RadioStation extends SecureDataEntity<UUID> implements Schedulable {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-    private IStreamManager playlist;
+    private IStreamManager streamManager;
     private String slugName;
     private ZoneId timeZone;
     private Integer archived;

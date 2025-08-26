@@ -9,7 +9,7 @@ import java.util.List;
 
 @Getter
 @Setter
-public class LiveAgentDTO {
+public class AiLiveAgentDTO {
     private String name;
     private List<String> fillers;
     private String prompt;

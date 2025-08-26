@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.file.HetznerStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
@@ -79,11 +80,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                            final IUser user, final SoundFragmentFilter filter) {
         assert queryBuilder != null;
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),
-                user, includeArchived, filter, limit, offset, true);
+                user, includeArchived, filter, limit, offset, false);
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, true, false))
+                .onItem().transformToUni(row -> from(row, false, false))
                 .concatenate()
                 .collect().asList();
     }
@@ -216,6 +217,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transformToUni(insertedDoc -> {
                     if (filesToProcess != null && !filesToProcess.isEmpty()) {
                         FileMetadata meta = filesToProcess.get(0);
+                        assert fileStorage != null;
                         return fileStorage.storeFile(
                                         meta.getFileKey(),
                                         meta.getFilePath().toString(),
@@ -253,11 +255,14 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                 });
 
                                 List<Uni<Void>> deleteFileUnis = keysToDelete.stream()
-                                        .map(key -> fileStorage.deleteFile(key)
-                                                .onFailure().recoverWithUni(e -> {
-                                                    LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", key, uuid, e);
-                                                    return Uni.createFrom().voidItem();
-                                                })
+                                        .map(key -> {
+                                                    assert fileStorage != null;
+                                                    return fileStorage.deleteFile(key)
+                                                            .onFailure().recoverWithUni(e -> {
+                                                                LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", key, uuid, e);
+                                                                return Uni.createFrom().voidItem();
+                                                            });
+                                                }
                                         ).collect(Collectors.toList());
 
                                 return Uni.combine().all().unis(deleteFileUnis).discardItems();
@@ -308,7 +313,10 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                         return fileMetadataUni
                                 .onItem().transformToUni(ignored -> insertGenreAssociations(tx, id, doc.getGenres()))
                                 .onItem().transformToUni(ignored -> insertRLSPermissions(tx, id, entityData, user))
-                                .onItem().transformToUni(ignored -> brandHandler.insertBrandAssociations(tx, id, representedInBrands, user))
+                                .onItem().transformToUni(ignored -> {
+                                    assert brandHandler != null;
+                                    return brandHandler.insertBrandAssociations(tx, id, representedInBrands, user);
+                                })
                                 .onItem().transform(ignored -> id);
                     })
             );
@@ -385,15 +393,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findForBrandCount(brandId, includeArchived, user, filter);
     }
 
-    @Deprecated
-    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, SoundFragmentFilter filter) {
+    public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.getBrandSongs(brandId, 100, 0, filter);
-    }
-
-    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.getBrandSongs(brandId, 200, 0);
+        return brandRepository.getBrandSongs(brandId, fragmentType, 200, 0);
     }
 
     public Uni<List<UUID>> getBrandsForSoundFragment(UUID soundFragmentId, IUser user) {
@@ -408,37 +410,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transform(row -> row.getUUID("brand_id"))
                 .collect().asList();
     }
-
-    public Uni<BrandSoundFragment> findBrandSoundFragmentById(UUID soundFragmentId, IUser user) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand, bsf.brand_id " +
-                "FROM " + entityData.getTableName() + " t " +
-                "LEFT JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE t.id = $1 AND rls.reader = $2 " +
-                "AND (t.archived IS NULL OR t.archived = 0)";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(soundFragmentId, user.getId()))
-                .onItem().transformToUni(rows -> {
-                    if (rows.rowCount() == 0) {
-                        return Uni.createFrom().failure(new DocumentHasNotFoundException(soundFragmentId));
-                    }
-
-                    Row row = rows.iterator().next();
-                    return from(row, true, true)
-                            .onItem().transform(soundFragment -> {
-                                BrandSoundFragment brandSoundFragment = new BrandSoundFragment();
-                                brandSoundFragment.setId(soundFragment.getId());
-                                brandSoundFragment.setSoundFragment(soundFragment);
-                                Integer playedCount = row.getInteger("played_by_brand_count");
-                                brandSoundFragment.setPlayedByBrandCount(playedCount != null ? playedCount : 0);
-                                brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
-                                brandSoundFragment.setDefaultBrandId(row.getUUID("brand_id"));
-                                return brandSoundFragment;
-                            });
-                });
-    }
-
 
     public Uni<SoundFragment> update(UUID id, SoundFragment doc, List<UUID> representedInBrands, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
@@ -467,7 +438,10 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                         }
                                         return chain
                                                 .onItem().transformToUni(v -> updateGenreAssociations(tx, id, doc.getGenres()))
-                                                .onItem().transformToUni(v -> brandHandler.updateBrandAssociations(tx, id, representedInBrands, user))
+                                                .onItem().transformToUni(v -> {
+                                                    assert brandHandler != null;
+                                                    return brandHandler.updateBrandAssociations(tx, id, representedInBrands, user);
+                                                })
                                                 .onItem().transformToUni(v -> updateSoundFragmentRecord(tx, id, doc, user, nowTime));
                                     }).onItem().transformToUni(rowSet -> {
                                         if (rowSet.rowCount() == 0) {
@@ -504,6 +478,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
         LOGGER.debug("Storing file - Key: {}, Path: {}, Artist: {}, Title: {}", doKey, localPath, doc.getArtist(), doc.getTitle());
 
+        assert fileStorage != null;
         return fileStorage.storeFile(doKey, localPath, meta.getMimeType(), entityData.getTableName(), id)
                 .onItem().invoke(storedKey -> LOGGER.debug("File stored with key: {} for doc ID: {}", storedKey, id))
                 .onFailure().invoke(ex -> LOGGER.error("Failed to store file with key: {}", doKey, ex))

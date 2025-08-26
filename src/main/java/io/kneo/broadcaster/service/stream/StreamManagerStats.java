@@ -42,7 +42,7 @@ public class StreamManagerStats {
     public HLSSongStats getSongStatistics() {
         return liveSegments.values().stream()
                 .map(segment -> new HLSSongStats(
-                        segment.getSongName(),
+                        segment.getSongMetadata(),
                         segment.getTimestamp(),
                         this.requestCount
                 ))

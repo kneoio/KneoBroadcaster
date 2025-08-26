@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.rls.RLSRepository;
 import io.smallrye.mutiny.Multi;
@@ -112,31 +113,22 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .collect().asList();
     }
 
-    public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, final int limit, final int offset) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
+    public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType, final int limit, final int offset) {
+        String sql = "SELECT t.* " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
-                "WHERE bsf.brand_id = $1 AND t.archived = 0";
-
-        sql += " ORDER BY " +
-                "bsf.played_by_brand_count ASC, " +
-                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
+                "WHERE bsf.brand_id = $1 AND t.archived = 0 AND t.type = $2";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
 
+        Tuple params = Tuple.of(brandId, fragmentType);
+
         return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
+                .execute(params)
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
-                    return soundFragmentUni.onItem().transform(soundFragment -> {
-                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
-                        brandSoundFragment.setSoundFragment(soundFragment);
-                        return brandSoundFragment;
-                    });
-                })
+                .onItem().transformToUni(row -> from(row, true, true))
                 .concatenate()
                 .collect().asList();
     }

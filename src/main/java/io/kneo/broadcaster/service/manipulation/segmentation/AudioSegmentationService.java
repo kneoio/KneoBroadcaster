@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service.manipulation.segmentation;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.model.SegmentInfo;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.smallrye.mutiny.Uni;
@@ -23,7 +23,6 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,18 +50,9 @@ public class AudioSegmentationService {
         preallocateDirectories();
     }
 
-    @Deprecated(since = "2.0.7", forRemoval = false)
-    public Uni<ConcurrentLinkedQueue<HlsSegment>> slice(SoundFragment soundFragment, Path filePath, long bitRate) {
-        return sliceMultipleBitrates(soundFragment, filePath, Arrays.asList(bitRate))
-                .map(resultMap -> resultMap.get(bitRate));
-    }
-
-    // New multi-bitrate method
-    public Uni<Map<Long, ConcurrentLinkedQueue<HlsSegment>>> sliceMultipleBitrates(
-            SoundFragment soundFragment, Path filePath, List<Long> bitRates) {
+    public Uni<Map<Long, ConcurrentLinkedQueue<HlsSegment>>> slice(SongMetadata songMetadata, Path filePath, List<Long> bitRates) {
         return Uni.createFrom().item(() -> {
-                    return segmentAudioFileMultipleBitrates(filePath, soundFragment.getTitle(),
-                            soundFragment.getArtist(), soundFragment.getId(), bitRates);
+                    return segmentAudioFileMultipleBitrates(filePath, songMetadata, bitRates);
                 })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e))
@@ -99,13 +89,13 @@ public class AudioSegmentationService {
         ConcurrentLinkedQueue<HlsSegment> hlsSegments = new ConcurrentLinkedQueue<>();
         for (SegmentInfo segment : segments) {
             try {
+                //TODO probably HlsSegment is redundant now
                 byte[] data = Files.readAllBytes(Paths.get(segment.path()));
                 HlsSegment hlsSegment = new HlsSegment(
                         0,
                         data,
                         segment.duration(),
-                        segment.fragmentId(),
-                        segment.metadata(),
+                        segment.songMetadata(),
                         System.currentTimeMillis() / 1000 + segment.sequenceIndex()
                 );
                 hlsSegments.add(hlsSegment);
@@ -116,15 +106,12 @@ public class AudioSegmentationService {
         return hlsSegments;
     }
 
-    public Map<Long, List<SegmentInfo>> segmentAudioFileMultipleBitrates(
-            Path audioFilePath, String songTitle, String songArtist, UUID fragmentId, List<Long> bitRates) {
-
+    public Map<Long, List<SegmentInfo>> segmentAudioFileMultipleBitrates(Path audioFilePath, SongMetadata songMetadata, List<Long> bitRates) {
         Map<Long, List<SegmentInfo>> segmentsByBitrate = new ConcurrentHashMap<>();
         LocalDateTime now = LocalDateTime.now();
         String today = now.format(DATE_FORMATTER);
         String currentHour = now.format(HOUR_FORMATTER);
-        String songMetadata = String.format("%s|%s", songTitle, songArtist);
-        String sanitizedSongName = sanitizeFileName(songMetadata);
+        String sanitizedSongName = sanitizeFileName(songMetadata.toString());
 
         try {
             FFmpegBuilder builder = new FFmpegBuilder()
@@ -141,7 +128,7 @@ public class AudioSegmentationService {
                 String segmentPattern = songDir + File.separator + baseName + "_%03d.ts";
                 String segmentListFile = songDir + File.separator + baseName + "_segments.txt";
 
-                outputInfoMap.put(bitRate, new BitrateOutputInfo(songDir, segmentListFile, songMetadata, fragmentId));
+                outputInfoMap.put(bitRate, new BitrateOutputInfo(songDir, segmentListFile, songMetadata));
 
                 builder.addOutput(segmentPattern)
                         .setAudioCodec("aac")
@@ -155,12 +142,12 @@ public class AudioSegmentationService {
                         .addExtraArgs("-ar", "44100")
                         .addExtraArgs("-channel_layout", "stereo")
                         .addExtraArgs("-map", "0:a")
-                        .addExtraArgs("-metadata", "title=" + songTitle)
-                        .addExtraArgs("-metadata", "artist=" + songArtist)
+                        .addExtraArgs("-metadata", "title=" + songMetadata.getTitle())
+                        .addExtraArgs("-metadata", "artist=" + songMetadata.getArtist())
                         // Performance optimizations
-                        .addExtraArgs("-threads", "0")  // Use all available cores
-                        .addExtraArgs("-preset", "ultrafast")  // Fastest encoding
-                        .addExtraArgs("-aac_coder", "twoloop")  // Better quality/speed balance
+                        .addExtraArgs("-threads", "0")
+                        .addExtraArgs("-preset", "ultrafast")
+                        .addExtraArgs("-aac_coder", "twoloop")
                         .done();
             }
 
@@ -219,7 +206,6 @@ public class AudioSegmentationService {
                     SegmentInfo info = new SegmentInfo(
                             segmentPath.toString(),
                             outputInfo.songMetadata,
-                            outputInfo.fragmentId,
                             segmentDuration,
                             i
                     );
@@ -231,13 +217,6 @@ public class AudioSegmentationService {
         }
 
         return segments;
-    }
-
-    @Deprecated(since = "2.0.7", forRemoval = false)
-    public List<SegmentInfo> segmentAudioFile(Path audioFilePath, String songTitle, String songArtist, UUID fragmentId, long bitRate) {
-        Map<Long, List<SegmentInfo>> result = segmentAudioFileMultipleBitrates(
-                audioFilePath, songTitle, songArtist, fragmentId, List.of(bitRate));
-        return result.getOrDefault(bitRate, new ArrayList<>());
     }
 
     private void preallocateDirectories() {
@@ -261,6 +240,6 @@ public class AudioSegmentationService {
                 .trim();
     }
 
-        private record BitrateOutputInfo(Path songDir, String segmentListFile, String songMetadata, UUID fragmentId) {
+        private record BitrateOutputInfo(Path songDir, String segmentListFile, SongMetadata songMetadata) {
     }
 }

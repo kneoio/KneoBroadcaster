@@ -1,16 +1,7 @@
 package io.kneo.broadcaster.service.stream;
 
-import lombok.Getter;
+import io.kneo.broadcaster.model.live.SongMetadata;
 
-@Getter
-public class HLSSongStats {
-    private final String title;
-    private final long segmentTimestamp;
-    private final long requestCount;
 
-    public HLSSongStats(String title, long segmentTimestamp, long requestCount) {
-        this.title = title;
-        this.segmentTimestamp = segmentTimestamp;
-        this.requestCount = requestCount;
-    }
+public record HLSSongStats(SongMetadata songMetadata, long segmentTimestamp, long requestCount) {
 }

@@ -33,15 +33,15 @@ public class StationDashboardService {
         stationStats.setManagedBy(station.getManagedBy());
         stationStats.setAlived(station.getCurrentAliveDurationMinutes());
 
-        if (station.getPlaylist() != null) {
-            IStreamManager playlist = station.getPlaylist();
-            stationStats.setLatestRequestedSeg(playlist.getLatestRequestedSeg());
-            PlaylistManager manager = playlist.getPlaylistManager();
-            stationStats.setPlaylistManagerStats(manager.getStats());
-            StreamManagerStats hlsSegmentStats = playlist.getStats();
+        if (station.getStreamManager() != null) {
+            IStreamManager streamManager = station.getStreamManager();
+            stationStats.setLatestRequestedSeg(streamManager.getLatestRequestedSeg());
+            StreamManagerStats hlsSegmentStats = streamManager.getStats();
             stationStats.setTimeline(hlsSegmentStats.getSegmentTimelineDisplay());
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
             stationStats.setCurrentListeners(hlsSegmentStats.getListenersCount());
+            PlaylistManager playlistManager = streamManager.getPlaylistManager();
+            stationStats.setPlaylistManagerStats(playlistManager.getStats());
         }
 
         return stationStats;

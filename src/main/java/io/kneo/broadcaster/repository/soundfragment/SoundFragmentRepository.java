@@ -31,7 +31,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -135,23 +134,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     public Uni<FileMetadata> getFirstFile(UUID id) {
         assert fileHandler != null;
-        return fileHandler.getFirstFile(id)
-                .onFailure(DocumentHasNotFoundException.class)
-                .recoverWithUni(ex -> {
-                    markAsCorrupted(id).subscribe().with(
-                            result -> LOGGER.info("Marked file {} as corrupted due to missing record", id),
-                            failure -> LOGGER.error("Failed to mark file {} as corrupted", id, failure)
-                    );
-                    return Uni.createFrom().failure(ex);
-                })
-                .onFailure(FileNotFoundException.class)
-                .recoverWithUni(ex -> {
-                    markAsCorrupted(id).subscribe().with(
-                            result -> LOGGER.info("Marked file {} as corrupted due to retrieval failure", id),
-                            failure -> LOGGER.error("Failed to mark file {} as corrupted", id, failure)
-                    );
-                    return Uni.createFrom().failure(ex);
-                });
+        return fileHandler.getFirstFile(id);
     }
 
     public Uni<FileMetadata> getFileBySlugName(UUID id, String slugName, IUser user, boolean includeArchived) {
@@ -343,18 +326,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(soundFragmentId))
                 .onItem().transformToUni(ignored -> insertGenreAssociations(tx, soundFragmentId, genreIds));
-    }
-
-    private Uni<List<UUID>> loadGenres(UUID soundFragmentId) {
-        String sql = "SELECT g.id FROM kneobroadcaster__genres g " +
-                "JOIN kneobroadcaster__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
-                "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(soundFragmentId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("id"))
-                .collect().asList();
     }
 
     private Uni<Void> insertFileMetadata(SqlClient tx, UUID id, SoundFragment doc) {

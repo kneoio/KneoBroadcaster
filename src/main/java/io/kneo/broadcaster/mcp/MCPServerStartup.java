@@ -45,24 +45,17 @@ public class MCPServerStartup {
         vertx.deployVerticle(mcpServer)
                 .onSuccess(id -> {
                     this.deploymentId = id;
-                    LOGGER.info("MCP Server deployed successfully!");
+                    LOGGER.info("MCP Server deployed");
                     LOGGER.info("Deployment ID: {}", id);
                     LOGGER.info("WebSocket endpoint: ws://{}:{}", mcpConfig.getServerHost(), mcpConfig.getServerPort());
-                    LOGGER.info("Available tools: get_brand_soundfragments, search_soundfragments, get_memory_by_type");
+                    LOGGER.info("Available tools: get_brand_sound_fragment, get_memory_by_type, add_to_queue");
                     LOGGER.info("MCP Server ready to accept connections");
 
-                    // Test server responsiveness after deployment
                     testServerConnection();
                 })
                 .onFailure(throwable -> {
                     LOGGER.error("Failed to deploy MCP Server", throwable);
-                    LOGGER.error("Check if port {} is available and not blocked by firewall", mcpConfig.getServerPort());
-
-                    // Log additional troubleshooting info
-                    LOGGER.info("Troubleshooting tips:");
-                    LOGGER.info("1. Check if another process is using port {}", mcpConfig.getServerPort());
-                    LOGGER.info("2. Verify firewall settings allow connections on port {}", mcpConfig.getServerPort());
-                    LOGGER.info("3. Ensure {} is a valid bind address", mcpConfig.getServerHost());
+                    LOGGER.error("Port: {}", mcpConfig.getServerPort());
                 });
     }
 
@@ -75,10 +68,7 @@ public class MCPServerStartup {
         }
     }
 
-
-
     private void testServerConnection() {
-        // Simple connection test after a brief delay
         vertx.setTimer(2000, id -> {
             vertx.createNetClient()
                     .connect(mcpConfig.getServerPort(), mcpConfig.getServerHost())
@@ -88,7 +78,6 @@ public class MCPServerStartup {
                     })
                     .onFailure(throwable -> {
                         LOGGER.warn("MCP Server connection test failed: {}", throwable.getMessage());
-                        LOGGER.warn("Server may not be ready yet or there are network issues");
                     });
         });
     }

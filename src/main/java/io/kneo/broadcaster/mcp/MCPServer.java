@@ -170,7 +170,7 @@ public class MCPServer extends AbstractVerticle {
     private ObjectNode createBrandSoundFragmentsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
         tool.put("name", "get_brand_sound_fragment");
-        tool.put("description", "Get a single song for a specific brand filtered by playlist item type. Returns null if no songs found.");
+        tool.put("description", "Get a single song for a specific brand filtered by playlist item type");
 
         ObjectNode schema = objectMapper.createObjectNode();
         schema.put("type", "object");
@@ -309,7 +309,7 @@ public class MCPServer extends AbstractVerticle {
                     LOGGER.error("Error executing tool: {}", toolName, throwable);
                     sendError(webSocket, "tool_error", throwable.getMessage(), id);
                 } else {
-                    sendToolResult(webSocket, result, id);
+                    sendToolResult(webSocket, toolName, result, id);
                 }
             });
 
@@ -364,7 +364,7 @@ public class MCPServer extends AbstractVerticle {
                 .thenApply(result -> (Object) result);
     }
 
-    private void sendToolResult(ServerWebSocket webSocket, Object result, String id) {
+    private void sendToolResult(ServerWebSocket webSocket, String toolName, Object result, String id) {
         try {
             ObjectNode response = objectMapper.createObjectNode();
             response.put("jsonrpc", "2.0");
@@ -373,15 +373,17 @@ public class MCPServer extends AbstractVerticle {
             ObjectNode resultNode = objectMapper.createObjectNode();
             ArrayNode content = objectMapper.createArrayNode();
 
-            ObjectNode textContent = objectMapper.createObjectNode();
-            textContent.put("type", "text");
-            textContent.put("text", objectMapper.writeValueAsString(result));
-            content.add(textContent);
+            ObjectNode toolResultContent = objectMapper.createObjectNode();
+            toolResultContent.put("type", "toolResult");
+            toolResultContent.put("tool", toolName);
 
+            JsonNode resultAsJsonNode = objectMapper.valueToTree(result);
+            toolResultContent.set("result", resultAsJsonNode);
+            content.add(toolResultContent);
             resultNode.set("content", content);
             response.set("result", resultNode);
-
             webSocket.writeTextMessage(response.toString());
+
         } catch (Exception e) {
             LOGGER.error("Error sending tool result", e);
             sendError(webSocket, "internal_error", "Error serializing result", id);

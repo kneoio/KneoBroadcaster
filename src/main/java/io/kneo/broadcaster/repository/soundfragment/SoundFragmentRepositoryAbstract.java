@@ -115,7 +115,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                 .collect().asList();
     }
 
-    protected Uni<Integer> markAsCorrupted(UUID uuid) {
+    public Uni<Integer> markAsCorrupted(UUID uuid) {
         IUser user = SuperUser.build();
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), uuid)
                 .onItem().transformToUni(permissions -> {

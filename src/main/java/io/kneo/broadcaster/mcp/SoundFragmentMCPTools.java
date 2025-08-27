@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.mcp;
 
-import io.kneo.broadcaster.dto.ai.AiSoundFragmentDTO;
+import io.kneo.broadcaster.dto.mcp.SoundFragmentMcpDTO;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.service.RefService;
@@ -28,7 +28,7 @@ public class SoundFragmentMCPTools {
 
     @Tool("get_brand_sound_fragment")
     @Description("Get a single sound fragment for a specific brand")
-    public CompletableFuture<AiSoundFragmentDTO> getBrandSoundFragments(
+    public CompletableFuture<SoundFragmentMcpDTO> getBrandSoundFragments(
             @Parameter("brand") String brandName,
             @Parameter("fragment_type") String fragmentType
     ) {
@@ -37,13 +37,13 @@ public class SoundFragmentMCPTools {
                 .convert().toCompletableFuture();
     }
 
-    private Uni<AiSoundFragmentDTO> mapSoundFragmentToAiDTO(SoundFragment soundFragment) {
+    private Uni<SoundFragmentMcpDTO> mapSoundFragmentToAiDTO(SoundFragment soundFragment) {
         if (soundFragment == null) {
             return Uni.createFrom().nullItem();
         }
 
         if (soundFragment.getGenres() == null || soundFragment.getGenres().isEmpty()) {
-            return Uni.createFrom().item(AiSoundFragmentDTO.builder()
+            return Uni.createFrom().item(SoundFragmentMcpDTO.builder()
                     .id(soundFragment.getId())
                     .title(soundFragment.getTitle())
                     .artist(soundFragment.getArtist())
@@ -58,7 +58,7 @@ public class SoundFragmentMCPTools {
                                         .map(genre -> genre.getLocalizedName().get(LanguageCode.en)))
                                 .collect(Collectors.toList())
                 ).andFailFast()
-                .map(genreNames -> AiSoundFragmentDTO.builder()
+                .map(genreNames -> SoundFragmentMcpDTO.builder()
                         .id(soundFragment.getId())
                         .title(soundFragment.getTitle())
                         .artist(soundFragment.getArtist())

@@ -1,13 +1,8 @@
 package io.kneo.broadcaster.mcp;
 
-import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.dto.queue.IntroPlusSong;
 import io.kneo.broadcaster.service.QueueService;
-import io.kneo.broadcaster.util.BrandActivityLogger;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.service.UserService;
-import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -25,79 +20,28 @@ public class QueueMCPTools {
     @Inject
     QueueService service;
 
-    @Inject
-    UserService userService;
-
-    public CompletableFuture<JsonObject> addToQueue(
-            String brand,
-            String songId,
-            List<String> filePaths,
-            Integer priority
+    @Tool("add_to_queue")
+    @Description("Add a song to the queue for a specific brand")
+    public CompletableFuture<Boolean> addToQueue(
+            @Parameter("brand") String brand,
+            @Parameter("songId") String songId,
+            @Parameter("filePaths") List<String> filePaths,
+            @Parameter("priority") Integer priority
     ) {
-        BrandActivityLogger.logActivity(brand, "queue_add",
-                "Adding song to queue");
+        IntroPlusSong mergingMethod = new IntroPlusSong();
+        mergingMethod.setSoundFragmentUUID(UUID.fromString(songId));
 
-        try {
-            IntroPlusSong mergingMethod = new IntroPlusSong();
-            mergingMethod.setSoundFragmentUUID(UUID.fromString(songId));
-            if (filePaths != null) {
-                if (!filePaths.isEmpty()) {
-                    // Use first file path for now
-                    mergingMethod.setFilePath(Paths.get(filePaths.get(0)));
-                }
-            }
-
-            AddToQueueDTO dto = new AddToQueueDTO();
-            dto.setBrandName(brand);
-            dto.setMergingMethod(mergingMethod);
-            dto.setPriority(priority);
-
-            return getCurrentUser()
-                    .chain(user -> {
-                        LOGGER.info("MCP Tool: Got user context: {}", user.getClass().getSimpleName());
-                        return service.addToQueue(dto.getBrandName(), dto);
-                    })
-                    .map(result -> {
-                        int filesCount = 0;
-                        if (filePaths != null) {
-                            filesCount = filePaths.size();
-                        }
-                        JsonObject response = new JsonObject()
-                                .put("success", result)
-                                .put("brand", brand)
-                                .put("songId", songId)
-                                .put("filesProcessed", filesCount);
-
-                        BrandActivityLogger.logActivity(brand, "queue_success",
-                                "Successfully added song to queue");
-                        LOGGER.info("MCP Tool: Queue addition completed for brand: {}", brand);
-                        return response;
-                    })
-                    .onFailure().invoke(failure -> {
-                        BrandActivityLogger.logActivity(brand, "queue_error",
-                                "Failed to add to queue: %s", failure.getMessage());
-                        LOGGER.error("MCP Tool: Queue addition failed", failure);
-                    })
-                    .onFailure().recoverWithItem(failure -> {
-                        return new JsonObject()
-                                .put("success", false)
-                                .put("error", failure.getMessage())
-                                .put("brand", brand)
-                                .put("songId", songId);
-                    })
-                    .convert().toCompletableFuture();
-        } catch (Exception e) {
-            LOGGER.error("MCP Tool: Exception in addToQueue", e);
-            JsonObject errorResponse = new JsonObject()
-                    .put("success", false)
-                    .put("error", e.getMessage())
-                    .put("brand", brand)
-                    .put("songId", songId);
-            return CompletableFuture.completedFuture(errorResponse);
+        if (filePaths != null && !filePaths.isEmpty()) {
+            mergingMethod.setFilePath(Paths.get(filePaths.get(0)));
         }
-    }
 
-    private Uni<IUser> getCurrentUser() {
-        return Uni.createFrom().item(io.kneo.core.model.user.SuperUser.build());
+        AddToQueueMcpDTO dto = new AddToQueueMcpDTO();
+        dto.setBrandName(brand);
+        dto.setMergingMethod(mergingMethod);
+        dto.setPriority(priority);
+
+        return service.addToQueue(brand, dto)
+                .replaceWith(true)
+                .convert().toCompletableFuture();
     }
 }

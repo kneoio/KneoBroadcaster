@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.ai;
+package io.kneo.broadcaster.dto.mcp;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AiSoundFragmentDTO extends AbstractDTO {
+public class SoundFragmentMcpDTO extends AbstractDTO {
     private PlaylistItemType type;
     private String title;
     private String artist;
@@ -26,7 +26,7 @@ public class AiSoundFragmentDTO extends AbstractDTO {
     private List<String> brands;
     private List<UUID> representedInBrands;
 
-    public AiSoundFragmentDTO(String id) {
+    public SoundFragmentMcpDTO(String id) {
         this.id = UUID.fromString(id);
     }
 }

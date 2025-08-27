@@ -2,7 +2,8 @@ package io.kneo.broadcaster.repository.soundfragment;
 
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.repository.file.IFileStorage;
-import io.kneo.core.repository.exception.DocumentHasNotFoundException;
+import io.kneo.core.repository.exception.attachment.FileRetrievalFailureException;
+import io.kneo.core.repository.exception.attachment.MissingFileRecordException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -12,7 +13,6 @@ import jakarta.inject.Named;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -59,7 +59,7 @@ public class SoundFragmentFileHandler {
 
     private Uni<FileMetadata> handleMissingFileRecord(UUID id) {
         LOGGER.warn("No file record found for ID: {}", id);
-        return Uni.createFrom().failure(new DocumentHasNotFoundException("File not found: " + id));
+        return Uni.createFrom().failure(new MissingFileRecordException("File not found: " + id));
     }
 
     private Uni<FileMetadata> handleFileRetrievalFailure(UUID id, String fileKey, Throwable ex) {
@@ -67,7 +67,7 @@ public class SoundFragmentFileHandler {
 
         String errorMsg = String.format("File retrieval failed - ID: %s, Key: %s, Error: %s",
                 id, fileKey, ex.getClass().getSimpleName());
-        FileNotFoundException fnf = new FileNotFoundException(errorMsg);
+        FileRetrievalFailureException fnf = new FileRetrievalFailureException(errorMsg);
         fnf.initCause(ex);
         return Uni.createFrom().<FileMetadata>failure(fnf);
     }

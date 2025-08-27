@@ -262,7 +262,7 @@ public class PlaylistManager implements IPlaylist{
                         .subscribe().with(
                                 unused -> {},
                                 error -> LOGGER.error("Failed to update played count: {}", error.getMessage(), error)
-                        );;
+                        );
                 if (obtainedByHlsPlaylist.size() > PROCESSED_QUEUE_MAX_SIZE) {
                     LiveSoundFragment removed = obtainedByHlsPlaylist.poll();
                     LOGGER.debug("Removed oldest fragment from processed queue: {}",

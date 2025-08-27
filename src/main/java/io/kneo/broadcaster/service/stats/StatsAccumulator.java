@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
-public class StatsAccumulator {
+public class StatsAccumulator implements IStatsService {
     private static final Logger LOGGER = LoggerFactory.getLogger(StatsAccumulator.class);
 
     private final ConcurrentHashMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<>();
@@ -24,9 +24,6 @@ public class StatsAccumulator {
     @Inject
     RadioStationRepository radioStationRepository;
 
-    /**
-     * Records an access in memory for later batch processing
-     */
     public void recordAccess(String stationName, String userAgent) {
         accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
         lastUserAgents.put(stationName, userAgent);
@@ -36,36 +33,16 @@ public class StatsAccumulator {
                 stationName, accessCounts.get(stationName).get());
     }
 
-    /**
-     * Gets current accumulated stats for a station without flushing
-     */
-    public StationStats getAccumulatedStats(String stationName) {
-        AtomicLong count = accessCounts.get(stationName);
-        String userAgent = lastUserAgents.get(stationName);
-        OffsetDateTime lastAccess = lastAccessTimes.get(stationName);
-
-        return new StationStats(
-                count != null ? count.get() : 0,
-                userAgent,
-                lastAccess
-        );
-    }
-
-    /**
-     * Flushes all accumulated stats to database and clears memory
-     */
     public Uni<Void> flushAllStats() {
         if (accessCounts.isEmpty()) {
             LOGGER.debug("No stats to flush");
             return Uni.createFrom().voidItem();
         }
 
-        // Create snapshot and clear immediately to avoid blocking new requests
         Map<String, Long> countsSnapshot = new HashMap<>();
         Map<String, String> agentsSnapshot = new HashMap<>();
         Map<String, OffsetDateTime> timesSnapshot = new HashMap<>();
 
-        // Atomic snapshot creation
         accessCounts.forEach((station, count) -> {
             long currentCount = count.getAndSet(0);
             if (currentCount > 0) {
@@ -75,7 +52,6 @@ public class StatsAccumulator {
             }
         });
 
-        // Clean up entries that were zeroed out
         accessCounts.entrySet().removeIf(entry -> entry.getValue().get() == 0);
         countsSnapshot.keySet().forEach(station -> {
             lastUserAgents.remove(station);
@@ -88,7 +64,6 @@ public class StatsAccumulator {
 
         LOGGER.info("Flushing stats for {} stations to database", countsSnapshot.size());
 
-        // Process each station's stats
         return Uni.join().all(
                         countsSnapshot.entrySet().stream()
                                 .map(entry -> {
@@ -138,17 +113,9 @@ public class StatsAccumulator {
         return accessCounts.size();
     }
 
-    /**
-     * Gets total pending access count across all stations
-     */
     public long getTotalPendingAccesses() {
         return accessCounts.values().stream()
                 .mapToLong(AtomicLong::get)
                 .sum();
-    }
-
-
-    public record StationStats(long accessCount, String lastUserAgent, OffsetDateTime lastAccessTime) {
-
     }
 }

@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -27,52 +28,73 @@ public class QueueMCPTools {
     @Inject
     UserService userService;
 
-    @Tool("add_to_queue")
-    @Description("Add a song to the queue for a specific brand")
     public CompletableFuture<JsonObject> addToQueue(
-            @Parameter("brandName") String brandName,
-            @Parameter("soundFragmentUUID") String soundFragmentUUID,
-            @Parameter("filePath") String filePath,
-            @Parameter("priority") Integer priority
+            String brand,
+            String songId,
+            List<String> filePaths,
+            Integer priority
     ) {
-        BrandActivityLogger.logActivity(brandName, "queue_add",
+        BrandActivityLogger.logActivity(brand, "queue_add",
                 "Adding song to queue");
 
-        IntroPlusSong mergingMethod = new IntroPlusSong();
-        mergingMethod.setSoundFragmentUUID(UUID.fromString(soundFragmentUUID));
-        mergingMethod.setFilePath(Paths.get(filePath));
+        try {
+            IntroPlusSong mergingMethod = new IntroPlusSong();
+            mergingMethod.setSoundFragmentUUID(UUID.fromString(songId));
+            if (filePaths != null) {
+                if (!filePaths.isEmpty()) {
+                    // Use first file path for now
+                    mergingMethod.setFilePath(Paths.get(filePaths.get(0)));
+                }
+            }
 
-        AddToQueueDTO dto = new AddToQueueDTO();
-        dto.setBrandName(brandName);
-        dto.setMergingMethod(mergingMethod);
-        dto.setPriority(priority);
+            AddToQueueDTO dto = new AddToQueueDTO();
+            dto.setBrandName(brand);
+            dto.setMergingMethod(mergingMethod);
+            dto.setPriority(priority);
 
-        return getCurrentUser()
-                .chain(user -> {
-                    LOGGER.info("MCP Tool: Got user context: {}", user.getClass().getSimpleName());
-                    return service.addToQueue(dto.getBrandName(), dto);
-                })
-                .map(result -> {
-                    JsonObject response = new JsonObject()
-                            .put("success", result)
-                            .put("brand", brandName);
+            return getCurrentUser()
+                    .chain(user -> {
+                        LOGGER.info("MCP Tool: Got user context: {}", user.getClass().getSimpleName());
+                        return service.addToQueue(dto.getBrandName(), dto);
+                    })
+                    .map(result -> {
+                        int filesCount = 0;
+                        if (filePaths != null) {
+                            filesCount = filePaths.size();
+                        }
+                        JsonObject response = new JsonObject()
+                                .put("success", result)
+                                .put("brand", brand)
+                                .put("songId", songId)
+                                .put("filesProcessed", filesCount);
 
-                    BrandActivityLogger.logActivity(brandName, "queue_success",
-                            "Successfully added song to queue");
-                    LOGGER.info("MCP Tool: Queue addition completed for brand: {}", brandName);
-                    return response;
-                })
-                .onFailure().invoke(failure -> {
-                    BrandActivityLogger.logActivity(brandName, "queue_error",
-                            "Failed to add to queue: %s", failure.getMessage());
-                    LOGGER.error("MCP Tool: Queue addition failed", failure);
-                })
-                .onFailure().recoverWithItem(failure -> {
-                    return new JsonObject()
-                            .put("success", false)
-                            .put("error", failure.getMessage());
-                })
-                .convert().toCompletableFuture();
+                        BrandActivityLogger.logActivity(brand, "queue_success",
+                                "Successfully added song to queue");
+                        LOGGER.info("MCP Tool: Queue addition completed for brand: {}", brand);
+                        return response;
+                    })
+                    .onFailure().invoke(failure -> {
+                        BrandActivityLogger.logActivity(brand, "queue_error",
+                                "Failed to add to queue: %s", failure.getMessage());
+                        LOGGER.error("MCP Tool: Queue addition failed", failure);
+                    })
+                    .onFailure().recoverWithItem(failure -> {
+                        return new JsonObject()
+                                .put("success", false)
+                                .put("error", failure.getMessage())
+                                .put("brand", brand)
+                                .put("songId", songId);
+                    })
+                    .convert().toCompletableFuture();
+        } catch (Exception e) {
+            LOGGER.error("MCP Tool: Exception in addToQueue", e);
+            JsonObject errorResponse = new JsonObject()
+                    .put("success", false)
+                    .put("error", e.getMessage())
+                    .put("brand", brand)
+                    .put("songId", songId);
+            return CompletableFuture.completedFuture(errorResponse);
+        }
     }
 
     private Uni<IUser> getCurrentUser() {

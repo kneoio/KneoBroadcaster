@@ -335,20 +335,32 @@ public class MCPServer extends AbstractVerticle {
     }
 
     private CompletableFuture<Object> handleAddToQueueCall(JsonNode arguments) {
-        String brand = arguments.has("brand") ? arguments.get("brand").asText() : null;
-        String songId = arguments.has("songId") ? arguments.get("songId").asText() : null;
+        String brand = null;
+        if (arguments.has("brand")) {
+            brand = arguments.get("brand").asText();
+        }
 
-        String filePath = null;
-        if (arguments.has("filePaths") && arguments.get("filePaths").isArray()) {
-            ArrayNode filePathsArray = (ArrayNode) arguments.get("filePaths");
-            if (!filePathsArray.isEmpty()) {
-                filePath = filePathsArray.get(0).asText();
+        String songId = null;
+        if (arguments.has("songId")) {
+            songId = arguments.get("songId").asText();
+        }
+
+        List<String> filePaths = new ArrayList<>();
+        if (arguments.has("filePaths")) {
+            if (arguments.get("filePaths").isArray()) {
+                ArrayNode filePathsArray = (ArrayNode) arguments.get("filePaths");
+                for (JsonNode filePathNode : filePathsArray) {
+                    filePaths.add(filePathNode.asText());
+                }
             }
         }
 
-        Integer priority = arguments.has("priority") ? arguments.get("priority").asInt() : null;
+        Integer priority = null;
+        if (arguments.has("priority")) {
+            priority = arguments.get("priority").asInt();
+        }
 
-        return queueMCPTools.addToQueue(brand, songId, filePath, priority)
+        return queueMCPTools.addToQueue(brand, songId, filePaths, priority)
                 .thenApply(result -> (Object) result);
     }
 

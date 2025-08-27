@@ -8,6 +8,6 @@ import lombok.Setter;
 public class AddToQueueDTO {
     private String brandName;
     private MergingMethod mergingMethod;
-    private Integer priority;
+    private Integer priority = 10;
 
 }

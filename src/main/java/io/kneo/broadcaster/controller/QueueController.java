@@ -42,7 +42,6 @@ public class QueueController {
 
     public void setupRoutes(Router router) {
         String path = "/api/:brand/queue";
-      //  router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.POST, path + "/:songId").handler(this::add);
     }

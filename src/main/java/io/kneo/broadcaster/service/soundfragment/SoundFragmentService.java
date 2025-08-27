@@ -13,8 +13,6 @@ import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
-import io.kneo.broadcaster.service.playlist.PlaylistHelper;
-import io.kneo.broadcaster.service.playlist.PlaylistTracker;
 import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.WebHelper;
@@ -49,7 +47,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
-    private final PlaylistHelper playlistService;
     private final BroadcasterConfig config;
     private String uploadDir;
     Validator validator;
@@ -60,7 +57,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.config = config;
         this.repository = null;
         this.radioStationService = null;
-        this.playlistService = null;
     }
 
     @Inject
@@ -69,14 +65,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 LocalFileCleanupService localFileCleanupService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
-                                PlaylistHelper playlistService,
                                 BroadcasterConfig config) {
         super(userService);
         this.localFileCleanupService = localFileCleanupService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
-        this.playlistService = playlistService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.config = config;
     }
@@ -170,61 +164,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<FileMetadata> getFileBySlugName(UUID soundFragmentId, String slugName, IUser user) {
         assert repository != null;
         return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
-    }
-
-    private List<BrandSoundFragment> selectFragments(List<BrandSoundFragment> unplayedFragments,
-                                                     List<BrandSoundFragment> allFragments,
-                                                     int quantity,
-                                                     PlaylistTracker tracker,
-                                                     String brandName) {
-        List<BrandSoundFragment> selectedFragments = new ArrayList<>();
-
-        if (unplayedFragments.size() >= quantity) {
-            // We have enough unplayed songs
-            selectedFragments = unplayedFragments.stream()
-                    .limit(quantity)
-                    .collect(Collectors.toList());
-
-            BrandActivityLogger.logActivity(brandName, "selection_strategy",
-                    "Selected %d unplayed songs (sufficient unplayed available)", quantity);
-        } else {
-            // Add all unplayed songs first
-            selectedFragments.addAll(unplayedFragments);
-
-            // Fill remaining slots with previously played songs if needed
-            int needed = quantity - unplayedFragments.size();
-            if (needed > 0) {
-                List<BrandSoundFragment> playedFragments = allFragments.stream()
-                        .filter(fragment -> tracker.hasPlayed(fragment.getSoundFragment().getId()))
-                        .limit(needed)
-                        .toList();
-
-                selectedFragments.addAll(playedFragments);
-
-                BrandActivityLogger.logActivity(brandName, "mixed_playlist",
-                        "Created mixed playlist: %d unplayed + %d played songs",
-                        unplayedFragments.size(), playedFragments.size());
-            } else {
-                BrandActivityLogger.logActivity(brandName, "partial_playlist",
-                        "Returning only %d unplayed songs (less than requested %d)",
-                        selectedFragments.size(), quantity);
-            }
-        }
-
-        return selectedFragments;
-    }
-
-    private void shuffleFragments(List<BrandSoundFragment> fragments, String brandName) {
-        if (fragments.isEmpty()) {
-            return;
-        }
-
-        // Create deterministic but date-varying seed for consistent daily shuffles
-        long seed = brandName.hashCode() + System.currentTimeMillis() / 86400000;
-        Collections.shuffle(fragments, new java.util.Random(seed));
-
-        BrandActivityLogger.logActivity(brandName, "shuffling_fragments",
-                "Shuffling %d fragments with seed based on brand+date", fragments.size());
     }
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, SoundFragmentFilterDTO filterDTO) {

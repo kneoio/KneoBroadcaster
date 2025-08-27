@@ -1,20 +1,18 @@
 package io.kneo.broadcaster.service.stats;
 
+import io.quarkus.runtime.ShutdownEvent;
+import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.enterprise.event.Observes;
-import io.quarkus.runtime.ShutdownEvent;
-import io.quarkus.runtime.StartupEvent;
-
 @ApplicationScoped
-public class StatsScheduler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(StatsScheduler.class);
+public class StatsFlusher {
+    private static final Logger LOGGER = LoggerFactory.getLogger(StatsFlusher.class);
 
     @Inject
     StatsAccumulator statsAccumulator;
@@ -53,22 +51,5 @@ public class StatsScheduler {
                 .onFailure().invoke(failure ->
                         LOGGER.error("Scheduled flush failed", failure)
                 );
-    }
-
-    @Getter
-    public static class StatsHealth {
-        private final int pendingStations;
-        private final long totalPendingAccesses;
-
-        public StatsHealth(int pendingStations, long totalPendingAccesses) {
-            this.pendingStations = pendingStations;
-            this.totalPendingAccesses = totalPendingAccesses;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("StatsHealth{pendingStations=%d, totalPendingAccesses=%d}",
-                    pendingStations, totalPendingAccesses);
-        }
     }
 }

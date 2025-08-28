@@ -88,9 +88,9 @@ public class AudioMergerService {
                                                 .addOutput(outputFilePath.toString())
                                                 .addExtraArgs("-filter_complex",
                                                         String.format(
-                                                                "[1]aformat=channel_layouts=stereo[song_formatted];" +
-                                                                        "[0]volume=%.2f,aresample=sample_rate=[song_formatted]:0,aformat=channel_layouts=stereo[speech];" +
-                                                                        "[speech][song_formatted]concat=n=2:v=0:a=1",
+                                                                "[0]volume=%.2f,acodec=pcm_s16le,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
+                                                                        "[1]acodec=pcm_s16le,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
+                                                                        "[speech][song]concat=n=2:v=0:a=1",
                                                                 gainValue))
                                                 .done()
                                 /*return executeFFmpegAsync(

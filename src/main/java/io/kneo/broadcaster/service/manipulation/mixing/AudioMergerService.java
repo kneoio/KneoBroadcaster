@@ -88,8 +88,8 @@ public class AudioMergerService {
                                                 .addOutput(outputFilePath.toString())
                                                 .addExtraArgs("-filter_complex",
                                                         String.format(
-                                                                "[0]volume=%.2f,acodec=pcm_s16le,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
-                                                                        "[1]acodec=pcm_s16le,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
+                                                                "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
+                                                                        "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
                                                                         "[speech][song]concat=n=2:v=0:a=1",
                                                                 gainValue))
                                                 .done()
@@ -132,12 +132,18 @@ public class AudioMergerService {
 
                     } catch (Exception e) {
                         LOGGER.error("FFmpeg execution failed with exception: {}", e.getMessage(), e);
+
+                        // Try to get more details about the FFmpeg error
+                        if (e.getCause() instanceof IOException) {
+                            LOGGER.error("IOException details: {}", e.getCause().getMessage());
+                        }
+
                         throw e;
                     }
                 }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().transform(failure -> {
                     LOGGER.error("FFmpeg async execution failed: {}", failure.getMessage(), failure);
-                    return new AudioMergeException("FFmpeg execution failed", failure);
+                    return new AudioMergeException("FFmpeg execution failed: " + failure.getMessage(), failure);
                 });
     }
 }

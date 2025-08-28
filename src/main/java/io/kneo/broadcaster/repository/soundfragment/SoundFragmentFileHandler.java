@@ -45,7 +45,8 @@ public class SoundFragmentFileHandler {
                 .onFailure().invoke(failure -> LOGGER.error("Database query failed for ID: {}", id, failure))
                 .onItem().transformToUni(rows -> {
                     if (rows.rowCount() == 0) {
-                        return handleMissingFileRecord(id);
+                        LOGGER.warn("No file record found for ID: {}", id);
+                        return Uni.createFrom().failure(new MissingFileRecordException("File not found: " + id));
                     }
 
                     String fileKey = rows.iterator().next().getString("file_key");
@@ -53,22 +54,14 @@ public class SoundFragmentFileHandler {
 
                     return fileStorage.retrieveFile(fileKey)
                             .onItem().invoke(file -> LOGGER.debug("File retrieval successful for ID: {}", id))
-                            .onFailure().recoverWithUni(ex -> handleFileRetrievalFailure(id, fileKey, ex));
+                            .onFailure().recoverWithUni(ex -> {
+                                LOGGER.error("File retrieval failed - ID: {}, Key: {}, Error: {}", id, fileKey, ex.getMessage());
+                                String errorMsg = String.format("File retrieval failed - ID: %s, Key: %s, Error: %s",
+                                        id, fileKey, ex.getClass().getSimpleName());
+                                FileRetrievalFailureException fnf = new FileRetrievalFailureException(errorMsg);
+                                fnf.initCause(ex);
+                                return Uni.createFrom().<FileMetadata>failure(fnf);
+                            });
                 });
-    }
-
-    private Uni<FileMetadata> handleMissingFileRecord(UUID id) {
-        LOGGER.warn("No file record found for ID: {}", id);
-        return Uni.createFrom().failure(new MissingFileRecordException("File not found: " + id));
-    }
-
-    private Uni<FileMetadata> handleFileRetrievalFailure(UUID id, String fileKey, Throwable ex) {
-        LOGGER.error("File retrieval failed - ID: {}, Key: {}, Error: {}", id, fileKey, ex.getMessage());
-
-        String errorMsg = String.format("File retrieval failed - ID: %s, Key: %s, Error: %s",
-                id, fileKey, ex.getClass().getSimpleName());
-        FileRetrievalFailureException fnf = new FileRetrievalFailureException(errorMsg);
-        fnf.initCause(ex);
-        return Uni.createFrom().<FileMetadata>failure(fnf);
     }
 }

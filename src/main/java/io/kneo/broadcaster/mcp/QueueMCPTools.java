@@ -1,15 +1,14 @@
 package io.kneo.broadcaster.mcp;
 
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
-import io.kneo.broadcaster.dto.queue.IntroPlusSong;
 import io.kneo.broadcaster.service.QueueService;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Paths;
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -24,21 +23,16 @@ public class QueueMCPTools {
     @Description("Add a song to the queue for a specific brand")
     public CompletableFuture<Boolean> addToQueue(
             @Parameter("brand") String brand,
-            @Parameter("songId") String songId,
-            @Parameter("filePaths") List<String> filePaths,
+            @Parameter("mergingMethod") MergingType mergingMethod,
+            @Parameter("songIds") Map<String, UUID> songIds,
+            @Parameter("filePaths") Map<String, String> filePaths,
             @Parameter("priority") Integer priority
     ) {
-        IntroPlusSong mergingMethod = new IntroPlusSong();
-        mergingMethod.setSoundFragmentUUID(UUID.fromString(songId));
-
-        if (filePaths != null && !filePaths.isEmpty()) {
-            mergingMethod.setFilePath(Paths.get(filePaths.get(0)));
-        }
-
         AddToQueueMcpDTO dto = new AddToQueueMcpDTO();
-        dto.setBrandName(brand);
         dto.setMergingMethod(mergingMethod);
         dto.setPriority(priority);
+        dto.setSoundFragments(songIds);
+        dto.setFilePaths(filePaths);
 
         return service.addToQueue(brand, dto)
                 .replaceWith(true)

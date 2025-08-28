@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.kneo.broadcaster.config.MCPConfig;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServer;
@@ -14,7 +15,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public class MCPServer extends AbstractVerticle {
@@ -236,27 +241,30 @@ public class MCPServer extends AbstractVerticle {
         ObjectNode props = objectMapper.createObjectNode();
 
         addStringProperty(props, "brand", "Brand name");
-        addStringProperty(props, "songId", "UUID of the song to add to queue");
+
+        ObjectNode songIdsProp = objectMapper.createObjectNode();
+        songIdsProp.put("type", "object");
+        songIdsProp.put("description", "Map of song identifiers to UUIDs");
+        ObjectNode songIdsAdditionalProps = objectMapper.createObjectNode();
+        songIdsAdditionalProps.put("type", "string");
+        songIdsAdditionalProps.put("format", "uuid");
+        songIdsProp.set("additionalProperties", songIdsAdditionalProps);
+        props.set("songIds", songIdsProp);
 
         ObjectNode filePathsProp = objectMapper.createObjectNode();
-        filePathsProp.put("type", "array");
-        ObjectNode itemsProp = objectMapper.createObjectNode();
-        itemsProp.put("type", "string");
-        filePathsProp.set("items", itemsProp);
-        filePathsProp.put("description", "List of file paths associated with the song");
+        filePathsProp.put("type", "object");
+        filePathsProp.put("description", "Map of file identifiers to file paths");
+        ObjectNode filePathsAdditionalProps = objectMapper.createObjectNode();
+        filePathsAdditionalProps.put("type", "string");
+        filePathsProp.set("additionalProperties", filePathsAdditionalProps);
         props.set("filePaths", filePathsProp);
 
+        addStringProperty(props, "mergingMethod", "Merging method for audio processing (e.g., INTRO_PLUS_SONG)");
         addIntegerProperty(props, "priority", "Priority level for queue ordering", null);
-
-        ObjectNode metadataProp = objectMapper.createObjectNode();
-        metadataProp.put("type", "object");
-        metadataProp.put("description", "Additional metadata for the song");
-        props.set("metadata", metadataProp);
 
         schema.set("properties", props);
         ArrayNode required = objectMapper.createArrayNode();
         required.add("brand");
-        required.add("songId");
         schema.set("required", required);
         tool.set("inputSchema", schema);
 
@@ -340,18 +348,36 @@ public class MCPServer extends AbstractVerticle {
             brand = arguments.get("brand").asText();
         }
 
-        String songId = null;
-        if (arguments.has("songId")) {
-            songId = arguments.get("songId").asText();
+        Map<String, UUID> songIds = new HashMap<>();
+        if (arguments.has("songIds")) {
+            JsonNode songIdsNode = arguments.get("songIds");
+            Iterator<String> fieldNames = songIdsNode.fieldNames();
+            while (fieldNames.hasNext()) {
+                String key = fieldNames.next();
+                String value = songIdsNode.get(key).asText();
+                songIds.put(key, UUID.fromString(value));
+            }
         }
 
-        List<String> filePaths = new ArrayList<>();
+        Map<String, String> filePaths = new HashMap<>();
         if (arguments.has("filePaths")) {
-            if (arguments.get("filePaths").isArray()) {
-                ArrayNode filePathsArray = (ArrayNode) arguments.get("filePaths");
-                for (JsonNode filePathNode : filePathsArray) {
-                    filePaths.add(filePathNode.asText());
-                }
+            JsonNode filePathsNode = arguments.get("filePaths");
+            Iterator<String> fieldNames = filePathsNode.fieldNames();
+            while (fieldNames.hasNext()) {
+                String key = fieldNames.next();
+                String value = filePathsNode.get(key).asText();
+                filePaths.put(key, value);
+            }
+        }
+
+        MergingType mergingMethod = null;
+        if (arguments.has("mergingMethod")) {
+            String mergingMethodStr = arguments.get("mergingMethod").asText();
+            try {
+                mergingMethod = MergingType.valueOf(mergingMethodStr);
+            } catch (IllegalArgumentException e) {
+                LOGGER.warn("Invalid merging method '{}', using default", mergingMethodStr);
+                mergingMethod = MergingType.INTRO_PLUS_SONG;
             }
         }
 
@@ -360,7 +386,7 @@ public class MCPServer extends AbstractVerticle {
             priority = arguments.get("priority").asInt();
         }
 
-        return queueMCPTools.addToQueue(brand, songId, filePaths, priority)
+        return queueMCPTools.addToQueue(brand, mergingMethod, songIds, filePaths, priority)
                 .thenApply(result -> (Object) result);
     }
 

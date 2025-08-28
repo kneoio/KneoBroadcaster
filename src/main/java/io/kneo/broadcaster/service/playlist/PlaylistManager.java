@@ -10,6 +10,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
@@ -32,16 +33,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public class PlaylistManager implements IPlaylist{
+public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
-    private static final int SELF_MANAGING_INTERVAL_SECONDS = 300;
+    private static final int SELF_MANAGING_INTERVAL_SECONDS = 180;
     private static final int REGULAR_BUFFER_MAX = 2;
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
     private static final int BACKPRESSURE_ON = 2;
     private static final long BACKPRESSURE_COOLDOWN_MILLIS = 90_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
-    private static final long STARVING_FEED_COOLDOWN_MILLIS = 30_000L;
+    private static final long STARVING_FEED_COOLDOWN_MILLIS = 20_000L;
 
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
 
@@ -152,6 +153,48 @@ public class PlaylistManager implements IPlaylist{
                 );
     }
 
+    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType) {
+        try {
+            List<FileMetadata> metadataList = soundFragment.getFileMetadataList();
+            FileMetadata metadata = metadataList.get(0);
+            LiveSoundFragment liveSoundFragment = new LiveSoundFragment();
+            SongMetadata songMetadata = new SongMetadata(soundFragment.getTitle(), soundFragment.getArtist());
+            songMetadata.setMergingType(mergingType);
+            liveSoundFragment.setSoundFragmentId(soundFragment.getId());
+            liveSoundFragment.setMetadata(songMetadata);
+            return segmentationService.slice(songMetadata, metadata.getTemporaryFilePath(), List.of(maxRate))
+                    .onItem().transformToUni(segments -> {
+                        if (segments.isEmpty()) {
+                            LOGGER.warn("Slicing from metadata {} resulted in zero segments.", metadata.getFileKey());
+                            return Uni.createFrom().item(false);
+                        }
+
+                        liveSoundFragment.setSegments(segments);
+                        boolean isAiDjSubmit = priority <= 10;
+
+                        if (isAiDjSubmit) {
+                            prioritizedQueue.add(liveSoundFragment);
+                            LOGGER.info("Added AI submit fragment for brand {}: {}", brand, metadata.getFileOriginalName());
+                            if (prioritizedQueue.size() >= BACKPRESSURE_ON) {
+                                radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
+                            }
+                        } else {
+                            if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
+                                LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);
+                                return Uni.createFrom().item(false);
+                            }
+                            regularQueue.add(liveSoundFragment);
+                            LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, metadata.getFileOriginalName());
+                        }
+                        return Uni.createFrom().item(true);
+                    });
+        } catch (Exception e) {
+            LOGGER.warn("Skipping fragment due to metadata error, position 658: {}", e.getMessage());
+            return Uni.createFrom().item(false);
+        }
+    }
+
+    @Deprecated
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, long bitRate) {
         try {
             List<FileMetadata> metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();

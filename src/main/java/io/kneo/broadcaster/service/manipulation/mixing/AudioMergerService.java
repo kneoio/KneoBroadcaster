@@ -14,6 +14,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
+import net.bramp.ffmpeg.job.FFmpegJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,8 +87,20 @@ public class AudioMergerService {
                                                 .addInput(songTempFile.toString())
                                                 .addOutput(outputFilePath.toString())
                                                 .addExtraArgs("-filter_complex",
-                                                        String.format("[0]volume=%.2f[speech];[speech][1]concat=n=2:v=0:a=1", gainValue))
+                                                        String.format(
+                                                                "[1]aformat=channel_layouts=stereo[song_formatted];" +
+                                                                        "[0]volume=%.2f,aresample=sample_rate=[song_formatted]:0,aformat=channel_layouts=stereo[speech];" +
+                                                                        "[speech][song_formatted]concat=n=2:v=0:a=1",
+                                                                gainValue))
                                                 .done()
+                                /*return executeFFmpegAsync(
+                                        new FFmpegBuilder()
+                                                .setInput(speechFilePath.toString())
+                                                .addInput(songTempFile.toString())
+                                                .addOutput(outputFilePath.toString())
+                                                .addExtraArgs("-filter_complex",
+                                                        String.format("[0]volume=%.2f[speech];[speech][1]concat=n=2:v=0:a=1", gainValue))
+                                                .done()*/
                                 ).onItem().transform(v -> {
                                     LOGGER.info("Successfully merged audio files to: {} with speech gain: {}", outputFilePath, gainValue);
                                     return outputFilePath;
@@ -106,11 +119,25 @@ public class AudioMergerService {
 
     private Uni<Void> executeFFmpegAsync(FFmpegBuilder builder) {
         return Uni.createFrom().item(() -> {
-                    executor.createJob(builder).run();
-                    return (Void) null;
+                    LOGGER.info("Starting FFmpeg execution with command: {}", builder.build());
+
+                    try {
+                        FFmpegJob job = executor.createJob(builder);
+                        LOGGER.info("FFmpeg job created successfully, starting execution");
+
+                        job.run();
+
+                        LOGGER.info("FFmpeg execution completed successfully");
+                        return (Void) null;
+
+                    } catch (Exception e) {
+                        LOGGER.error("FFmpeg execution failed with exception: {}", e.getMessage(), e);
+                        throw e;
+                    }
                 }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .onFailure().transform(failure ->
-                        new AudioMergeException("FFmpeg execution failed", failure)
-                );
+                .onFailure().transform(failure -> {
+                    LOGGER.error("FFmpeg async execution failed: {}", failure.getMessage(), failure);
+                    return new AudioMergeException("FFmpeg execution failed", failure);
+                });
     }
 }

@@ -10,6 +10,7 @@ import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMixerService;
+import io.kneo.broadcaster.service.manipulation.mixing.IntroPlusSongHandler;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
@@ -51,57 +52,15 @@ public class QueueService {
         if (toQueueDTO.getMergingMethod() == MergingType.INTRO_PLUS_SONG) {
             return getRadioStation(brandName)
                     .chain(radioStation -> {
-                        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
-                        UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
-                        String ttsFilePath = toQueueDTO.getFilePaths().get("audio1");
-                        return soundFragmentService.getById(soundFragmentId, SuperUser.build())
-                                .chain(soundFragment -> {
-                                    return repository.getFirstFile(soundFragment.getId())
-                                            .chain(songMetadata -> {
-                                                if (playlistManager.getPrioritizedQueue().size() > 2) {
-                                                    LiveSoundFragment lastFragment = playlistManager.getPrioritizedQueue().getLast();
-                                                    LOGGER.info("prioritizedQueue: {}", lastFragment.getMetadata());
-                                                }
-                                                if (ttsFilePath != null) {
-                                                    Path path = Path.of(ttsFilePath);
-                                                    return audioMergerService.mergeAudioFiles(path, songMetadata, radioStation)
-                                                            .onItem().transform(mergedPath -> {
-                                                                songMetadata.setTemporaryFilePath(mergedPath);
-                                                                return songMetadata;
-                                                            })
-                                                            .onItem().transform(finalMetadata -> {
-                                                                soundFragment.setFileMetadataList(List.of(finalMetadata));
-                                                                soundFragment.setTitle(soundFragment.getTitle());
-                                                                return finalMetadata;
-                                                            }).chain(updatedMetadata -> {
-                                                                radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
-                                                                radioStation.setLastAgentContactAt(System.currentTimeMillis());
-                                                                return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(), radioStation.getBitRate(), MergingType.INTRO_PLUS_SONG)
-                                                                        .onItem().invoke(result -> {
-                                                                            if (result) {
-                                                                                LOGGER.info("Added merged song to queue for brand {}: {}", brandName, soundFragment.getTitle());
-                                                                            }
-                                                                        });
-                                                            });
-                                                } else {
-                                                    radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
-                                                    radioStation.setLastAgentContactAt(System.currentTimeMillis());
-                                                    return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(), radioStation.getBitRate(), MergingType.NOT_MIXED)
-                                                            .onItem().invoke(result -> {
-                                                                if (result) {
-                                                                    LOGGER.info("Added song to queue for brand {}: {}", brandName, soundFragment.getTitle());
-                                                                }
-                                                            });
-                                                }
-                                            });
-                                });
-
+                        IntroPlusSongHandler handler = new IntroPlusSongHandler(
+                                repository, audioMergerService, soundFragmentService);
+                        return handler.handle(radioStation, toQueueDTO);
                     });
-
         } else {
             return Uni.createFrom().item(Boolean.FALSE);
         }
     }
+
 
     @Deprecated
     public Uni<Boolean> addToQueue(String brandName, UUID soundFragmentId, List<String> ttsFilePaths) {

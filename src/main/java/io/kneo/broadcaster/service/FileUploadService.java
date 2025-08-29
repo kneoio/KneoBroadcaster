@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class FileUploadService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileUploadService.class);
-    private static final long MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+    private static final long MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024;
 
     private final String uploadDir;
     private final AudioMetadataService audioMetadataService;

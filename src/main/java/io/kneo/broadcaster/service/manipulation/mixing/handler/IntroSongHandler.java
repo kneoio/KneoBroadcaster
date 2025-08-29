@@ -1,5 +1,6 @@
-package io.kneo.broadcaster.service.manipulation.mixing;
+package io.kneo.broadcaster.service.manipulation.mixing.handler;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.model.FileMetadata;
@@ -7,6 +8,9 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
+import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
+import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.SuperUser;
@@ -14,39 +18,59 @@ import io.smallrye.mutiny.Uni;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-public class SongIntroSongHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SongIntroSongHandler.class);
+public class IntroSongHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(IntroSongHandler.class);
     private final SoundFragmentRepository repository;
     private final AudioMergerService audioMergerService;
     private final SoundFragmentService soundFragmentService;
+    private final BroadcasterConfig config;
+    private final FFmpegProvider fFmpegProvider;
 
-    public SongIntroSongHandler(SoundFragmentRepository repository,
-                                AudioMergerService audioMergerService,
-                                SoundFragmentService soundFragmentService) {
+    public IntroSongHandler(BroadcasterConfig config,
+                            SoundFragmentRepository repository,
+                            AudioMergerService audioMergerService,
+                            SoundFragmentService soundFragmentService,
+                            FFmpegProvider fFmpegProvider) {
+        this.config = config;
         this.repository = repository;
         this.audioMergerService = audioMergerService;
         this.soundFragmentService = soundFragmentService;
+        this.fFmpegProvider = fFmpegProvider;
     }
 
 
-    public Uni<Boolean> handle(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+    public Uni<Boolean> handle(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) throws IOException {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
         String ttsFilePath = toQueueDTO.getFilePaths().get("audio1");
+        List<LiveSoundFragment> prioritizedQueue = playlistManager.getPrioritizedQueue();
+        if (prioritizedQueue.size() > 1) {
+            LiveSoundFragment lastElement = prioritizedQueue.removeLast();
+            Map<String, UUID> soundFragments = new HashMap<>();
+            soundFragments.put("song1", lastElement.getSoundFragmentId());
+            soundFragments.put("song2", toQueueDTO.getSoundFragments().get("song1"));
+            toQueueDTO.setMergingMethod(MergingType.SONG_INTRO_SONG);
+            toQueueDTO.setSoundFragments(soundFragments);
+            SongIntroSongHandler songIntroSongHandler = new SongIntroSongHandler(
+                    config,
+                    repository,
+                    soundFragmentService,
+                    fFmpegProvider
+            );
+            return songIntroSongHandler.handle(radioStation, toQueueDTO);
+        }
 
         return soundFragmentService.getById(soundFragmentId, SuperUser.build())
                 .chain(soundFragment -> {
                     return repository.getFirstFile(soundFragment.getId())
                             .chain(songMetadata -> {
-                                if (playlistManager.getPrioritizedQueue().size() > 2) {
-                                    LiveSoundFragment lastFragment = playlistManager.getPrioritizedQueue().getLast();
-                                    LOGGER.info("prioritizedQueue: {}", lastFragment.getMetadata());
-                                }
-
                                 if (ttsFilePath != null) {
                                     return handleWithTtsFile(radioStation, toQueueDTO, soundFragment, songMetadata, ttsFilePath, playlistManager);
                                 } else {
@@ -73,7 +97,7 @@ public class SongIntroSongHandler {
                 .chain(updatedMetadata -> {
                     updateRadioStationStatus(radioStation);
                     return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                    radioStation.getBitRate(), MergingType.INTRO_PLUS_SONG)
+                                    radioStation.getBitRate(), MergingType.INTRO_SONG)
                             .onItem().invoke(result -> {
                                 if (result) {
                                     LOGGER.info("Added merged song to queue: {}", soundFragment.getTitle());
@@ -86,7 +110,7 @@ public class SongIntroSongHandler {
                                               SoundFragment soundFragment, PlaylistManager playlistManager) {
         updateRadioStationStatus(radioStation);
         return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                        radioStation.getBitRate(), MergingType.NOT_MIXED)
+                        radioStation.getBitRate(), MergingType.FILLER_SONG)
                 .onItem().invoke(result -> {
                     if (result) {
                         LOGGER.info("Added song to queue: {}", soundFragment.getTitle());

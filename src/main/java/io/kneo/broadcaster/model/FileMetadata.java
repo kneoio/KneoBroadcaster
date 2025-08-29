@@ -90,8 +90,8 @@ public class FileMetadata {
 
         return switch (mimeType.toLowerCase()) {
             case "audio/mpeg", "audio/mp3" -> ".mp3";
-            case "audio/wav", "audio/wave" -> ".wav";
-            case "audio/flac" -> ".flac";
+            case "audio/wav", "audio/wave", "audio/vnd.wave" -> ".wav";
+            case "audio/flac", "audio/x-flac" -> ".flac";
             case "audio/aac" -> ".aac";
             case "audio/ogg" -> ".ogg";
             case "audio/m4a" -> ".m4a";

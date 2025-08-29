@@ -377,7 +377,7 @@ public class MCPServer extends AbstractVerticle {
                 mergingMethod = MergingType.valueOf(mergingMethodStr);
             } catch (IllegalArgumentException e) {
                 LOGGER.warn("Invalid merging method '{}', using default", mergingMethodStr);
-                mergingMethod = MergingType.INTRO_PLUS_SONG;
+                mergingMethod = MergingType.INTRO_SONG;
             }
         }
 

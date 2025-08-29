@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
@@ -8,10 +9,11 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
-import io.kneo.broadcaster.service.manipulation.mixing.AudioMixerService;
-import io.kneo.broadcaster.service.manipulation.mixing.IntroPlusSongHandler;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
+import io.kneo.broadcaster.service.manipulation.mixing.handler.IntroSongHandler;
+import io.kneo.broadcaster.service.manipulation.mixing.handler.SongIntroSongHandler;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -24,6 +26,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -43,22 +46,51 @@ public class QueueService {
     AudioMergerService audioMergerService;
 
     @Inject
+    private BroadcasterConfig broadcasterConfig;
+
+    @Inject
     private SoundFragmentService soundFragmentService;
 
     @Inject
-    AudioMixerService audioMixer;
+    FFmpegProvider fFmpegProvider;
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueMcpDTO toQueueDTO) {
-        if (toQueueDTO.getMergingMethod() == MergingType.INTRO_PLUS_SONG) {
-            return getRadioStation(brandName)
-                    .chain(radioStation -> {
-                        IntroPlusSongHandler handler = new IntroPlusSongHandler(
-                                repository, audioMergerService, soundFragmentService);
-                        return handler.handle(radioStation, toQueueDTO);
-                    });
-        } else {
-            return Uni.createFrom().item(Boolean.FALSE);
-        }
+            if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {
+                return getRadioStation(brandName)
+                        .chain(radioStation -> {
+                            IntroSongHandler handler = new IntroSongHandler(
+                                    broadcasterConfig,
+                                    repository,
+                                    audioMergerService,
+                                    soundFragmentService,
+                                    fFmpegProvider
+                            );
+                            try {
+                                return handler.handle(radioStation, toQueueDTO);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+            } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_INTRO_SONG) {
+                return getRadioStation(brandName)
+                        .chain(radioStation -> {
+                            SongIntroSongHandler songIntroSongHandler = null;
+                            try {
+                                songIntroSongHandler = new SongIntroSongHandler(
+                                        broadcasterConfig,
+                                        repository,
+                                        soundFragmentService,
+                                        fFmpegProvider
+                                );
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                            return songIntroSongHandler.handle(radioStation, toQueueDTO);
+                        });
+            } else {
+                return Uni.createFrom().item(Boolean.FALSE);
+            }
+
     }
 
 

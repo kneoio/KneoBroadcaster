@@ -18,13 +18,13 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
-public class IntroPlusSongHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(IntroPlusSongHandler.class);
+public class SongIntroSongHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SongIntroSongHandler.class);
     private final SoundFragmentRepository repository;
     private final AudioMergerService audioMergerService;
     private final SoundFragmentService soundFragmentService;
 
-    public IntroPlusSongHandler(SoundFragmentRepository repository,
+    public SongIntroSongHandler(SoundFragmentRepository repository,
                                 AudioMergerService audioMergerService,
                                 SoundFragmentService soundFragmentService) {
         this.repository = repository;

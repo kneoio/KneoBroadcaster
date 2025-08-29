@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @ApplicationScoped
+@Deprecated
 public class AudioMixerService {
 
     private static final Logger LOG = Logger.getLogger(AudioMixerService.class);
@@ -83,13 +84,6 @@ public class AudioMixerService {
             this.usedSettings = settings;
         }
 
-    }
-
-    /**
-     * Creates an outro-intro mix with default settings
-     */
-    public MixResult createOutroIntroMix(String mainSongPath, String introSongPath, String outputPath) {
-        return createOutroIntroMix(mainSongPath, introSongPath, outputPath, OutroIntroSettings.defaultSettings());
     }
 
     /**

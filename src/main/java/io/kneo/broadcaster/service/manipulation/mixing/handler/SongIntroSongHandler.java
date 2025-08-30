@@ -372,22 +372,25 @@ public class SongIntroSongHandler {
 
     private Uni<String[]> checkAndConvertFiles(String... filePaths) {
         if (filePaths.length == 2) {
-            // Handle the specific case of 2 files (main song and intro)
             String mainPath = filePaths[0];
             String introPath = filePaths[1];
 
-            Uni<String> mainPathUni = mainPath.toLowerCase().endsWith(".mp3") ?
+            Uni<String> mainPathUni = needsConversion(mainPath) ?
                     convertToWav(mainPath) : Uni.createFrom().item(mainPath);
 
-            Uni<String> introPathUni = introPath.toLowerCase().endsWith(".mp3") ?
+            Uni<String> introPathUni = needsConversion(introPath) ?
                     convertToWav(introPath) : Uni.createFrom().item(introPath);
 
             return Uni.combine().all().unis(mainPathUni, introPathUni)
                     .with((main, intro) -> new String[]{main, intro});
         } else {
-            // Fallback for other cases
             return Uni.createFrom().failure(new IllegalArgumentException("Expected exactly 2 file paths"));
         }
+    }
+
+    private boolean needsConversion(String filePath) {
+        String lower = filePath.toLowerCase();
+        return lower.endsWith(".mp3") || lower.endsWith(".flac") || lower.endsWith(".m4a");
     }
 
     private void applyVolume(float[] samples, float volume) {

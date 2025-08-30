@@ -11,9 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -73,8 +71,9 @@ public class SongSupplier {
                     if (quantity >= unplayed.size()) {
                         selected = unplayed;
                     } else {
-                        selected = unplayed.stream()
-                                .sorted((a, b) -> Math.random() < 0.5 ? -1 : 1)
+                        List<SoundFragment> shuffled = new ArrayList<>(unplayed);
+                        Collections.shuffle(shuffled);
+                        selected = shuffled.stream()
                                 .limit(quantity)
                                 .collect(Collectors.toList());
                     }

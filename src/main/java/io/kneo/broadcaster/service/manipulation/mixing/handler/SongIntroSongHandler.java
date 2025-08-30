@@ -119,7 +119,8 @@ public class SongIntroSongHandler {
                         .addOutput(outputPath)
                         .addExtraArgs("-ar", "44100")  // Sample rate
                         .addExtraArgs("-ac", "1")      // Mono
-                        .addExtraArgs("-acodec", "pcm_s16le") // 16-bit PCM
+                        .addExtraArgs("-acodec", "pcm_s16le")
+                        .addExtraArgs("-sample_fmt", "s16")   // Add this line
                         .done();
 
                 FFmpegJob job = executor.createJob(builder);
@@ -154,8 +155,10 @@ public class SongIntroSongHandler {
                 LOGGER.info("File {}: {}Hz, {} channels, {}-bit",
                         filePath, (int)format.getSampleRate(), format.getChannels(), format.getSampleSizeInBits());
 
-                // Check for unsupported formats
-                if (format.getSampleSizeInBits() != 8 && format.getSampleSizeInBits() != 16 && format.getSampleSizeInBits() != 24) {
+                if (format.getSampleSizeInBits() != 8 &&
+                        format.getSampleSizeInBits() != 16 &&
+                        format.getSampleSizeInBits() != 24 &&
+                        format.getSampleSizeInBits() != 32) {
                     throw new UnsupportedAudioFileException(
                             String.format("Unsupported bit depth: %d-bit in file %s. Supported: 8, 16, 24-bit",
                                     format.getSampleSizeInBits(), filePath));

@@ -13,12 +13,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SoundFragmentMCPTools {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentMCPTools.class);
+    private static final Random RANDOM = new Random();
 
     @Inject
     SongSupplier songSupplier;
@@ -32,7 +34,8 @@ public class SoundFragmentMCPTools {
             @Parameter("brand") String brandName,
             @Parameter("fragment_type") String fragmentType
     ) {
-        return songSupplier.getNextSong(brandName, PlaylistItemType.valueOf(fragmentType), 2)
+        int count = RANDOM.nextBoolean() ? 1 : 2;
+        return songSupplier.getNextSong(brandName, PlaylistItemType.valueOf(fragmentType), count)
                 .chain(this::mapSoundFragmentsToAiDTO)
                 .convert().toCompletableFuture();
     }

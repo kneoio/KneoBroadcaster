@@ -9,7 +9,6 @@ import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
-import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.SuperUser;
@@ -78,7 +77,7 @@ public class IntroSongHandler {
                 .chain(updatedMetadata -> {
                     updateRadioStationStatus(radioStation);
                     return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                    radioStation.getBitRate(), MergingType.INTRO_SONG)
+                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod())
                             .onItem().invoke(result -> {
                                 if (result) {
                                     LOGGER.info("Added merged song to queue: {}", soundFragment.getTitle());
@@ -91,7 +90,7 @@ public class IntroSongHandler {
                                               SoundFragment soundFragment, PlaylistManager playlistManager) {
         updateRadioStationStatus(radioStation);
         return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                        radioStation.getBitRate(), MergingType.FILLER_SONG)
+                        radioStation.getBitRate(), toQueueDTO.getMergingMethod())
                 .onItem().invoke(result -> {
                     if (result) {
                         LOGGER.info("Added song to queue: {}", soundFragment.getTitle());

@@ -7,7 +7,6 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
-import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.SuperUser;
@@ -104,7 +103,7 @@ public class SongIntroSongHandler {
                                             fileMetadata.setTemporaryFilePath(Path.of(finalPath));
                                             soundFragment.setFileMetadataList(List.of(fileMetadata));
                                             return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                                    radioStation.getBitRate(), MergingType.INTRO_SONG);
+                                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod());
                                         });
                             });
                 });

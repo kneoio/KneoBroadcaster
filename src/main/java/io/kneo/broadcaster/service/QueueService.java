@@ -55,7 +55,7 @@ public class QueueService {
     FFmpegProvider fFmpegProvider;
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueMcpDTO toQueueDTO) {
-            if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {
+            if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG || toQueueDTO.getMergingMethod() == MergingType.FILLER_SONG) {
                 return getRadioStation(brandName)
                         .chain(radioStation -> {
                             IntroSongHandler handler = new IntroSongHandler(

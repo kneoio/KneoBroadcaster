@@ -62,15 +62,25 @@ public class SongSupplier {
                 });
     }
 
-    public Uni<SoundFragment> getNextSong(String brandName, PlaylistItemType fragmentType) {
+    public Uni<List<SoundFragment>> getNextSong(String brandName, PlaylistItemType fragmentType, int quantity) {
         return getUnplayedFragments(brandName, fragmentType)
                 .map(unplayed -> {
                     if (unplayed.isEmpty()) {
-                        return null;
+                        return List.<SoundFragment>of();
                     }
-                    SoundFragment nextSong = unplayed.get((int) (Math.random() * unplayed.size()));
-                    updateMemory(brandName, fragmentType, List.of(nextSong));
-                    return nextSong;
+
+                    List<SoundFragment> selected;
+                    if (quantity >= unplayed.size()) {
+                        selected = unplayed;
+                    } else {
+                        selected = unplayed.stream()
+                                .sorted((a, b) -> Math.random() < 0.5 ? -1 : 1)
+                                .limit(quantity)
+                                .collect(Collectors.toList());
+                    }
+
+                    updateMemory(brandName, fragmentType, selected);
+                    return selected;
                 });
     }
 

@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
@@ -20,9 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public class IntroSongHandler {
@@ -50,22 +47,6 @@ public class IntroSongHandler {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
         String ttsFilePath = toQueueDTO.getFilePaths().get("audio1");
-        List<LiveSoundFragment> prioritizedQueue = playlistManager.getPrioritizedQueue();
-        if (prioritizedQueue.size() > 1) {
-            LiveSoundFragment lastElement = prioritizedQueue.removeLast();
-            Map<String, UUID> soundFragments = new HashMap<>();
-            soundFragments.put("song1", lastElement.getSoundFragmentId());
-            soundFragments.put("song2", toQueueDTO.getSoundFragments().get("song1"));
-            toQueueDTO.setMergingMethod(MergingType.SONG_INTRO_SONG);
-            toQueueDTO.setSoundFragments(soundFragments);
-            SongIntroSongHandler songIntroSongHandler = new SongIntroSongHandler(
-                    config,
-                    repository,
-                    soundFragmentService,
-                    fFmpegProvider
-            );
-            return songIntroSongHandler.handle(radioStation, toQueueDTO);
-        }
 
         return soundFragmentService.getById(soundFragmentId, SuperUser.build())
                 .chain(soundFragment -> {

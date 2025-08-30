@@ -27,21 +27,29 @@ public class SoundFragmentMCPTools {
     RefService refService;
 
     @Tool("get_brand_sound_fragment")
-    @Description("Get a single sound fragment for a specific brand")
-    public CompletableFuture<SoundFragmentMcpDTO> getBrandSoundFragments(
+    @Description("Get sound fragments for a specific brand")
+    public CompletableFuture<List<SoundFragmentMcpDTO>> getBrandSoundFragments(
             @Parameter("brand") String brandName,
             @Parameter("fragment_type") String fragmentType
     ) {
-        return songSupplier.getNextSong(brandName, PlaylistItemType.valueOf(fragmentType))
-                .chain(this::mapSoundFragmentToAiDTO)
+        return songSupplier.getNextSong(brandName, PlaylistItemType.valueOf(fragmentType), 2)
+                .chain(this::mapSoundFragmentsToAiDTO)
                 .convert().toCompletableFuture();
     }
 
-    private Uni<SoundFragmentMcpDTO> mapSoundFragmentToAiDTO(SoundFragment soundFragment) {
-        if (soundFragment == null) {
-            return Uni.createFrom().nullItem();
+    private Uni<List<SoundFragmentMcpDTO>> mapSoundFragmentsToAiDTO(List<SoundFragment> soundFragments) {
+        if (soundFragments == null || soundFragments.isEmpty()) {
+            return Uni.createFrom().item(List.of());
         }
 
+        return Uni.join().all(
+                soundFragments.stream()
+                        .map(this::mapSingleSoundFragmentToAiDTO)
+                        .collect(Collectors.toList())
+        ).andFailFast();
+    }
+
+    private Uni<SoundFragmentMcpDTO> mapSingleSoundFragmentToAiDTO(SoundFragment soundFragment) {
         if (soundFragment.getGenres() == null || soundFragment.getGenres().isEmpty()) {
             return Uni.createFrom().item(SoundFragmentMcpDTO.builder()
                     .id(soundFragment.getId())

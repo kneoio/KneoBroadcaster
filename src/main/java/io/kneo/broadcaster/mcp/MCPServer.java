@@ -175,13 +175,13 @@ public class MCPServer extends AbstractVerticle {
     private ObjectNode createBrandSoundFragmentsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
         tool.put("name", "get_brand_sound_fragment");
-        tool.put("description", "Get a single song for a specific brand filtered by playlist item type");
+        tool.put("description", "Get 2 songs for a specific brand filtered by playlist item type");
 
         ObjectNode schema = objectMapper.createObjectNode();
         schema.put("type", "object");
         ObjectNode props = objectMapper.createObjectNode();
 
-        addStringProperty(props, "brand", "Brand name to get song for");
+        addStringProperty(props, "brand", "Brand name to get songs for");
         addStringProperty(props, "fragment_type", "Playlist item type (must be valid PlaylistItemType enum value)");
 
         schema.set("properties", props);

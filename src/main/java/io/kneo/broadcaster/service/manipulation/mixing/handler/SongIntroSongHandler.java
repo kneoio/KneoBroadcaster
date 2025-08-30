@@ -117,10 +117,10 @@ public class SongIntroSongHandler {
                 FFmpegBuilder builder = new FFmpegBuilder()
                         .setInput(inputPath)
                         .addOutput(outputPath)
-                        .addExtraArgs("-ar", "44100")  // Sample rate
-                        .addExtraArgs("-ac", "1")      // Mono
+                        .addExtraArgs("-ar", "44100")
+                        .addExtraArgs("-ac", "1")
                         .addExtraArgs("-acodec", "pcm_s16le")
-                        .addExtraArgs("-sample_fmt", "s16")   // Add this line
+                        .addExtraArgs("-sample_fmt", "s16")
                         .done();
 
                 FFmpegJob job = executor.createJob(builder);
@@ -160,7 +160,7 @@ public class SongIntroSongHandler {
                         format.getSampleSizeInBits() != 24 &&
                         format.getSampleSizeInBits() != 32) {
                     throw new UnsupportedAudioFileException(
-                            String.format("Unsupported bit depth: %d-bit in file %s. Supported: 8, 16, 24-bit",
+                            String.format("Unsupported bit depth: %d-bit in file %s. Supported: 8, 16, 24, 32-bit",
                                     format.getSampleSizeInBits(), filePath));
                 }
 
@@ -171,7 +171,6 @@ public class SongIntroSongHandler {
             }
         }
 
-        // Check for format mismatches that might cause issues
         if (formats.size() > 1) {
             AudioFormat first = formats.get(0);
             for (int i = 1; i < formats.size(); i++) {
@@ -203,7 +202,6 @@ public class SongIntroSongHandler {
                     filePath, format.getChannels(), format.getSampleRate(),
                     format.getSampleSizeInBits(), format.getFrameSize());
 
-            // Calculate approximate sample count for array sizing
             long fileSize = new File(filePath).length();
             int estimatedSamples = (int) (fileSize / format.getFrameSize());
             float[] samples = new float[estimatedSamples];
@@ -220,7 +218,6 @@ public class SongIntroSongHandler {
                         break;
                     }
 
-                    // Expand array if needed
                     if (sampleIndex >= samples.length) {
                         float[] newSamples = new float[samples.length * 2];
                         System.arraycopy(samples, 0, newSamples, 0, samples.length);
@@ -241,7 +238,6 @@ public class SongIntroSongHandler {
                 }
             }
 
-            // Trim to actual size
             if (sampleIndex < samples.length) {
                 float[] trimmedSamples = new float[sampleIndex];
                 System.arraycopy(samples, 0, trimmedSamples, 0, sampleIndex);
@@ -271,16 +267,14 @@ public class SongIntroSongHandler {
 
                             LOGGER.info("Loaded existing mix: {} samples, new song: {} samples", existingMix.length, songToAdd.length);
 
-                            // Trim silence from end of existing mix
                             int endIndex = existingMix.length - 1;
                             for (int i = existingMix.length - 1; i >= 0; i--) {
-                                if (Math.abs(existingMix[i]) > 0.001f) { // Lower threshold for better detection
+                                if (Math.abs(existingMix[i]) > 0.001f) {
                                     endIndex = i;
                                     break;
                                 }
                             }
 
-                            // Trim silence from beginning of new song
                             int startIndex = 0;
                             for (int i = 0; i < songToAdd.length; i++) {
                                 if (Math.abs(songToAdd[i]) > 0.001f) {
@@ -469,11 +463,25 @@ public class SongIntroSongHandler {
                             ((buffer[offset + 2] & 0xFF) << 16);
                 }
 
-                // Sign extend for 24-bit
                 if ((sample & 0x800000) != 0) {
                     sample |= 0xFF000000;
                 }
-                return sample / 8388608.0f; // 2^23
+                return sample / 8388608.0f;
+
+            } else if (sampleSize == 32) {
+                if (offset + 4 > buffer.length) {
+                    LOGGER.warn("Buffer underrun reading 32-bit sample at offset {}", offset);
+                    return 0.0f;
+                }
+                ByteBuffer bb = ByteBuffer.wrap(buffer, offset, 4);
+                bb.order(bigEndian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+
+                if (format.getEncoding() == AudioFormat.Encoding.PCM_FLOAT) {
+                    return bb.getFloat();
+                } else {
+                    int sample = bb.getInt();
+                    return sample / 2147483648.0f;
+                }
 
             } else if (sampleSize == 8) {
                 if (offset >= buffer.length) {

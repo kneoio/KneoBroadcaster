@@ -12,8 +12,8 @@ import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
+import io.kneo.broadcaster.service.manipulation.mixing.handler.AudioMixingHandler;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.IntroSongHandler;
-import io.kneo.broadcaster.service.manipulation.mixing.handler.SongIntroSongHandler;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -34,7 +34,6 @@ import java.util.UUID;
 @ApplicationScoped
 public class QueueService {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueService.class);
-    private static final long AGENT_DISCONNECT_THRESHOLD_MILLIS = 360_000L;
 
     @Inject
     SoundFragmentRepository repository;
@@ -74,9 +73,9 @@ public class QueueService {
             } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_INTRO_SONG) {
                 return getRadioStation(brandName)
                         .chain(radioStation -> {
-                            SongIntroSongHandler songIntroSongHandler = null;
+                            AudioMixingHandler songIntroSongHandler = null;
                             try {
-                                songIntroSongHandler = new SongIntroSongHandler(
+                                songIntroSongHandler = new AudioMixingHandler(
                                         broadcasterConfig,
                                         repository,
                                         soundFragmentService,

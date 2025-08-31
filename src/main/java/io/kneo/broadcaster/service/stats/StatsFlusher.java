@@ -18,7 +18,7 @@ public class StatsFlusher {
     StatsAccumulator statsAccumulator;
 
     void onStart(@Observes StartupEvent ev) {
-        LOGGER.info("Stats scheduler started");
+        LOGGER.info("Stats flusher scheduler started");
     }
 
     void onStop(@Observes ShutdownEvent ev) {

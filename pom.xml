@@ -50,6 +50,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-quartz</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>com.github.psambit9791</groupId>
+            <artifactId>wavfile</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <!-- for quartz not reactive jdbc-->
         <dependency>
             <groupId>io.quarkus</groupId>

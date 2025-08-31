@@ -1,34 +1,41 @@
 package io.kneo.broadcaster.service.manipulation.mixing.handler;
 
-public enum MixingProfile {
-    DJ_CROSSFADE(8.0f, 6.0f, 1.0f, 1.0f, 0.0f, 1, false, 0.0f),
-    RADIO_STYLE(0.0f, 0.0f, 1.0f, 1.0f, 0.2f, 0, false, 2.0f),
-    SMOOTH_BLEND(12.0f, 10.0f, 1.0f, 1.0f, 0.2f, -1, false, 0.0f),
-    QUICK_CUT(2.0f, 1.0f, 1.0f, 1.0f, 0.1f, 0, false, 0.0f),
-    LONG_FADE(20.0f, 18.0f, 1.0f, 1.0f, 0.1f, -1, false, 0.0f),
-    OVERLAP_MIX(15.0f, 12.0f, 1.0f, 0.8f, 0.2f, 0, false, 0.0f),
-    GAPLESS(0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0, false, 0.0f);
+public class MixingProfile {
+    public float outroFadeStartSeconds;
+    public float introStartEarly;
+    public float introVolume;
+    public float mainSongVolume;
+    public float fadeToVolume;
+    public FadeCurve fadeCurve;
+    public boolean autoFadeBasedOnIntro;
+    public String description;
 
-    //curve:  -1 Logarithmic, 0 Linear,1 Exponential;
+    public MixingProfile(float outroFadeStartSeconds, float introStartEarly,
+                         float introVolume, float mainSongVolume, float fadeToVolume,
+                         FadeCurve fadeCurve, boolean autoFadeBasedOnIntro, String description) {
+        this.outroFadeStartSeconds = outroFadeStartSeconds;
+        this.introStartEarly = introStartEarly;
+        this.introVolume = introVolume;
+        this.fadeToVolume = fadeToVolume;
+        this.fadeCurve = fadeCurve;
+        this.autoFadeBasedOnIntro = autoFadeBasedOnIntro;
+        this.description = description;
+    }
 
-    public final float fadeStartSeconds;
-    public final float introStartSeconds;
-    public final float introVolume;
-    public final float mainSongVolume;
-    public final float fadeToVolume;
-    public final int fadeCurve;
-    public final boolean autoFadeBasedOnIntro;
-    public final float extraFadeTime;
+    public static MixingProfile getVariant1() {
+        return new MixingProfile(
+                16.0f,   // outroFadeStartSeconds - changed from 5.0f to 16.0f
+                0.0f,   // introStartEarly  if 0 it will measure intro's duration
+                1.0f,    // introVolume
+                1.0f,    // mainSongVolume  no gain here
+                0.0f,    // fadeToVolume  doesnt work , always goes to 0
+                FadeCurve.LINEAR,
+                false,   // autoFadeBasedOnIntro
+                "Variant 1"
+        );
+    }
 
-    MixingProfile(float fadeStart, float introStart, float introVol, float mainVol,
-                  float fadeToVol, int curve, boolean autoFade, float extraTime) {
-        this.fadeStartSeconds = fadeStart;
-        this.introStartSeconds = introStart;
-        this.introVolume = introVol;
-        this.mainSongVolume = mainVol;
-        this.fadeToVolume = fadeToVol;
-        this.fadeCurve = curve;
-        this.autoFadeBasedOnIntro = autoFade;
-        this.extraFadeTime = extraTime;
+    public static MixingProfile randomProfile(long seed) {
+        return getVariant1();
     }
 }

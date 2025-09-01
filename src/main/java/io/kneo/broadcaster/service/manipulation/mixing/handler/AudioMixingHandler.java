@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
+import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioConcatenator;
 import io.kneo.broadcaster.service.manipulation.mixing.ConcatenationType;
@@ -14,7 +15,6 @@ import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
-import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,20 +31,19 @@ public class AudioMixingHandler extends MixingHandlerBase {
     private final SoundFragmentService soundFragmentService;
     private final String outputDir;
     private final String tempBaseDir;
-    private final FFmpeg ffmpeg;
     private final AudioConcatenator audioConcatenator;
 
     public AudioMixingHandler(BroadcasterConfig config,
                               SoundFragmentRepository repository,
                               SoundFragmentService soundFragmentService,
-                              FFmpegProvider fFmpegProvider) throws IOException {
+                              FFmpegProvider fFmpegProvider) throws IOException, AudioMergeException {
         super(fFmpegProvider);
         this.repository = repository;
         this.soundFragmentService = soundFragmentService;
         this.outputDir = config.getPathForMerged();
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
-        this.ffmpeg = fFmpegProvider.getFFmpeg();
-        this.audioConcatenator = new AudioConcatenator(config, executor, tempBaseDir);
+        this.audioConcatenator = new AudioConcatenator(config, fFmpegProvider);
+
     }
 
     public Uni<Boolean> handle(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {

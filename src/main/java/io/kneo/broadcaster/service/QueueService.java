@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
+import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
@@ -81,7 +82,7 @@ public class QueueService {
                                         soundFragmentService,
                                         fFmpegProvider
                                 );
-                            } catch (IOException e) {
+                            } catch (IOException | AudioMergeException e) {
                                 throw new RuntimeException(e);
                             }
                             return songIntroSongHandler.handle(radioStation, toQueueDTO);

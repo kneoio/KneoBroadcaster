@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.test;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.AudioMixingHandler;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.FadeCurve;
@@ -125,7 +126,7 @@ public class FFmpegAudioMixingTestRunner {
         };
     }
 
-    private static AudioMixingHandler getFFmpegAudioMixingHandler(BroadcasterConfig config) throws IOException {
+    private static AudioMixingHandler getFFmpegAudioMixingHandler(BroadcasterConfig config) throws IOException, AudioMergeException {
         FFmpegProvider ffmpegProvider = new FFmpegProvider() {
             @Override
             public FFmpeg getFFmpeg() {

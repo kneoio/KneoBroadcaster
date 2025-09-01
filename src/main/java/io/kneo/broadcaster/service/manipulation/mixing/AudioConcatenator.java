@@ -1,8 +1,12 @@
 package io.kneo.broadcaster.service.manipulation.mixing;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.service.exceptions.AudioMergeException;
+import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
@@ -15,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@ApplicationScoped
 public class AudioConcatenator {
     private static final Logger LOGGER = LoggerFactory.getLogger(AudioConcatenator.class);
     private static final int SAMPLE_RATE = 44100;
@@ -22,11 +27,43 @@ public class AudioConcatenator {
     private final FFmpegExecutor executor;
     private final String tempBaseDir;
     private final FFprobe ffprobe;
+    private final BroadcasterConfig config;
+    private final String outputDir;
 
-    public AudioConcatenator(BroadcasterConfig config, FFmpegExecutor executor, String tempBaseDir) throws IOException {
-        this.executor = executor;
-        this.tempBaseDir = tempBaseDir;
-        ffprobe = new FFprobe(config.getFfprobePath());
+    @Inject
+    public AudioConcatenator(BroadcasterConfig config, FFmpegProvider ffmpeg) throws IOException, AudioMergeException {
+        this.config = config;
+        this.outputDir = config.getPathForMerged();
+        this.tempBaseDir = config.getPathUploads() + "/audio-processing";
+
+        try {
+            this.executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
+            this.ffprobe = new FFprobe(config.getFfprobePath());
+        } catch (IOException e) {
+            throw new AudioMergeException("Failed to initialize FFmpeg executor", e);
+        }
+
+        initializeOutputDirectory();
+    }
+
+    private void initializeOutputDirectory() {
+        new File(outputDir).mkdirs();
+        cleanupTempFiles();
+    }
+
+    private void cleanupTempFiles() {
+        try {
+            File directory = new File(outputDir);
+            File[] files = directory.listFiles((dir, name) -> name.startsWith("silence_") || name.startsWith("temp_song_"));
+            if (files != null) {
+                for (File file : files) {
+                    Files.deleteIfExists(file.toPath());
+                    LOGGER.info("Deleted temporary file: {}", file.getName());
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Error cleaning up temporary files", e);
+        }
     }
 
     public Uni<String> concatenate(String firstPath, String secondPath, String outputPath,
@@ -36,10 +73,11 @@ public class AudioConcatenator {
                 LOGGER.info("Concatenating with mixing type: {}, transition: {}s", mixingType, transitionDuration);
 
                 return switch (mixingType) {
-                    case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath);
+                    case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, 1.0);
                     case SILENCE_GAP -> concatenateWithSilenceGap(firstPath, secondPath, outputPath, transitionDuration);
                     case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, transitionDuration);
                     case SIMULATED_CROSSFADE -> simulatedCrossfade(firstPath, secondPath, outputPath, transitionDuration);
+                    case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, transitionDuration);
                 };
             } catch (Exception e) {
                 LOGGER.error("Error in concatenateWithMixing: {}", e.getMessage(), e);
@@ -48,24 +86,21 @@ public class AudioConcatenator {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private String directConcatenation(String firstPath, String secondPath, String outputPath) throws Exception {
-        String concatListPath = tempBaseDir + "/concat_" + System.currentTimeMillis() + ".txt";
-        String concatContent = String.format("file '%s'\nfile '%s'",
-                new File(firstPath).getAbsolutePath(),
-                new File(secondPath).getAbsolutePath());
-        Files.writeString(Path.of(concatListPath), concatContent);
+
+    private String directConcatenation(String firstPath, String secondPath, String outputPath, double gainValue) throws Exception {
         FFmpegBuilder builder = new FFmpegBuilder()
-                .addExtraArgs("-f", "concat")
-                .addExtraArgs("-safe", "0")
-                .setInput(concatListPath)
+                .setInput(firstPath)
+                .addInput(secondPath)
                 .addOutput(outputPath)
-                .setAudioCodec("pcm_s16le")
-                .setAudioSampleRate(SAMPLE_RATE)
-                .setAudioChannels(2)
+                .addExtraArgs("-filter_complex",
+                        String.format(
+                                "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
+                                        "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
+                                        "[first][second]concat=n=2:v=0:a=1",
+                                gainValue))
                 .done();
 
         executor.createJob(builder).run();
-        Files.deleteIfExists(Path.of(concatListPath));
         return outputPath;
     }
 
@@ -173,6 +208,24 @@ public class AudioConcatenator {
 
         executor.createJob(mixBuilder).run();
         cleanupFiles(paddedFirstPath, delayedSecondPath);
+        return outputPath;
+    }
+
+    private String volumeConcatenation(String firstPath, String secondPath, String outputPath,
+                                       double gainValue) throws Exception {
+        FFmpegBuilder builder = new FFmpegBuilder()
+                .setInput(firstPath)
+                .addInput(secondPath)
+                .addOutput(outputPath)
+                .addExtraArgs("-filter_complex",
+                        String.format(
+                                "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
+                                        "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
+                                        "[speech][song]concat=n=2:v=0:a=1",
+                                gainValue))
+                .done();
+
+        executor.createJob(builder).run();
         return outputPath;
     }
 

@@ -223,6 +223,9 @@ public class AudioConcatenator {
                                         "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
                                         "[speech][song]concat=n=2:v=0:a=1",
                                 gainValue))
+                .setAudioCodec("libmp3lame")
+                .setAudioSampleRate(SAMPLE_RATE)
+                .setAudioChannels(2)
                 .done();
 
         executor.createJob(builder).run();

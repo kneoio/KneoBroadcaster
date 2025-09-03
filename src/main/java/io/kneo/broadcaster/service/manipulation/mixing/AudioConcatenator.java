@@ -86,18 +86,19 @@ public class AudioConcatenator {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-
     private String directConcatenation(String firstPath, String secondPath, String outputPath, double gainValue) throws Exception {
         FFmpegBuilder builder = new FFmpegBuilder()
                 .setInput(firstPath)
                 .addInput(secondPath)
+                .setComplexFilter(String.format(
+                        "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
+                                "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
+                                "[first][second]concat=n=2:v=0:a=1",
+                        gainValue))
                 .addOutput(outputPath)
-                .addExtraArgs("-filter_complex",
-                        String.format(
-                                "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
-                                        "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
-                                        "[first][second]concat=n=2:v=0:a=1",
-                                gainValue))
+                .setAudioCodec("pcm_s16le")
+                .setAudioSampleRate(SAMPLE_RATE)
+                .setAudioChannels(2)
                 .done();
 
         executor.createJob(builder).run();

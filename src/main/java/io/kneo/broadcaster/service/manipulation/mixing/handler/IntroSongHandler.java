@@ -75,8 +75,7 @@ public class IntroSongHandler {
                     return songMetadata.materializeFileStream(tempBaseDir)
                             .chain(songTempFile -> {
                                 String outputPath = config.getPathForMerged() + "/merged_intro_" +
-                                        soundFragment.getSlugName() + "_" + System.currentTimeMillis() + "." +
-                                        config.getAudioOutputFormat();
+                                        soundFragment.getSlugName() + "_" + System.currentTimeMillis() + ".wav";
 
                                 return audioConcatenator.concatenate(
                                         ttsFilePath,

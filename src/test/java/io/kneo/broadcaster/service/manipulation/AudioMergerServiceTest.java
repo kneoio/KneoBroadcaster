@@ -1,8 +1,6 @@
 package io.kneo.broadcaster.service.manipulation;
 
-import io.kneo.broadcaster.service.manipulation.mixing.AudioMergerService;
 import io.quarkus.test.junit.QuarkusTest;
-import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -15,9 +13,6 @@ import java.util.Objects;
 
 @QuarkusTest
 public class AudioMergerServiceTest {
-
-    @Inject
-    AudioMergerService audioMergerService;
 
     @ConfigProperty(name = "broadcaster.ffmpeg.path")
     String ffmpegPath;

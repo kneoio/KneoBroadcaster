@@ -67,17 +67,18 @@ public class AudioConcatenator {
     }
 
     public Uni<String> concatenate(String firstPath, String secondPath, String outputPath,
-                                   ConcatenationType mixingType, double transitionDuration) {
+                                   ConcatenationType mixingType, double gainValue) {
         return Uni.createFrom().item(() -> {
             try {
-                LOGGER.info("Concatenating with mixing type: {}, transition: {}s", mixingType, transitionDuration);
+                LOGGER.info("Concatenating with mixing type: {}, transition: {}s", mixingType, gainValue);
 
                 return switch (mixingType) {
-                    case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, 1.0);
-                    case SILENCE_GAP -> concatenateWithSilenceGap(firstPath, secondPath, outputPath, transitionDuration);
-                    case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, transitionDuration);
-                    case SIMULATED_CROSSFADE -> simulatedCrossfade(firstPath, secondPath, outputPath, transitionDuration);
-                    case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, transitionDuration);
+                    case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, gainValue);
+                    case SILENCE_GAP -> concatenateWithSilenceGap(firstPath, secondPath, outputPath, gainValue);
+                    case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, gainValue);
+                    case SIMULATED_CROSSFADE -> simulatedCrossfade(firstPath, secondPath, outputPath, gainValue);
+                    case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, gainValue);
+
                 };
             } catch (Exception e) {
                 LOGGER.error("Error in concatenateWithMixing: {}", e.getMessage(), e);

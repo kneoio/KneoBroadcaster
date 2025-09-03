@@ -68,6 +68,7 @@ public class QueueService {
                                     broadcasterConfig,
                                     repository,
                                     soundFragmentService,
+                                    aiAgentService,
                                     fFmpegProvider
                             );
                         } catch (IOException | AudioMergeException e) {

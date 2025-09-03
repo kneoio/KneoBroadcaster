@@ -53,7 +53,7 @@ public class FFmpegAudioMixingTestRunner {
                 "Random test mixing profile"
         );
 
-        Uni<String> result = handler.createOutroIntroMix(song1, intro, outputFile, settings);
+        Uni<String> result = handler.createOutroIntroMix(song1, intro, outputFile, settings, 1.0);
         String output = result.await().indefinitely();
         System.out.println("Done! Complete mix: " + output);
     }
@@ -147,6 +147,6 @@ public class FFmpegAudioMixingTestRunner {
             }
         };
 
-        return new AudioMixingHandler(config, null, null, ffmpegProvider);
+        return new AudioMixingHandler(config, null, null,null, ffmpegProvider);
     }
 }

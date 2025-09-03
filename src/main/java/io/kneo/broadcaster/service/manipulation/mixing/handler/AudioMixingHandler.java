@@ -6,12 +6,14 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
+import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioConcatenator;
 import io.kneo.broadcaster.service.manipulation.mixing.ConcatenationType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -29,6 +31,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
     private static final int SAMPLE_RATE = 44100;
     private final SoundFragmentRepository repository;
     private final SoundFragmentService soundFragmentService;
+    private final AiAgentService aiAgentService;
     private final String outputDir;
     private final String tempBaseDir;
     private final AudioConcatenator audioConcatenator;
@@ -36,10 +39,12 @@ public class AudioMixingHandler extends MixingHandlerBase {
     public AudioMixingHandler(BroadcasterConfig config,
                               SoundFragmentRepository repository,
                               SoundFragmentService soundFragmentService,
+                              AiAgentService aiAgentService,
                               FFmpegProvider fFmpegProvider) throws IOException, AudioMergeException {
         super(fFmpegProvider);
         this.repository = repository;
         this.soundFragmentService = soundFragmentService;
+        this.aiAgentService = aiAgentService;
         this.outputDir = config.getPathForMerged();
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
         this.audioConcatenator = new AudioConcatenator(config, fFmpegProvider);
@@ -54,60 +59,66 @@ public class AudioMixingHandler extends MixingHandlerBase {
         MixingProfile settings = MixingProfile.randomProfile(12345L);
         LOGGER.info("Applied Mixing {}", settings.description);
 
-        return soundFragmentService.getById(soundFragmentId1, SuperUser.build())
-                .chain(soundFragment1 -> {
-                    return repository.getFirstFile(soundFragment1.getId())
-                            .chain(songMetadata1 -> {
-                                return songMetadata1.materializeFileStream(tempBaseDir)
-                                        .chain(tempPath1 -> {
-                                            String tempMixPath = outputDir + "/temp_mix_" +
-                                                    soundFragment1.getSlugName() + "_i_" +
-                                                    System.currentTimeMillis() + ".wav";
-                                            return createOutroIntroMix(
-                                                    tempPath1.toString(),
-                                                    introSongPath,
-                                                    tempMixPath,
-                                                    settings
-                                            );
-                                        })
-                                        .chain(actualTempMixPath -> {
-                                            return soundFragmentService.getById(soundFragmentId2, SuperUser.build())
-                                                    .chain(soundFragment2 -> {
-                                                        return repository.getFirstFile(soundFragment2.getId())
-                                                                .chain(songMetadata2 -> {
-                                                                    return songMetadata2.materializeFileStream(tempBaseDir)
-                                                                            .chain(tempPath2 -> {
-                                                                                String finalMixPath = outputDir + "/final_mix_" +
-                                                                                        soundFragment1.getSlugName() + "_i_" +
-                                                                                        soundFragment2.getSlugName() + "_" +
-                                                                                        System.currentTimeMillis() + ".wav";
-                                                                                return audioConcatenator.concatenate(
-                                                                                        actualTempMixPath,
-                                                                                        tempPath2.toString(),
-                                                                                        finalMixPath,
-                                                                                        ConcatenationType.DIRECT_CONCAT,
-                                                                                        2.0
-                                                                                );
+        return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                .chain(aiAgent -> {
+                    double gainValue = aiAgent.getMerger().getGainIntro();
+
+                    return soundFragmentService.getById(soundFragmentId1, SuperUser.build())
+                            .chain(soundFragment1 -> {
+                                return repository.getFirstFile(soundFragment1.getId())
+                                        .chain(songMetadata1 -> {
+                                            return songMetadata1.materializeFileStream(tempBaseDir)
+                                                    .chain(tempPath1 -> {
+                                                        String tempMixPath = outputDir + "/temp_mix_" +
+                                                                soundFragment1.getSlugName() + "_i_" +
+                                                                System.currentTimeMillis() + ".wav";
+                                                        return createOutroIntroMix(
+                                                                tempPath1.toString(),
+                                                                introSongPath,
+                                                                tempMixPath,
+                                                                settings,
+                                                                gainValue
+                                                        );
+                                                    })
+                                                    .chain(actualTempMixPath -> {
+                                                        return soundFragmentService.getById(soundFragmentId2, SuperUser.build())
+                                                                .chain(soundFragment2 -> {
+                                                                    return repository.getFirstFile(soundFragment2.getId())
+                                                                            .chain(songMetadata2 -> {
+                                                                                return songMetadata2.materializeFileStream(tempBaseDir)
+                                                                                        .chain(tempPath2 -> {
+                                                                                            String finalMixPath = outputDir + "/final_mix_" +
+                                                                                                    soundFragment1.getSlugName() + "_i_" +
+                                                                                                    soundFragment2.getSlugName() + "_" +
+                                                                                                    System.currentTimeMillis() + ".wav";
+                                                                                            return audioConcatenator.concatenate(
+                                                                                                    actualTempMixPath,
+                                                                                                    tempPath2.toString(),
+                                                                                                    finalMixPath,
+                                                                                                    ConcatenationType.DIRECT_CONCAT,
+                                                                                                    1.0
+                                                                                            );
+                                                                                        });
                                                                             });
                                                                 });
+                                                    })
+                                                    .chain(finalPath -> {
+                                                        SoundFragment soundFragment = new SoundFragment();
+                                                        soundFragment.setId(UUID.randomUUID());
+                                                        soundFragment.setTitle(soundFragment1.getTitle());
+                                                        soundFragment.setArtist(soundFragment1.getArtist());
+                                                        FileMetadata fileMetadata = new FileMetadata();
+                                                        fileMetadata.setTemporaryFilePath(Path.of(finalPath));
+                                                        soundFragment.setFileMetadataList(List.of(fileMetadata));
+                                                        return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
+                                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod());
                                                     });
-                                        })
-                                        .chain(finalPath -> {
-                                            SoundFragment soundFragment = new SoundFragment();
-                                            soundFragment.setId(UUID.randomUUID());
-                                            soundFragment.setTitle(soundFragment1.getTitle());
-                                            soundFragment.setArtist(soundFragment1.getArtist());
-                                            FileMetadata fileMetadata = new FileMetadata();
-                                            fileMetadata.setTemporaryFilePath(Path.of(finalPath));
-                                            soundFragment.setFileMetadataList(List.of(fileMetadata));
-                                            return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod());
                                         });
                             });
                 });
     }
 
-    public Uni<String> createOutroIntroMix(String mainSongPath, String introSongPath, String outputPath, MixingProfile settings) {
+    public Uni<String> createOutroIntroMix(String mainSongPath, String introSongPath, String outputPath, MixingProfile settings, double gainValue) {
         return Uni.createFrom().item(() -> {
             try {
                 double mainDuration = getAudioDuration(mainSongPath);
@@ -134,7 +145,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
                         fadeDuration,
                         introStartSeconds,
                         settings.fadeCurve,
-                        settings.fadeToVolume
+                        settings.fadeToVolume,
+                        gainValue
                 );
 
                 FFmpegBuilder builder = new FFmpegBuilder()
@@ -163,7 +175,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
             double fadeDuration,
             double introStartTime,
             FadeCurve curve,
-            double fadeDownTo
+            double fadeDownTo,
+            double gainValue
     ) {
 
         String mainFilter;
@@ -178,7 +191,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
 
         }
         return String.format("[0:a]%s[mainfaded];",mainFilter) +
-                String.format("[1:a]adelay=%.0f|%.0f[intro];",
+                String.format("[1:a]volume=%.2f,adelay=%.0f|%.0f[intro];",
+                        gainValue,
                         introStartTime * 1000,
                         introStartTime * 1000) +
                 "[mainfaded][intro]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0";

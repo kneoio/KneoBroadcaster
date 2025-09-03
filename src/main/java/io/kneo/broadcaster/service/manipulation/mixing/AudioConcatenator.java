@@ -90,6 +90,28 @@ public class AudioConcatenator {
         LOGGER.info("Starting directConcatenation - firstPath: {}, secondPath: {}, outputPath: {}, gainValue: {}",
                 firstPath, secondPath, outputPath, gainValue);
 
+        // Check input files
+        File firstFile = new File(firstPath);
+        File secondFile = new File(secondPath);
+        File outputFile = new File(outputPath);
+
+        LOGGER.info("First file exists: {}, readable: {}, size: {}",
+                firstFile.exists(), firstFile.canRead(), firstFile.length());
+        LOGGER.info("Second file exists: {}, readable: {}, size: {}",
+                secondFile.exists(), secondFile.canRead(), secondFile.length());
+        LOGGER.info("Output directory exists: {}, writable: {}",
+                outputFile.getParentFile().exists(), outputFile.getParentFile().canWrite());
+
+        if (!firstFile.exists() || !firstFile.canRead()) {
+            throw new Exception("First input file not accessible: " + firstPath);
+        }
+        if (!secondFile.exists() || !secondFile.canRead()) {
+            throw new Exception("Second input file not accessible: " + secondPath);
+        }
+        if (!outputFile.getParentFile().exists() || !outputFile.getParentFile().canWrite()) {
+            throw new Exception("Output directory not writable: " + outputFile.getParent());
+        }
+
         String filterComplex = String.format(
                 "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
                         "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +

@@ -28,8 +28,7 @@ public class StationInactivityChecker {
     private static final int INTERVAL_SECONDS = 180;
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final int IDLE_THRESHOLD_MINUTES = 5;
-    //TODO now too short , later should be extended
-    private static final int STOP_REMOVE_THRESHOLD_MINUTES = 10;
+    private static final int OFFLINE_THRESHOLD_MINUTES = 480; // 8 hours
     private static final int REMOVAL_DELAY_MINUTES = 1;
 
     private static final Set<RadioStationStatus> ACTIVE_STATUSES = Set.of(
@@ -52,8 +51,8 @@ public class StationInactivityChecker {
 
     void onStart(@Observes StartupEvent event) {
         LOGGER.info("=== Starting station inactivity checker ===");
-        LOGGER.info("Configuration - Interval: {}s, Idle threshold: {}min, Stop threshold: {}min, Removal delay: {}min",
-                INTERVAL_SECONDS, IDLE_THRESHOLD_MINUTES, STOP_REMOVE_THRESHOLD_MINUTES, REMOVAL_DELAY_MINUTES);
+        LOGGER.info("Configuration - Interval: {}s, Idle threshold: {}min, Offline threshold: {}min, Removal delay: {}min",
+                INTERVAL_SECONDS, IDLE_THRESHOLD_MINUTES, OFFLINE_THRESHOLD_MINUTES, REMOVAL_DELAY_MINUTES);
         LOGGER.info("Active statuses: {}", ACTIVE_STATUSES);
         startCleanupTask();
     }
@@ -93,12 +92,12 @@ public class StationInactivityChecker {
         LOGGER.info("=== Station inactivity checking - Tick: {} ===", tick);
         Instant now = Instant.now();
         Instant idleThreshold = now.minusSeconds(IDLE_THRESHOLD_MINUTES * 60L);
-        Instant stopThreshold = now.minusSeconds(STOP_REMOVE_THRESHOLD_MINUTES * 60L);
+        Instant offlineThreshold = now.minusSeconds(OFFLINE_THRESHOLD_MINUTES * 60L);
         Instant removalThreshold = now.minusSeconds(REMOVAL_DELAY_MINUTES * 60L);
 
         // Log threshold parameters
-        LOGGER.info("Thresholds - Now: {}, Idle: {} ({} min ago), Stop: {} ({} min ago), Removal: {} ({} min ago)",
-                now, idleThreshold, IDLE_THRESHOLD_MINUTES, stopThreshold, STOP_REMOVE_THRESHOLD_MINUTES,
+        LOGGER.info("Thresholds - Now: {}, Idle: {} ({} min ago), Offline: {} ({} min ago), Removal: {} ({} min ago)",
+                now, idleThreshold, IDLE_THRESHOLD_MINUTES, offlineThreshold, OFFLINE_THRESHOLD_MINUTES,
                 removalThreshold, REMOVAL_DELAY_MINUTES);
 
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
@@ -156,16 +155,16 @@ public class StationInactivityChecker {
                                                 BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", stats.getLastAccessTime());
 
                                                 boolean isActive = ACTIVE_STATUSES.contains(currentStatus);
-                                                boolean isPastStopThreshold = lastAccessInstant.isBefore(stopThreshold);
+                                                boolean isPastOfflineThreshold = lastAccessInstant.isBefore(offlineThreshold);
                                                 boolean isPastIdleThreshold = lastAccessInstant.isBefore(idleThreshold);
 
-                                                LOGGER.info("Station {}: isActive={}, isPastStopThreshold={}, isPastIdleThreshold={}",
-                                                        slug, isActive, isPastStopThreshold, isPastIdleThreshold);
+                                                LOGGER.info("Station {}: isActive={}, isPastOfflineThreshold={}, isPastIdleThreshold={}",
+                                                        slug, isActive, isPastOfflineThreshold, isPastIdleThreshold);
 
                                                 if (isActive) {
-                                                    if (isPastStopThreshold) {
+                                                    if (isPastOfflineThreshold) {
                                                         LOGGER.info("Station {} transitioning to OFF_LINE (inactive for {}s)", slug, secondsSinceAccess);
-                                                        BrandActivityLogger.logActivity(slug, "offline", "Inactive for %d minutes, setting status to OFF_LINE and marking for removal", STOP_REMOVE_THRESHOLD_MINUTES);
+                                                        BrandActivityLogger.logActivity(slug, "offline", "Inactive for %d minutes, setting status to OFF_LINE and marking for removal", OFFLINE_THRESHOLD_MINUTES);
                                                         radioStation.setStatus(RadioStationStatus.OFF_LINE);
                                                         stationsMarkedForRemoval.put(slug, now);
                                                     } else if (isPastIdleThreshold) {

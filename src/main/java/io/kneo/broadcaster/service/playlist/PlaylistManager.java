@@ -278,7 +278,8 @@ public class PlaylistManager {
             if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
                 long now = System.currentTimeMillis();
                 boolean cooldownElapsed = lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS;
-                if (playedRegularSinceDrain || cooldownElapsed) {
+                //if (playedRegularSinceDrain || cooldownElapsed) {
+                if (cooldownElapsed) {
                     radioStation.setStatus(RadioStationStatus.ON_LINE);
                     lastPrioritizedDrainAt = null;
                     playedRegularSinceDrain = false;

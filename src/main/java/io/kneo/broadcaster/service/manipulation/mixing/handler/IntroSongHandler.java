@@ -82,7 +82,7 @@ public class IntroSongHandler {
                                         ttsFilePath,
                                         songTempFile.toString(),
                                         outputPath,
-                                        ConcatenationType.VOLUME_CONCAT,
+                                        ConcatenationType.DIRECT_CONCAT,
                                         gainValue
                                 );
                             })

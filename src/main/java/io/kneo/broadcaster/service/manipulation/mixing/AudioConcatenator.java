@@ -212,17 +212,16 @@ public class AudioConcatenator {
     }
 
     private String volumeConcatenation(String firstPath, String secondPath, String outputPath,
-                                       double gainValue) throws Exception {
+                                       double gainValue){
         FFmpegBuilder builder = new FFmpegBuilder()
                 .setInput(firstPath)
                 .addInput(secondPath)
+                .setComplexFilter(String.format(
+                        "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
+                                "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
+                                "[speech][song]concat=n=2:v=0:a=1",
+                        gainValue))
                 .addOutput(outputPath)
-                .addExtraArgs("-filter_complex",
-                        String.format(
-                                "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
-                                        "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
-                                        "[speech][song]concat=n=2:v=0:a=1",
-                                gainValue))
                 .setAudioCodec("libmp3lame")
                 .setAudioSampleRate(SAMPLE_RATE)
                 .setAudioChannels(2)

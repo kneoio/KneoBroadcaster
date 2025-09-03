@@ -87,22 +87,37 @@ public class AudioConcatenator {
     }
 
     private String directConcatenation(String firstPath, String secondPath, String outputPath, double gainValue) throws Exception {
+        LOGGER.info("Starting directConcatenation - firstPath: {}, secondPath: {}, outputPath: {}, gainValue: {}",
+                firstPath, secondPath, outputPath, gainValue);
+
+        String filterComplex = String.format(
+                "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
+                        "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
+                        "[first][second]concat=n=2:v=0:a=1",
+                gainValue);
+
+        LOGGER.info("Filter complex: {}", filterComplex);
+
         FFmpegBuilder builder = new FFmpegBuilder()
                 .setInput(firstPath)
                 .addInput(secondPath)
-                .setComplexFilter(String.format(
-                        "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
-                                "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
-                                "[first][second]concat=n=2:v=0:a=1",
-                        gainValue))
+                .setComplexFilter(filterComplex)
                 .addOutput(outputPath)
                 .setAudioCodec("pcm_s16le")
                 .setAudioSampleRate(SAMPLE_RATE)
                 .setAudioChannels(2)
                 .done();
 
-        executor.createJob(builder).run();
-        return outputPath;
+        LOGGER.info("FFmpeg command: {}", String.join(" ", builder.build()));
+
+        try {
+            executor.createJob(builder).run();
+            LOGGER.info("FFmpeg execution completed successfully");
+            return outputPath;
+        } catch (Exception e) {
+            LOGGER.error("FFmpeg execution failed: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     private String concatenateWithSilenceGap(String firstPath, String secondPath, String outputPath,

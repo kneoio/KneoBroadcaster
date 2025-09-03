@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -48,14 +47,43 @@ public class SongSupplier {
     }
 
     public Uni<List<SoundFragment>> getBrandSongs(String brandName, PlaylistItemType fragmentType, int quantity) {
-        return getWeightedRandomFragments(brandName, fragmentType, quantity);
+        return getUnplayedFragments(brandName, fragmentType)
+                .map(unplayed -> {
+                    List<SoundFragment> selected;
+                    if (quantity >= unplayed.size()) {
+                        selected = unplayed;
+                    } else {
+                        selected = unplayed.subList(0, quantity);
+                    }
+                    updateMemory(brandName, fragmentType, selected);
+                    return selected;
+                });
     }
 
     public Uni<List<SoundFragment>> getNextSong(String brandName, PlaylistItemType fragmentType, int quantity) {
-        return getWeightedRandomFragments(brandName, fragmentType, quantity);
+        return getUnplayedFragments(brandName, fragmentType)
+                .map(unplayed -> {
+                    if (unplayed.isEmpty()) {
+                        return List.<SoundFragment>of();
+                    }
+
+                    List<SoundFragment> selected;
+                    if (quantity >= unplayed.size()) {
+                        selected = unplayed;
+                    } else {
+                        List<SoundFragment> shuffled = new ArrayList<>(unplayed);
+                        Collections.shuffle(shuffled);
+                        selected = shuffled.stream()
+                                .limit(quantity)
+                                .collect(Collectors.toList());
+                    }
+
+                    updateMemory(brandName, fragmentType, selected);
+                    return selected;
+                });
     }
 
-    private Uni<List<SoundFragment>> getWeightedRandomFragments(String brandName, PlaylistItemType fragmentType, int quantity) {
+    private Uni<List<SoundFragment>> getUnplayedFragments(String brandName, PlaylistItemType fragmentType) {
         return getBrandDataCached(brandName, fragmentType)
                 .map(fragments -> {
                     if (fragments.isEmpty()) {
@@ -63,71 +91,17 @@ public class SongSupplier {
                     }
 
                     SupplierSongMemory memory = getMemory(brandName, fragmentType);
-
-                    // Calculate weights based on play frequency
-                    Map<SoundFragment, Integer> playCountMap = memory.getPlayCounts(fragments);
-                    int maxPlayCount = playCountMap.values().stream().max(Integer::compareTo).orElse(0);
-
-                    // Create weighted selection pool
-                    List<WeightedSong> weightedSongs = fragments.stream()
-                            .map(fragment -> {
-                                int playCount = playCountMap.getOrDefault(fragment, 0);
-                                // Higher weight for less played songs (inverse weight)
-                                int weight = Math.max(1, (maxPlayCount + 1) - playCount);
-                                return new WeightedSong(fragment, weight);
-                            })
+                    List<SoundFragment> unplayedFragments = fragments.stream()
+                            .filter(fragment -> !memory.wasPlayed(fragment))
                             .collect(Collectors.toList());
 
-                    List<SoundFragment> selected = selectWeightedRandom(weightedSongs, quantity);
-                    updateMemory(brandName, fragmentType, selected);
-                    return selected;
+                    if (unplayedFragments.isEmpty()) {
+                        memory.reset();
+                        unplayedFragments = fragments;
+                    }
+
+                    return unplayedFragments;
                 });
-    }
-
-    private List<SoundFragment> selectWeightedRandom(List<WeightedSong> weightedSongs, int quantity) {
-        if (weightedSongs.isEmpty()) {
-            return List.of();
-        }
-
-        // Calculate total weight
-        int totalWeight = weightedSongs.stream().mapToInt(ws -> ws.weight).sum();
-
-        List<SoundFragment> selected = new ArrayList<>();
-        List<WeightedSong> available = new ArrayList<>(weightedSongs);
-
-        for (int i = 0; i < quantity && !available.isEmpty(); i++) {
-            int randomValue = ThreadLocalRandom.current().nextInt(
-                    available.stream().mapToInt(ws -> ws.weight).sum()
-            );
-
-            int currentWeight = 0;
-            WeightedSong selectedSong = null;
-
-            for (WeightedSong weightedSong : available) {
-                currentWeight += weightedSong.weight;
-                if (randomValue < currentWeight) {
-                    selectedSong = weightedSong;
-                    break;
-                }
-            }
-
-            if (selectedSong != null) {
-                selected.add(selectedSong.fragment);
-                available.remove(selectedSong); // Prevent duplicates in same selection
-            }
-        }
-
-        return selected;
-    }
-
-    private static class WeightedSong {
-        final SoundFragment fragment;
-        final int weight;
-
-        WeightedSong(SoundFragment fragment, int weight) {
-            this.fragment = fragment;
-            this.weight = weight;
-        }
     }
 
     private Uni<List<SoundFragment>> getBrandDataCached(String brandName, PlaylistItemType fragmentType) {

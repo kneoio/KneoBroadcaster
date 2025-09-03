@@ -2,37 +2,22 @@ package io.kneo.broadcaster.service.playlist;
 
 import io.kneo.broadcaster.model.SoundFragment;
 
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 
 public class SupplierSongMemory {
-    private final Map<SoundFragment, Integer> playCount = new ConcurrentHashMap<>();
+    private final Set<SoundFragment> playedSongs = new HashSet<>();
 
     public void updateLastSelected(List<SoundFragment> selectedFragments) {
-        selectedFragments.forEach(fragment ->
-                playCount.merge(fragment, 1, Integer::sum)
-        );
+        playedSongs.addAll(selectedFragments);
     }
 
     public boolean wasPlayed(SoundFragment song) {
-        return playCount.containsKey(song);
-    }
-
-    public int getPlayCount(SoundFragment song) {
-        return playCount.getOrDefault(song, 0);
-    }
-
-    public Map<SoundFragment, Integer> getPlayCounts(List<SoundFragment> fragments) {
-        Map<SoundFragment, Integer> result = new HashMap<>();
-        fragments.forEach(fragment ->
-                result.put(fragment, playCount.getOrDefault(fragment, 0))
-        );
-        return result;
+        return playedSongs.contains(song);
     }
 
     public void reset() {
-        playCount.clear();
+        playedSongs.clear();
     }
 }

@@ -10,6 +10,10 @@ public interface BroadcasterConfig {
     @WithDefault("localhost")
     String getHost();
 
+    @WithName("agent.url")
+    @WithDefault("http://localhost:38756")
+    String getAgentUrl();
+
     @WithName("controller.upload.files.path")
     @WithDefault("controller-uploads")
     String getPathUploads();

@@ -35,12 +35,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
-    private static final int SELF_MANAGING_INTERVAL_SECONDS = 120;
+    private static final int SELF_MANAGING_INTERVAL_SECONDS = 100;
     private static final int REGULAR_BUFFER_MAX = 2;
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
     private static final int BACKPRESSURE_ON = 2;
-    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 180_000L;
+    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 240_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
     private static final long STARVING_FEED_COOLDOWN_MILLIS = 20_000L;
 

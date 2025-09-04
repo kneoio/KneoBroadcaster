@@ -92,6 +92,11 @@ public class FFmpegAudioMixingTestRunner {
             public String getHost() { return "localhost"; }
 
             @Override
+            public String getAgentUrl() {
+                return "";
+            }
+
+            @Override
             public String getPathUploads() { return MUSIC_DIR; }
 
             @Override

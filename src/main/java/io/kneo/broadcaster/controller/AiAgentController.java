@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
+import io.kneo.broadcaster.dto.ai.PromptTestDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -31,6 +33,10 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
 
     @Inject
     AiAgentService service;
+
+    @Inject
+    AgentClient agentClient;
+
     private Validator validator;
 
     public AiAgentController() {
@@ -49,6 +55,7 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
+        router.post(path + "/test").handler(this::testAgent);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
@@ -87,38 +94,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                 .chain(user -> {
                     if ("new".equals(id)) {
                         AiAgentDTO dto = new AiAgentDTO();
-                       /** VoiceDTO voice1 = new VoiceDTO();
-                        voice1.setId("nPczCjzI2devNBz1zQrb");
-                        voice1.setName("Brain");
-                        VoiceDTO voice2 = new VoiceDTO();
-                        voice2.setId("CwhRBWXzGAHq8TQ4Fs17");
-                        voice2.setName("Roger");
-                        dto.setPreferredVoice(List.of(voice1, voice2));
-                        ToolDTO tool1 = new ToolDTO();
-                        tool1.setName("song title");
-                        tool1.setDescription("Represent song title");
-                        tool1.setVariableName("song_title");
-                        ToolDTO tool2 = new ToolDTO();
-                        tool2.setName("artist");
-                        tool2.setDescription("Represent artist");
-                        tool2.setVariableName("artist");
-                        ToolDTO tool3 = new ToolDTO();
-                        tool3.setName("listeners");
-                        tool3.setDescription("Listeners of the radio station");
-                        tool3.setVariableName("listeners");
-                        ToolDTO tool4 = new ToolDTO();
-                        tool4.setName("context");
-                        tool4.setDescription("Context of the audience");
-                        tool4.setVariableName("context");
-                        ToolDTO tool5 = new ToolDTO();
-                        tool5.setName("history");
-                        tool5.setDescription("History of the previous announcements");
-                        tool5.setVariableName("history");
-                        ToolDTO tool6 = new ToolDTO();
-                        tool6.setName("messages");
-                        tool6.setDescription("Can catch a message from Mixpla");
-                        tool6.setVariableName("message");
-                        dto.setEnabledTools(List.of(tool1, tool2, tool3, tool4, tool5, tool6));**/
                         dto.setTalkativity(0.3);
                         dto.setFillerPrompt(DEFAULT_FILLER_PROMPTS);
                         dto.setPrompts(List.of(PROMPT_BASIC));
@@ -205,6 +180,27 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
         }
     }
 
+    private void testAgent(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            PromptTestDTO dto = rc.body().asJsonObject().mapTo(PromptTestDTO.class);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> agentClient.callRadioDjAgent(dto.getLlmType().name(), dto.getPrompt(), dto.getVariables()))
+                    .subscribe().with(
+                            response -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end(response),
+                            rc::fail
+                    );
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
+        }
+    }
+
     public static final List<String> DEFAULT_FILLER_PROMPTS = List.of(
             "Eerie mood music with smooth transition, 4-6 seconds",
             "Eerie ambient music with gentle fade out, 4-6 seconds",
@@ -213,7 +209,7 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
             "Massive cinematic braam with soft ending, 4-6 seconds"
     );
 
-    private  static final String PROMPT_BASIC = """
+    private static final String PROMPT_BASIC = """
             You are a radio DJ called {ai_dj_name} of radio station named {brand}. Introduce {title} by {artist} to our audience,
              including listeners like {listeners}. Factor in the current context: {context}. Important
              constraint: Keep introduction extremely concise (10-30 words) - longer introductions cannot be used.

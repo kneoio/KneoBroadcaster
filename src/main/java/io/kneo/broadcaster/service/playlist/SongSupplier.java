@@ -10,8 +10,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -72,7 +77,7 @@ public class SongSupplier {
                         selected = unplayed;
                     } else {
                         List<SoundFragment> shuffled = new ArrayList<>(unplayed);
-                        Collections.shuffle(shuffled);
+                        Collections.shuffle(shuffled, new SecureRandom());
                         selected = shuffled.stream()
                                 .limit(quantity)
                                 .collect(Collectors.toList());

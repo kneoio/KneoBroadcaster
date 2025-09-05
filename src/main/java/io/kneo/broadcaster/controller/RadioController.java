@@ -48,11 +48,11 @@ public class RadioController {
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
-        String clientIP = rc.request().getHeader("do-connecting-ip");
+        String clientIP = rc.request().getHeader("stream-connecting-ip");
 
         geoService.getCountryAsync(clientIP)
                 .chain(country -> {
-                    //LOGGER.info("User-Agent: {}, Country: {}, Ip: {}", userAgent, country, clientIP);
+                    LOGGER.info("User-Agent: {}, Country: {}, Ip: {}", userAgent, country, clientIP);
                     return service.getPlaylist(brand, userAgent, true);
                 })
                 .onItem().transform(IStreamManager::generatePlaylist)

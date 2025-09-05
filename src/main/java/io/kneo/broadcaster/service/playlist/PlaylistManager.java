@@ -244,48 +244,24 @@ public class PlaylistManager {
             LiveSoundFragment nextFragment = prioritizedQueue.poll();
             if (prioritizedQueue.isEmpty() && radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
                 lastPrioritizedDrainAt = System.currentTimeMillis();
-                playedRegularSinceDrain = false;
             }
             moveFragmentToProcessedList(nextFragment);
             return nextFragment;
         }
 
-        if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
+        // Release saturation when prioritized queue is empty and cooldown elapsed
+        if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
             long now = System.currentTimeMillis();
-            boolean cooldownElapsed = lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS;
-            if (cooldownElapsed) {
+            if (lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS) {
                 radioStation.setStatus(RadioStationStatus.ON_LINE);
                 lastPrioritizedDrainAt = null;
-                playedRegularSinceDrain = false;
-                LOGGER.info("Backpressure released by cooldown - switching back to ON_LINE");
-            }
-        }
-
-        if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
-            long now = System.currentTimeMillis();
-            if (lastPrioritizedDrainAt == null) {
-                lastPrioritizedDrainAt = now;
-                playedRegularSinceDrain = false;
+                LOGGER.info("Backpressure released - switching back to ON_LINE");
             }
         }
 
         if (!regularQueue.isEmpty()) {
             LiveSoundFragment nextFragment = regularQueue.poll();
-            if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
-                playedRegularSinceDrain = true;
-            }
             moveFragmentToProcessedList(nextFragment);
-            if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
-                long now = System.currentTimeMillis();
-                boolean cooldownElapsed = lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS;
-                //if (playedRegularSinceDrain || cooldownElapsed) {
-                if (cooldownElapsed && prioritizedQueue.size() <= 1) {
-                    radioStation.setStatus(RadioStationStatus.ON_LINE);
-                    lastPrioritizedDrainAt = null;
-                    playedRegularSinceDrain = false;
-                    LOGGER.info("Backpressure released - switching back to ON_LINE");
-                }
-            }
             return nextFragment;
         }
 

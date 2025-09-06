@@ -95,32 +95,17 @@ public class StatsAccumulator implements IStatsService {
     }
 
     private Uni<Void> flushStationStats(String stationName, Long count, String userAgent, String ipAddress, String countryCode, OffsetDateTime lastAccess) {
-        return radioStationRepository.findStationStatsByStationName(stationName)
-                .chain(existingStats -> {
-                    if (existingStats != null) {
-                        return radioStationRepository.upsertStationAccessWithCountAndGeo(
-                                stationName,
-                                existingStats.getAccessCount() + count,
-                                lastAccess,
-                                userAgent,
-                                ipAddress,
-                                countryCode
-                        );
-                    } else {
-                        return radioStationRepository.upsertStationAccessWithCountAndGeo(
-                                stationName,
-                                count,
-                                lastAccess,
-                                userAgent,
-                                ipAddress,
-                                countryCode
-                        );
-                    }
-                })
-                .onFailure().invoke(failure ->
-                        LOGGER.error("Failed to flush stats for station: {}, lost {} access records",
-                                stationName, count, failure)
-                );
+        return radioStationRepository.upsertStationAccessWithCountAndGeo(
+                stationName,
+                count,
+                lastAccess,
+                userAgent,
+                ipAddress,
+                countryCode
+        ).onFailure().invoke(failure ->
+                LOGGER.error("Failed to flush stats for station: {}, lost {} access records",
+                        stationName, count, failure)
+        );
     }
 
     public int getPendingStatsCount() {

@@ -30,6 +30,7 @@ public class GeolocationService {
     }
 
     private String[] parseIPHeader(String headerValue) {
+        LOGGER.info("HEADER VALUE {}", headerValue);
         if (headerValue == null || headerValue.isEmpty()) {
             return new String[]{"UNKNOWN", null};
         }

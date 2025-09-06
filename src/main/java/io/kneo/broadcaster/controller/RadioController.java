@@ -50,7 +50,7 @@ public class RadioController {
         String userAgent = rc.request().getHeader("User-Agent");
         String clientIP = rc.request().getHeader("stream-connecting-ip");
 
-        geoService.getCountryAsync(clientIP)
+        geoService.persistCountryAsync(clientIP)
                 .chain(country -> {
                     //LOGGER.info("User-Agent: {}, Country: {}, Ip: {}", userAgent, country, clientIP);
                     return service.getPlaylist(brand, userAgent, true);

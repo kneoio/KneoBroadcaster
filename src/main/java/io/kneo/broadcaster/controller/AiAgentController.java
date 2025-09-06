@@ -186,6 +186,8 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
 
             PromptTestDTO dto = rc.body().asJsonObject().mapTo(PromptTestDTO.class);
 
+            if (!validateDTO(rc, dto, validator)) return;
+
             getContextUser(rc, false, true)
                     .chain(user -> agentClient.callRadioDjAgent(dto.getLlmType().name(), dto.getPrompt(), dto.getVariables()))
                     .subscribe().with(

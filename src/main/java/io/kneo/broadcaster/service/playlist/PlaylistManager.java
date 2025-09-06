@@ -39,8 +39,6 @@ public class PlaylistManager {
     private static final int REGULAR_BUFFER_MAX = 2;
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
-    private static final int BACKPRESSURE_ON = 2;
-    private static final long BACKPRESSURE_COOLDOWN_MILLIS = 300_000L;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
     private static final long STARVING_FEED_COOLDOWN_MILLIS = 20_000L;
 
@@ -66,11 +64,12 @@ public class PlaylistManager {
     private final BrandSoundFragmentUpdateService brandSoundFragmentUpdateService;
     private final RadioStation radioStation;
     private final String tempBaseDir;
-    private Long lastPrioritizedDrainAt;
-    private boolean playedRegularSinceDrain;
     private volatile long lastStarvingFeedTime = 0;
 
-    public PlaylistManager(BroadcasterConfig broadcasterConfig, IStreamManager streamManager, SongSupplier songSupplier, BrandSoundFragmentUpdateService brandSoundFragmentUpdateService) {
+    public PlaylistManager(BroadcasterConfig broadcasterConfig,
+                           IStreamManager streamManager,
+                           SongSupplier songSupplier,
+                           BrandSoundFragmentUpdateService brandSoundFragmentUpdateService) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
         this.segmentationService = streamManager.getSegmentationService();
         this.radioStation = streamManager.getRadioStation();
@@ -175,9 +174,6 @@ public class PlaylistManager {
                         if (isAiDjSubmit) {
                             prioritizedQueue.add(liveSoundFragment);
                             LOGGER.info("Added AI submit fragment for brand {}: {}", brand, metadata.getFileOriginalName());
-                            if (prioritizedQueue.size() >= BACKPRESSURE_ON) {
-                                radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
-                            }
                         } else {
                             if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
                                 LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);
@@ -224,9 +220,6 @@ public class PlaylistManager {
                     if (isAiDjSubmit) {
                         prioritizedQueue.add(liveSoundFragment);
                         LOGGER.info("Added AI submit fragment for brand {}: {}", brand, materializedMetadata.getFileOriginalName());
-                        if (prioritizedQueue.size() >= BACKPRESSURE_ON) {
-                            radioStation.setStatus(RadioStationStatus.QUEUE_SATURATED);
-                        }
                     } else {
                         if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
                             LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);
@@ -242,21 +235,8 @@ public class PlaylistManager {
     public LiveSoundFragment getNextFragment() {
         if (!prioritizedQueue.isEmpty()) {
             LiveSoundFragment nextFragment = prioritizedQueue.poll();
-            if (prioritizedQueue.isEmpty() && radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED) {
-                lastPrioritizedDrainAt = System.currentTimeMillis();
-            }
             moveFragmentToProcessedList(nextFragment);
             return nextFragment;
-        }
-
-        // Release saturation when prioritized queue is empty and cooldown elapsed
-        if (radioStation.getStatus() == RadioStationStatus.QUEUE_SATURATED && prioritizedQueue.isEmpty()) {
-            long now = System.currentTimeMillis();
-            if (lastPrioritizedDrainAt != null && (now - lastPrioritizedDrainAt) >= BACKPRESSURE_COOLDOWN_MILLIS) {
-                radioStation.setStatus(RadioStationStatus.ON_LINE);
-                lastPrioritizedDrainAt = null;
-                LOGGER.info("Backpressure released - switching back to ON_LINE");
-            }
         }
 
         if (!regularQueue.isEmpty()) {

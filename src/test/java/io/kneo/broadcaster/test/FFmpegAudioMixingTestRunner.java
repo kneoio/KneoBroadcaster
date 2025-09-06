@@ -17,14 +17,14 @@ import java.util.stream.Stream;
 
 public class FFmpegAudioMixingTestRunner {
 
-    private static final String MUSIC_DIR = "C:/Users/justa/Music/";
+    private static final String MUSIC_DIR = "C:/Users/justa/Music/mixed_test/";
     private static final String CACHE_FILE = "audio_files_cache.txt";
     private static final Set<String> AUDIO_EXTENSIONS = Set.of(".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg");
 
     public static void main(String[] args) throws Exception {
         List<String> audioFiles = getAudioFiles();
 
-        if (audioFiles.size() < 1) {
+        if (audioFiles.isEmpty()) {
             System.out.println("Need at least 1 audio file in " + MUSIC_DIR);
             return;
         }
@@ -42,12 +42,23 @@ public class FFmpegAudioMixingTestRunner {
         BroadcasterConfig config = createConfig();
         AudioMixingHandler handler = getFFmpegAudioMixingHandler(config);
 
-        MixingProfile settings = new MixingProfile(
+        /*MixingProfile settings = new MixingProfile(
                 20.0f,   // outroFadeStartSeconds
                 0.0f,   // introStartEarly
                 3.0f,    // introVolume
                 1.0f,    // mainSongVolume
                 0.3f,    // fadeToVolume
+                FadeCurve.LINEAR,       // fadeCurve
+                false,   // autoFadeBasedOnIntro
+                "Random test mixing profile"
+        );*/
+
+        MixingProfile settings = new MixingProfile(
+                3.0f,   // outroFadeStartSeconds
+                0.0f,   // introStartEarly
+                3.0f,    // introVolume
+                1.0f,    // mainSongVolume
+                0.9f,    // fadeToVolume
                 FadeCurve.LINEAR,       // fadeCurve
                 false,   // autoFadeBasedOnIntro
                 "Random test mixing profile"

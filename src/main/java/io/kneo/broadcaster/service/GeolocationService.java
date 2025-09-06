@@ -12,7 +12,8 @@ public class GeolocationService {
     private final ConcurrentHashMap<String, Long> cacheTimestamps = new ConcurrentHashMap<>();
     private static final long CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
-    public Uni<String> getCountryAsync(String ip) {
+    public Uni<String> persistCountryAsync(String ip) {
+        //format IP_ADDRESS|COUNTRY_CODE
         if (ip == null || ip.isEmpty()) {
             return Uni.createFrom().item("UNKNOWN");
         }

@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
-import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
@@ -42,9 +41,6 @@ public class RadioService {
     @Inject
     AnimationService animationService;
 
-    @Inject
-    StatsAccumulator statsAccumulator;
-
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
@@ -71,27 +67,9 @@ public class RadioService {
                 );
     }
 
-    public Uni<Void> recordAccess(String brand, String userAgent) {
-        try {
-            statsAccumulator.recordAccess(brand, userAgent);
-            return Uni.createFrom().voidItem();
-        } catch (Exception e) {
-            LOGGER.error("Failed to record access in memory for brand: {}, userAgent: {}", brand, userAgent, e);
-            return Uni.createFrom().failure(e);
-        }
-    }
-
     public Uni<IStreamManager> getPlaylist(String brand, String userAgent, boolean updateAccessTime) {
-        if (updateAccessTime) {
-            recordAccess(brand, userAgent)
-                    .subscribe().with(
-                            success -> LOGGER.debug("Access recorded for brand: {}", brand),
-                            failure -> LOGGER.warn("Failed to record access for brand: {}, continuing with playlist", brand)
-                    );
-        }
         return getPlaylistInternal(brand);
     }
-
 
     private Uni<IStreamManager> getPlaylistInternal(String brand) {
         return radioStationPool.get(brand)
@@ -165,7 +143,6 @@ public class RadioService {
                                 .map(station -> {
                                     return radioStationPool.get(station.getSlugName())
                                             .chain(onlineStation -> {
-                                                //TODO fix the workaround
                                                 String description = station.getDescription();
                                                 if (onlineStation != null) {
                                                     if (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||

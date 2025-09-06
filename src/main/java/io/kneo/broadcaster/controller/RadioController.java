@@ -42,7 +42,6 @@ public class RadioController {
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
-
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -50,11 +49,8 @@ public class RadioController {
         String userAgent = rc.request().getHeader("User-Agent");
         String clientIP = rc.request().getHeader("stream-connecting-ip");
 
-        geoService.persistCountryAsync(clientIP)
-                .chain(country -> {
-                    //LOGGER.info("User-Agent: {}, Country: {}, Ip: {}", userAgent, country, clientIP);
-                    return service.getPlaylist(brand, userAgent, true);
-                })
+        geoService.recordAccessWithGeolocation(brand, userAgent, clientIP)
+                .chain(country -> service.getPlaylist(brand, userAgent, false))
                 .onItem().transform(IStreamManager::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -83,6 +79,7 @@ public class RadioController {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
+
         service.getPlaylist(brand, userAgent, false)
                 .onItem().transform(playlist -> {
                     HlsSegment segment = playlist.getSegment(segmentParam);
@@ -164,7 +161,6 @@ public class RadioController {
                                     .end("Failed to wake up radio station: " + throwable.getMessage());
                         }
                 );
-
     }
 
     private void getStations(RoutingContext rc) {
@@ -214,7 +210,7 @@ public class RadioController {
             rc.next();
             return;
         }
-        //TODO differnet
+
         if (referer != null &&
                 (referer.equals("https://mixpla.io/") || referer.equals("http://localhost:8090/"))  &&
                 clientId != null && clientId.equals("mixpla-web")) {

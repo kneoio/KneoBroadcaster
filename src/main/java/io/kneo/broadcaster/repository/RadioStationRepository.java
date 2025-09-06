@@ -287,6 +287,17 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .replaceWithVoid();
     }
 
+    public Uni<Void> upsertStationAccessWithCountAndGeo(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent, String ipAddress, String countryCode) {
+        String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent, ip_address, country_code) " +
+                "VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (station_name) DO UPDATE SET access_count = $2, " +
+                "last_access_time = $3, user_agent = $4, ip_address = $5, country_code = $6;";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent, ipAddress, countryCode))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access with geo data for: {}", stationName, throwable))
+                .replaceWithVoid();
+    }
+
     @Deprecated(since = "2.0.7")
     public Uni<BrandAgentStats> findStationStatsByStationName(String stationName) {
         String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " + brandStats.getTableName() + " WHERE station_name = $1";

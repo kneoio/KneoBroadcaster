@@ -19,18 +19,22 @@ public class StatsAccumulator implements IStatsService {
 
     private final ConcurrentHashMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> lastUserAgents = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> lastIpAddresses = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> lastCountryCodes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, OffsetDateTime> lastAccessTimes = new ConcurrentHashMap<>();
 
     @Inject
     RadioStationRepository radioStationRepository;
 
-    public void recordAccess(String stationName, String userAgent) {
+    public void recordAccess(String stationName, String userAgent, String ipAddress, String countryCode) {
         accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
         lastUserAgents.put(stationName, userAgent);
+        lastIpAddresses.put(stationName, ipAddress);
+        lastCountryCodes.put(stationName, countryCode);
         lastAccessTimes.put(stationName, OffsetDateTime.now());
 
-        LOGGER.debug("Recorded access for station: {} (total pending: {})",
-                stationName, accessCounts.get(stationName).get());
+        LOGGER.debug("Recorded access for station: {} from IP: {} ({}) (total pending: {})",
+                stationName, ipAddress, countryCode, accessCounts.get(stationName).get());
     }
 
     public Uni<Void> flushAllStats() {
@@ -41,6 +45,8 @@ public class StatsAccumulator implements IStatsService {
 
         Map<String, Long> countsSnapshot = new HashMap<>();
         Map<String, String> agentsSnapshot = new HashMap<>();
+        Map<String, String> ipSnapshot = new HashMap<>();
+        Map<String, String> countrySnapshot = new HashMap<>();
         Map<String, OffsetDateTime> timesSnapshot = new HashMap<>();
 
         accessCounts.forEach((station, count) -> {
@@ -48,6 +54,8 @@ public class StatsAccumulator implements IStatsService {
             if (currentCount > 0) {
                 countsSnapshot.put(station, currentCount);
                 agentsSnapshot.put(station, lastUserAgents.get(station));
+                ipSnapshot.put(station, lastIpAddresses.get(station));
+                countrySnapshot.put(station, lastCountryCodes.get(station));
                 timesSnapshot.put(station, lastAccessTimes.get(station));
             }
         });
@@ -55,6 +63,8 @@ public class StatsAccumulator implements IStatsService {
         accessCounts.entrySet().removeIf(entry -> entry.getValue().get() == 0);
         countsSnapshot.keySet().forEach(station -> {
             lastUserAgents.remove(station);
+            lastIpAddresses.remove(station);
+            lastCountryCodes.remove(station);
             lastAccessTimes.remove(station);
         });
 
@@ -70,36 +80,40 @@ public class StatsAccumulator implements IStatsService {
                                     String station = entry.getKey();
                                     Long count = entry.getValue();
                                     String userAgent = agentsSnapshot.get(station);
+                                    String ipAddress = ipSnapshot.get(station);
+                                    String countryCode = countrySnapshot.get(station);
                                     OffsetDateTime lastAccess = timesSnapshot.get(station);
 
-                                    return flushStationStats(station, count, userAgent, lastAccess);
+                                    return flushStationStats(station, count, userAgent, ipAddress, countryCode, lastAccess);
                                 })
                                 .toList()
                 ).andFailFast()
                 .replaceWithVoid()
                 .onFailure().invoke(failure -> {
                     LOGGER.error("Failed to flush stats batch, some data may be lost", failure);
-                    // On failure, we could optionally restore the counts, but for MVP we'll accept the loss
                 });
     }
 
-    private Uni<Void> flushStationStats(String stationName, Long count, String userAgent, OffsetDateTime lastAccess) {
+    private Uni<Void> flushStationStats(String stationName, Long count, String userAgent, String ipAddress, String countryCode, OffsetDateTime lastAccess) {
         return radioStationRepository.findStationStatsByStationName(stationName)
                 .chain(existingStats -> {
                     if (existingStats != null) {
-                        return radioStationRepository.upsertStationAccessWithCount(
+                        return radioStationRepository.upsertStationAccessWithCountAndGeo(
                                 stationName,
                                 existingStats.getAccessCount() + count,
                                 lastAccess,
-                                userAgent
+                                userAgent,
+                                ipAddress,
+                                countryCode
                         );
                     } else {
-                        // Create new stats entry
-                        return radioStationRepository.upsertStationAccessWithCount(
+                        return radioStationRepository.upsertStationAccessWithCountAndGeo(
                                 stationName,
                                 count,
                                 lastAccess,
-                                userAgent
+                                userAgent,
+                                ipAddress,
+                                countryCode
                         );
                     }
                 })

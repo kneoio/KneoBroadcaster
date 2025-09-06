@@ -31,7 +31,7 @@ public class GeolocationService {
 
     private String[] parseIPHeader(String headerValue) {
         if (headerValue == null || headerValue.isEmpty()) {
-            return new String[]{"UNKNOWN", "UNKNOWN"};
+            return new String[]{"UNKNOWN", null};
         }
 
         String[] parts = headerValue.split("\\|", 2);
@@ -40,12 +40,12 @@ public class GeolocationService {
             String country = parts[1].trim();
             return new String[]{
                     ip.isEmpty() ? "UNKNOWN" : ip,
-                    country.isEmpty() ? "UNKNOWN" : country
+                    country.isEmpty() ? null : country
             };
         }
 
         // No country code in header, just IP
         String ip = headerValue.trim();
-        return new String[]{ip.isEmpty() ? "UNKNOWN" : ip, "UNKNOWN"};
+        return new String[]{ip.isEmpty() ? "UNKNOWN" : ip, null};
     }
 }

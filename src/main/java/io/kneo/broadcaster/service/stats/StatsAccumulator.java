@@ -95,13 +95,16 @@ public class StatsAccumulator implements IStatsService {
     }
 
     private Uni<Void> flushStationStats(String stationName, Long count, String userAgent, String ipAddress, String countryCode, OffsetDateTime lastAccess) {
+        // Convert "UNKNOWN" back to null for database enum compatibility
+        String dbCountryCode = "UNKNOWN".equals(countryCode) ? null : countryCode;
+
         return radioStationRepository.upsertStationAccessWithCountAndGeo(
                 stationName,
                 count,
                 lastAccess,
                 userAgent,
                 ipAddress,
-                countryCode
+                dbCountryCode
         ).onFailure().invoke(failure ->
                 LOGGER.error("Failed to flush stats for station: {}, lost {} access records",
                         stationName, count, failure)

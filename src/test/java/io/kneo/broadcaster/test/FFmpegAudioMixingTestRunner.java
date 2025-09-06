@@ -55,10 +55,9 @@ public class FFmpegAudioMixingTestRunner {
 
         MixingProfile settings = new MixingProfile(
                 3.0f,   // outroFadeStartSeconds
-                0.0f,   // introStartEarly
+                15.0f,   // introStartEarly
                 3.0f,    // introVolume
-                1.0f,    // mainSongVolume
-                0.9f,    // fadeToVolume
+                0.4f,    // fadeToVolume
                 FadeCurve.LINEAR,       // fadeCurve
                 false,   // autoFadeBasedOnIntro
                 "Random test mixing profile"

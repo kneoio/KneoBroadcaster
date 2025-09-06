@@ -1,17 +1,18 @@
 package io.kneo.broadcaster.service.manipulation.mixing.handler;
 
+import java.util.Random;
+
 public class MixingProfile {
     public float outroFadeStartSeconds;
     public float introStartEarly;
     public float introVolume;
-    public float mainSongVolume;
     public float fadeToVolume;
     public FadeCurve fadeCurve;
     public boolean autoFadeBasedOnIntro;
     public String description;
 
     public MixingProfile(float outroFadeStartSeconds, float introStartEarly,
-                         float introVolume, float mainSongVolume, float fadeToVolume,
+                         float introVolume, float fadeToVolume,
                          FadeCurve fadeCurve, boolean autoFadeBasedOnIntro, String description) {
         this.outroFadeStartSeconds = outroFadeStartSeconds;
         this.introStartEarly = introStartEarly;
@@ -27,7 +28,6 @@ public class MixingProfile {
                 16.0f,   // outroFadeStartSeconds - changed from 5.0f to 16.0f
                 0.0f,   // introStartEarly  if 0 it will measure intro's duration
                 1.0f,    // introVolume
-                1.0f,    // mainSongVolume  no gain here
                 0.0f,    // fadeToVolume  doesnt work , always goes to 0
                 FadeCurve.LINEAR,
                 false,   // autoFadeBasedOnIntro
@@ -35,7 +35,38 @@ public class MixingProfile {
         );
     }
 
+    public static MixingProfile getVariant2() {
+        return new MixingProfile(
+                3.0f,
+                15.0f,
+                3.0f,
+                0.4f,
+                FadeCurve.LINEAR,
+                false,
+                "Variant 2"
+        );
+    }
+
+    public static MixingProfile getVariant3() {
+        return new MixingProfile(
+                3.0f,
+                10.0f,
+                3.0f,
+                0.6f,
+                FadeCurve.LINEAR,
+                false,
+                "Variant 3"
+        );
+    }
+
     public static MixingProfile randomProfile(long seed) {
-        return getVariant1();
+        Random random = new Random(seed);
+        int variant = random.nextInt(3) + 1;
+
+        return switch (variant) {
+            case 2 -> getVariant2();
+            case 3 -> getVariant3();
+            default -> getVariant1();
+        };
     }
 }

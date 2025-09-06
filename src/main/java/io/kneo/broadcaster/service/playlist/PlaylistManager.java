@@ -197,7 +197,7 @@ public class PlaylistManager {
             FileMetadata metadata = metadataList.get(0);
             return this.addFragmentToSlice(brandSoundFragment.getSoundFragment(), metadata, bitRate);
         } catch (Exception e) {
-            LOGGER.warn("Skipping fragment due to metadata error, position 658: {}", e.getMessage());
+            LOGGER.warn("Skipping fragment due to metadata error, position 657: {}", e.getMessage());
             return Uni.createFrom().item(false);
         }
     }

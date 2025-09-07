@@ -37,10 +37,10 @@ public class MixingProfile {
 
     public static MixingProfile getVariant2() {
         return new MixingProfile(
-                3.0f,
+                5.0f,
                 15.0f,
                 3.0f,
-                0.4f,
+                0.3f,
                 FadeCurve.LINEAR,
                 false,
                 "Variant 2"
@@ -61,11 +61,12 @@ public class MixingProfile {
 
     public static MixingProfile randomProfile(long seed) {
         Random random = new Random(seed);
-        int variant = random.nextInt(3) + 1;
+        int variant = random.nextInt(3);
 
         return switch (variant) {
-            case 2 -> getVariant2();
-            case 3 -> getVariant3();
+            case 0 -> getVariant1();
+            case 1 -> getVariant2();
+            case 2 -> getVariant3();
             default -> getVariant1();
         };
     }

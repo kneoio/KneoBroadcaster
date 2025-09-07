@@ -29,8 +29,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
 import java.util.List;
@@ -294,19 +292,12 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 "VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (station_name) DO UPDATE SET access_count = $2, " +
                 "last_access_time = $3, user_agent = $4, ip_address = $5, country_code = $6;";
 
-        InetAddress inetAddress;
-        try {
-            inetAddress = ipAddress != null ? InetAddress.getByName(ipAddress) : null;
-        } catch (UnknownHostException e) {
-            LOGGER.warn("Invalid IP address, setting to null: {}", ipAddress);
-            inetAddress = null;
-        }
-
         return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent, inetAddress, countryCode))
+                .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent, ipAddress, countryCode))
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access with geo data for: {}", stationName, throwable))
                 .replaceWithVoid();
     }
+
 
     @Deprecated(since = "2.0.7")
     public Uni<BrandAgentStats> findStationStatsByStationName(String stationName) {

@@ -49,6 +49,7 @@ public class RadioController {
         String userAgent = rc.request().getHeader("User-Agent");
         String clientIP = rc.request().getHeader("stream-connecting-ip");
         LOGGER.info(">>>>>>>>>>>>>>> client IP {}", clientIP);
+        LOGGER.info("All headers: {}", rc.request().headers().names());
         geoService.recordAccessWithGeolocation(brand, userAgent, clientIP)
                 .chain(country -> service.getPlaylist(brand, userAgent, false))
                 .onItem().transform(IStreamManager::generatePlaylist)

@@ -288,9 +288,11 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
     }
 
     public Uni<Void> upsertStationAccessWithCountAndGeo(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent, String ipAddress, String countryCode) {
-        String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent, ip_address, country_code) " +
-                "VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (station_name) DO UPDATE SET access_count = $2, " +
-                "last_access_time = $3, user_agent = $4, ip_address = $5, country_code = $6;";
+        String sql = "INSERT INTO " + brandStats.getTableName() +
+                " (station_name, access_count, last_access_time, user_agent, ip_address, country_code) " +
+                "VALUES ($1, $2, $3, $4, $5, $6) " +
+                "ON CONFLICT (station_name, ip_address, country_code) " +
+                "DO UPDATE SET access_count = $2, last_access_time = $3, user_agent = $4;";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent, ipAddress, countryCode))

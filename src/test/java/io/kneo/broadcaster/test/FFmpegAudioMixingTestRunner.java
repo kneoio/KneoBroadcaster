@@ -138,6 +138,11 @@ public class FFmpegAudioMixingTestRunner {
 
             @Override
             public int getMaxSilenceDuration() { return 3600; }
+
+            @Override
+            public List<String> getStationWhitelist() {
+                return List.of();
+            }
         };
     }
 

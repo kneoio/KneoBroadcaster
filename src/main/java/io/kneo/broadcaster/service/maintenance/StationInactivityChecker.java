@@ -148,8 +148,6 @@ public class StationInactivityChecker {
                                         .onItem().transformToUni(stats -> {
                                             if (stats != null && stats.getLastAccessTime() != null) {
                                                 Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
-                                                long secondsSinceAccess = Duration.between(lastAccessInstant, now).getSeconds();
-
                                                 BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", stats.getLastAccessTime());
 
                                                 boolean hasRecentActivity = lastAccessInstant.isAfter(waitingForCuratorThreshold);
@@ -184,7 +182,9 @@ public class StationInactivityChecker {
                                                         LOGGER.info("Station {} is whitelisted, keeping in IDLE status", slug);
                                                     }
                                                 } else if (ACTIVE_STATUSES.contains(currentStatus)) {
-                                                    if (isPastIdleThreshold) {
+
+                                                    if (isPastIdleThreshold
+                                                            && (currentStatus == RadioStationStatus.ON_LINE || currentStatus == RadioStationStatus.WAITING_FOR_CURATOR)) {
                                                         BrandActivityLogger.logActivity(slug, "idle", "Inactive for %d minutes, setting status to IDLE", IDLE_THRESHOLD_MINUTES);
                                                         radioStation.setStatus(RadioStationStatus.IDLE);
                                                         idleStatusTime.put(slug, now);
@@ -194,6 +194,7 @@ public class StationInactivityChecker {
                                                         idleStatusTime.remove(slug);
                                                     }
                                                 }
+
                                             } else {
                                                 LOGGER.warn("Station {}: No stats or last access time - stats={}, lastAccessTime={}",
                                                         slug, stats, stats != null ? stats.getLastAccessTime() : "N/A");

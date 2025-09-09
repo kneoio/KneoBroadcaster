@@ -27,12 +27,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StationInactivityChecker {
     private static final Logger LOGGER = LoggerFactory.getLogger(StationInactivityChecker.class);
     private static final int INTERVAL_SECONDS = 60;
-    private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
+    private static final Duration INITIAL_DELAY = Duration.ofMillis(50);
 
-    // Status transition thresholds
-    private static final int WAITING_FOR_CURATOR_THRESHOLD_MINUTES = 10;   // ONLINE → WAITING_FOR_CURATOR after 10 minutes
-    private static final int IDLE_THRESHOLD_MINUTES = 480;                 // WAITING_FOR_CURATOR → IDLE after 8 hours
-    private static final int IDLE_TO_OFFLINE_THRESHOLD_MINUTES = 120;      // IDLE → OFFLINE after 2 hours in idle
+    private static final int WAITING_FOR_CURATOR_THRESHOLD_MINUTES = 5;
+    private static final int IDLE_THRESHOLD_MINUTES = 480;
+    private static final int IDLE_TO_OFFLINE_THRESHOLD_MINUTES = 120;
     private static final int REMOVAL_DELAY_MINUTES = 1;
 
     private static final Set<RadioStationStatus> ACTIVE_STATUSES = Set.of(
@@ -71,18 +70,13 @@ public class StationInactivityChecker {
         stopCleanupTask();
     }
 
-    private boolean isWhitelisted(String stationSlug) {
-        return broadcasterConfig.getStationWhitelist().contains(stationSlug);
-    }
-
     private void startCleanupTask() {
         cleanupSubscription = getTicker()
                 .onItem().call(this::checkStationActivity)
                 .onFailure().invoke(error -> LOGGER.error("Timer error", error))
                 .onFailure().retry().withBackOff(Duration.ofSeconds(10)).atMost(3)
                 .subscribe().with(
-                        item -> {
-                        },
+                        item -> {},
                         failure -> LOGGER.error("Subscription failed", failure)
                 );
     }
@@ -109,7 +103,6 @@ public class StationInactivityChecker {
         Instant idleToOfflineThreshold = now.minusSeconds(IDLE_TO_OFFLINE_THRESHOLD_MINUTES * 60L);
         Instant removalThreshold = now.minusSeconds(REMOVAL_DELAY_MINUTES * 60L);
 
-        // Log threshold parameters
         LOGGER.info("Thresholds - Now: {}, WaitingForCurator: {} ({} min ago), Idle: {} ({} min ago), IdleToOffline: {} ({} min ago), Removal: {} ({} min ago)",
                 now, waitingForCuratorThreshold, WAITING_FOR_CURATOR_THRESHOLD_MINUTES,
                 idleThreshold, IDLE_THRESHOLD_MINUTES, idleToOfflineThreshold, IDLE_TO_OFFLINE_THRESHOLD_MINUTES,
@@ -118,7 +111,6 @@ public class StationInactivityChecker {
         Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
         LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
 
-        // Log stations marked for removal
         if (!stationsMarkedForRemoval.isEmpty()) {
             LOGGER.info("Stations marked for removal: {}", stationsMarkedForRemoval.keySet());
             stationsMarkedForRemoval.forEach((slug, markedTime) ->
@@ -133,15 +125,6 @@ public class StationInactivityChecker {
                     long secondsSinceMarked = Duration.between(markedTime, now).getSeconds();
                     LOGGER.info("Checking removal for {}: marked {}s ago, threshold {}s",
                             slug, secondsSinceMarked, REMOVAL_DELAY_MINUTES * 60);
-
-                    // Check if station is whitelisted before removal
-                    if (isWhitelisted(slug)) {
-                        LOGGER.info("Station {} is whitelisted, removing from removal queue and keeping online", slug);
-                        BrandActivityLogger.logActivity(slug, "whitelist_protection", "Station is whitelisted, preventing removal");
-                        stationsMarkedForRemoval.remove(slug);
-                        idleStatusTime.remove(slug);
-                        return Uni.createFrom().voidItem();
-                    }
 
                     if (markedTime.isBefore(removalThreshold)) {
                         BrandActivityLogger.logActivity(slug, "remove", "Removing station after %d minutes delay", REMOVAL_DELAY_MINUTES);
@@ -166,12 +149,6 @@ public class StationInactivityChecker {
                                 RadioStationStatus currentStatus = radioStation.getStatus();
                                 LOGGER.info("Processing station: {} with status: {}", slug, currentStatus);
 
-                                // Check if station is whitelisted
-                                boolean isWhitelistedStation = isWhitelisted(slug);
-                                if (isWhitelistedStation) {
-                                    LOGGER.info("Station {} is whitelisted, limiting status transitions", slug);
-                                }
-
                                 return radioStationService.getStats(radioStation.getSlugName())
                                         .onItem().transformToUni(stats -> {
                                             LOGGER.info("Retrieved stats for {}: {}", slug, stats != null ? "available" : "null");
@@ -180,64 +157,32 @@ public class StationInactivityChecker {
                                                 Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
                                                 long secondsSinceAccess = Duration.between(lastAccessInstant, now).getSeconds();
 
-                                                LOGGER.info("Station {}: Last access: {} ({}s ago), Status: {}, Whitelisted: {}",
-                                                        slug, stats.getLastAccessTime(), secondsSinceAccess, currentStatus, isWhitelistedStation);
+                                                LOGGER.info("Station {}: Last access: {} ({}s ago), Status: {}",
+                                                        slug, stats.getLastAccessTime(), secondsSinceAccess, currentStatus);
 
                                                 BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", stats.getLastAccessTime());
 
-                                                boolean isActive = ACTIVE_STATUSES.contains(currentStatus);
+                                                boolean hasRecentActivity = lastAccessInstant.isAfter(waitingForCuratorThreshold);
                                                 boolean isPastIdleThreshold = lastAccessInstant.isBefore(idleThreshold);
-                                                boolean isPastWaitingForCuratorThreshold = lastAccessInstant.isBefore(waitingForCuratorThreshold);
 
-                                                LOGGER.info("Station {}: isActive={}, isPastIdleThreshold={}, isPastWaitingForCuratorThreshold={}",
-                                                        slug, isActive, isPastIdleThreshold, isPastWaitingForCuratorThreshold);
+                                                LOGGER.info("Station {}: hasRecentActivity={}, isPastIdleThreshold={}",
+                                                        slug, hasRecentActivity, isPastIdleThreshold);
 
-                                                if (isActive) {
-                                                    // Check if station should transition to IDLE → OFFLINE based on idle time
-                                                    if (currentStatus == RadioStationStatus.IDLE) {
-                                                        Instant idleStartTime = idleStatusTime.get(slug);
-                                                        if (idleStartTime != null && idleStartTime.isBefore(idleToOfflineThreshold)) {
-                                                            if (isWhitelistedStation) {
-                                                                LOGGER.info("Station {} would transition to OFF_LINE but is whitelisted, keeping as IDLE", slug);
-                                                                BrandActivityLogger.logActivity(slug, "whitelist_protection", "Station is whitelisted, preventing transition to OFF_LINE");
-                                                            } else {
-                                                                LOGGER.info("Station {} transitioning from IDLE to OFF_LINE (idle for {}s)", slug,
-                                                                        Duration.between(idleStartTime, now).getSeconds());
-                                                                BrandActivityLogger.logActivity(slug, "offline", "Idle for %d minutes, setting status to OFF_LINE and marking for removal", IDLE_TO_OFFLINE_THRESHOLD_MINUTES);
-                                                                radioStation.setStatus(RadioStationStatus.OFF_LINE);
-                                                                stationsMarkedForRemoval.put(slug, now);
-                                                                idleStatusTime.remove(slug);
-                                                            }
-                                                        } else if (!isPastWaitingForCuratorThreshold) {
-                                                            // Station has recent activity, move back to ONLINE
-                                                            LOGGER.info("IDLE station {} has recent activity, transitioning to ON_LINE", slug);
-                                                            BrandActivityLogger.logActivity(slug, "online", "Station has activity, setting status to ON_LINE");
-                                                            radioStation.setStatus(RadioStationStatus.ON_LINE);
-                                                            idleStatusTime.remove(slug);
-                                                        }
-                                                    } else if (isPastIdleThreshold) {
-                                                        if (isWhitelistedStation) {
-                                                            LOGGER.info("Station {} would transition to IDLE but is whitelisted, keeping current status: {}", slug, currentStatus);
-                                                            BrandActivityLogger.logActivity(slug, "whitelist_protection", "Station is whitelisted, preventing transition to IDLE");
-                                                        } else {
-                                                            LOGGER.info("Station {} transitioning to IDLE (inactive for {}s)", slug, secondsSinceAccess);
-                                                            BrandActivityLogger.logActivity(slug, "idle", "Inactive for %d minutes, setting status to IDLE", IDLE_THRESHOLD_MINUTES);
-                                                            radioStation.setStatus(RadioStationStatus.IDLE);
-                                                            idleStatusTime.put(slug, now);
-                                                        }
-                                                    } else if (isPastWaitingForCuratorThreshold) {
-                                                        LOGGER.info("Station {} transitioning to WAITING_FOR_CURATOR (inactive for {}s)", slug, secondsSinceAccess);
-                                                        BrandActivityLogger.logActivity(slug, "waiting_curator", "Inactive for %d minutes, setting status to WAITING_FOR_CURATOR", WAITING_FOR_CURATOR_THRESHOLD_MINUTES);
-                                                        radioStation.setStatus(RadioStationStatus.WAITING_FOR_CURATOR);
-                                                        idleStatusTime.remove(slug);
-                                                    } else {
+                                                // If activity within 10 minutes, set to ON_LINE (except OFF_LINE which needs separate handling)
+                                                if (hasRecentActivity && currentStatus != RadioStationStatus.OFF_LINE) {
+                                                    if (currentStatus != RadioStationStatus.ON_LINE) {
                                                         LOGGER.info("Station {} has recent activity, transitioning to ON_LINE", slug);
-                                                        BrandActivityLogger.logActivity(slug, "online", "Station is active, setting status to ON_LINE");
+                                                        BrandActivityLogger.logActivity(slug, "online", "Station has activity, setting status to ON_LINE");
                                                         radioStation.setStatus(RadioStationStatus.ON_LINE);
+                                                        stationsMarkedForRemoval.remove(slug);
                                                         idleStatusTime.remove(slug);
                                                     }
-                                                } else if (currentStatus == RadioStationStatus.OFF_LINE) {
-                                                    if (!isPastWaitingForCuratorThreshold) {
+                                                    return Uni.createFrom().voidItem();
+                                                }
+
+                                                // Handle OFF_LINE stations with recent activity
+                                                if (currentStatus == RadioStationStatus.OFF_LINE) {
+                                                    if (hasRecentActivity) {
                                                         LOGGER.info("OFF_LINE station {} has activity, transitioning to ON_LINE", slug);
                                                         BrandActivityLogger.logActivity(slug, "online", "Station has activity, setting status to ON_LINE");
                                                         radioStation.setStatus(RadioStationStatus.ON_LINE);
@@ -245,6 +190,32 @@ public class StationInactivityChecker {
                                                         idleStatusTime.remove(slug);
                                                     } else {
                                                         LOGGER.info("OFF_LINE station {} still inactive", slug);
+                                                    }
+                                                    return Uni.createFrom().voidItem();
+                                                }
+
+                                                // Handle transitions for inactive stations
+                                                if (currentStatus == RadioStationStatus.IDLE) {
+                                                    Instant idleStartTime = idleStatusTime.get(slug);
+                                                    if (idleStartTime != null && idleStartTime.isBefore(idleToOfflineThreshold)) {
+                                                        LOGGER.info("Station {} transitioning from IDLE to OFF_LINE (idle for {}s)", slug,
+                                                                Duration.between(idleStartTime, now).getSeconds());
+                                                        BrandActivityLogger.logActivity(slug, "offline", "Idle for %d minutes, setting status to OFF_LINE and marking for removal", IDLE_TO_OFFLINE_THRESHOLD_MINUTES);
+                                                        radioStation.setStatus(RadioStationStatus.OFF_LINE);
+                                                        stationsMarkedForRemoval.put(slug, now);
+                                                        idleStatusTime.remove(slug);
+                                                    }
+                                                } else if (ACTIVE_STATUSES.contains(currentStatus)) {
+                                                    if (isPastIdleThreshold) {
+                                                        LOGGER.info("Station {} transitioning to IDLE (inactive for {}s)", slug, secondsSinceAccess);
+                                                        BrandActivityLogger.logActivity(slug, "idle", "Inactive for %d minutes, setting status to IDLE", IDLE_THRESHOLD_MINUTES);
+                                                        radioStation.setStatus(RadioStationStatus.IDLE);
+                                                        idleStatusTime.put(slug, now);
+                                                    } else {
+                                                        LOGGER.info("Station {} transitioning to WAITING_FOR_CURATOR (inactive for {}s)", slug, secondsSinceAccess);
+                                                        BrandActivityLogger.logActivity(slug, "waiting_curator", "Inactive for %d minutes, setting status to WAITING_FOR_CURATOR", WAITING_FOR_CURATOR_THRESHOLD_MINUTES);
+                                                        radioStation.setStatus(RadioStationStatus.WAITING_FOR_CURATOR);
+                                                        idleStatusTime.remove(slug);
                                                     }
                                                 }
                                             } else {

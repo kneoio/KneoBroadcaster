@@ -300,10 +300,9 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .replaceWithVoid();
     }
 
-
-    @Deprecated(since = "2.0.7")
-    public Uni<BrandAgentStats> findStationStatsByStationName(String stationName) {
-        String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " + brandStats.getTableName() + " WHERE station_name = $1";
+    public Uni<BrandAgentStats> findStationStatsByName(String stationName) {
+        String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " +
+                brandStats.getTableName() + " WHERE station_name = $1 ORDER BY last_access_time DESC LIMIT 1";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(stationName))

@@ -115,7 +115,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     }
 
     public Uni<BrandAgentStats> getStats(String stationName) {
-        return repository.findStationStatsByStationName(stationName);
+        return repository.findStationStatsByName(stationName);
     }
 
     public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {

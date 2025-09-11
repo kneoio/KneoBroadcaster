@@ -3,8 +3,8 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
-import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -153,8 +153,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, bit_rate, slug_name, description, profile_id, ai_agent_id) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -175,7 +175,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getSlugName())
                         .addString(station.getDescription())
                         .addUUID(station.getProfileId())
-                        .addUUID(station.getAiAgentId());
+                        .addUUID(station.getAiAgentId())
+                        .addString(station.getSubmissionPolicy().name());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -207,8 +208,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, " +
-                                    "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, last_mod_user=$12, last_mod_date=$13 " +
-                                    "WHERE id=$14";
+                                    "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, submission_policy=$12, last_mod_user=$13, last_mod_date=$14 " +
+                                    "WHERE id=$15";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -226,6 +227,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getDescription())
                                     .addUUID(station.getProfileId())
                                     .addUUID(station.getAiAgentId())
+                                    .addString(station.getSubmissionPolicy().name())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -245,6 +247,58 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 return Uni.createFrom().failure(e);
             }
         });
+    }
+
+    private RadioStation from(Row row) {
+        RadioStation doc = new RadioStation();
+        setDefaultFields(doc, row);
+
+        JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
+        if (localizedNameJson != null) {
+            EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+            localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
+            doc.setLocalizedName(localizedName);
+        }
+        doc.setSlugName(row.getString("slug_name"));
+        doc.setArchived(row.getInteger("archived"));
+        doc.setCountry(CountryCode.valueOf(row.getString("country")));
+        doc.setManagedBy(ManagedBy.valueOf(row.getString("managing_mode")));
+        doc.setTimeZone(java.time.ZoneId.of(row.getString("time_zone")));
+        doc.setColor(row.getString("color"));
+        doc.setDescription(row.getString("description"));
+        doc.setSubmissionPolicy(SubmissionPolicy.valueOf(row.getString("submission_policy")));
+
+        JsonArray bitRateJson = row.getJsonArray("bit_rate");
+        if (bitRateJson != null && !bitRateJson.isEmpty()) {
+            doc.setBitRate(Long.parseLong(bitRateJson.getString(0)));
+        } else {
+            doc.setBitRate(128000);
+        }
+
+        JsonObject scheduleJson = row.getJsonObject("scheduler");
+        if (scheduleJson != null) {
+            try {
+                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
+                if (scheduleData != null) {
+                    Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
+                    doc.setScheduler(schedule);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Failed to parse schedule JSON for radio station: {}", row.getUUID("id"), e);
+            }
+        }
+
+        UUID aiAgentId = row.getUUID("ai_agent_id");
+        if (aiAgentId != null) {
+            doc.setAiAgentId(aiAgentId);
+        }
+
+        UUID profileId = row.getUUID("profile_id");
+        if (profileId != null) {
+            doc.setProfileId(profileId);
+        }
+
+        return doc;
     }
 
     public Uni<Integer> archive(UUID id, IUser user) {
@@ -276,23 +330,12 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<Void> upsertStationAccessWithCount(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent) {
-        String sql = "INSERT INTO " + brandStats.getTableName() + " (station_name, access_count, last_access_time, user_agent) " +
-                "VALUES ($1, $2, $3, $4) ON CONFLICT (station_name) DO UPDATE SET access_count = $2, " +
-                "last_access_time = $3, user_agent = $4;";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access with count for: {}", stationName, throwable))
-                .replaceWithVoid();
-    }
-
     public Uni<Void> upsertStationAccessWithCountAndGeo(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent, String ipAddress, String countryCode) {
         String sql = "INSERT INTO " + brandStats.getTableName() +
                 " (station_name, access_count, last_access_time, user_agent, ip_address, country_code) " +
                 "VALUES ($1, $2, $3, $4, $5, $6) " +
                 "ON CONFLICT (station_name, ip_address, country_code) " +
-                "DO UPDATE SET access_count = $2, last_access_time = $3, user_agent = $4;";
+                "DO UPDATE SET access_count = EXCLUDED.access_count + " + brandStats.getTableName() + ".access_count, last_access_time = $3, user_agent = $4;";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent, ipAddress, countryCode))
@@ -300,17 +343,17 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .replaceWithVoid();
     }
 
-    public Uni<BrandAgentStats> findStationStatsByName(String stationName) {
-        String sql = "SELECT id, station_name, access_count, last_access_time, user_agent FROM " +
+    public Uni<OffsetDateTime> findLastAccessTimeByStationName(String stationName) {
+        String sql = "SELECT last_access_time FROM " +
                 brandStats.getTableName() + " WHERE station_name = $1 ORDER BY last_access_time DESC LIMIT 1";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(stationName))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find station stats for: {}", stationName, throwable))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to find last access time for: {}", stationName, throwable))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> {
                     if (iterator.hasNext()) {
-                        return fromStatsRow(iterator.next());
+                        return iterator.next().getOffsetDateTime("last_access_time");
                     } else {
                         return null;
                     }
@@ -332,73 +375,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .collect().asList();
     }
 
-    private RadioStation from(Row row) {
-        RadioStation doc = new RadioStation();
-        setDefaultFields(doc, row);
-
-        JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
-        if (localizedNameJson != null) {
-            EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-            localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
-            doc.setLocalizedName(localizedName);
-        }
-        doc.setSlugName(row.getString("slug_name"));
-        doc.setArchived(row.getInteger("archived"));
-        doc.setCountry(CountryCode.valueOf(row.getString("country")));
-        doc.setManagedBy(ManagedBy.valueOf(row.getString("managing_mode")));
-        doc.setTimeZone(java.time.ZoneId.of(row.getString("time_zone")));
-        doc.setColor(row.getString("color"));
-        doc.setDescription(row.getString("description"));
-
-        JsonArray bitRateJson = row.getJsonArray("bit_rate");
-        if (bitRateJson != null && !bitRateJson.isEmpty()) {
-            doc.setBitRate(Long.parseLong(bitRateJson.getString(0)));
-        } else {
-            doc.setBitRate(128000);
-        }
-
-        JsonObject scheduleJson = row.getJsonObject("scheduler");
-        if (scheduleJson != null) {
-            try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
-                if (scheduleData != null) {
-                    Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
-                    //schedule.setTimeZone(doc.getTimeZone());
-                    doc.setScheduler(schedule);
-                }
-            } catch (Exception e) {
-                LOGGER.error("Failed to parse schedule JSON for radio station: {}", row.getUUID("id"), e);
-            }
-        }
-
-        UUID aiAgentId = row.getUUID("ai_agent_id");
-        if (aiAgentId != null) {
-            doc.setAiAgentId(aiAgentId);
-        }
-
-        UUID profileId = row.getUUID("profile_id");
-        if (profileId != null) {
-            doc.setProfileId(profileId);
-        }
-
-        return doc;
-    }
-
-    private BrandAgentStats fromStatsRow(Row row) {
-        if (row == null) {
-            return null;
-        }
-        BrandAgentStats stats = new BrandAgentStats();
-        stats.setId(row.getLong("id"));
-        stats.setStationName(row.getString("station_name"));
-        stats.setAccessCount(row.getLong("access_count"));
-        stats.setLastAccessTime(row.getOffsetDateTime("last_access_time"));
-        stats.setUserAgent(row.getString("user_agent"));
-        return stats;
-    }
-
-
-    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+       public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 }

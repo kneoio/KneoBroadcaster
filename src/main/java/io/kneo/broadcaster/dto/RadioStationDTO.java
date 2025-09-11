@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.dto.validation.ValidCountry;
 import io.kneo.core.dto.validation.ValidLocalizedName;
@@ -54,6 +55,7 @@ public class RadioStationDTO extends AbstractDTO {
     private boolean aiControlAllowed;
     private Integer archived;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
+    private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private UUID aiAgentId;
     private UUID profileId;
 }

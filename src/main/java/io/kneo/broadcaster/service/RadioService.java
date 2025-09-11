@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
+import io.kneo.broadcaster.dto.SubmissionDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.RadioStation;
@@ -165,6 +166,7 @@ public class RadioService {
                                                             station.getCountry(),
                                                             station.getColor(),
                                                             description,
+                                                            station.getSubmissionPolicy(),
                                                             null
                                                     ));
                                                 }
@@ -175,6 +177,11 @@ public class RadioService {
                         return Uni.join().all(statusUnis).andFailFast();
                     }
                 });
+    }
+
+    public Uni<String> submit(String brand, SubmissionDTO dto) {
+        return Uni.createFrom().item("");
+
     }
 
     public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation) {
@@ -205,6 +212,7 @@ public class RadioService {
                             stationCountryCode,
                             radioStation.getColor(),
                             radioStation.getDescription(),
+                            radioStation.getSubmissionPolicy(),
                             animationService.generateRandomAnimation()
                     ))
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
@@ -218,6 +226,7 @@ public class RadioService {
                             stationCountryCode,
                             radioStation.getColor(),
                             radioStation.getDescription(),
+                            radioStation.getSubmissionPolicy(),
                             animationService.generateRandomAnimation()
                     ));
         }
@@ -233,6 +242,7 @@ public class RadioService {
                 stationCountryCode,
                 radioStation.getColor(),
                 radioStation.getDescription(),
+                radioStation.getSubmissionPolicy(),
                 animationService.generateRandomAnimation()
         ));
     }

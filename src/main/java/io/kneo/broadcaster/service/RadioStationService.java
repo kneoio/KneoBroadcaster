@@ -15,7 +15,6 @@ import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
-import io.kneo.broadcaster.model.stats.BrandAgentStats;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.scheduler.quartz.QuartzSchedulerService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -35,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
@@ -114,8 +114,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
-    public Uni<BrandAgentStats> getStats(String stationName) {
-        return repository.findStationStatsByName(stationName);
+    public Uni<OffsetDateTime> findLastAccessTimeByStationName(String stationName) {
+       return repository.findLastAccessTimeByStationName(stationName);
     }
 
     public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {
@@ -181,6 +181,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setBitRate(doc.getBitRate());
             dto.setAiAgentId(doc.getAiAgentId());
             dto.setProfileId(doc.getProfileId());
+            dto.setSubmissionPolicy(doc.getSubmissionPolicy());
 
             ScheduleDTO scheduleDTO = new ScheduleDTO();
             Scheduler schedule = doc.getScheduler();
@@ -266,6 +267,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setBitRate(dto.getBitRate());
         doc.setAiAgentId(dto.getAiAgentId());
         doc.setProfileId(dto.getProfileId());
+        doc.setSubmissionPolicy(dto.getSubmissionPolicy());
 
         if (dto.getSchedule() != null) {
             Scheduler schedule = new Scheduler();

@@ -3,6 +3,7 @@ package io.kneo.broadcaster.model;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -14,19 +15,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Setter
 @Getter
 @NoArgsConstructor
 public class RadioStation extends SecureDataEntity<UUID> implements Schedulable {
+
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private IStreamManager streamManager;
     private String slugName;
@@ -40,7 +40,9 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private Scheduler scheduler;
     private UUID aiAgentId;
     private UUID profileId;
+    private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private List<Label> labelList;
+
     //*transient**//
     @Deprecated //???
     private RadioStationStatus status;
@@ -61,42 +63,8 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
         }
     }
 
-    public long getCurrentAliveDurationMinutes() {
-        if (statusHistory.isEmpty()) {
-            return 0;
-        }
-
-        Optional<StatusChangeRecord> lastOnlineTransition = statusHistory.stream()
-                .filter(record -> isAliveStatus(record.getNewStatus()) &&
-                        !isAliveStatus(record.getOldStatus()))
-                .reduce((first, second) -> second);
-
-        if (lastOnlineTransition.isEmpty()) {
-            return 0;
-        }
-
-        LocalDateTime onlineSince = lastOnlineTransition.get().getTimestamp();
-
-        if (isAliveStatus(status)) {
-            return Duration.between(onlineSince, LocalDateTime.now()).toMinutes();
-        } else {
-            Optional<StatusChangeRecord> offlineTransition = statusHistory.stream()
-                    .filter(record -> record.getTimestamp().isAfter(onlineSince) &&
-                            !isAliveStatus(record.getNewStatus()) &&
-                            isAliveStatus(record.getOldStatus()))
-                    .findFirst();
-
-            return offlineTransition.map(statusChangeRecord -> Duration.between(onlineSince, statusChangeRecord.getTimestamp()).toMinutes()).orElse(0L);
-        }
-    }
-
     public String toString() {
         return String.format("id: %s, slug: %s", getId(), slugName);
-    }
-
-
-    private boolean isAliveStatus(RadioStationStatus status) {
-        return status == RadioStationStatus.ON_LINE;
     }
 
     @Getter
@@ -113,5 +81,4 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
             this.newStatus = newStatus;
         }
     }
-
 }

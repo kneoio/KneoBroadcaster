@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.aihelper.AnimationDTO;
+import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,5 +24,6 @@ public class RadioStationStatusDTO {
     private String countryCode;
     private String color;
     private String description;
+    private SubmissionPolicy submissionPolicy;
     private AnimationDTO animation;
 }

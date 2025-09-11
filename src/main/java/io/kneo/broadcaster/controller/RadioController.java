@@ -1,13 +1,17 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.SubmissionDTO;
 import io.kneo.broadcaster.service.GeolocationService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
+import io.kneo.core.repository.exception.DocumentModificationAccessException;
+import io.kneo.core.repository.exception.UploadAbsenceException;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -42,6 +46,7 @@ public class RadioController {
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
+        router.route(HttpMethod.POST, "/radio/:brand/submissions").handler(this::validateMixplaAccess).handler(this::submit);
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -202,6 +207,44 @@ public class RadioController {
                 );
     }
 
+    private void submit(RoutingContext rc) {
+        try {
+
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+
+            SubmissionDTO dto = rc.body().asJsonObject().mapTo(SubmissionDTO.class);
+            String brand = rc.pathParam("brand");
+
+         /*   ValidationService.ValidationResult validationResult = validationService.validateSoundFragmentDTO(dto);
+            if (!validationResult.isValid()) {
+                rc.fail(400, new IllegalArgumentException(validationResult.getErrorMessage()));
+                return;
+            }*/
+             service.submit(brand, dto)
+                    .subscribe().with(
+                            doc -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(doc).encode()),
+                            throwable -> {
+                                if (throwable instanceof DocumentModificationAccessException) {
+                                    rc.response().setStatusCode(403).end("Not enough rights to update");
+                                } else if (throwable instanceof UploadAbsenceException) {
+                                    rc.response().setStatusCode(400).end(throwable.getMessage());
+                                } else {
+                                    rc.fail(throwable);
+                                }
+                            }
+                    );
+
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
+    }
+
     private void validateMixplaAccess(RoutingContext rc) {
         String referer = rc.request().getHeader("Referer");
         String clientId = rc.request().getHeader("X-Client-ID");
@@ -240,5 +283,15 @@ public class RadioController {
 
         LOGGER.warn("Unsupported Mixpla app version: {}", version);
         return false;
+    }
+
+    protected boolean validateJsonBody(RoutingContext rc) {
+        JsonObject json = rc.body().asJsonObject();
+        if (json == null) {
+            rc.response().setStatusCode(400).end("Request body must be a valid JSON object");
+            return false;
+        } else {
+            return true;
+        }
     }
 }

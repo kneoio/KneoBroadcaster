@@ -144,11 +144,11 @@ public class StationInactivityChecker {
                                 RadioStationStatus currentStatus = radioStation.getStatus();
                                 LOGGER.info("Processing station: {} with status: {}", slug, currentStatus);
 
-                                return radioStationService.getStats(radioStation.getSlugName())
-                                        .onItem().transformToUni(stats -> {
-                                            if (stats != null && stats.getLastAccessTime() != null) {
-                                                Instant lastAccessInstant = stats.getLastAccessTime().toInstant();
-                                                BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", stats.getLastAccessTime());
+                                return radioStationService.findLastAccessTimeByStationName(radioStation.getSlugName())
+                                        .onItem().transformToUni(lastAccessTime -> {
+                                            if (lastAccessTime != null) {
+                                                Instant lastAccessInstant = lastAccessTime.toInstant();
+                                                BrandActivityLogger.logActivity(slug, "access", "Last requested at: %s", lastAccessTime);
 
                                                 boolean hasRecentActivity = lastAccessInstant.isAfter(waitingForCuratorThreshold);
                                                 boolean isPastIdleThreshold = lastAccessInstant.isBefore(idleThreshold);
@@ -196,9 +196,6 @@ public class StationInactivityChecker {
                                                 }
 
                                             } else {
-                                                LOGGER.warn("Station {}: No stats or last access time - stats={}, lastAccessTime={}",
-                                                        slug, stats, stats != null ? stats.getLastAccessTime() : "N/A");
-
                                                 if (ACTIVE_STATUSES.contains(currentStatus)) {
                                                     LOGGER.info("Station {} has no access time, setting to WAITING_FOR_CURATOR (grace period)", slug);
                                                     BrandActivityLogger.logActivity(slug, "waiting_curator", "No last access time recorded, setting status to WAITING_FOR_CURATOR (grace period)");

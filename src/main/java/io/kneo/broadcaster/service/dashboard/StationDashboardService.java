@@ -31,7 +31,6 @@ public class StationDashboardService {
         stationStats.setStatus(station.getStatus());
         stationStats.setStatusHistory(station.getStatusHistory());
         stationStats.setManagedBy(station.getManagedBy());
-        stationStats.setAlived(station.getCurrentAliveDurationMinutes());
 
         if (station.getStreamManager() != null) {
             IStreamManager streamManager = station.getStreamManager();

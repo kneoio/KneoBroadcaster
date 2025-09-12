@@ -170,7 +170,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         assert repository != null;
         assert radioStationService != null;
 
-        return radioStationService.findByBrandName(brandName)
+        return radioStationService.getBySlugName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
@@ -217,7 +217,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         BrandActivityLogger.logActivity(brand, "count_request",
                 "Requesting fragment count for brand with filter: %s", filterStatus);
 
-        return radioStationService.findByBrandName(brand)
+        return radioStationService.getBySlugName(brand)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         BrandActivityLogger.logActivity(brand, "brand_not_found",
@@ -426,7 +426,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         }
 
         List<Uni<RadioStation>> stationUnis = brandNames.stream()
-                .map(radioStationService::findByBrandName)
+                .map(radioStationService::getBySlugName)
                 .collect(Collectors.toList());
 
         return Uni.join().all(stationUnis).andFailFast()
@@ -472,6 +472,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .artist(doc.getArtist())
                     .genres(doc.getGenres())
                     .album(doc.getAlbum())
+                    .description(doc.getDescription())
                     .uploadedFiles(files)
                     .representedInBrands(representedInBrands)
                     .build();
@@ -487,6 +488,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setArtist(dto.getArtist());
         doc.setGenres(dto.getGenres());
         doc.setAlbum(dto.getAlbum());
+        doc.setDescription(dto.getDescription());
         doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
         return doc;
     }

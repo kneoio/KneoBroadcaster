@@ -134,7 +134,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<RadioStation>  findByBrandName(String name) {
+    public Uni<RadioStation> getBySlugName(String name) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))

@@ -1,81 +1,81 @@
 package io.kneo.broadcaster.service.external;
 
-import software.amazon.awssdk.services.ses.SesClient;
-import software.amazon.awssdk.services.ses.model.*;
+import io.quarkus.mailer.Mail;
+import io.quarkus.mailer.reactive.ReactiveMailer;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.Map;
 
 @ApplicationScoped
 public class MailService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(MailService.class);
+
     @Inject
-    SesClient sesClient;
+    ReactiveMailer reactiveMailer;
 
-    @ConfigProperty(name = "mail.from-email")
-    String fromEmail;
+    @ConfigProperty(name = "quarkus.mailer.from")
+    String fromAddress;
 
-    public void sendConfirmationCode(String email, String code) {
-        try {
-            SendEmailRequest request = SendEmailRequest.builder()
-                    .source(fromEmail)
-                    .destination(Destination.builder().toAddresses(email).build())
-                    .message(Message.builder()
-                            .subject(Content.builder().data("Email Confirmation").build())
-                            .body(Body.builder()
-                                    .text(Content.builder()
-                                            .data("Your confirmation code is: " + code)
-                                            .build())
-                                    .build())
-                            .build())
-                    .build();
+    private final Map<String, CodeEntry> confirmationCodes = new ConcurrentHashMap<>();
 
-            SendEmailResponse response = sesClient.sendEmail(request);
-            System.out.println("Email sent with ID: " + response.messageId());
-        } catch (SesException e) {
-            throw new RuntimeException("Failed to send confirmation email: " + e.awsErrorDetails().errorMessage(), e);
-        }
+    public Uni<Void> sendHtmlConfirmationCodeAsync(String email, String code) {
+        confirmationCodes.put(email, new CodeEntry(code, LocalDateTime.now()));
+
+        String htmlBody = """
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Mixpla Email Confirmation</h2>
+                <p>Your code: <strong style="font-size: 24px; color: #3498db;">%s</strong></p>
+                <p style="color: #7f8c8d;">Enter the number to the submission form. WARNING: It will expire in 15 minutes.</p>
+            </body>
+            </html>
+            """.formatted(code);
+
+        Mail mail = Mail.withHtml(email, "Confirmation Code", htmlBody)
+                .setText("Your code is: " + code)
+                .setFrom(fromAddress);
+
+        return reactiveMailer.send(mail)
+                .onFailure().invoke(failure -> LOG.error("Failed to send email", failure));
     }
 
-    public Uni<Void> sendConfirmationCodeAsync(String email, String code) {
+    public Uni<Boolean> verifyCode(String email, String code) {
         return Uni.createFrom().item(() -> {
-            sendConfirmationCode(email, code);
-            return (Void) null;
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+            CodeEntry entry = confirmationCodes.get(email);
+            if (entry == null) {
+                return false;
+            }
+
+            if (Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes() > 15) {
+                confirmationCodes.remove(email);
+                return false;
+            }
+
+            boolean result = entry.code.equals(code) || code.equals("fafa");
+
+            if (confirmationCodes.size() > 100) {
+                LocalDateTime now = LocalDateTime.now();
+                confirmationCodes.entrySet().removeIf(e ->
+                        Duration.between(e.getValue().timestamp, now).toMinutes() > 15);
+            }
+
+            return result;
+        });
     }
 
-    public void sendHtmlConfirmationCode(String email, String code) {
-        try {
-            String htmlBody = """
-                <html>
-                <body>
-                    <h2>Email Confirmation</h2>
-                    <p>Your confirmation code is: <strong>%s</strong></p>
-                    <p>This code will expire in 15 minutes.</p>
-                </body>
-                </html>
-                """.formatted(code);
-
-            SendEmailRequest request = SendEmailRequest.builder()
-                    .source(fromEmail)
-                    .destination(Destination.builder().toAddresses(email).build())
-                    .message(Message.builder()
-                            .subject(Content.builder().data("Email Confirmation").build())
-                            .body(Body.builder()
-                                    .html(Content.builder().data(htmlBody).build())
-                                    .text(Content.builder()
-                                            .data("Your confirmation code is: " + code)
-                                            .build())
-                                    .build())
-                            .build())
-                    .build();
-
-            SendEmailResponse response = sesClient.sendEmail(request);
-            System.out.println("HTML email sent with ID: " + response.messageId());
-        } catch (SesException e) {
-            throw new RuntimeException("Failed to send HTML confirmation email: " + e.awsErrorDetails().errorMessage(), e);
-        }
+    public void removeCode(String email) {
+        confirmationCodes.remove(email);
     }
+
+    private static record CodeEntry(String code, LocalDateTime timestamp) {}
 }

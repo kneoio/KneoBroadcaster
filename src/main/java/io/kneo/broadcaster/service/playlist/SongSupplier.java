@@ -118,7 +118,7 @@ public class SongSupplier {
             return Uni.createFrom().item(cached.fragments);
         }
 
-        return radioStationService.findByBrandName(brandName)
+        return radioStationService.getBySlugName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         BrandActivityLogger.logActivity(brandName, "brand_not_found", "Brand not found");

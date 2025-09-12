@@ -274,8 +274,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return fileUploadCompletionUni.onItem().transformToUni(v -> {
             String sql = String.format(
                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                            "title, artist, album, slug_name) " +
-                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id;",
+                            "title, artist, album, description, slug_name) " +
+                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id;",
                     entityData.getTableName()
             );
 
@@ -286,6 +286,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     .addString(doc.getTitle())
                     .addString(doc.getArtist())
                     .addString(doc.getAlbum())
+                    .addString(doc.getDescription())
                     .addString(doc.getSlugName());
 
             return client.withTransaction(tx -> tx.preparedQuery(sql)
@@ -487,7 +488,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     private Uni<RowSet<Row>> updateSoundFragmentRecord(SqlClient tx, UUID id, SoundFragment doc, IUser user, LocalDateTime nowTime) {
         String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                         "source=$3, status=$4, type=$5, title=$6, " +
-                        "artist=$7, album=$8, slug_name=$9 WHERE id=$10;",
+                        "artist=$7, album=$8, description=$9, slug_name=$10 WHERE id=$11;",
                 entityData.getTableName());
 
         Tuple params = Tuple.of(user.getId(), nowTime)
@@ -497,6 +498,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getAlbum())
+                .addString(doc.getDescription())
                 .addString(doc.getSlugName())
                 .addUUID(id);
 

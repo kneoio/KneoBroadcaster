@@ -1,6 +1,9 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
+import io.kneo.broadcaster.dto.SubmissionDTO;
+import io.kneo.broadcaster.service.external.MailService;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
@@ -18,10 +21,12 @@ public class ValidationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ValidationService.class);
 
     private final Validator validator;
+    private final MailService mailService;
 
     @Inject
-    public ValidationService(Validator validator) {
+    public ValidationService(Validator validator, MailService mailService) {
         this.validator = validator;
+        this.mailService = mailService;
     }
 
     public ValidationResult validateSoundFragmentDTO(SoundFragmentDTO dto) {
@@ -37,7 +42,7 @@ public class ValidationService {
                             ", Music file is required - either provide an existing ID or upload new files";
 
             LOGGER.warn("Validation failed for SoundFragmentDTO: {}", errorMessage);
-            return ValidationResult.failure(errorMessage, violations);
+            return ValidationResult.failure(errorMessage);
         }
 
         if (violations.isEmpty()) {
@@ -49,27 +54,53 @@ public class ValidationService {
                 .collect(Collectors.joining(", "));
 
         LOGGER.warn("Validation failed for SoundFragmentDTO: {}", errorMessage);
-        return ValidationResult.failure(errorMessage, violations);
+        return ValidationResult.failure(errorMessage);
+    }
+
+    public Uni<ValidationResult> validateSubmissionDTO(SubmissionDTO dto) {
+        Set<ConstraintViolation<SubmissionDTO>> violations = validator.validate(dto);
+
+        if (!violations.isEmpty()) {
+            String errorMessage = violations.stream()
+                    .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                    .collect(Collectors.joining(", "));
+
+            LOGGER.warn("Validation failed for SubmissionDTO: {}", errorMessage);
+            return Uni.createFrom().item(ValidationResult.failure(errorMessage));
+        }
+
+        if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
+            return mailService.verifyCode(dto.getEmail(), dto.getConfirmationCode())
+                    .map(isValid -> {
+                        if (isValid) {
+                            mailService.removeCode(dto.getEmail());
+                            return ValidationResult.success();
+                        } else {
+                            LOGGER.warn("Invalid confirmation code for email: {}", dto.getEmail());
+                            return ValidationResult.failure("Invalid or expired confirmation code");
+                        }
+                    });
+        }
+
+        return Uni.createFrom().item(ValidationResult.success());
     }
 
     @Getter
     public static class ValidationResult {
         private final boolean valid;
         private final String errorMessage;
-        private final Set<ConstraintViolation<SoundFragmentDTO>> violations;
 
-        private ValidationResult(boolean valid, String errorMessage, Set<ConstraintViolation<SoundFragmentDTO>> violations) {
+        private ValidationResult(boolean valid, String errorMessage) {
             this.valid = valid;
             this.errorMessage = errorMessage;
-            this.violations = violations;
         }
 
         public static ValidationResult success() {
-            return new ValidationResult(true, null, null);
+            return new ValidationResult(true, null);
         }
 
-        public static ValidationResult failure(String errorMessage, Set<ConstraintViolation<SoundFragmentDTO>> violations) {
-            return new ValidationResult(false, errorMessage, violations);
+        public static ValidationResult failure(String errorMessage) {
+            return new ValidationResult(false, errorMessage);
         }
     }
 }

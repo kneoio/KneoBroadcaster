@@ -72,7 +72,7 @@ public class RadioStationPool {
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
 
-                    return radioStationService.findByBrandName(bn)
+                    return radioStationService.getBySlugName(bn)
                             .onItem().transformToUni(stationFromDb -> {
                                 if (stationFromDb == null) {
                                     LOGGER.warn("Station with brandName {} not found in database. Cannot initialize.", bn);

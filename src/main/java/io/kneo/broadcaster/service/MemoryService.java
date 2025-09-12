@@ -142,7 +142,7 @@ public class MemoryService {
                     uniList.add(listenerUni);
                 }
                 case AUDIENCE_CONTEXT -> {
-                    Uni<Void> audienceUni = radioStationService.findByBrandName(brand)
+                    Uni<Void> audienceUni = radioStationService.getBySlugName(brand)
                             .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
                             .map(profile -> {
                                 AudienceContext audienceContext = new AudienceContext();
@@ -419,7 +419,7 @@ public class MemoryService {
     }
 
     private Uni<MemoryDTO<?>> mapToDTOWithColor(Memory memory) {
-        return radioStationService.findByBrandName(memory.getBrand())
+        return radioStationService.getBySlugName(memory.getBrand())
                 .<MemoryDTO<?>>map(radioStation -> {
                     MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
                     dto.setId(memory.getId());

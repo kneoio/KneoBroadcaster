@@ -98,8 +98,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.findById(id, user, true);
     }
 
-    public Uni<RadioStation> findByBrandName(String name) {
-        return repository.findByBrandName(name);
+    public Uni<RadioStation> getBySlugName(String name) {
+        return repository.getBySlugName(name);
     }
 
     @Override

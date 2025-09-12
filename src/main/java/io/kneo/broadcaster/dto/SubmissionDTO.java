@@ -19,6 +19,8 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SubmissionDTO {
     @NotBlank
+    private String confirmationCode;
+    @NotBlank
     private String title;
     @NotBlank
     private String artist;
@@ -30,4 +32,8 @@ public class SubmissionDTO {
     private String description;
     private List<String> newlyUploaded;
     private List<UUID> representedInBrands;
+
+    public String toString() {
+        return String.format("%s|%s", title, artist);
+    }
 }

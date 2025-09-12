@@ -1,15 +1,25 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.SubmissionDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
-import io.kneo.broadcaster.repository.RadioStationRepository;
+import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.util.FileSecurityUtils;
+import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.AnonymousUser;
+import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
@@ -18,6 +28,10 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -31,9 +45,6 @@ public class RadioService {
     RadioStationPool radioStationPool;
 
     @Inject
-    RadioStationRepository radioStationRepository;
-
-    @Inject
     AiAgentService aiAgentService;
 
     @Inject
@@ -41,6 +52,15 @@ public class RadioService {
 
     @Inject
     AnimationService animationService;
+
+    @Inject
+    private SoundFragmentRepository soundFragmentRepository;
+
+    @Inject
+    private LocalFileCleanupService localFileCleanupService;
+
+    @Inject
+    private BroadcasterConfig config;
 
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
@@ -150,7 +170,7 @@ public class RadioService {
                                                             onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
                                                             onlineStation.getStatus() == RadioStationStatus.IDLE ||
                                                             onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR
-                                                    ){
+                                                    ) {
                                                         onlineStation.setStatus(RadioStationStatus.ON_LINE);
                                                     }
                                                     return toStatusDTO(onlineStation);
@@ -179,9 +199,129 @@ public class RadioService {
                 });
     }
 
-    public Uni<String> submit(String brand, SubmissionDTO dto) {
-        return Uni.createFrom().item("");
+    public Uni<SubmissionDTO> submit(String brand, SubmissionDTO dto) {
+        return radioStationService.getBySlugName(brand)
+                .chain(radioStation -> {
+                    SoundFragment entity = buildEntity(dto);
 
+                    List<FileMetadata> fileMetadataList = new ArrayList<>();
+                    if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
+                        for (String fileName : dto.getNewlyUploaded()) {
+                            String safeFileName;
+                            try {
+                                safeFileName = FileSecurityUtils.sanitizeFilename(fileName);
+                            } catch (SecurityException e) {
+                                LOGGER.error("Security violation: Unsafe filename '{}' from user: {}", fileName, dto.getEmail());
+                                return Uni.createFrom().failure(new IllegalArgumentException("Invalid filename: " + fileName));
+                            }
+
+                            FileMetadata fileMetadata = new FileMetadata();
+                            String entityId = "temp";
+
+                            Path baseDir = Paths.get(config.getPathUploads() + "/sound-fragments-controller", AnonymousUser.USER_NAME, entityId);
+                            Path secureFilePath;
+                            try {
+                                secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
+                            } catch (SecurityException e) {
+                                LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
+                                        dto.getEmail(), fileName);
+                                return Uni.createFrom().failure(new SecurityException("Invalid file path"));
+                            }
+
+                            if (!Files.exists(secureFilePath)) {
+                                LOGGER.error("File not found at expected secure path: {} for user: {}", secureFilePath, dto.getEmail());
+                                continue;
+                            }
+
+                            fileMetadata.setFilePath(secureFilePath);
+                            fileMetadata.setFileOriginalName(safeFileName);
+                            fileMetadata.setSlugName(WebHelper.generateSlug(entity.getArtist(), entity.getTitle()));
+                            fileMetadataList.add(fileMetadata);
+                        }
+                    }
+
+                    entity.setFileMetadataList(fileMetadataList);
+                    return soundFragmentRepository.insert(entity, List.of(radioStation.getId()), AnonymousUser.build())
+                            .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, AnonymousUser.build()))
+                            .chain(this::mapToDTO)
+                            .onFailure().invoke(failure -> {
+                                LOGGER.warn("Entity creation failed, cleaning up temp files for user: {}", dto.getEmail());
+                                localFileCleanupService.cleanupTempFilesForUser(AnonymousUser.USER_NAME)
+                                        .subscribe().with(
+                                                ignored -> LOGGER.debug("Temp files cleaned up after failure"),
+                                                cleanupError -> LOGGER.warn("Failed to cleanup temp files", cleanupError)
+                                        );
+                            });
+                });
+    }
+
+    private SoundFragment buildEntity(SubmissionDTO dto) {
+        SoundFragment doc = new SoundFragment();
+        doc.setSource(SourceType.SUBMISSION);
+        doc.setStatus(50);
+        doc.setType(PlaylistItemType.SONG);
+        doc.setTitle(dto.getTitle());
+        doc.setArtist(dto.getArtist());
+        doc.setGenres(dto.getGenres());
+        doc.setAlbum(dto.getAlbum());
+        doc.setDescription(dto.getDescription());
+        doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
+        return doc;
+    }
+
+    private Uni<SoundFragment> moveFilesForNewEntity(SoundFragment doc, List<FileMetadata> fileMetadataList, IUser user) {
+        if (fileMetadataList.isEmpty()) {
+            return Uni.createFrom().item(doc);
+        }
+
+        try {
+            Path userBaseDir = Paths.get(config.getPathUploads() + "/sound-fragments-controller", user.getUserName());
+            Path tempDir = userBaseDir.resolve("temp");
+            Path entityDir = userBaseDir.resolve(doc.getId().toString());
+
+            if (Files.exists(tempDir)) {
+                if (!Files.exists(entityDir)) {
+                    Files.createDirectories(entityDir);
+                }
+
+                for (FileMetadata meta : fileMetadataList) {
+                    String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
+
+                    Path tempFile = FileSecurityUtils.secureResolve(tempDir, safeFileName);
+                    Path entityFile = FileSecurityUtils.secureResolve(entityDir, safeFileName);
+
+                    if (!FileSecurityUtils.isPathWithinBase(tempDir, tempFile) ||
+                            !FileSecurityUtils.isPathWithinBase(entityDir, entityFile)) {
+                        LOGGER.error("Security violation: Invalid file paths during move operation for user: {}", user.getUserName());
+                        return Uni.createFrom().failure(new SecurityException("Invalid file paths"));
+                    }
+
+                    if (Files.exists(tempFile)) {
+                        Files.move(tempFile, entityFile, StandardCopyOption.REPLACE_EXISTING);
+                        meta.setFilePath(entityFile);
+                        LOGGER.debug("Securely moved file from {} to {} for user: {}", tempFile, entityFile, user.getUserName());
+                    }
+                }
+            }
+
+            return Uni.createFrom().item(doc);
+        } catch (SecurityException e) {
+            LOGGER.error("Security violation during file move for entity: {}, user: {}", doc.getId(), user.getUserName(), e);
+            return Uni.createFrom().failure(e);
+        } catch (Exception e) {
+            LOGGER.error("Failed to move files for entity: {}, user: {}", doc.getId(), user.getUserName(), e);
+            return Uni.createFrom().failure(e);
+        }
+    }
+
+    private Uni<SubmissionDTO> mapToDTO(SoundFragment doc) {
+        return Uni.createFrom().item(
+                SubmissionDTO.builder()
+                        .title(doc.getTitle())
+                        .artist(doc.getArtist())
+                        .genres(doc.getGenres())
+                        .album(doc.getAlbum())
+                        .build());
     }
 
     public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation) {

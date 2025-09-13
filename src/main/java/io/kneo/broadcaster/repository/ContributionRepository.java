@@ -10,7 +10,7 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
 import io.vertx.mutiny.sqlclient.Tuple;
-import io.vertx.mutiny.sqlclient.SqlClient;
+import io.vertx.mutiny.sqlclient.SqlConnection;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -127,7 +127,7 @@ public class ContributionRepository extends AsyncRepository {
         String safeTermsText = termsText != null ? termsText : "";
         String safeCountry = countryCode != null ? countryCode : "US";
 
-        return client.withTransaction((SqlClient tx) ->
+        return client.withTransaction((SqlConnection tx) ->
                 tx.preparedQuery(insertContributionSql)
                         .execute(Tuple.of(userId, userId, contributorEmail, soundFragmentId, safeMessage, shareable ? 1 : 0))
                         .onItem().transform(rs -> rs.iterator().next().getUUID("id"))

@@ -10,6 +10,7 @@ import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -56,6 +57,9 @@ public class RadioService {
 
     @Inject
     private SoundFragmentRepository soundFragmentRepository;
+
+    @Inject
+    private ContributionRepository contributionRepository;
 
     @Inject
     private LocalFileCleanupService localFileCleanupService;
@@ -247,7 +251,9 @@ public class RadioService {
 
                     entity.setFileMetadataList(fileMetadataList);
                     return soundFragmentRepository.insert(entity, List.of(radioStation.getId()), AnonymousUser.build())
-                            .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, AnonymousUser.build()))
+                            .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, AnonymousUser.build())
+                                    .chain(moved -> createContributionAndAgreement(moved, dto)
+                                            .replaceWith(moved)))
                             .chain(this::mapToDTO)
                             .onFailure().invoke(failure -> {
                                 LOGGER.warn("Entity creation failed, cleaning up temp files for user: {}", dto.getEmail());
@@ -258,6 +264,23 @@ public class RadioService {
                                         );
                             });
                 });
+    }
+
+    private Uni<Void> createContributionAndAgreement(SoundFragment doc, SubmissionDTO dto) {
+        Long userId = AnonymousUser.build().getId();
+        return contributionRepository.insertContributionAndAgreementTx(
+                doc.getId(),
+                dto.getContributorEmail(),
+                dto.getAttachedMessage(),
+                dto.isShareable(),
+                dto.getContributorEmail(),
+                dto.getCountry() != null ? dto.getCountry().name() : null,
+                dto.getIpAddress(),
+                dto.getUserAgent(),
+                dto.getAgreementVersion(),
+                dto.getTermsText(),
+                userId
+        );
     }
 
     private SoundFragment buildEntity(SubmissionDTO dto) {

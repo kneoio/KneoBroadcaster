@@ -29,6 +29,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.kneo.officeframe.cnst.CountryCode;
 
 @ApplicationScoped
 public class RadioController {
@@ -235,12 +236,21 @@ public class RadioController {
     }
 
     private void submit(RoutingContext rc) {
+        String clientIPHeader = rc.request().getHeader("stream-connecting-ip");
         try {
             if (!validateJsonBody(rc)) {
                 return;
             }
 
             SubmissionDTO dto = rc.body().asJsonObject().mapTo(SubmissionDTO.class);
+            String[] ipCountryParts = GeolocationService.parseIPHeader(clientIPHeader);
+            String clientIP = ipCountryParts[0];
+            String country = ipCountryParts[1];
+            dto.setIpAddress(clientIP);
+            dto.setCountry(CountryCode.valueOf(country));
+            dto.setUserAgent(rc.request().getHeader("User-Agent"));
+
+            dto.setAgreementVersion(rc.request().getHeader("Agreement-Version"));
             String brand = rc.pathParam("brand");
 
             validationService.validateSubmissionDTO(dto)

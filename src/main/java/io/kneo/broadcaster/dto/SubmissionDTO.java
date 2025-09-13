@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import io.kneo.officeframe.cnst.CountryCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,7 +38,13 @@ public class SubmissionDTO {
     @JsonProperty("email")
     private String contributorEmail;
     private boolean isShareable;
-    private String message;
+    private String attachedMessage;
+    private CountryCode country;
+    private String agreedAt;
+    private String ipAddress;
+    private String userAgent;
+    private String termsText;
+    private String agreementVersion;
 
     public String toString() {
         return String.format("%s|%s", title, artist);

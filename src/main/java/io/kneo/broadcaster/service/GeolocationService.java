@@ -29,7 +29,7 @@ public class GeolocationService {
         }
     }
 
-    private String[] parseIPHeader(String headerValue) {
+    public static String[] parseIPHeader(String headerValue) {
         //headerValue = "192.168.1.100|US";
         //LOGGER.info("HEADER VALUE {}", headerValue);
         if (headerValue == null || headerValue.isEmpty()) {

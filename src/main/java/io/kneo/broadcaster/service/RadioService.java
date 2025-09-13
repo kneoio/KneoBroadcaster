@@ -11,6 +11,7 @@ import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
+import io.kneo.broadcaster.service.exceptions.FileUploadException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -238,6 +239,10 @@ public class RadioService {
                             fileMetadata.setSlugName(WebHelper.generateSlug(entity.getArtist(), entity.getTitle()));
                             fileMetadataList.add(fileMetadata);
                         }
+                    }
+
+                    if (fileMetadataList.isEmpty()) {
+                        return Uni.createFrom().failure(new FileUploadException("At least one file must be uploaded"));
                     }
 
                     entity.setFileMetadataList(fileMetadataList);

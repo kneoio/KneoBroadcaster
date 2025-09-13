@@ -270,10 +270,10 @@ public class RadioService {
         Long userId = AnonymousUser.build().getId();
         return contributionRepository.insertContributionAndAgreementTx(
                 doc.getId(),
-                dto.getContributorEmail(),
+                dto.getEmail(),
                 dto.getAttachedMessage(),
                 dto.isShareable(),
-                dto.getContributorEmail(),
+                dto.getEmail(),
                 dto.getCountry() != null ? dto.getCountry().name() : null,
                 dto.getIpAddress(),
                 dto.getUserAgent(),

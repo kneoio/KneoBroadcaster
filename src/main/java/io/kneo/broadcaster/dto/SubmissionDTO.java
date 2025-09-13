@@ -34,9 +34,6 @@ public class SubmissionDTO {
     private String description;
     private List<String> newlyUploaded;
     private List<UUID> representedInBrands;
-    @NotBlank
-    @JsonProperty("email")
-    private String contributorEmail;
     private boolean isShareable;
     private String attachedMessage;
     private CountryCode country;

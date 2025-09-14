@@ -355,6 +355,12 @@ public class RadioController {
     }
 
     private void uploadFile(RoutingContext rc) {
+
+      /*  if (rc.getBodyAsString() != null && rc.getBodyAsString().length() > 10_000) {
+            rc.fail(413); // payload too large
+            return;
+        }*/
+
         if (rc.fileUploads().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("No file uploaded"));
             return;
@@ -366,6 +372,14 @@ public class RadioController {
 
         if (uploadId == null || uploadId.trim().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
+            return;
+        }
+
+        try {
+            fileUploadService.validateUpload(uploadedFile);
+        } catch (IllegalArgumentException e) {
+            int statusCode = e.getMessage().contains("too large") ? 413 : 415;
+            rc.fail(statusCode, e);
             return;
         }
 

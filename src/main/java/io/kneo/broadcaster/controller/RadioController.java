@@ -56,11 +56,6 @@ public class RadioController {
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
 
-        BodyHandler bodyHandler = BodyHandler.create()
-                .setHandleFileUploads(true)
-                .setMergeFormAttributes(true)
-                .setDeleteUploadedFilesOnEnd(false)
-                .setBodyLimit(BODY_HANDLER_LIMIT);
         BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
 
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
@@ -75,7 +70,9 @@ public class RadioController {
         router.route(HttpMethod.GET,  "/radio/:brand/submissions/files/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.POST, "/radio/:brand/submissions").handler(this::validateMixplaAccess).handler(this::submit);  //to save
         router.route(HttpMethod.POST, "/radio/:brand/submissions/files/start").handler(jsonBodyHandler).handler(this::startUploadSession);  //to start sse progress feedback
-        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile); // streaming upload
+        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id")
+                .order(-100)
+                .handler(this::uploadFile); // streaming upload
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -364,7 +361,6 @@ public class RadioController {
             return;
         }
 
-        rc.request().setExpectMultipart(true);
         rc.request().uploadHandler(upload -> {
             try {
                 fileUploadService.validateUploadMeta(upload.filename(), upload.contentType());

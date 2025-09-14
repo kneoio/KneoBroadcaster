@@ -50,10 +50,11 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
     public void setupRoutes(Router router) {
         String path = "/api/listeners";
-        router.route().handler(BodyHandler.create());
+        router.route(path + "*").handler(BodyHandler.create());
         router.route(path + "*").handler(this::addHeaders);
         router.get(path).handler(this::get);
         router.get(path + "/available-listeners").handler(this::getForBrand);
+
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);

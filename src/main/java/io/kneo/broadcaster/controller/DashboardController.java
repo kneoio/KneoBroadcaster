@@ -31,7 +31,8 @@ public class DashboardController {
     }
 
     public void setupRoutes(Router router) {
-        router.route().handler(BodyHandler.create());
+        String path = "/api";
+        router.route(path + "/*").handler(BodyHandler.create());
 
         router.route("/api/ws/dashboard").handler(rc -> {
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {

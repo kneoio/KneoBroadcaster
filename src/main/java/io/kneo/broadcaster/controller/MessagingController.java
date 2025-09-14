@@ -33,7 +33,7 @@ public class MessagingController extends AbstractSecuredController<Object, Objec
 
     public void setupRoutes(Router router) {
         String path = "/api/messaging";
-        router.route().handler(BodyHandler.create());
+        router.route(path + "*").handler(BodyHandler.create());
         router.route(path + "*").handler(this::addHeaders);
         router.post(path + "/send-code/:email").handler(this::sendCode);
     }

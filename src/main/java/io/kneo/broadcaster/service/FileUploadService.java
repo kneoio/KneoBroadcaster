@@ -60,6 +60,13 @@ public class FileUploadService {
         }
     }
 
+    public void validateUploadMeta(String originalFileName, String contentType) {
+        if (!isValidAudioFile(originalFileName, contentType)) {
+            throw new IllegalArgumentException("Unsupported file type. Only audio files are allowed: " +
+                    String.join(", ", SUPPORTED_AUDIO_EXTENSIONS));
+        }
+    }
+
     public UploadFileDTO createUploadSession(String uploadId, String clientStartTimeStr) {
         long clientStartTime = Long.parseLong(clientStartTimeStr);
         long serverReceiveTime = System.currentTimeMillis();
@@ -78,6 +85,7 @@ public class FileUploadService {
         return uploadDto;
     }
 
+    @Deprecated
     public Uni<Void> processFile(FileUpload uploadedFile, String uploadId, String entityId,
                                  IUser user, String originalFileName) {
         return Uni.createFrom().item(() -> {
@@ -86,12 +94,12 @@ public class FileUploadService {
                         uploadId, entityId, user.getUserName(), originalFileName);
 
                 // Step 1: Setup and validation
-                updateProgress(uploadId, 10, "validation", null, null, null);
+                updateProgress(uploadId, 10, "validation", null, null, null, null);
                 String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
                 Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
 
                 // Step 2: Move file
-                updateProgress(uploadId, 20, "preparation", null, null, null);
+                updateProgress(uploadId, 20, "preparation", null, null, null, null);
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
                 LOGGER.info("Moving file from {} to {}", tempFile, destination);
@@ -104,19 +112,58 @@ public class FileUploadService {
                 }
 
                 // Step 4: Extract metadata
-                updateProgress(uploadId, 30, "extract_metadata", null, null, null);
+                updateProgress(uploadId, 30, "extract_metadata", null, null, null, null);
                 AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
 
                 // Step 5: Complete
                 String fileUrl = generateFileUrl(entityId, safeFileName);
-                updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata);
+                updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata, null);
 
                 LOGGER.info("File processing completed - UploadId: {}, FinalPath: {}", uploadId, destination);
                 return (Void) null;
 
             } catch (Exception e) {
                 LOGGER.error("File processing failed - UploadId: {}, Error: {}", uploadId, e.getMessage(), e);
-                updateProgress(uploadId, null, "error", null, null, null);
+                updateProgress(uploadId, null, "error", null, null, null, e.getMessage());
+                throw new RuntimeException(e);
+            }
+        }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
+    }
+
+    public Uni<Void> processStreamedTempFile(String tempFilePath, String uploadId, String entityId,
+                                             IUser user, String originalFileName) {
+        return Uni.createFrom().item(() -> {
+            try {
+                LOGGER.info("Processing streamed file - UploadId: {}, EntityId: {}, User: {}, File: {}",
+                        uploadId, entityId, user.getUserName(), originalFileName);
+
+                updateProgress(uploadId, 10, "validation", null, null, null, null);
+                String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
+                Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
+
+                updateProgress(uploadId, 20, "preparation", null, null, null, null);
+                Path tempFile = Paths.get(tempFilePath);
+
+                if (Files.size(tempFile) > MAX_FILE_SIZE_BYTES) {
+                    throw new IllegalArgumentException(String.format("File too large. Maximum size is %d MB for audio files",
+                            MAX_FILE_SIZE_BYTES / 1024 / 1024));
+                }
+
+                Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
+
+                if (!Files.exists(destination)) {
+                    throw new IOException("File move appeared to succeed but destination file does not exist");
+                }
+
+                updateProgress(uploadId, 30, "extract_metadata", null, null, null, null);
+                AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
+
+                String fileUrl = generateFileUrl(entityId, safeFileName);
+                updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata, null);
+                return (Void) null;
+            } catch (Exception e) {
+                LOGGER.error("Streamed file processing failed - UploadId: {}, Error: {}", uploadId, e.getMessage(), e);
+                updateProgress(uploadId, null, "error", null, null, null, e.getMessage());
                 throw new RuntimeException(e);
             }
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
@@ -164,19 +211,19 @@ public class FileUploadService {
     private AudioMetadataDTO extractMetadata(Path destination, String originalFileName, String uploadId) {
         if (!isValidAudioFile(originalFileName, null)) {
             LOGGER.info("Skipping metadata extraction for non-audio file: {}", originalFileName);
-            updateProgress(uploadId, 90, "extract_metadata", null, null, null);
+            updateProgress(uploadId, 90, "extract_metadata", null, null, null, null);
             return null;
         }
 
         try {
             LOGGER.info("Extracting metadata for file: {}", destination);
-            updateProgress(uploadId, 75, "extract_metadata", null, null, null);
+            updateProgress(uploadId, 75, "extract_metadata", null, null, null, null);
 
             AudioMetadataDTO metadata = audioMetadataService.extractMetadataWithProgress(
                     destination.toString(),
                     (percentage) -> {
                         int overallProgress = 75 + (percentage * 15 / 100);
-                        updateProgress(uploadId, Math.min(overallProgress, 90), "extract_metadata", null, null, null);
+                        updateProgress(uploadId, Math.min(overallProgress, 90), "extract_metadata", null, null, null, null);
                     }
             );
 
@@ -184,7 +231,7 @@ public class FileUploadService {
             return metadata;
         } catch (Exception e) {
             LOGGER.warn("Metadata extraction failed for uploadId: {}, error: {}", uploadId, e.getMessage());
-            updateProgress(uploadId, 90, "extract_metadata", null, null, null);
+            updateProgress(uploadId, 90, "extract_metadata", null, null, null, null);
             return null;
         }
     }
@@ -194,7 +241,7 @@ public class FileUploadService {
         return String.format("/api/soundfragments/files/%s/%s", entityIdSafe, safeFileName);
     }
 
-    private void updateProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata) {
+    private void updateProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata, String errorMessage) {
         UploadFileDTO dto = uploadProgressMap.get(uploadId);
         if (dto != null) {
             UploadFileDTO updatedDto = UploadFileDTO.builder()
@@ -209,6 +256,7 @@ public class FileUploadService {
                     .thumbnailUrl(dto.getThumbnailUrl())
                     .metadata(metadata != null ? metadata : dto.getMetadata())
                     .fileSize(dto.getFileSize())
+                    .errorMessage(errorMessage != null ? errorMessage : dto.getErrorMessage())
                     .build();
 
             uploadProgressMap.put(uploadId, updatedDto);

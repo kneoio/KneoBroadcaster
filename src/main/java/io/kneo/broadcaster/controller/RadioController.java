@@ -18,7 +18,6 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -30,6 +29,8 @@ import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.kneo.officeframe.cnst.CountryCode;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 @ApplicationScoped
 public class RadioController {
@@ -74,7 +75,7 @@ public class RadioController {
         router.route(HttpMethod.GET,  "/radio/:brand/submissions/files/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.POST, "/radio/:brand/submissions").handler(this::validateMixplaAccess).handler(this::submit);  //to save
         router.route(HttpMethod.POST, "/radio/:brand/submissions/files/start").handler(jsonBodyHandler).handler(this::startUploadSession);  //to start sse progress feedback
-        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(bodyHandler).handler(this::uploadFile); //to upload file
+        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile); // streaming upload
     }
 
     private void getPlaylist(RoutingContext rc) {
@@ -355,19 +356,7 @@ public class RadioController {
     }
 
     private void uploadFile(RoutingContext rc) {
-
-      /*  if (rc.getBodyAsString() != null && rc.getBodyAsString().length() > 10_000) {
-            rc.fail(413); // payload too large
-            return;
-        }*/
-
-        if (rc.fileUploads().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("No file uploaded"));
-            return;
-        }
-
         String entityId = rc.pathParam("id");
-        FileUpload uploadedFile = rc.fileUploads().get(0);
         String uploadId = rc.request().getParam("uploadId");
 
         if (uploadId == null || uploadId.trim().isEmpty()) {
@@ -375,31 +364,41 @@ public class RadioController {
             return;
         }
 
-        try {
-            fileUploadService.validateUpload(uploadedFile);
-        } catch (IllegalArgumentException e) {
-            int statusCode = e.getMessage().contains("too large") ? 413 : 415;
-            rc.fail(statusCode, e);
-            return;
-        }
+        rc.request().setExpectMultipart(true);
+        rc.request().uploadHandler(upload -> {
+            try {
+                fileUploadService.validateUploadMeta(upload.filename(), upload.contentType());
 
-        try {
-            fileUploadService.validateUpload(uploadedFile);
-        } catch (IllegalArgumentException e) {
-            int statusCode = e.getMessage().contains("too large") ? 413 : 415;
-            rc.fail(statusCode, e);
-            return;
-        }
+                Path tempFile = Files.createTempFile("radio-upload-" + uploadId + "-", ".tmp");
+                String tempPath = tempFile.toString();
 
-        rc.response().setStatusCode(202).end();
-        fileUploadService.processFile(uploadedFile, uploadId, entityId, AnonymousUser.build(), uploadedFile.fileName())
-                .subscribe().with(
-                        success -> LOGGER.info("Upload done: {}", uploadId),
-                        error -> LOGGER.error("Upload failed: {}", uploadId, error)
+                upload.streamToFileSystem(tempPath);
+
+                upload.endHandler(v -> fileUploadService
+                        .processStreamedTempFile(tempPath, uploadId, entityId, AnonymousUser.build(), upload.filename())
+                        .subscribe().with(
+                                success -> LOGGER.info("Upload done: {}", uploadId),
+                                error -> LOGGER.error("Upload failed: {}", uploadId, error)
+                        )
                 );
+
+                upload.exceptionHandler(err -> {
+                    LOGGER.error("Upload stream failed: {}", uploadId, err);
+                });
+
+                Boolean sent = rc.get("upload_response_sent");
+                if (sent == null || !sent) {
+                    rc.put("upload_response_sent", true);
+                    rc.response().setStatusCode(202).end();
+                }
+            } catch (IllegalArgumentException e) {
+                int statusCode = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
+                rc.fail(statusCode, e);
+            } catch (Exception e) {
+                rc.fail(e);
+            }
+        });
     }
-
-
 
     private void streamProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");

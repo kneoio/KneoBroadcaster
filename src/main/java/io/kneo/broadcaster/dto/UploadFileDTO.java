@@ -26,4 +26,5 @@ public class UploadFileDTO {
     private AudioMetadataDTO metadata;
     private Long fileSize;
     private Long estimatedDurationSeconds;
+    private String errorMessage;
 }

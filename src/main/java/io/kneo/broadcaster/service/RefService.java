@@ -85,8 +85,8 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
 
     private Uni<GenreDTO> mapToDTO(Genre doc) {
         return Uni.combine().all().unis(
-                userRepository.getUserName(doc.getAuthor()),
-                userRepository.getUserName(doc.getLastModifier())
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
         ).asTuple().onItem().transform(tuple ->
                 GenreDTO.builder()
                         .id(doc.getId())

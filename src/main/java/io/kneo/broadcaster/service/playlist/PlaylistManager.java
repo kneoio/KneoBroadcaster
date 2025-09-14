@@ -7,6 +7,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
@@ -161,6 +162,11 @@ public class PlaylistManager {
             songMetadata.setMergingType(mergingType);
             liveSoundFragment.setSoundFragmentId(soundFragment.getId());
             liveSoundFragment.setMetadata(songMetadata);
+
+            if (soundFragment.getSource() == SourceType.SUBMISSION){
+
+            }
+
             return segmentationService.slice(songMetadata, metadata.getTemporaryFilePath(), List.of(maxRate))
                     .onItem().transformToUni(segments -> {
                         if (segments.isEmpty()) {

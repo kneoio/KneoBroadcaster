@@ -107,6 +107,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                         soundFragment.setId(UUID.randomUUID());
                                                         soundFragment.setTitle(soundFragment1.getTitle());
                                                         soundFragment.setArtist(soundFragment1.getArtist());
+                                                        soundFragment.setSource(soundFragment1.getSource());
                                                         FileMetadata fileMetadata = new FileMetadata();
                                                         fileMetadata.setTemporaryFilePath(Path.of(finalPath));
                                                         soundFragment.setFileMetadataList(List.of(fileMetadata));

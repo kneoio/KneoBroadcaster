@@ -249,8 +249,6 @@ public class RadioController {
             dto.setIpAddress(clientIP);
             dto.setCountry(CountryCode.valueOf(country));
             dto.setUserAgent(rc.request().getHeader("User-Agent"));
-
-            dto.setAgreementVersion(rc.request().getHeader("Agreement-Version"));
             String brand = rc.pathParam("brand");
 
             validationService.validateSubmissionDTO(dto)

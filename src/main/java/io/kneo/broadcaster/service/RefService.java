@@ -1,12 +1,13 @@
 package io.kneo.broadcaster.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.GenreDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.repository.GenreRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.repository.UserRepository;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.IRESTService;
@@ -14,8 +15,6 @@ import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,8 +29,8 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
     private final ObjectMapper objectMapper;
 
     @Inject
-    public RefService(UserRepository userRepository, UserService userService, GenreRepository repository) {
-        super(userRepository, userService);
+    public RefService(UserService userService, GenreRepository repository) {
+        super(userService);
         this.repository = repository;
         this.objectMapper = new ObjectMapper();
     }

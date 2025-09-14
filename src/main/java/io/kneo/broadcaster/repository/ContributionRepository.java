@@ -9,8 +9,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
-import io.vertx.mutiny.sqlclient.Tuple;
 import io.vertx.mutiny.sqlclient.SqlConnection;
+import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -68,19 +68,16 @@ public class ContributionRepository extends AsyncRepository {
 
     public Uni<UUID> insertUploadAgreement(UUID contributionId, String email, String countryCode, String ipAddress, String userAgent, String agreementVersion, String termsText, Long userId) {
         String sql = "INSERT INTO kneobroadcaster__upload_agreements (author, last_mod_user, contribution_id, email, country, ip_address, user_agent, agreement_version, terms_text) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id";
-        String safeAgreementVersion = agreementVersion != null ? agreementVersion : "v1.0";
-        String safeTermsText = termsText != null ? termsText : "";
-        String safeCountry = countryCode != null ? countryCode : "US";
         Tuple params = Tuple.tuple()
                 .addLong(userId)
                 .addLong(userId)
                 .addUUID(contributionId)
                 .addString(email)
-                .addString(safeCountry)
+                .addString(countryCode)
                 .addString(ipAddress)
                 .addString(userAgent)
-                .addString(safeAgreementVersion)
-                .addString(safeTermsText);
+                .addString(agreementVersion)
+                .addString(termsText);
         return client.preparedQuery(sql)
                 .execute(params)
                 .onItem().transform(rs -> rs.iterator().next().getUUID("id"));
@@ -122,14 +119,9 @@ public class ContributionRepository extends AsyncRepository {
         String insertContributionSql = "INSERT INTO kneobroadcaster__contributions (author, last_mod_user, contributorEmail, sound_fragment_id, attached_message, shareable) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id";
         String insertAgreementSql = "INSERT INTO kneobroadcaster__upload_agreements (author, last_mod_user, contribution_id, email, country, ip_address, user_agent, agreement_version, terms_text) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)";
 
-        String safeMessage = attachedMessage != null ? attachedMessage : "";
-        String safeAgreementVersion = agreementVersion != null ? agreementVersion : "v1.0";
-        String safeTermsText = termsText != null ? termsText : "";
-        String safeCountry = countryCode != null ? countryCode : "US";
-
         return client.withTransaction((SqlConnection tx) ->
                 tx.preparedQuery(insertContributionSql)
-                        .execute(Tuple.of(userId, userId, contributorEmail, soundFragmentId, safeMessage, shareable ? 1 : 0))
+                        .execute(Tuple.of(userId, userId, contributorEmail, soundFragmentId, attachedMessage, shareable ? 1 : 0))
                         .onItem().transform(rs -> rs.iterator().next().getUUID("id"))
                         .onItem().transformToUni(contributionId ->
                                 tx.preparedQuery(insertAgreementSql)
@@ -138,11 +130,11 @@ public class ContributionRepository extends AsyncRepository {
                                                 .addLong(userId)
                                                 .addUUID(contributionId)
                                                 .addString(email)
-                                                .addString(safeCountry)
+                                                .addString(countryCode)
                                                 .addString(ipAddress)
                                                 .addString(userAgent)
-                                                .addString(safeAgreementVersion)
-                                                .addString(safeTermsText)
+                                                .addString(agreementVersion)
+                                                .addString(termsText)
                                         )
                         )
                         .onItem().ignore().andContinueWithNull()

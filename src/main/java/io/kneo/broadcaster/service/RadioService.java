@@ -274,7 +274,7 @@ public class RadioService {
                 dto.getAttachedMessage(),
                 dto.isShareable(),
                 dto.getEmail(),
-                dto.getCountry() != null ? dto.getCountry().name() : null,
+                dto.getCountry() != CountryCode.UNKNOWN ? dto.getCountry().name() : null,
                 dto.getIpAddress(),
                 dto.getUserAgent(),
                 dto.getAgreementVersion(),

@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Tool {
+    private ToolType toolType;
     private String name;
     private String variableName;
     private String description;

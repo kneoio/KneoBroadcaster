@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.kneo.officeframe.cnst.CountryCode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import io.kneo.officeframe.cnst.CountryCode;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +29,7 @@ public class SubmissionDTO {
     @NotEmpty
     private List<UUID> genres;
     private String album;
+    @NotBlank
     private String email;
     private String description;
     private List<String> newlyUploaded;

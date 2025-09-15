@@ -88,10 +88,8 @@ public class RadioController {
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
         String clientIP = rc.request().getHeader("stream-connecting-ip");
-        //LOGGER.info(">>>>>>>>>>>>>>> client IP {}", clientIP);
-        //LOGGER.info("All headers: {}", rc.request().headers().names());
         geoService.recordAccessWithGeolocation(brand, userAgent, clientIP)
-                .chain(country -> service.getPlaylist(brand, userAgent, false))
+                .chain(country -> service.getPlaylist(brand))
                 .onItem().transform(IStreamManager::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -119,9 +117,8 @@ public class RadioController {
     private void getSegment(RoutingContext rc) {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand").toLowerCase();
-        String userAgent = rc.request().getHeader("User-Agent");
 
-        service.getPlaylist(brand, userAgent, false)
+        service.getPlaylist(brand)
                 .onItem().transform(playlist -> {
                     HlsSegment segment = playlist.getSegment(segmentParam);
                     if (segment == null) {
@@ -157,9 +154,8 @@ public class RadioController {
 
     private void getStatus(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
-        String userAgent = rc.request().getHeader("User-Agent");
 
-        service.getStatus(brand, userAgent)
+        service.getStatus(brand)
                 .subscribe().with(
                         statusDto -> {
                             rc.response()
@@ -224,6 +220,25 @@ public class RadioController {
     }
 
     private void getAllStations(RoutingContext rc) {
+        service.getAllStations()
+                .subscribe().with(
+                        stations -> {
+                            rc.response()
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .setStatusCode(200)
+                                    .end(Json.encode(stations));
+                        },
+                        throwable -> {
+                            LOGGER.error("Error getting all stations: {}", throwable.getMessage());
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to get all stations: " + throwable.getMessage());
+                        }
+                );
+    }
+
+    private void getStation(RoutingContext rc) {
         service.getAllStations()
                 .subscribe().with(
                         stations -> {

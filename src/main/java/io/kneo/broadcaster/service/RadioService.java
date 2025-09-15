@@ -93,11 +93,7 @@ public class RadioService {
                 );
     }
 
-    public Uni<IStreamManager> getPlaylist(String brand, String userAgent, boolean updateAccessTime) {
-        return getPlaylistInternal(brand);
-    }
-
-    private Uni<IStreamManager> getPlaylistInternal(String brand) {
+    public Uni<IStreamManager> getPlaylist(String brand) {
         return radioStationPool.get(brand)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
@@ -108,8 +104,8 @@ public class RadioService {
                 );
     }
 
-    public Uni<RadioStationStatusDTO> getStatus(String brand, String userAgent) {
-        return getPlaylist(brand, userAgent, false)
+    public Uni<RadioStationStatusDTO> getStatus(String brand) {
+        return getPlaylist(brand)
                 .onItem().transform(IStreamManager::getRadioStation)
                 .chain(this::toStatusDTO);
     }

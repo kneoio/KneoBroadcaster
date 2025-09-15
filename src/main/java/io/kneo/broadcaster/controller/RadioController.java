@@ -408,7 +408,12 @@ public class RadioController {
         if (initial != null) {
             rc.response().write("data: " + JsonObject.mapFrom(initial).encode() + "\n\n");
         } else {
-            rc.response().write("data: {\"status\":\"waiting\",\"batchId\":\"" + uploadId + "\"}\n\n");
+            UploadFileDTO waiting = UploadFileDTO.builder()
+                    .status("pending")
+                    .percentage(0)
+                    .batchId(uploadId)
+                    .build();
+            rc.response().write("data: " + JsonObject.mapFrom(waiting).encode() + "\n\n");
         }
 
         long timerId = vertx.setPeriodic(500, id -> {

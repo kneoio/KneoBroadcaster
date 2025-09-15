@@ -24,6 +24,7 @@ public class RadioStationStatusDTO {
     private String countryCode;
     private String color;
     private String description;
+    private long availableSongs;
     private SubmissionPolicy submissionPolicy;
     private AnimationDTO animation;
 }

@@ -68,6 +68,7 @@ public class RadioController {
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
+        router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
 
         router.route(HttpMethod.GET,  "/radio/:brand/submissions/files/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:uploadId/stream").handler(rc -> rc.response().setStatusCode(204).end());
@@ -239,7 +240,7 @@ public class RadioController {
     }
 
     private void getStation(RoutingContext rc) {
-        service.getAllStations()
+        service.getStation(rc.pathParam("brand"))
                 .subscribe().with(
                         stations -> {
                             rc.response()
@@ -248,7 +249,7 @@ public class RadioController {
                                     .end(Json.encode(stations));
                         },
                         throwable -> {
-                            LOGGER.error("Error getting all stations: {}", throwable.getMessage());
+                            LOGGER.error("Error getting  station: {}", throwable.getMessage());
                             rc.response()
                                     .setStatusCode(500)
                                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)

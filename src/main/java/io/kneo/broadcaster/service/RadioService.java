@@ -15,6 +15,7 @@ import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.FileSecurityUtils;
@@ -55,8 +56,12 @@ public class RadioService {
     @Inject
     AnimationService animationService;
 
+    //TODO shoud use servcie
     @Inject
     private SoundFragmentRepository soundFragmentRepository;
+
+    @Inject
+    SoundFragmentService soundFragmentService;
 
     @Inject
     private ContributionRepository contributionRepository;
@@ -187,6 +192,7 @@ public class RadioService {
                                                             station.getCountry(),
                                                             station.getColor(),
                                                             description,
+                                                            0,
                                                             station.getSubmissionPolicy(),
                                                             null
                                                     ));
@@ -197,6 +203,37 @@ public class RadioService {
                                 .collect(Collectors.toList());
                         return Uni.join().all(statusUnis).andFailFast();
                     }
+                });
+    }
+
+    public Uni<RadioStationStatusDTO> getStation(String slugName) {
+        return radioStationService.getBySlugName(slugName)
+                .chain(station -> {
+                    if (station == null) {
+                        return Uni.createFrom().nullItem();
+                    }
+
+                    return Uni.combine().all().unis(
+                                    radioStationPool.get(station.getSlugName()),
+                                    soundFragmentService.getBrandSoundFragmentsCount(slugName, null)
+                            ).asTuple().chain(tuple -> {
+                                RadioStation onlineStation = tuple.getItem1();
+                                Integer availableSongs = tuple.getItem2();
+
+                                RadioStation stationToUse = onlineStation != null ? onlineStation : station;
+                                String currentStatus = onlineStation != null ?
+                                        (onlineStation.getStatus() != null ? onlineStation.getStatus().name() : RadioStationStatus.OFF_LINE.name()) :
+                                        RadioStationStatus.OFF_LINE.name();
+
+                                return toStatusDTO(stationToUse)
+                                        .onItem().transform(dto -> {
+                                            dto.setCurrentStatus(currentStatus);
+                                            dto.setAvailableSongs(availableSongs != null ? availableSongs : 0);
+                                            dto.setDescription(station.getDescription());
+                                            return dto;
+                                        });
+                            })
+                            .onFailure().recoverWithItem(RadioStationStatusDTO::new);
                 });
     }
 
@@ -376,6 +413,7 @@ public class RadioService {
                             stationCountryCode,
                             radioStation.getColor(),
                             radioStation.getDescription(),
+                            0,
                             radioStation.getSubmissionPolicy(),
                             animationService.generateRandomAnimation()
                     ))
@@ -390,6 +428,7 @@ public class RadioService {
                             stationCountryCode,
                             radioStation.getColor(),
                             radioStation.getDescription(),
+                            0,
                             radioStation.getSubmissionPolicy(),
                             animationService.generateRandomAnimation()
                     ));
@@ -406,6 +445,7 @@ public class RadioService {
                 stationCountryCode,
                 radioStation.getColor(),
                 radioStation.getDescription(),
+                0,
                 radioStation.getSubmissionPolicy(),
                 animationService.generateRandomAnimation()
         ));

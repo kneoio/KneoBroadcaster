@@ -56,7 +56,9 @@ public class RadioController {
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
 
-        BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
+        BodyHandler jsonBodyHandler = BodyHandler.create()
+                .setHandleFileUploads(false)
+                .setBodyLimit(BODY_HANDLER_LIMIT);
 
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/stream").handler(this::getSegment);
@@ -69,7 +71,12 @@ public class RadioController {
 
         router.route(HttpMethod.GET,  "/radio/:brand/submissions/files/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:uploadId/stream").handler(rc -> rc.response().setStatusCode(204).end());
-        router.route(HttpMethod.POST, "/radio/:brand/submissions").handler(this::validateMixplaAccess).handler(this::submit);
+
+         router.route(HttpMethod.POST, "/radio/:brand/submissions")
+                .handler(jsonBodyHandler)
+                .handler(this::validateMixplaAccess)
+                .handler(this::submit);
+
         router.route(HttpMethod.GET, "/radio/:brand/submissions/files/start").handler(this::startUploadSession);
         //router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/start").handler(rc -> rc.response().setStatusCode(204).end());
         //router.route(HttpMethod.POST, "/radio/:brand/submissions/files/start").handler(jsonBodyHandler).handler(this::startUploadSessionDeprecated);

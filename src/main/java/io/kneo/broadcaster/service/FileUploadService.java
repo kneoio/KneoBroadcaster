@@ -243,24 +243,32 @@ public class FileUploadService {
 
     private void updateProgress(String uploadId, Integer percentage, String status, String url, String fullPath, AudioMetadataDTO metadata, String errorMessage) {
         UploadFileDTO dto = uploadProgressMap.get(uploadId);
-        if (dto != null) {
-            UploadFileDTO updatedDto = UploadFileDTO.builder()
-                    .id(dto.getId())
-                    .name(dto.getName())
-                    .status(status)
-                    .percentage(percentage != null ? percentage : dto.getPercentage())
-                    .url(url != null ? url : dto.getUrl())
-                    .batchId(dto.getBatchId())
-                    .type(dto.getType())
-                    .fullPath(fullPath != null ? fullPath : dto.getFullPath())
-                    .thumbnailUrl(dto.getThumbnailUrl())
-                    .metadata(metadata != null ? metadata : dto.getMetadata())
-                    .fileSize(dto.getFileSize())
-                    .errorMessage(errorMessage != null ? errorMessage : dto.getErrorMessage())
+        if (dto == null) {
+            UploadFileDTO init = UploadFileDTO.builder()
+                    .status(status != null ? status : "uploading")
+                    .percentage(percentage != null ? percentage : 0)
+                    .batchId(uploadId)
                     .build();
-
-            uploadProgressMap.put(uploadId, updatedDto);
+            uploadProgressMap.put(uploadId, init);
+            dto = init;
         }
+
+        UploadFileDTO updatedDto = UploadFileDTO.builder()
+                .id(dto.getId())
+                .name(dto.getName())
+                .status(status)
+                .percentage(percentage != null ? percentage : dto.getPercentage())
+                .url(url != null ? url : dto.getUrl())
+                .batchId(dto.getBatchId())
+                .type(dto.getType())
+                .fullPath(fullPath != null ? fullPath : dto.getFullPath())
+                .thumbnailUrl(dto.getThumbnailUrl())
+                .metadata(metadata != null ? metadata : dto.getMetadata())
+                .fileSize(dto.getFileSize())
+                .errorMessage(errorMessage != null ? errorMessage : dto.getErrorMessage())
+                .build();
+
+        uploadProgressMap.put(uploadId, updatedDto);
     }
 
     private boolean isValidAudioFile(String filename, String contentType) {

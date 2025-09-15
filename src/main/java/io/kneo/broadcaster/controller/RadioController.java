@@ -361,6 +361,12 @@ public class RadioController {
             return;
         }
 
+        try {
+            rc.request().setExpectMultipart(true);
+        } catch (IllegalStateException ignore) {
+        }
+        rc.response().setStatusCode(202).end();
+
         rc.request().uploadHandler(upload -> {
             try {
                 fileUploadService.validateUploadMeta(upload.filename(), upload.contentType());
@@ -381,12 +387,6 @@ public class RadioController {
                 upload.exceptionHandler(err -> {
                     LOGGER.error("Upload stream failed: {}", uploadId, err);
                 });
-
-                Boolean sent = rc.get("upload_response_sent");
-                if (sent == null || !sent) {
-                    rc.put("upload_response_sent", true);
-                    rc.response().setStatusCode(202).end();
-                }
             } catch (IllegalArgumentException e) {
                 int statusCode = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
                 rc.fail(statusCode, e);
@@ -403,6 +403,13 @@ public class RadioController {
                 .putHeader("Content-Type", "text/event-stream")
                 .putHeader("Cache-Control", "no-cache")
                 .setChunked(true);
+
+        UploadFileDTO initial = fileUploadService.getUploadProgress(uploadId);
+        if (initial != null) {
+            rc.response().write("data: " + JsonObject.mapFrom(initial).encode() + "\n\n");
+        } else {
+            rc.response().write("data: {\"status\":\"waiting\",\"batchId\":\"" + uploadId + "\"}\n\n");
+        }
 
         long timerId = vertx.setPeriodic(500, id -> {
             UploadFileDTO progress = fileUploadService.getUploadProgress(uploadId);

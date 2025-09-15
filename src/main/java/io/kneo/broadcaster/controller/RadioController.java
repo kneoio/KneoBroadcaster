@@ -337,17 +337,6 @@ public class RadioController {
     private void startUploadSession(RoutingContext rc) {
         String uploadId = rc.request().getParam("uploadId");
         String clientStartTimeStr = rc.request().getParam("startTime");
-
-        if (uploadId == null || uploadId.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
-            return;
-        }
-
-        if (clientStartTimeStr == null || clientStartTimeStr.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("startTime parameter is required"));
-            return;
-        }
-
         UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, clientStartTimeStr);
         rc.response()
                 .putHeader("Content-Type", "application/json")
@@ -381,12 +370,9 @@ public class RadioController {
         rc.request().uploadHandler(upload -> {
             try {
                 fileUploadService.validateUploadMeta(upload.filename(), upload.contentType());
-
                 Path tempFile = Files.createTempFile("radio-upload-" + uploadId + "-", ".tmp");
                 String tempPath = tempFile.toString();
-
                 upload.streamToFileSystem(tempPath);
-
                 upload.endHandler(v -> fileUploadService
                         .processStreamedTempFile(tempPath, uploadId, entityId, AnonymousUser.build(), upload.filename())
                         .subscribe().with(
@@ -394,7 +380,6 @@ public class RadioController {
                                 error -> LOGGER.error("Upload failed: {}", uploadId, error)
                         )
                 );
-
                 upload.exceptionHandler(err -> {
                     LOGGER.error("Upload stream failed: {}", uploadId, err);
                 });

@@ -71,11 +71,9 @@ public class RadioController {
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:uploadId/stream").handler(rc -> rc.response().setStatusCode(204).end());
         router.route(HttpMethod.POST, "/radio/:brand/submissions").handler(this::validateMixplaAccess).handler(this::submit);
         router.route(HttpMethod.GET, "/radio/:brand/submissions/files/start").handler(this::startUploadSession);
-        router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/start").handler(rc -> rc.response().setStatusCode(204).end());
-        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/start").handler(jsonBodyHandler).handler(this::startUploadSessionDeprecated);
-        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id")
-                .order(-100)
-                .handler(this::uploadFile); // streaming upload
+        //router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/start").handler(rc -> rc.response().setStatusCode(204).end());
+        //router.route(HttpMethod.POST, "/radio/:brand/submissions/files/start").handler(jsonBodyHandler).handler(this::startUploadSessionDeprecated);
+        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile); // streaming upload
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:id").handler(rc -> rc.response().setStatusCode(204).end());
     }
 

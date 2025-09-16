@@ -192,18 +192,13 @@ public class AudioMixingHandler extends MixingHandlerBase {
                     "[mainfaded][intro]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0";
 
         } else {
-            double duckDb = 20 * Math.log10(fadeDownTo); // map fadeDownTo (0.0–1.0) into dB
-
             return String.format("[0:a]volume=1.0[main];[1:a]volume=%.2f,adelay=%.0f|%.0f[intro];",
                     gainValue,
                     introStartTime * 1000,
                     introStartTime * 1000) +
-                    String.format("[main][intro]sidechaincompress=threshold=0.1:ratio=5:attack=200:release=1000:gain=%.2f[ducked];",
-                            duckDb) +
+                    "[main][intro]sidechaincompress=threshold=0.1:ratio=5:attack=200:release=1000[ducked];" +
                     "[ducked][intro]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0";
         }
-
-
     }
 
 }

@@ -129,6 +129,7 @@ public class SongSupplier {
 
                     return repository.getBrandSongs(brandId, fragmentType)
                             .map(fragments -> {
+                                Collections.shuffle(fragments);
                                 brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));
                                 return fragments;
                             });

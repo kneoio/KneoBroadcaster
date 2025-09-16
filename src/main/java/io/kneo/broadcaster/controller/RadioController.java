@@ -259,18 +259,15 @@ public class RadioController {
     }
 
     private void submit(RoutingContext rc) {
-        String clientIPHeader = rc.request().getHeader("stream-connecting-ip");
         try {
             if (!validateJsonBody(rc)) {
                 return;
             }
 
             SubmissionDTO dto = rc.body().asJsonObject().mapTo(SubmissionDTO.class);
-            String[] ipCountryParts = GeolocationService.parseIPHeader(clientIPHeader);
-            String clientIP = ipCountryParts[0];
-            String country = ipCountryParts[1];
-            dto.setIpAddress(clientIP);
-            dto.setCountry(CountryCode.valueOf(country));
+            String[] ipCountryParts = GeolocationService.parseIPHeader(rc.request().getHeader("stream-connecting-ip"));
+            dto.setIpAddress(ipCountryParts[0]);
+            dto.setCountry(CountryCode.valueOf(ipCountryParts[1]));
             dto.setUserAgent(rc.request().getHeader("User-Agent"));
             String brand = rc.pathParam("brand");
 

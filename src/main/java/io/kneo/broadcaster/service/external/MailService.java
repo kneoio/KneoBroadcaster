@@ -43,7 +43,7 @@ public class MailService {
 
         Mail mail = Mail.withHtml(email, "Confirmation Code", htmlBody)
                 .setText("Your code is: " + code)
-                .setFrom(fromAddress);
+                .setFrom("Mixpla <" + fromAddress + ">");
 
         return reactiveMailer.send(mail)
                 .onFailure().invoke(failure -> LOG.error("Failed to send email", failure));
@@ -51,25 +51,29 @@ public class MailService {
 
     public Uni<Boolean> verifyCode(String email, String code) {
         return Uni.createFrom().item(() -> {
-            CodeEntry entry = confirmationCodes.get(email);
-            if (entry == null) {
-                return false;
-            }
+            synchronized (this) {
+                CodeEntry entry = confirmationCodes.get(email);
+                if (entry == null) {
+                    return false;
+                }
 
-            if (Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes() > 15) {
-                confirmationCodes.remove(email);
-                return false;
-            }
+                if (Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes() > 15) {
+                    confirmationCodes.remove(email);
+                    return false;
+                }
 
-            boolean result = entry.code.equals(code) || code.equals("fafa");
+                boolean result = entry.code.equals(code) || code.equals("fafa");
 
-            if (confirmationCodes.size() > 100) {
+                if (result) {
+                    confirmationCodes.remove(email);
+                }
+
                 LocalDateTime now = LocalDateTime.now();
                 confirmationCodes.entrySet().removeIf(e ->
                         Duration.between(e.getValue().timestamp, now).toMinutes() > 15);
-            }
 
-            return result;
+                return result;
+            }
         });
     }
 

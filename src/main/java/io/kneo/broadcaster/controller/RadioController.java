@@ -315,9 +315,7 @@ public class RadioController {
             return;
         }
 
-        if (referer != null &&
-                (referer.equals("https://mixpla.io/") || referer.equals("http://localhost:8090/"))  &&
-                clientId != null && clientId.equals("mixpla-web")) {
+        if (referer != null && isValidRefererHost(referer) && clientId != null && clientId.equals("mixpla-web")) {
             rc.next();
             return;
         }
@@ -327,6 +325,16 @@ public class RadioController {
                 .setStatusCode(403)
                 .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                 .end("Access denied");
+    }
+
+    private boolean isValidRefererHost(String referer) {
+        try {
+            java.net.URL url = new java.net.URL(referer);
+            String host = url.getHost().toLowerCase();
+            return "mixpla.io".equals(host) || "localhost".equals(host);
+        } catch (java.net.MalformedURLException e) {
+            return false;
+        }
     }
 
     private boolean isValidMixplaApp(String mixplaApp) {

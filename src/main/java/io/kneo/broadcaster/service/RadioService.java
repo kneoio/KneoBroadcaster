@@ -274,7 +274,7 @@ public class RadioService {
                             }
 
                             if (!Files.exists(secureFilePath)) {
-                                LOGGER.error("File not found at expected secure path: {} for user: {}", secureFilePath, dto.getEmail());
+                                LOGGER.error("Submitted file not found at expected path: {} for user: {}", secureFilePath, dto.getEmail());
                                 continue;
                             }
 

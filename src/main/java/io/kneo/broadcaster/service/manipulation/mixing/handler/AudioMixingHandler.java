@@ -180,25 +180,23 @@ public class AudioMixingHandler extends MixingHandlerBase {
             double gainValue
     ) {
 
+        String mainFilter;
         if (fadeDownTo == 0.0) {
-            String mainFilter = String.format("afade=t=out:st=%.2f:d=%.2f:curve=%s",
+            mainFilter = String.format("afade=t=out:st=%.2f:d=%.2f:curve=%s",
                     fadeStartTime, fadeDuration, curve.getFfmpegValue());
-
-            return String.format("[0:a]%s[mainfaded];", mainFilter) +
-                    String.format("[1:a]volume=%.2f,adelay=%.0f|%.0f[intro];",
-                            gainValue,
-                            introStartTime * 1000,
-                            introStartTime * 1000) +
-                    "[mainfaded][intro]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0";
-
         } else {
-            return String.format("[0:a]volume=1.0[main];[1:a]volume=%.2f,adelay=%.0f|%.0f[intro];",
-                    gainValue,
-                    introStartTime * 1000,
-                    introStartTime * 1000) +
-                    "[main][intro]sidechaincompress=threshold=0.1:ratio=5:attack=200:release=1000[ducked];" +
-                    "[ducked][intro]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0";
+            //TODO it is not working
+            mainFilter = String.format(
+                    "volume='min(1,max(%.2f,1-(1-%.2f)*(t-%.2f)/%.2f))':eval=frame",
+                    fadeDownTo, fadeDownTo, fadeStartTime, fadeDuration);
+
         }
+        return String.format("[0:a]%s[mainfaded];",mainFilter) +
+                String.format("[1:a]volume=%.2f,adelay=%.0f|%.0f[intro];",
+                        gainValue,
+                        introStartTime * 1000,
+                        introStartTime * 1000) +
+                "[mainfaded][intro]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0";
     }
 
 }

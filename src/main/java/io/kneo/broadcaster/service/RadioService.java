@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.SubmissionDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
@@ -72,6 +73,8 @@ public class RadioService {
     @Inject
     private BroadcasterConfig config;
 
+    private static final List<String> FEATURED_STATIONS = List.of("bratan","aye-ayes-ear","lumisonic", "voltage-georgia");
+
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
@@ -112,7 +115,7 @@ public class RadioService {
     public Uni<RadioStationStatusDTO> getStatus(String brand) {
         return getPlaylist(brand)
                 .onItem().transform(IStreamManager::getRadioStation)
-                .chain(this::toStatusDTO);
+                .chain(v -> toStatusDTO(v, true));
     }
 
     public Uni<List<RadioStationStatusDTO>> getStations() {
@@ -128,12 +131,12 @@ public class RadioService {
                     .toList();
 
             List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
-                    .map(this::toStatusDTO)
+                    .map(v -> toStatusDTO(v, false))
                     .collect(Collectors.toList());
 
             List<Uni<RadioStationStatusDTO>> offlineStatusUnis = allStations.stream()
                     .filter(station -> !onlineBrands.contains(station.getSlugName()))
-                    .map(this::toStatusDTO)
+                    .map(v -> toStatusDTO(v, false))
                     .collect(Collectors.toList());
 
             Uni<List<RadioStationStatusDTO>> onlineResultsUni = onlineStatusUnis.isEmpty()
@@ -166,7 +169,11 @@ public class RadioService {
                     if (stations.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     } else {
-                        List<Uni<RadioStationStatusDTO>> statusUnis = stations.stream()
+                        List<RadioStationDTO> stationsToProcess = stations.stream()
+                                .filter(station -> FEATURED_STATIONS.contains(station.getSlugName()))
+                                .toList();
+
+                        List<Uni<RadioStationStatusDTO>> statusUnis = stationsToProcess.stream()
                                 .map(station -> {
                                     return radioStationPool.get(station.getSlugName())
                                             .chain(onlineStation -> {
@@ -179,7 +186,7 @@ public class RadioService {
                                                     ) {
                                                         onlineStation.setStatus(RadioStationStatus.ON_LINE);
                                                     }
-                                                    return toStatusDTO(onlineStation);
+                                                    return toStatusDTO(onlineStation, false);
                                                 } else {
                                                     return Uni.createFrom().item(new RadioStationStatusDTO(
                                                             station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
@@ -225,7 +232,7 @@ public class RadioService {
                                         (onlineStation.getStatus() != null ? onlineStation.getStatus().name() : RadioStationStatus.OFF_LINE.name()) :
                                         RadioStationStatus.OFF_LINE.name();
 
-                                return toStatusDTO(stationToUse)
+                                return toStatusDTO(stationToUse, false)
                                         .onItem().transform(dto -> {
                                             dto.setCurrentStatus(currentStatus);
                                             dto.setAvailableSongs(availableSongs != null ? availableSongs : 0);
@@ -385,7 +392,7 @@ public class RadioService {
                         .build());
     }
 
-    public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation) {
+    public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation, boolean includeAnimation) {
         if (radioStation == null) {
             return Uni.createFrom().nullItem();
         }
@@ -415,7 +422,7 @@ public class RadioService {
                             radioStation.getDescription(),
                             0,
                             radioStation.getSubmissionPolicy(),
-                            animationService.generateRandomAnimation()
+                            includeAnimation ? animationService.generateRandomAnimation() : null
                     ))
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
                             stationName,
@@ -430,7 +437,7 @@ public class RadioService {
                             radioStation.getDescription(),
                             0,
                             radioStation.getSubmissionPolicy(),
-                            animationService.generateRandomAnimation()
+                            includeAnimation ? animationService.generateRandomAnimation() : null
                     ));
         }
 
@@ -447,7 +454,7 @@ public class RadioService {
                 radioStation.getDescription(),
                 0,
                 radioStation.getSubmissionPolicy(),
-                animationService.generateRandomAnimation()
+                includeAnimation ? animationService.generateRandomAnimation() : null
         ));
     }
 

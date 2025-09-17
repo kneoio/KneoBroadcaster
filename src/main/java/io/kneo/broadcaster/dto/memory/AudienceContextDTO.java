@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.memory;
+package io.kneo.broadcaster.dto.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
@@ -9,8 +9,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ConversationHistory implements IMemoryContent {
-    private String title;
-    private String artist;
-    private String content;
+public class AudienceContextDTO {
+    private String name;
+    private String description;
+    private String currentMoment;
 }

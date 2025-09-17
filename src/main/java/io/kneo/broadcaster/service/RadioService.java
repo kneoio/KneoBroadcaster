@@ -9,11 +9,8 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.model.memory.Message;
-
 import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
@@ -304,10 +301,7 @@ public class RadioService {
                             .chain(doc -> {
                                 String messageText = dto.getAttachedMessage();
                                 if (messageText != null && !messageText.trim().isEmpty()) {
-                                    Message msg = new Message();
-                                    msg.setContent(messageText);
-                                    msg.setFrom(dto.getEmail());
-                                    return memoryService.add(brand, MemoryType.MESSAGE, msg)
+                                    return memoryService.addMessage(brand, dto.getEmail(), dto.getAttachedMessage())
                                             .replaceWith(doc)
                                             .onFailure().invoke(failure ->
                                                     LOGGER.warn("Failed to add message to memory for brand {}: {}", brand, failure.getMessage()));

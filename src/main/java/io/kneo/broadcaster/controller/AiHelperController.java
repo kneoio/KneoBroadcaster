@@ -128,7 +128,7 @@ public class AiHelperController {
 
     private void patchHistory(RoutingContext rc) {
         parsePatchParameters(rc)
-                .chain(params -> memoryService.updateHistory(params.brand, params.dto, SuperUser.build()))
+                .chain(params -> memoryService.updateHistory(params.brand, params.dto))
                 .subscribe().with(
                         doc -> rc.response().setStatusCode(200).end(),
                         throwable -> {

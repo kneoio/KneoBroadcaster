@@ -1,15 +1,11 @@
 package io.kneo.broadcaster.controller;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.memory.EventDTO;
 import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-import io.kneo.broadcaster.model.memory.IMemoryContent;
-import io.kneo.broadcaster.model.memory.Message;
-import io.kneo.broadcaster.model.memory.RadioEvent;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -21,15 +17,21 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MemoryController extends AbstractSecuredController<Object, MemoryDTO> {
@@ -38,6 +40,9 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
 
     @Inject
     ObjectMapper mapper;
+
+    @Inject
+    Validator validator;
 
     public MemoryController() {
         super(null);
@@ -56,7 +61,6 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
         router.post("/api/memories/:id?").handler(this::upsert);
         router.delete("/api/memories/:id").handler(this::delete);
         router.delete("/api/memories/brand/:brand").handler(this::deleteByBrand);
-        router.post("/api/memories").handler(this::createMemory);
     }
 
     private void getAll(RoutingContext rc) {
@@ -94,7 +98,7 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
                         tuple -> {
                             MemoryDTO doc = tuple.getItem1();
                             FormPage page = new FormPage();
-                            page.addPayload(PayloadType.DOC_DATA, doc);
+                            page.addPayload(PayloadType.DOC_DATA, serializeMemoryDTO(doc));
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
@@ -105,50 +109,79 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
         JsonObject jsonObject = rc.body().asJsonObject();
-        MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
+        MemoryDTO dto = deserializeMemoryDTO(jsonObject, rc);
+        if (dto == null) return; // Error already handled
 
         getContextUser(rc)
                 .chain(user -> service.upsert(id, dto, user))
                 .subscribe().with(
-                        doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
+                        doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(serializeMemoryDTO(doc).encode()),
                         rc::fail
                 );
     }
 
-    private void createMemory(RoutingContext rc) {
-        JsonObject jsonObject = rc.body().asJsonObject();
-        MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
-        String brand = dto.getBrand();
-        MemoryType memoryType = dto.getMemoryType();
+    private MemoryDTO deserializeMemoryDTO(JsonObject jsonObject, RoutingContext rc) {
+        try {
+            String memoryTypeStr = jsonObject.getString("memoryType");
+            if (memoryTypeStr == null) {
+                rc.fail(new IllegalArgumentException("memoryType is required"));
+                return null;
+            }
 
-        List<IMemoryContentDTO> list = dto.getContent();
-        if (list == null || list.isEmpty()) {
-            rc.fail(new IllegalArgumentException("Content list is empty"));
-            return;
+            String jsonString = jsonObject.encode();
+            MemoryDTO dto = mapper.readValue(jsonString, MemoryDTO.class);
+
+            JsonArray contentArray = jsonObject.getJsonArray("content");
+            if (contentArray != null) {
+                List<IMemoryContentDTO> contentList = new ArrayList<>();
+
+                if (memoryTypeStr.equals(MemoryType.EVENT.name())) {
+                    for (int i = 0; i < contentArray.size(); i++) {
+                        JsonObject contentObj = contentArray.getJsonObject(i);
+                        EventDTO eventDTO = mapper.readValue(contentObj.encode(), EventDTO.class);
+                        Set<ConstraintViolation<EventDTO>> violations = validator.validate(eventDTO);
+                        if (!violations.isEmpty()) {
+                            String errors = violations.stream()
+                                    .map(ConstraintViolation::getMessage)
+                                    .collect(Collectors.joining(", "));
+                            rc.fail(new IllegalArgumentException("Event validation failed: " + errors));
+                            return null;
+                        }
+
+                        contentList.add(eventDTO);
+                    }
+                } else if (memoryTypeStr.equals(MemoryType.MESSAGE.name())) {
+                    for (int i = 0; i < contentArray.size(); i++) {
+                        JsonObject contentObj = contentArray.getJsonObject(i);
+                        MessageDTO messageDTO = mapper.readValue(contentObj.encode(), MessageDTO.class);
+                        Set<ConstraintViolation<MessageDTO>> violations = validator.validate(messageDTO);
+                        if (!violations.isEmpty()) {
+                            String errors = violations.stream()
+                                    .map(ConstraintViolation::getMessage)
+                                    .collect(Collectors.joining(", "));
+                            rc.fail(new IllegalArgumentException("Message validation failed: " + errors));
+                            return null;
+                        }
+                        contentList.add(messageDTO);
+                    }
+                }
+                dto.setContent(contentList);
+            }
+            return dto;
+        } catch (Exception e) {
+            rc.fail(e);
+            return null;
         }
-        IMemoryContentDTO first = list.get(0);
+    }
 
-        IMemoryContent content;
-        if (memoryType == MemoryType.EVENT && first instanceof EventDTO eventDTO) {
-            RadioEvent event = new RadioEvent();
-            event.setDescription(eventDTO.getDescription());
-            content = event;
-        } else if (memoryType == MemoryType.MESSAGE && first instanceof MessageDTO messageDTO) {
-            Message message = new Message();
-            message.setContent(messageDTO.getContent());
-            message.setFrom(messageDTO.getFrom());
-            content = message;
-        } else {
-            rc.fail(new IllegalArgumentException("Unknown or mismatched memory type"));
-            return;
+    private JsonObject serializeMemoryDTO(MemoryDTO dto) {
+        JsonObject json = JsonObject.mapFrom(dto);
+        if (dto.getContent() != null) {
+            JsonArray contentArray = new JsonArray();
+            dto.getContent().forEach(item -> contentArray.add(JsonObject.mapFrom(item)));
+            json.put("content", contentArray);
         }
-
-        getContextUser(rc)
-                .chain(user -> service.add(brand, memoryType, content))
-                .subscribe().with(
-                        id -> rc.response().setStatusCode(201).end("{\"id\":\"" + id + "\"}"),
-                        rc::fail
-                );
+        return json;
     }
 
     private void deleteByBrand(RoutingContext rc) {

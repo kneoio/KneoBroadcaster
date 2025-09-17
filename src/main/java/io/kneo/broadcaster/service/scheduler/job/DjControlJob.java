@@ -2,7 +2,6 @@ package io.kneo.broadcaster.service.scheduler.job;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-import io.kneo.broadcaster.model.memory.RadioEvent;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -98,9 +97,7 @@ public class DjControlJob implements Job {
     }
 
     private void createEvent(String stationSlugName, String message) {
-        RadioEvent event = new RadioEvent();
-        event.setDescription(message);
-        memoryService.add(stationSlugName, MemoryType.EVENT, event)
+        memoryService.addEvent(stationSlugName, null, message)
                 .subscribe().with(
                         id -> LOGGER.debug("Memory created with ID: {} for station: {}", id, stationSlugName),
                         failure -> LOGGER.error("Failed to create memory for station: {}", stationSlugName, failure)

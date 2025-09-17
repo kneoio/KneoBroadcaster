@@ -14,7 +14,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class MemoryDTO<T> {
+public class MemoryDTO {
     private UUID id;
     @NotNull
     private String brand;
@@ -23,7 +23,7 @@ public class MemoryDTO<T> {
     @NotNull
     private MemoryType memoryType;
     @NotNull
-    T content;
+    private IMemoryContentDTO content;
     private ZonedDateTime regDate;
     private ZonedDateTime lastModifiedDate;
 }

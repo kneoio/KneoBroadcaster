@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.subscription.Cancellable;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.file.FileSystem;
@@ -280,7 +281,7 @@ public class LocalFileCleanupService {
                         LOGGER.info("Cleaned up temp files for user: {}", username);
                     }
                     return null;
-                }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool())
+                }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .replaceWithVoid();
     }
 

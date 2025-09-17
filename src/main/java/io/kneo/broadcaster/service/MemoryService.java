@@ -1,11 +1,17 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
+import io.kneo.broadcaster.dto.memory.EventDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
+import io.kneo.broadcaster.dto.memory.MessageDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.memory.AudienceContext;
+import io.kneo.broadcaster.model.memory.ConversationHistory;
+import io.kneo.broadcaster.model.memory.IMemoryContent;
 import io.kneo.broadcaster.model.memory.ListenerContext;
 import io.kneo.broadcaster.model.memory.Memory;
+import io.kneo.broadcaster.model.memory.Message;
+import io.kneo.broadcaster.model.memory.RadioEvent;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -31,7 +37,7 @@ public class MemoryService {
 
     private static final int MAX_CONVERSATION_HISTORY = 4;
     private static final int MAX_EVENTS = 3;
-    private static final int MAX_INSTANT_MESSAGES = 1;
+    private static final int MAX_MESSAGES = 1;
 
     @Inject
     ListenerService listenerService;
@@ -44,7 +50,7 @@ public class MemoryService {
 
     private final ConcurrentMap<String, ConcurrentMap<String, Memory>> memories = new ConcurrentHashMap<>();
 
-    public Uni<List<MemoryDTO<?>>> getAll(final int limit, final int offset, final IUser user) {
+    public Uni<List<MemoryDTO>> getAll(final int limit, final int offset, final IUser user) {
         return flattenMemories().map(allMemories ->
                 allMemories.stream()
                         .skip(offset)
@@ -57,13 +63,13 @@ public class MemoryService {
         return flattenMemories().map(List::size);
     }
 
-    public Uni<List<MemoryDTO<?>>> getByBrandId(String brand, int limit, int offset) {
+    public Uni<List<MemoryDTO>> getByBrandId(String brand, int limit, int offset) {
         ConcurrentMap<String, Memory> brandMap = memories.get(brand);
         if (brandMap == null) {
             return Uni.createFrom().item(List.of());
         }
 
-        List<Uni<MemoryDTO<?>>> uniList = brandMap.values().stream()
+        List<Uni<MemoryDTO>> uniList = brandMap.values().stream()
                 .map(this::mapToDTOWithColor)
                 .collect(Collectors.toList());
 
@@ -79,7 +85,7 @@ public class MemoryService {
                 );
     }
 
-    public Uni<MemoryDTO<?>> getDTO(UUID id, IUser user, LanguageCode code) {
+    public Uni<MemoryDTO> getDTO(UUID id, IUser user, LanguageCode code) {
         return flattenMemories().map(allMemories ->
                 allMemories.stream()
                         .filter(memory -> id.equals(memory.getId()))
@@ -103,7 +109,7 @@ public class MemoryService {
                         brandMap.values().stream()
                                 .filter(memory -> memory.getMemoryType() == MemoryType.CONVERSATION_HISTORY)
                                 .forEach(memory -> {
-                                    LinkedHashMap<String, Object> content = memory.getContent();
+                                    LinkedHashMap<String, List<IMemoryContent>> content = memory.getContent();
                                     Object historyData = content.get(MemoryType.CONVERSATION_HISTORY.getValue());
                                     if (historyData instanceof List<?> historyList) {
                                         historyList.forEach(intro -> {
@@ -155,15 +161,15 @@ public class MemoryService {
                             });
                     uniList.add(audienceUni);
                 }
-                case INSTANT_MESSAGE -> {
+                case MESSAGE -> {
                     ConcurrentMap<String, Memory> brandMap = memories.get(brand);
                     if (brandMap != null) {
                         JsonArray messageArray = new JsonArray();
                         brandMap.values().stream()
-                                .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
+                                .filter(memory -> memory.getMemoryType() == MemoryType.MESSAGE)
                                 .forEach(memory -> {
-                                    LinkedHashMap<String, Object> content = memory.getContent();
-                                    Object messageData = content.get(MemoryType.INSTANT_MESSAGE.getValue());
+                                    LinkedHashMap<String, List<IMemoryContent>> content = memory.getContent();
+                                    Object messageData = content.get(MemoryType.MESSAGE.getValue());
                                     if (messageData instanceof List<?> messageList) {
                                         messageList.forEach(message -> {
                                             JsonObject messageWithId = new JsonObject()
@@ -173,10 +179,10 @@ public class MemoryService {
                                         });
                                     }
                                 });
-                        result.put(MemoryType.INSTANT_MESSAGE.getValue(), messageArray);
+                        result.put(MemoryType.MESSAGE.getValue(), messageArray);
                     }
-                    if (!result.containsKey(MemoryType.INSTANT_MESSAGE.getValue())) {
-                        result.put(MemoryType.INSTANT_MESSAGE.getValue(), new JsonArray());
+                    if (!result.containsKey(MemoryType.MESSAGE.getValue())) {
+                        result.put(MemoryType.MESSAGE.getValue(), new JsonArray());
                     }
                 }
                 case EVENT -> {
@@ -187,7 +193,7 @@ public class MemoryService {
                                 .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
                                 .findFirst()
                                 .ifPresent(memory -> {
-                                    LinkedHashMap<String, Object> content = memory.getContent();
+                                    LinkedHashMap<String, List<IMemoryContent>> content = memory.getContent();
                                     Object eventData = content.get(MemoryType.EVENT.getValue());
                                     if (eventData instanceof List<?> eventList) {
                                         if (!eventList.isEmpty()) {
@@ -214,16 +220,16 @@ public class MemoryService {
         return Uni.combine().all().unis(uniList).with(results -> result);
     }
 
-    public Uni<String> upsert(String brand, MemoryType memoryType, Object content) {
+    public Uni<String> add(String brand, MemoryType memoryType, IMemoryContent content) {
         UUID id = UUID.randomUUID();
         ZonedDateTime now = ZonedDateTime.now();
 
         return Uni.createFrom().item(() -> {
             ConcurrentMap<String, Memory> brandMap = memories.computeIfAbsent(brand, k -> new ConcurrentHashMap<>());
 
-            if (memoryType == MemoryType.INSTANT_MESSAGE) {
+            if (memoryType == MemoryType.MESSAGE) {
                 brandMap.entrySet().removeIf(entry ->
-                        entry.getValue().getMemoryType() == MemoryType.INSTANT_MESSAGE);
+                        entry.getValue().getMemoryType() == MemoryType.MESSAGE);
             }
 
             List<Memory> typeMemories = brandMap.values().stream()
@@ -242,8 +248,8 @@ public class MemoryService {
             memory.setBrand(brand);
             memory.setMemoryType(memoryType);
 
-            LinkedHashMap<String, Object> structuredContent = new LinkedHashMap<>();
-            List<Object> contentList = new ArrayList<>();
+            LinkedHashMap<String, List<IMemoryContent>> structuredContent = new LinkedHashMap<>();
+            List<IMemoryContent> contentList = new ArrayList<>();
             contentList.add(content);
             structuredContent.put(memoryType.getValue(), contentList);
 
@@ -257,22 +263,38 @@ public class MemoryService {
         });
     }
 
-    public Uni<MemoryDTO<?>> upsert(String id, MemoryDTO<?> dto, IUser user) {
-        return upsert(dto.getBrand(), dto.getMemoryType(), dto.getContent())
-                .map(resultId -> {
-                    dto.setId(UUID.fromString(resultId));
-                    return dto;
-                });
+    //TODO it is only adding which not follow the common upsert pattern
+    public Uni<MemoryDTO> upsert(String id, MemoryDTO dto, IUser user) {
+        if (dto.getMemoryType() == MemoryType.EVENT) {
+            EventDTO eventDTO = (EventDTO) dto.getContent();
+            RadioEvent event = new RadioEvent();
+            event.setDescription(eventDTO.getDescription());
+            return add(dto.getBrand(), dto.getMemoryType(), event)
+                    .map(resultId -> {
+                        dto.setId(UUID.fromString(resultId));
+                        return dto;
+                    });
+        } else if (dto.getMemoryType() == MemoryType.MESSAGE) {
+            MessageDTO messageDTO = (MessageDTO) dto.getContent();
+            Message message = new Message();
+            message.setContent(messageDTO.getContent());
+            return add(dto.getBrand(), dto.getMemoryType(), message)
+                    .map(resultId -> {
+                        dto.setId(UUID.fromString(resultId));
+                        return dto;
+                    });
+        } else {
+            return Uni.createFrom().failure(new IllegalArgumentException("Unknown memory type"));
+        }
     }
 
     public Uni<Integer> updateHistory(String brand, SongIntroductionDTO dto, IUser user) {
         return Uni.createFrom().item(() -> {
-            LinkedHashMap<String, Object> introduction = new LinkedHashMap<>();
-            introduction.put("title", dto.getTitle());
-            introduction.put("artist", dto.getArtist());
-            introduction.put("content", dto.getContent());
-
-            upsert(brand, MemoryType.CONVERSATION_HISTORY, introduction).subscribe().asCompletionStage();
+            ConversationHistory history = new ConversationHistory();
+            history.setTitle(dto.getTitle());
+            history.setArtist(dto.getArtist());
+            history.setContent(dto.getContent());
+            add(brand, MemoryType.CONVERSATION_HISTORY, history).subscribe().asCompletionStage();
             return 1;
         });
     }
@@ -298,84 +320,25 @@ public class MemoryService {
         });
     }
 
-    public Uni<List<MemoryDTO<?>>> retrieveAndRemoveInstantMessages(String brand) {
+    public Uni<List<MemoryDTO>> retrieveAndRemoveInstantMessages(String brand) {
         ConcurrentMap<String, Memory> brandMap = memories.get(brand);
         if (brandMap == null) {
             return Uni.createFrom().item(List.of());
         }
 
         List<Memory> messagesToRemove = brandMap.values().stream()
-                .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
+                .filter(memory -> memory.getMemoryType() == MemoryType.MESSAGE)
                 .toList();
 
         if (messagesToRemove.isEmpty()) {
             return Uni.createFrom().item(List.of());
         }
 
-        List<Uni<MemoryDTO<?>>> uniList = messagesToRemove.stream()
+        List<Uni<MemoryDTO>> uniList = messagesToRemove.stream()
                 .map(this::mapToDTOWithColor)
                 .collect(Collectors.toList());
 
         messagesToRemove.forEach(memory -> brandMap.remove(memory.getId().toString()));
-
-        return Uni.join().all(uniList).andFailFast();
-    }
-
-    public Uni<List<MemoryDTO<?>>> peekInstantMessages(String brand) {
-        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-        if (brandMap == null) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        List<Uni<MemoryDTO<?>>> uniList = brandMap.values().stream()
-                .filter(memory -> memory.getMemoryType() == MemoryType.INSTANT_MESSAGE)
-                .map(this::mapToDTOWithColor)
-                .collect(Collectors.toList());
-
-        if (uniList.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        return Uni.join().all(uniList).andFailFast();
-    }
-
-    public Uni<List<MemoryDTO<?>>> retrieveAndRemoveEvents(String brand) {
-        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-        if (brandMap == null) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        List<Memory> eventsToRemove = brandMap.values().stream()
-                .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
-                .toList();
-
-        if (eventsToRemove.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        List<Uni<MemoryDTO<?>>> uniList = eventsToRemove.stream()
-                .map(this::mapToDTOWithColor)
-                .collect(Collectors.toList());
-
-        eventsToRemove.forEach(memory -> brandMap.remove(memory.getId().toString()));
-
-        return Uni.join().all(uniList).andFailFast();
-    }
-
-    public Uni<List<MemoryDTO<?>>> peekEvents(String brand) {
-        ConcurrentMap<String, Memory> brandMap = memories.get(brand);
-        if (brandMap == null) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        List<Uni<MemoryDTO<?>>> uniList = brandMap.values().stream()
-                .filter(memory -> memory.getMemoryType() == MemoryType.EVENT)
-                .map(this::mapToDTOWithColor)
-                .collect(Collectors.toList());
-
-        if (uniList.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
 
         return Uni.join().all(uniList).andFailFast();
     }
@@ -400,13 +363,13 @@ public class MemoryService {
         return switch (memoryType) {
             case CONVERSATION_HISTORY -> MAX_CONVERSATION_HISTORY;
             case EVENT -> MAX_EVENTS;
-            case INSTANT_MESSAGE -> MAX_INSTANT_MESSAGES;
+            case MESSAGE -> MAX_MESSAGES;
             default -> 5;
         };
     }
 
-    private Uni<List<MemoryDTO<?>>> flattenMemories() {
-        List<Uni<MemoryDTO<?>>> uniList = new ArrayList<>();
+    private Uni<List<MemoryDTO>> flattenMemories() {
+        List<Uni<MemoryDTO>> uniList = new ArrayList<>();
         for (ConcurrentMap<String, Memory> brandMap : memories.values()) {
             for (Memory memory : brandMap.values()) {
                 uniList.add(mapToDTOWithColor(memory));
@@ -418,10 +381,10 @@ public class MemoryService {
         return Uni.join().all(uniList).andFailFast();
     }
 
-    private Uni<MemoryDTO<?>> mapToDTOWithColor(Memory memory) {
+    private Uni<MemoryDTO> mapToDTOWithColor(Memory memory) {
         return radioStationService.getBySlugName(memory.getBrand())
-                .<MemoryDTO<?>>map(radioStation -> {
-                    MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
+                .<MemoryDTO>map(radioStation -> {
+                    MemoryDTO dto = new MemoryDTO();
                     dto.setId(memory.getId());
                     dto.setBrand(memory.getBrand());
                     dto.setColor(radioStation.getColor());
@@ -432,7 +395,7 @@ public class MemoryService {
                     return dto;
                 })
                 .onFailure().recoverWithItem(() -> {
-                    MemoryDTO<LinkedHashMap<String, Object>> dto = new MemoryDTO<>();
+                    MemoryDTO dto = new MemoryDTO();
                     dto.setId(memory.getId());
                     dto.setBrand(memory.getBrand());
                     dto.setMemoryType(memory.getMemoryType());

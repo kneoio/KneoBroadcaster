@@ -30,7 +30,7 @@ public class EventTriggerJob implements Job {
         try {
             Map<String, String> eventData = Map.of("type", type);
 
-            memoryService.upsert(slugName, MemoryType.EVENT, eventData).subscribe().with(
+            memoryService.add(slugName, MemoryType.EVENT, eventData).subscribe().with(
                     id -> LOGGER.debug("Memory created with ID: {} for event {}", id, eventId),
                     failure -> LOGGER.error("Failed to create memory for event {}", eventId, failure)
             );

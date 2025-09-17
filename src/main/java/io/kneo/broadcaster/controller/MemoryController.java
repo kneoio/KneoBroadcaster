@@ -1,6 +1,11 @@
 package io.kneo.broadcaster.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.dto.memory.EventDTO;
+import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
+import io.kneo.broadcaster.dto.memory.MessageDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -23,9 +28,12 @@ import jakarta.inject.Inject;
 import java.util.UUID;
 
 @ApplicationScoped
-public class MemoryController extends AbstractSecuredController<Object, MemoryDTO<?>> {
+public class MemoryController extends AbstractSecuredController<Object, MemoryDTO> {
 
     private MemoryService service;
+
+    @Inject
+    ObjectMapper mapper;
 
     public MemoryController() {
         super(null);
@@ -44,7 +52,7 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
         router.post("/api/memories/:id?").handler(this::upsert);
         router.delete("/api/memories/:id").handler(this::delete);
         router.delete("/api/memories/brand/:brand").handler(this::deleteByBrand);
-        router.post("/api/memories/events").handler(this::triggerEvent);
+        router.post("/api/memories").handler(this::createMemory);
     }
 
     private void getAll(RoutingContext rc) {
@@ -57,7 +65,7 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
                         service.getAll(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<MemoryDTO<?>> dtoEntries = new View<>(tuple.getItem2(),
+                    View<MemoryDTO> dtoEntries = new View<>(tuple.getItem2(),
                             tuple.getItem1(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                             size);
@@ -80,7 +88,7 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
                 })
                 .subscribe().with(
                         tuple -> {
-                            MemoryDTO<?> doc = tuple.getItem1();
+                            MemoryDTO doc = tuple.getItem1();
                             FormPage page = new FormPage();
                             page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
@@ -93,7 +101,7 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
     private void upsert(RoutingContext rc) {
         String id = rc.pathParam("id");
         JsonObject jsonObject = rc.body().asJsonObject();
-        MemoryDTO<?> dto = jsonObject.mapTo(MemoryDTO.class);
+        MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
 
         getContextUser(rc)
                 .chain(user -> service.upsert(id, dto, user))
@@ -103,27 +111,22 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
                 );
     }
 
-    private void triggerEvent(RoutingContext rc) {
-        JsonObject jsonObject = rc.body().asJsonObject();
+    private void createMemory(RoutingContext rc) {
+        String jsonString = rc.body().asString();
+        JsonObject jsonObject = new JsonObject(jsonString);
         String brand = jsonObject.getString("brand");
         String memoryTypeStr = jsonObject.getString("memoryType");
-        Object content = jsonObject.getValue("content");
-
-        if (brand == null || content == null || memoryTypeStr == null) {
-            rc.response().setStatusCode(400).end("{\"error\":\"Brand, content and memoryType are required\"}");
-            return;
-        }
-
-        MemoryType memoryType;
+        MemoryDTO dto;
         try {
-            memoryType = MemoryType.valueOf(memoryTypeStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            rc.response().setStatusCode(400).end("{\"error\":\"Invalid memory type: " + memoryTypeStr + "\"}");
+            ObjectMapper mapper = new ObjectMapper();
+            dto = mapper.readValue(jsonString, MemoryDTO.class);
+        } catch (Exception e) {
+            rc.fail(e);
             return;
         }
 
         getContextUser(rc)
-                .chain(user -> service.upsert(brand, memoryType, content))
+                .chain(user -> service.add(brand, MemoryType.fromValue(memoryTypeStr), dto))
                 .subscribe().with(
                         id -> rc.response().setStatusCode(201).end("{\"id\":\"" + id + "\"}"),
                         rc::fail

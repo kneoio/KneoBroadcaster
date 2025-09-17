@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service.external;
 
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
+import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -62,23 +63,25 @@ public class MailService {
                     return false;
                 }
 
-                boolean result = entry.code.equals(code) || code.equals("fafa");
-
-                if (result) {
-                    confirmationCodes.remove(email);
-                }
-
-                LocalDateTime now = LocalDateTime.now();
-                confirmationCodes.entrySet().removeIf(e ->
-                        Duration.between(e.getValue().timestamp, now).toMinutes() > 15);
-
-                return result;
+                return entry.code.equals(code) || code.equals("fafa");
             }
         });
     }
 
     public void removeCode(String email) {
         confirmationCodes.remove(email);
+    }
+
+    @Scheduled(every = "60m")
+    void cleanupExpiredCodes() {
+        LocalDateTime now = LocalDateTime.now();
+        int sizeBefore = confirmationCodes.size();
+        confirmationCodes.entrySet().removeIf(entry ->
+                Duration.between(entry.getValue().timestamp, now).toMinutes() > 15);
+        int removed = sizeBefore - confirmationCodes.size();
+        if (removed > 0) {
+            LOG.debug("Cleaned up {} expired confirmation codes", removed);
+        }
     }
 
     private static record CodeEntry(String code, LocalDateTime timestamp) {}

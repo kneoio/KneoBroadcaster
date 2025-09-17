@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.memory;
+package io.kneo.broadcaster.dto.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class RadioEvent  implements IMemoryContent {
+public class EventDTO implements IMemoryContentDTO {
     private String type; // "achievement", "birthday", "morning_wake_up", etc.
     private String timestamp;
     private String description;

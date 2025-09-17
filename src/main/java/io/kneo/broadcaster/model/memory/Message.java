@@ -9,8 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AudienceContext implements IMemoryContent {
-    private String name;
-    private String description;
-    private String currentMoment;
+public class Message implements IMemoryContent {
+    private String from;
+    private String content;
 }

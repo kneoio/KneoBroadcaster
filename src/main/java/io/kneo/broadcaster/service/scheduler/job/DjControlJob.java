@@ -50,7 +50,7 @@ public class DjControlJob implements Job {
                 .filter(station -> !station.isAiControlAllowed())
                 .forEach(station -> {
                     station.setAiControlAllowed(true);
-                    createMemoryEvent(brand, "The shift of the dj started");
+                    createEvent(brand, "The shift of the dj started");
                     LOGGER.info("Started DJ control for station: {} with target: {}", brand, target);
                 });
     }
@@ -87,7 +87,7 @@ public class DjControlJob implements Job {
                             .subscribe().with(
                                     deletedCount -> {
                                         LOGGER.debug("Deleted {} existing events for station: {}", deletedCount, brand);
-                                        createMemoryEvent(brand, "The shift of the dj ended");
+                                        createEvent(brand, "The shift of the dj ended");
                                     },
                                     failure -> LOGGER.error("Failed to delete existing events for station: {}", brand, failure)
                             );
@@ -96,8 +96,8 @@ public class DjControlJob implements Job {
                 });
     }
 
-    private void createMemoryEvent(String stationSlugName, String message) {
-        memoryService.upsert(stationSlugName, MemoryType.EVENT, message)
+    private void createEvent(String stationSlugName, String message) {
+        memoryService.add(stationSlugName, MemoryType.EVENT, message)
                 .subscribe().with(
                         id -> LOGGER.debug("Memory created with ID: {} for station: {}", id, stationSlugName),
                         failure -> LOGGER.error("Failed to create memory for station: {}", stationSlugName, failure)

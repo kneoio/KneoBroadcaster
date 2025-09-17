@@ -9,6 +9,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.ContributionRepository;
@@ -72,6 +73,9 @@ public class RadioService {
 
     @Inject
     private BroadcasterConfig config;
+
+    @Inject
+    MemoryService memoryService;
 
     private static final List<String> FEATURED_STATIONS = List.of("bratan","aye-ayes-ear","lumisonic", "voltage-georgia");
 
@@ -290,10 +294,21 @@ public class RadioService {
                     }
 
                     entity.setFileMetadataList(fileMetadataList);
+
                     return soundFragmentRepository.insert(entity, List.of(radioStation.getId()), AnonymousUser.build())
                             .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, AnonymousUser.build())
                                     .chain(moved -> createContributionAndAgreement(moved, dto)
                                             .replaceWith(moved)))
+                            .chain(doc -> {
+                                String message = dto.getAttachedMessage();
+                                if (message != null && !message.trim().isEmpty()) {
+                                    return memoryService.add(brand, MemoryType.MESSAGE, message)
+                                            .replaceWith(doc)
+                                            .onFailure().invoke(failure ->
+                                                    LOGGER.warn("Failed to add message to memory for brand {}: {}", brand, failure.getMessage()));
+                                }
+                                return Uni.createFrom().item(doc);
+                            })
                             .chain(this::mapToDTO)
                             .onFailure().invoke(failure -> {
                                 LOGGER.warn("Entity creation failed, cleaning up temp files for user: {}", dto.getEmail());

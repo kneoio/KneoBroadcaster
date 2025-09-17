@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ListenerContext {
+public class ListenerContext implements IMemoryContent {
     private String name;
     private String nickname;
     private String location;

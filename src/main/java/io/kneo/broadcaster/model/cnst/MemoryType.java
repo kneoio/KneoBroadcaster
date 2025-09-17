@@ -9,7 +9,7 @@ public enum MemoryType {
     LISTENER_CONTEXT("listeners"),
     CONVERSATION_HISTORY("history"),
     EVENT("events"),
-    INSTANT_MESSAGE("messages");
+    MESSAGE("messages");
 
     private final String value;
 

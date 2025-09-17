@@ -9,8 +9,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ConversationHistory {
-    private String timestamp;
+public class ConversationHistory implements IMemoryContent {
+    private String title;
+    private String artist;
     private String content;
-    private String type;
 }

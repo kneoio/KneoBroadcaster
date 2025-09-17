@@ -9,6 +9,7 @@ import lombok.Setter;
 
 import java.time.ZonedDateTime;
 import java.util.UUID;
+import java.util.List;
 
 @Getter
 @Setter
@@ -23,7 +24,7 @@ public class MemoryDTO {
     @NotNull
     private MemoryType memoryType;
     @NotNull
-    private IMemoryContentDTO content;
+    private List<IMemoryContentDTO> content;
     private ZonedDateTime regDate;
     private ZonedDateTime lastModifiedDate;
 }

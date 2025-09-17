@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.scheduler.job;
 
 import io.kneo.broadcaster.model.cnst.MemoryType;
+import io.kneo.broadcaster.model.memory.RadioEvent;
 import io.kneo.broadcaster.service.MemoryService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -9,8 +10,6 @@ import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Map;
 
 @ApplicationScoped
 public class EventTriggerJob implements Job {
@@ -28,9 +27,9 @@ public class EventTriggerJob implements Job {
         LOGGER.info("Executing event trigger {} for brand {}", eventId, slugName);
 
         try {
-            Map<String, String> eventData = Map.of("type", type);
-
-            memoryService.add(slugName, MemoryType.EVENT, eventData).subscribe().with(
+            RadioEvent event = new RadioEvent();
+            event.setType(type);
+            memoryService.add(slugName, MemoryType.EVENT, event).subscribe().with(
                     id -> LOGGER.debug("Memory created with ID: {} for event {}", id, eventId),
                     failure -> LOGGER.error("Failed to create memory for event {}", eventId, failure)
             );

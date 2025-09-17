@@ -7,6 +7,9 @@ import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
+import io.kneo.broadcaster.model.memory.IMemoryContent;
+import io.kneo.broadcaster.model.memory.Message;
+import io.kneo.broadcaster.model.memory.RadioEvent;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -25,6 +28,7 @@ import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -112,21 +116,35 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
     }
 
     private void createMemory(RoutingContext rc) {
-        String jsonString = rc.body().asString();
-        JsonObject jsonObject = new JsonObject(jsonString);
-        String brand = jsonObject.getString("brand");
-        String memoryTypeStr = jsonObject.getString("memoryType");
-        MemoryDTO dto;
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            dto = mapper.readValue(jsonString, MemoryDTO.class);
-        } catch (Exception e) {
-            rc.fail(e);
+        JsonObject jsonObject = rc.body().asJsonObject();
+        MemoryDTO dto = jsonObject.mapTo(MemoryDTO.class);
+        String brand = dto.getBrand();
+        MemoryType memoryType = dto.getMemoryType();
+
+        List<IMemoryContentDTO> list = dto.getContent();
+        if (list == null || list.isEmpty()) {
+            rc.fail(new IllegalArgumentException("Content list is empty"));
+            return;
+        }
+        IMemoryContentDTO first = list.get(0);
+
+        IMemoryContent content;
+        if (memoryType == MemoryType.EVENT && first instanceof EventDTO eventDTO) {
+            RadioEvent event = new RadioEvent();
+            event.setDescription(eventDTO.getDescription());
+            content = event;
+        } else if (memoryType == MemoryType.MESSAGE && first instanceof MessageDTO messageDTO) {
+            Message message = new Message();
+            message.setContent(messageDTO.getContent());
+            message.setFrom(messageDTO.getFrom());
+            content = message;
+        } else {
+            rc.fail(new IllegalArgumentException("Unknown or mismatched memory type"));
             return;
         }
 
         getContextUser(rc)
-                .chain(user -> service.add(brand, MemoryType.fromValue(memoryTypeStr), dto))
+                .chain(user -> service.add(brand, memoryType, content))
                 .subscribe().with(
                         id -> rc.response().setStatusCode(201).end("{\"id\":\"" + id + "\"}"),
                         rc::fail

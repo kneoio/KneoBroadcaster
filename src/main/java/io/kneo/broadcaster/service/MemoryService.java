@@ -1,8 +1,9 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
-import io.kneo.broadcaster.dto.memory.EventDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
+import io.kneo.broadcaster.dto.memory.EventDTO;
+import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.memory.AudienceContext;
@@ -265,8 +266,12 @@ public class MemoryService {
 
     //TODO it is only adding which not follow the common upsert pattern
     public Uni<MemoryDTO> upsert(String id, MemoryDTO dto, IUser user) {
-        if (dto.getMemoryType() == MemoryType.EVENT) {
-            EventDTO eventDTO = (EventDTO) dto.getContent();
+        List<IMemoryContentDTO> list = dto.getContent();
+        if (list == null || list.isEmpty()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Content list is empty"));
+        }
+        IMemoryContentDTO first = list.get(0);
+        if (dto.getMemoryType() == MemoryType.EVENT && first instanceof EventDTO eventDTO) {
             RadioEvent event = new RadioEvent();
             event.setDescription(eventDTO.getDescription());
             return add(dto.getBrand(), dto.getMemoryType(), event)
@@ -274,8 +279,7 @@ public class MemoryService {
                         dto.setId(UUID.fromString(resultId));
                         return dto;
                     });
-        } else if (dto.getMemoryType() == MemoryType.MESSAGE) {
-            MessageDTO messageDTO = (MessageDTO) dto.getContent();
+        } else if (dto.getMemoryType() == MemoryType.MESSAGE && first instanceof MessageDTO messageDTO) {
             Message message = new Message();
             message.setContent(messageDTO.getContent());
             return add(dto.getBrand(), dto.getMemoryType(), message)
@@ -284,7 +288,7 @@ public class MemoryService {
                         return dto;
                     });
         } else {
-            return Uni.createFrom().failure(new IllegalArgumentException("Unknown memory type"));
+            return Uni.createFrom().failure(new IllegalArgumentException("Unknown or mismatched memory type"));
         }
     }
 
@@ -389,7 +393,6 @@ public class MemoryService {
                     dto.setBrand(memory.getBrand());
                     dto.setColor(radioStation.getColor());
                     dto.setMemoryType(memory.getMemoryType());
-                    dto.setContent(memory.getContent());
                     dto.setRegDate(memory.getRegDate());
                     dto.setLastModifiedDate(memory.getLastModifiedDate());
                     return dto;
@@ -399,7 +402,6 @@ public class MemoryService {
                     dto.setId(memory.getId());
                     dto.setBrand(memory.getBrand());
                     dto.setMemoryType(memory.getMemoryType());
-                    dto.setContent(memory.getContent());
                     dto.setRegDate(memory.getRegDate());
                     dto.setLastModifiedDate(memory.getLastModifiedDate());
                     return dto;

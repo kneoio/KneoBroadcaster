@@ -8,6 +8,8 @@ import lombok.Setter;
 
 import java.time.ZonedDateTime;
 import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 @Getter
 @Setter
@@ -17,7 +19,7 @@ public class Memory {
     private UUID id;
     private String brand;
     private MemoryType memoryType;
-    private IMemoryContent content;
+    private LinkedHashMap<String, List<IMemoryContent>> content;
     private ZonedDateTime regDate;
     private ZonedDateTime lastModifiedDate;
 }

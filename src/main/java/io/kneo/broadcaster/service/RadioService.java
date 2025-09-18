@@ -301,7 +301,7 @@ public class RadioService {
                             .chain(doc -> {
                                 String messageText = dto.getAttachedMessage();
                                 if (messageText != null && !messageText.trim().isEmpty()) {
-                                    return memoryService.addMessage(brand, dto.getEmail(), dto.getAttachedMessage())
+                                    return memoryService.addMessage(brand, dto.getMessageFrom(), dto.getAttachedMessage())
                                             .replaceWith(doc)
                                             .onFailure().invoke(failure ->
                                                     LOGGER.warn("Failed to add message to memory for brand {}: {}", brand, failure.getMessage()));

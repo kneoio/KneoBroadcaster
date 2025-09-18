@@ -109,9 +109,6 @@ public class StationInactivityChecker {
         Instant idleToOfflineThreshold = now.minusSeconds(IDLE_TO_OFFLINE_THRESHOLD_MINUTES * 60L);
         Instant removalThreshold = now.minusSeconds(REMOVAL_DELAY_MINUTES * 60L);
 
-        Collection<RadioStation> onlineStations = radioStationPool.getOnlineStationsSnapshot();
-        LOGGER.info("Currently, there are {} active radio stations.", onlineStations.size());
-
         if (!stationsMarkedForRemoval.isEmpty()) {
             LOGGER.info("Stations marked for removal: {}", stationsMarkedForRemoval.keySet());
         }
@@ -142,7 +139,6 @@ public class StationInactivityChecker {
                             .onItem().transformToUni(radioStation -> {
                                 String slug = radioStation.getSlugName();
                                 RadioStationStatus currentStatus = radioStation.getStatus();
-                                LOGGER.info("Processing station: {} with status: {}", slug, currentStatus);
 
                                 return radioStationService.findLastAccessTimeByStationName(radioStation.getSlugName())
                                         .onItem().transformToUni(lastAccessTime -> {

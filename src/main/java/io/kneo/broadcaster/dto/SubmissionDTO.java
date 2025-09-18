@@ -35,6 +35,7 @@ public class SubmissionDTO {
     private List<String> newlyUploaded;
     private List<UUID> representedInBrands;
     private boolean isShareable;
+    private String messageFrom;
     private String attachedMessage;
     private CountryCode country;
     private String agreedAt;

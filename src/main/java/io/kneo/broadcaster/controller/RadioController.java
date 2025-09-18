@@ -355,15 +355,14 @@ public class RadioController {
         String uploadId = rc.request().getParam("uploadId");
 
         try {
-            fileUploadService
-                    .processDirectStream(rc, uploadId, "radio-controller", AnonymousUser.build())
+            fileUploadService.processDirectStream(rc, uploadId, "radio-controller", AnonymousUser.build())
                     .subscribe().with(
                             dto -> {
                                 LOGGER.info("Upload done: {}", uploadId);
                                 rc.response()
                                         .setStatusCode(200)
                                         .putHeader("Content-Type", "application/json")
-                                        .end(JsonObject.mapFrom(dto).encode());
+                                        .end("{\"message\": \"File uploaded successfully.\"}");
                             },
                             err -> {
                                 LOGGER.error("Upload failed: {}", uploadId, err);

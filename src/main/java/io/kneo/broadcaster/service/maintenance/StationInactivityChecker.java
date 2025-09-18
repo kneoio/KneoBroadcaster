@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StationInactivityChecker {
     private static final Logger LOGGER = LoggerFactory.getLogger(StationInactivityChecker.class);
     private static final int INTERVAL_SECONDS = 60;
-    private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
+    private static final Duration INITIAL_DELAY = Duration.ofMinutes(5);
 
     private static final int WAITING_FOR_CURATOR_THRESHOLD_MINUTES = 10;
     private static final int IDLE_THRESHOLD_MINUTES = 480;

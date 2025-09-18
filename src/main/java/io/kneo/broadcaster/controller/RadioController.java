@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.SubmissionDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.service.FileUploadService;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import io.kneo.officeframe.cnst.CountryCode;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @ApplicationScoped
 public class RadioController {
@@ -41,13 +43,15 @@ public class RadioController {
     private final FileUploadService fileUploadService;
     private final Vertx vertx;
     private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
+    private final String uploadDir;
 
     @Inject
-    public RadioController(RadioService service, ValidationService validationService, FileUploadService fileUploadService, Vertx vertx) {
+    public RadioController(BroadcasterConfig config, RadioService service, ValidationService validationService, FileUploadService fileUploadService, Vertx vertx) {
         this.service = service;
         this.validationService = validationService;
         this.fileUploadService = fileUploadService;
         this.vertx = vertx;
+        this.uploadDir = config.getPathUploads() + "/radio-controller";
     }
 
     @Inject
@@ -373,19 +377,8 @@ public class RadioController {
         LOGGER.info("Upload session started for uploadId: {}", uploadId);
     }
 
-    @Deprecated
-    private void startUploadSessionDeprecated(RoutingContext rc) {
-        startUploadSession(rc);
-    }
-
     private void uploadFile(RoutingContext rc) {
-        String entityId = rc.pathParam("id");
         String uploadId = rc.request().getParam("uploadId");
-
-        if (uploadId == null || uploadId.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
-            return;
-        }
 
         try {
             rc.request().setExpectMultipart(true);
@@ -396,11 +389,11 @@ public class RadioController {
         rc.request().uploadHandler(upload -> {
             try {
                 fileUploadService.validateUploadMeta(upload.filename(), upload.contentType());
-                Path tempFile = Files.createTempFile("radio-upload-" + uploadId + "-", ".tmp");
-                String tempPath = tempFile.toString();
-                upload.streamToFileSystem(tempPath);
+                Path userDir = Files.createDirectories(Paths.get(uploadDir, AnonymousUser.USER_NAME));
+                Path tempFile = Files.createTempFile(userDir, "radio-upload-" + uploadId + "-", ".tmp");
+                upload.streamToFileSystem(tempFile.toString());
                 upload.endHandler(v -> fileUploadService
-                        .processStreamedTempFile(tempPath, uploadId, entityId, AnonymousUser.build(), upload.filename())
+                        .processDirectStream(rc, uploadId, AnonymousUser.build())
                         .subscribe().with(
                                 success -> LOGGER.info("Upload done: {}", uploadId),
                                 error -> LOGGER.error("Upload failed: {}", uploadId, error)

@@ -10,10 +10,11 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MailService {
@@ -55,19 +56,28 @@ public class MailService {
     public Uni<String> verifyCode(String email, String code) {
         return Uni.createFrom().item(() -> {
             synchronized (this) {
+                LOG.info("=== VERIFICATION START ===");
                 LOG.info("Verifying code for email: {} with code: {}", email, code);
-                LOG.info("Currently stored codes: {}", confirmationCodes.keySet());
+                LOG.info("Map size: {}, Map contents: {}", confirmationCodes.size(),
+                        confirmationCodes.entrySet().stream()
+                                .collect(Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        e -> "code=" + e.getValue().code + ", time=" + e.getValue().timestamp
+                                )));
 
                 CodeEntry entry = confirmationCodes.get(email);
 
                 if (entry == null) {
-                    LOG.warn("No entry found for email: {}", email);
+                    LOG.error("No entry found for email: {} in map with {} entries",
+                            email, confirmationCodes.size());
                     return "No confirmation code found for this email address";
                 }
 
-                if (Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes() > 15) {
-                    LOG.warn("Code expired for email: {}. Code time: {}, Current time: {}",
-                            email, entry.timestamp, LocalDateTime.now());
+                long minutesAge = Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes();
+                LOG.info("Code age: {} minutes", minutesAge);
+
+                if (minutesAge > 15) {
+                    LOG.warn("Code expired for email: {}. Age: {} minutes", email, minutesAge);
                     confirmationCodes.remove(email);
                     return "Confirmation code has expired (valid for 15 minutes)";
                 }
@@ -85,8 +95,15 @@ public class MailService {
     }
 
     public void removeCode(String email) {
-        confirmationCodes.remove(email);
+        CodeEntry removed = confirmationCodes.remove(email);
+        if (removed != null) {
+            LOG.info("Removed confirmation code for email: {} (remaining codes: {})",
+                    email, confirmationCodes.size());
+        } else {
+            LOG.warn("Attempted to remove non-existent code for email: {}", email);
+        }
     }
+
 
     @Scheduled(every = "60m")
     void cleanupExpiredCodes() {

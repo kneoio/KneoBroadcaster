@@ -28,7 +28,9 @@ public class FileUploadService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileUploadService.class);
     private static final long MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; //200 mb
 
+    @Deprecated
     private final String uploadDir;
+    private final String uploadDirectory;
     private final AudioMetadataService audioMetadataService;
     public final ConcurrentHashMap<String, UploadFileDTO> uploadProgressMap = new ConcurrentHashMap<>();
 
@@ -45,6 +47,7 @@ public class FileUploadService {
     @Inject
     public FileUploadService(BroadcasterConfig config, AudioMetadataService audioMetadataService) {
         this.uploadDir = config.getPathUploads() + "/sound-fragments-controller";
+        this.uploadDirectory = config.getPathUploads();
         this.audioMetadataService = audioMetadataService;
     }
 
@@ -166,7 +169,7 @@ public class FileUploadService {
                                 try {
                                     Files.deleteIfExists(tempInFinalDir);
                                     Files.deleteIfExists(destination);
-                                } catch (IOException cleanupError) {
+                                } catch (IOException ignored) {
                                 }
                                 emitter.fail(e);
                             }
@@ -174,18 +177,13 @@ public class FileUploadService {
 
                         upload.exceptionHandler(err -> {
                             try {
-                                Path userDir;
-                                if (controllerKey != null && !controllerKey.isBlank()) {
-                                    userDir = Paths.get(uploadDir, controllerKey, user.getUserName(), entityId != null ? entityId : "temp");
-                                } else {
-                                    userDir = Paths.get(uploadDir, user.getUserName(), entityId != null ? entityId : "temp");
-                                }
+                                Path userDir = Paths.get(uploadDir, controllerKey, user.getUserName(), entityId != null ? entityId : "temp");
                                 Files.list(userDir)
                                         .filter(p -> p.getFileName().toString().startsWith(".tmp_" + uploadId + "_"))
                                         .forEach(p -> {
                                             try { Files.deleteIfExists(p); } catch (IOException ignored) {}
                                         });
-                            } catch (IOException cleanupError) {
+                            } catch (IOException ignored) {
                             }
                             emitter.fail(err);
                         });
@@ -215,8 +213,7 @@ public class FileUploadService {
 
     @Deprecated
     private Path setupDirectoriesAndPath(String entityId, IUser user, String safeFileName) throws Exception {
-        Path baseDir = Paths.get(uploadDir, user.getUserName());
-        Path userDir = Files.createDirectories(baseDir);
+        Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
         String entityIdSafe = entityId != null ? entityId : "temp";
 
         if (!"temp".equals(entityIdSafe)) {
@@ -242,26 +239,22 @@ public class FileUploadService {
     }
 
     private Path setupDirectoriesAndPath(String controllerKey, String entityId, IUser user, String safeFileName) throws Exception {
-        Path baseDir = Paths.get(uploadDir, controllerKey, user.getUserName());
-        Path userDir = Files.createDirectories(baseDir);
-        String entityIdSafe = entityId != null ? entityId : "temp";
-
-        if (!"temp".equals(entityIdSafe)) {
+        if (!"temp".equals(entityId)) {
             try {
-                UUID.fromString(entityIdSafe);
+                UUID.fromString(entityId);
             } catch (IllegalArgumentException e) {
-                LOGGER.warn("Invalid entity ID: {} from user: {}", entityIdSafe, user.getUserName());
+                LOGGER.warn("Invalid entity ID: {}, controller: {}", entityId, controllerKey);
                 throw new IllegalArgumentException("Invalid entity ID");
             }
         }
 
-        Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
+        Path userDir = Files.createDirectories(Paths.get(uploadDirectory, controllerKey, user.getUserName()));
+        Path entityDir = Files.createDirectories(userDir.resolve(entityId));
         Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
-        Path expectedBase = Paths.get(uploadDir, controllerKey, user.getUserName(), entityIdSafe);
+        Path expectedBase = Paths.get(uploadDirectory, controllerKey, user.getUserName(), entityId);
 
         if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
-            LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
-                    user.getUserName(), safeFileName);
+            LOGGER.error("Security violation: Path traversal attempt with filename {}", safeFileName);
             throw new SecurityException("Invalid file path");
         }
 

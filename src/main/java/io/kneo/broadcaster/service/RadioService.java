@@ -266,7 +266,7 @@ public class RadioService {
                             FileMetadata fileMetadata = new FileMetadata();
                             String entityId = "temp";
 
-                            Path baseDir = Paths.get(config.getPathUploads() + "/sound-fragments-controller", AnonymousUser.USER_NAME, entityId);
+                            Path baseDir = Paths.get(config.getPathUploads() + "/radio-controller", AnonymousUser.USER_NAME, entityId);
                             Path secureFilePath;
                             try {
                                 secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);

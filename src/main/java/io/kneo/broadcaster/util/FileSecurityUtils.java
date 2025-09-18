@@ -69,10 +69,6 @@ public class FileSecurityUtils {
     }
 
     public static Path secureResolve(Path baseDirectory, String filename) {
-        if (baseDirectory == null) {
-            throw new IllegalArgumentException("Base directory cannot be null");
-        }
-
         String secureFilename = sanitizeFilename(filename);
 
         try {

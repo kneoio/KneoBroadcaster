@@ -50,20 +50,25 @@ public class MailService {
                 .onFailure().invoke(failure -> LOG.error("Failed to send email", failure));
     }
 
-    public Uni<Boolean> verifyCode(String email, String code) {
+    public Uni<String> verifyCode(String email, String code) {
         return Uni.createFrom().item(() -> {
             synchronized (this) {
                 CodeEntry entry = confirmationCodes.get(email);
+
                 if (entry == null) {
-                    return false;
+                    return "No confirmation code found for this email address";
                 }
 
                 if (Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes() > 15) {
                     confirmationCodes.remove(email);
-                    return false;
+                    return "Confirmation code has expired (valid for 15 minutes)";
                 }
 
-                return entry.code.equals(code) || code.equals("fafa");
+                if (!entry.code.equals(code) && !code.equals("fafa")) {
+                    return "Invalid confirmation code";
+                }
+
+                return null;
             }
         });
     }

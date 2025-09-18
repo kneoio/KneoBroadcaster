@@ -11,6 +11,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.service.FileDownloadService;
 import io.kneo.broadcaster.service.FileUploadService;
+import io.kneo.broadcaster.service.ValidationResult;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
@@ -221,9 +222,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             SoundFragmentDTO dto = rc.body().asJsonObject().mapTo(SoundFragmentDTO.class);
             String id = rc.pathParam("id");
 
-            ValidationService.ValidationResult validationResult = validationService.validateSoundFragmentDTO(dto);
-            if (!validationResult.isValid()) {
-                rc.fail(400, new IllegalArgumentException(validationResult.getErrorMessage()));
+            ValidationResult validationResult = validationService.validateSoundFragmentDTO(dto);
+            if (!validationResult.valid()) {
+                rc.fail(400, new IllegalArgumentException(validationResult.errorMessage()));
                 return;
             }
 

@@ -273,8 +273,8 @@ public class RadioController {
 
             validationService.validateSubmissionDTO(dto)
                     .chain(validationResult -> {
-                        if (!validationResult.isValid()) {
-                            return Uni.createFrom().failure(new IllegalArgumentException(validationResult.getErrorMessage()));
+                        if (!validationResult.valid()) {
+                            return Uni.createFrom().failure(new IllegalArgumentException(validationResult.errorMessage()));
                         }
                         return service.submit(brand, dto);
                     })

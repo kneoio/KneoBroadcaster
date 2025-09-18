@@ -8,7 +8,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,13 +70,13 @@ public class ValidationService {
 
         if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
             return mailService.verifyCode(dto.getEmail(), dto.getConfirmationCode())
-                    .map(isValid -> {
-                        if (isValid) {
+                    .map(result -> {
+                        if (result == null) {
                             mailService.removeCode(dto.getEmail());
                             return ValidationResult.success();
                         } else {
-                            LOGGER.warn("Invalid confirmation code for email: {}", dto.getEmail());
-                            return ValidationResult.failure("Invalid or expired confirmation code");
+                            LOGGER.warn("Email verification failed for {}: {}", dto.getEmail(), result);
+                            return ValidationResult.failure(result);
                         }
                     });
         }
@@ -85,22 +84,4 @@ public class ValidationService {
         return Uni.createFrom().item(ValidationResult.success());
     }
 
-    @Getter
-    public static class ValidationResult {
-        private final boolean valid;
-        private final String errorMessage;
-
-        private ValidationResult(boolean valid, String errorMessage) {
-            this.valid = valid;
-            this.errorMessage = errorMessage;
-        }
-
-        public static ValidationResult success() {
-            return new ValidationResult(true, null);
-        }
-
-        public static ValidationResult failure(String errorMessage) {
-            return new ValidationResult(false, errorMessage);
-        }
-    }
 }

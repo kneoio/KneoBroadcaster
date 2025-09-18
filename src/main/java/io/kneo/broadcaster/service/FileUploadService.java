@@ -94,12 +94,10 @@ public class FileUploadService {
                 LOGGER.info("Processing file upload - UploadId: {}, EntityId: {}, User: {}, File: {}",
                         uploadId, entityId, user.getUserName(), originalFileName);
 
-                // Step 1: Setup and validation
                 updateProgress(uploadId, 10, "validation", null, null, null, null);
                 String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
                 Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
 
-                // Step 2: Move file
                 updateProgress(uploadId, 20, "preparation", null, null, null, null);
                 Path tempFile = Paths.get(uploadedFile.uploadedFileName());
 
@@ -107,16 +105,13 @@ public class FileUploadService {
                 Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
                 LOGGER.info("File moved successfully to: {}", destination);
 
-                // Step 3: Verify file exists
                 if (!Files.exists(destination)) {
                     throw new IOException("File move appeared to succeed but destination file does not exist");
                 }
 
-                // Step 4: Extract metadata
                 updateProgress(uploadId, 30, "extract_metadata", null, null, null, null);
                 AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
 
-                // Step 5: Complete
                 String fileUrl = generateFileUrl(entityId, safeFileName);
                 updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata, null);
 
@@ -131,79 +126,78 @@ public class FileUploadService {
         }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
     }
 
-
-    public Uni<Void> processDirectStream(RoutingContext rc, String uploadId, IUser user) {
-        return  processDirectStream(rc, uploadId, "temp", user);
+    public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, IUser user) {
+        return processDirectStream(rc, uploadId, controllerKey, "temp", user);
     }
 
-    public Uni<Void> processDirectStream(RoutingContext rc, String uploadId, String entityId, IUser user) {
-        return Uni.createFrom().voidItem().emitOn(Infrastructure.getDefaultExecutor()).onItem().transformToUni(ignore -> {
+    public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, String entityId, IUser user) {
+        return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
             try {
-                String originalFileName = rc.request().getParam("filename");
-                if (originalFileName == null) {
-                    throw new IllegalArgumentException("filename parameter is required");
-                }
-
-                LOGGER.info("Processing direct stream - File: {}", originalFileName);
-
-                String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
-                Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
-                Path tempInFinalDir = destination.getParent().resolve(".tmp_" + uploadId + "_" + safeFileName);
-
                 rc.request().setExpectMultipart(true);
 
                 rc.request().uploadHandler(upload -> {
                     try {
-                        validateUploadMeta(upload.filename(), upload.contentType());
+                        String originalFileName = upload.filename();
+                        validateUploadMeta(originalFileName, upload.contentType());
+                        String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
+                        Path destination = setupDirectoriesAndPath(controllerKey, entityId, user, safeFileName);
+                        Path tempInFinalDir = destination.getParent().resolve(".tmp_" + uploadId + "_" + safeFileName);
                         upload.streamToFileSystem(tempInFinalDir.toString());
 
                         upload.endHandler(v -> {
                             try {
-
                                 if (Files.size(tempInFinalDir) > MAX_FILE_SIZE_BYTES) {
                                     Files.deleteIfExists(tempInFinalDir);
-                                    throw new IllegalArgumentException(String.format("File too large. Maximum size is %d MB",
-                                            MAX_FILE_SIZE_BYTES / 1024 / 1024));
+                                    emitter.fail(new IllegalArgumentException(String.format("File too large. Maximum size is %d MB",
+                                            MAX_FILE_SIZE_BYTES / 1024 / 1024)));
+                                    return;
                                 }
                                 Files.move(tempInFinalDir, destination, StandardCopyOption.REPLACE_EXISTING);
                                 String fileUrl = generateFileUrl(entityId, safeFileName);
-                                LOGGER.info("Direct stream completed - UploadId: {}, FinalPath: {}", uploadId, destination);
-
+                                UploadFileDTO dto = UploadFileDTO.builder()
+                                        .status("finished")
+                                        .percentage(100)
+                                        .batchId(uploadId)
+                                        .name(safeFileName)
+                                        .url(fileUrl)
+                                        .build();
+                                emitter.complete(dto);
                             } catch (Exception e) {
                                 try {
                                     Files.deleteIfExists(tempInFinalDir);
                                     Files.deleteIfExists(destination);
                                 } catch (IOException cleanupError) {
-                                    LOGGER.warn("Cleanup failed after error: {}", cleanupError.getMessage());
                                 }
-                                LOGGER.error("Direct stream processing failed - UploadId: {}, Error: {}", uploadId, e.getMessage(), e);
+                                emitter.fail(e);
                             }
                         });
 
                         upload.exceptionHandler(err -> {
                             try {
-                                Files.deleteIfExists(tempInFinalDir);
+                                Path userDir;
+                                if (controllerKey != null && !controllerKey.isBlank()) {
+                                    userDir = Paths.get(uploadDir, controllerKey, user.getUserName(), entityId != null ? entityId : "temp");
+                                } else {
+                                    userDir = Paths.get(uploadDir, user.getUserName(), entityId != null ? entityId : "temp");
+                                }
+                                Files.list(userDir)
+                                        .filter(p -> p.getFileName().toString().startsWith(".tmp_" + uploadId + "_"))
+                                        .forEach(p -> {
+                                            try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+                                        });
                             } catch (IOException cleanupError) {
-                                LOGGER.warn("Cleanup failed after stream error: {}", cleanupError.getMessage());
                             }
-                            LOGGER.error("Upload stream failed - UploadId: {}", uploadId, err);
-                            updateProgress(uploadId, null, "error", null, null, null, err.getMessage());
+                            emitter.fail(err);
                         });
 
                     } catch (Exception e) {
-                        LOGGER.error("Upload handler setup failed - UploadId: {}", uploadId, e);
-                        updateProgress(uploadId, null, "error", null, null, null, e.getMessage());
+                        emitter.fail(e);
                     }
                 });
-
-                return Uni.createFrom().voidItem();
-
             } catch (Exception e) {
-                LOGGER.error("Direct stream setup failed - UploadId: {}, Error: {}", uploadId, e.getMessage(), e);
-                updateProgress(uploadId, null, "error", null, null, null, e.getMessage());
-                return Uni.createFrom().failure(e);
+                emitter.fail(e);
             }
-        });
+        }).emitOn(Infrastructure.getDefaultExecutor());
     }
 
     public UploadFileDTO getUploadProgress(String uploadId) {
@@ -219,8 +213,10 @@ public class FileUploadService {
         }
     }
 
+    @Deprecated
     private Path setupDirectoriesAndPath(String entityId, IUser user, String safeFileName) throws Exception {
-        Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
+        Path baseDir = Paths.get(uploadDir, user.getUserName());
+        Path userDir = Files.createDirectories(baseDir);
         String entityIdSafe = entityId != null ? entityId : "temp";
 
         if (!"temp".equals(entityIdSafe)) {
@@ -235,6 +231,33 @@ public class FileUploadService {
         Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
         Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
         Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
+
+        if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
+            LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
+                    user.getUserName(), safeFileName);
+            throw new SecurityException("Invalid file path");
+        }
+
+        return destination;
+    }
+
+    private Path setupDirectoriesAndPath(String controllerKey, String entityId, IUser user, String safeFileName) throws Exception {
+        Path baseDir = Paths.get(uploadDir, controllerKey, user.getUserName());
+        Path userDir = Files.createDirectories(baseDir);
+        String entityIdSafe = entityId != null ? entityId : "temp";
+
+        if (!"temp".equals(entityIdSafe)) {
+            try {
+                UUID.fromString(entityIdSafe);
+            } catch (IllegalArgumentException e) {
+                LOGGER.warn("Invalid entity ID: {} from user: {}", entityIdSafe, user.getUserName());
+                throw new IllegalArgumentException("Invalid entity ID");
+            }
+        }
+
+        Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
+        Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
+        Path expectedBase = Paths.get(uploadDir, controllerKey, user.getUserName(), entityIdSafe);
 
         if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
             LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",

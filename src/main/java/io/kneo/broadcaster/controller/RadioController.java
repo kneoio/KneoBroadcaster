@@ -2,7 +2,7 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.SubmissionDTO;
-import io.kneo.broadcaster.dto.UploadFileDTO;
+
 import io.kneo.broadcaster.service.FileUploadService;
 import io.kneo.broadcaster.service.GeolocationService;
 import io.kneo.broadcaster.service.RadioService;
@@ -14,7 +14,7 @@ import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.Vertx;
+
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
@@ -30,9 +30,6 @@ import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.kneo.officeframe.cnst.CountryCode;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 @ApplicationScoped
 public class RadioController {
@@ -41,17 +38,13 @@ public class RadioController {
     private static final String[] SUPPORTED_MIXPLA_VERSIONS = {"2.5.5", "2.5.6", "2.5.7", "2.5.8", "2.5.9"};
     private final ValidationService validationService;
     private final FileUploadService fileUploadService;
-    private final Vertx vertx;
     private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
-    private final String uploadDir;
 
     @Inject
-    public RadioController(BroadcasterConfig config, RadioService service, ValidationService validationService, FileUploadService fileUploadService, Vertx vertx) {
+    public RadioController(BroadcasterConfig config, RadioService service, ValidationService validationService, FileUploadService fileUploadService) {
         this.service = service;
         this.validationService = validationService;
         this.fileUploadService = fileUploadService;
-        this.vertx = vertx;
-        this.uploadDir = config.getPathUploads() + "/radio-controller";
     }
 
     @Inject
@@ -73,19 +66,13 @@ public class RadioController {
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
-
-        router.route(HttpMethod.GET,  "/radio/:brand/submissions/files/:uploadId/stream").handler(this::streamProgress);
-        router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:uploadId/stream").handler(rc -> rc.response().setStatusCode(204).end());
-
+       
          router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)
                 .handler(this::submit);
 
-        router.route(HttpMethod.GET, "/radio/:brand/submissions/files/start").handler(this::startUploadSession);
-        //router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/start").handler(rc -> rc.response().setStatusCode(204).end());
-        //router.route(HttpMethod.POST, "/radio/:brand/submissions/files/start").handler(jsonBodyHandler).handler(this::startUploadSessionDeprecated);
-        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile); // streaming upload
+        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile); 
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:id").handler(rc -> rc.response().setStatusCode(204).end());
     }
 
@@ -364,87 +351,37 @@ public class RadioController {
         }
     }
 
-    private void startUploadSession(RoutingContext rc) {
-        String uploadId = rc.request().getParam("uploadId");
-        String clientStartTimeStr = rc.request().getParam("startTime");
-        UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, clientStartTimeStr);
-        rc.response()
-                .putHeader("Content-Type", "application/json")
-                .putHeader("Cache-Control", "no-store, no-cache, must-revalidate")
-                .putHeader("Pragma", "no-cache")
-                .end(JsonObject.mapFrom(uploadDto).encode());
-
-        LOGGER.info("Upload session started for uploadId: {}", uploadId);
-    }
-
     private void uploadFile(RoutingContext rc) {
         String uploadId = rc.request().getParam("uploadId");
 
         try {
-            rc.request().setExpectMultipart(true);
-        } catch (IllegalStateException ignore) {
+            fileUploadService
+                    .processDirectStream(rc, uploadId, "radio-controller", AnonymousUser.build())
+                    .subscribe().with(
+                            dto -> {
+                                LOGGER.info("Upload done: {}", uploadId);
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(JsonObject.mapFrom(dto).encode());
+                            },
+                            err -> {
+                                LOGGER.error("Upload failed: {}", uploadId, err);
+                                if (err instanceof IllegalArgumentException e) {
+                                    int status = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
+                                    rc.response().setStatusCode(status).end(e.getMessage());
+                                } else {
+                                    rc.response().setStatusCode(500).end("Upload failed");
+                                }
+                            }
+                    );
+        } catch (IllegalArgumentException e) {
+            int statusCode = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
+            rc.fail(statusCode, e);
+        } catch (Exception e) {
+            rc.fail(e);
         }
-        rc.response().setStatusCode(202).end();
-
-        rc.request().uploadHandler(upload -> {
-            try {
-                fileUploadService.validateUploadMeta(upload.filename(), upload.contentType());
-                Path userDir = Files.createDirectories(Paths.get(uploadDir, AnonymousUser.USER_NAME));
-                Path tempFile = Files.createTempFile(userDir, "radio-upload-" + uploadId + "-", ".tmp");
-                upload.streamToFileSystem(tempFile.toString());
-                upload.endHandler(v -> fileUploadService
-                        .processDirectStream(rc, uploadId, AnonymousUser.build())
-                        .subscribe().with(
-                                success -> LOGGER.info("Upload done: {}", uploadId),
-                                error -> LOGGER.error("Upload failed: {}", uploadId, error)
-                        )
-                );
-                upload.exceptionHandler(err -> {
-                    LOGGER.error("Upload stream failed: {}", uploadId, err);
-                });
-            } catch (IllegalArgumentException e) {
-                int statusCode = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
-                rc.fail(statusCode, e);
-            } catch (Exception e) {
-                rc.fail(e);
-            }
-        });
     }
 
-    private void streamProgress(RoutingContext rc) {
-        String uploadId = rc.pathParam("uploadId");
-
-        rc.response()
-                .putHeader("Content-Type", "text/event-stream")
-                .putHeader("Cache-Control", "no-cache")
-                .setChunked(true);
-
-        UploadFileDTO initial = fileUploadService.getUploadProgress(uploadId);
-        if (initial != null) {
-            rc.response().write("data: " + JsonObject.mapFrom(initial).encode() + "\n\n");
-        } else {
-            UploadFileDTO waiting = UploadFileDTO.builder()
-                    .status("pending")
-                    .percentage(0)
-                    .batchId(uploadId)
-                    .build();
-            rc.response().write("data: " + JsonObject.mapFrom(waiting).encode() + "\n\n");
-        }
-
-        long timerId = vertx.setPeriodic(500, id -> {
-            UploadFileDTO progress = fileUploadService.getUploadProgress(uploadId);
-            if (progress != null) {
-                rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
-
-                if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
-                    vertx.cancelTimer(id);
-                    rc.response().end();
-                }
-            }
-        });
-
-        rc.request().connection().closeHandler(v -> {
-            vertx.cancelTimer(timerId);
-        });
-    }
+    
 }

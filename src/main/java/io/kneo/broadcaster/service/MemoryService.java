@@ -31,9 +31,9 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class MemoryService {
 
-    private static final int MAX_CONVERSATION_HISTORY = 4;
-    private static final int MAX_EVENTS = 3;
-    private static final int MAX_MESSAGES = 1;
+    private static final int MAX_CONVERSATION_HISTORY = 1;
+    private static final int MAX_EVENTS = 20;
+    private static final int MAX_MESSAGES = 20;
 
     @Inject
     ListenerService listenerService;
@@ -190,11 +190,15 @@ public class MemoryService {
     }
 
     public Uni<String> addEvent(String brand, String timestamp, String description) {
+        if (description == null || description.isBlank()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Event description cannot be empty"));
+        }
         EventDTO eventDTO = new EventDTO();
         eventDTO.setTimestamp(timestamp);
         eventDTO.setDescription(description);
         return add(brand, MemoryType.EVENT, eventDTO);
     }
+
 
     public Uni<String> addMessage(String brand, String from, String message) {
         MessageDTO messageDTO = new MessageDTO();

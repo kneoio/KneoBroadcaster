@@ -87,13 +87,13 @@ public class AudioConcatenator {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private String directConcatenation(String firstPath, String secondPath, String outputPath, double gainValue) throws Exception {
+    private String directConcatenation(String firstPath, String secondPath, String outputPath, double gainValue) {
         FFmpegBuilder builder = new FFmpegBuilder()
                 .setInput(firstPath)
                 .addInput(secondPath)
                 .setComplexFilter(String.format(
-                        "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
-                                "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
+                        "[0]volume=%.2f,aresample=async=1,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
+                                "[1]aresample=async=1,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
                                 "[first][second]concat=n=2:v=0:a=1",
                         gainValue))
                 .addOutput(outputPath)
@@ -105,6 +105,7 @@ public class AudioConcatenator {
         executor.createJob(builder).run();
         return outputPath;
     }
+
 
     private String concatenateWithSilenceGap(String firstPath, String secondPath, String outputPath,
                                              double silenceDuration) throws Exception {

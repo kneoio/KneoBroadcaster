@@ -7,7 +7,6 @@ import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.file.HetznerStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -179,7 +178,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 : null;
 
         if (filesToProcess != null && !filesToProcess.isEmpty()) {
-            doc.setSource(SourceType.USERS_UPLOAD);
+            //doc.setSource(SourceType.USERS_UPLOAD);
             FileMetadata meta = filesToProcess.get(0);
             Path filePath = meta.getFilePath();
             if (filePath == null) {

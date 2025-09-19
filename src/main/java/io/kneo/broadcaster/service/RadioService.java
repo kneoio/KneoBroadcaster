@@ -251,7 +251,7 @@ public class RadioService {
         return radioStationService.getBySlugName(brand)
                 .chain(radioStation -> {
                     SoundFragment entity = buildEntity(dto);
-
+                    entity.setSource(SourceType.SUBMISSION);
                     List<FileMetadata> fileMetadataList = new ArrayList<>();
                     if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
                         for (String fileName : dto.getNewlyUploaded()) {

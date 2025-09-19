@@ -362,7 +362,7 @@ public class RadioController {
                                 rc.response()
                                         .setStatusCode(200)
                                         .putHeader("Content-Type", "application/json")
-                                        .end("{\"message\": \"File uploaded successfully.\"}");
+                                        .end(io.vertx.core.json.Json.encode(dto));
                             },
                             err -> {
                                 LOGGER.error("Upload failed: {}", uploadId, err);
@@ -382,5 +382,6 @@ public class RadioController {
         }
     }
 
-    
+
+
 }

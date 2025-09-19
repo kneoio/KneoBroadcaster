@@ -130,10 +130,10 @@ public class FileUploadService {
     }
 
     public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, IUser user) {
-        return processDirectStream(rc, uploadId, controllerKey, "temp", user);
+        return processDirectStream(rc, uploadId, controllerKey, "temp", user, true);
     }
 
-    public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, String entityId, IUser user) {
+    public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, String entityId, IUser user, boolean extractMetadata) {
         return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
             try {
                 rc.request().setExpectMultipart(true);
@@ -157,20 +157,26 @@ public class FileUploadService {
                                 }
                                 Files.move(tempInFinalDir, destination, StandardCopyOption.REPLACE_EXISTING);
                                 String fileUrl = generateFileUrl(entityId, safeFileName);
+
+                                AudioMetadataDTO metadata = null;
+                                if (extractMetadata) {
+                                    metadata = extractMetadata(destination, originalFileName, uploadId);
+                                }
+
                                 UploadFileDTO dto = UploadFileDTO.builder()
                                         .status("finished")
                                         .percentage(100)
                                         .batchId(uploadId)
                                         .name(safeFileName)
                                         .url(fileUrl)
+                                        .metadata(metadata)
                                         .build();
                                 emitter.complete(dto);
                             } catch (Exception e) {
                                 try {
                                     Files.deleteIfExists(tempInFinalDir);
                                     Files.deleteIfExists(destination);
-                                } catch (IOException ignored) {
-                                }
+                                } catch (IOException ignored) {}
                                 emitter.fail(e);
                             }
                         });
@@ -183,8 +189,7 @@ public class FileUploadService {
                                         .forEach(p -> {
                                             try { Files.deleteIfExists(p); } catch (IOException ignored) {}
                                         });
-                            } catch (IOException ignored) {
-                            }
+                            } catch (IOException ignored) {}
                             emitter.fail(err);
                         });
 
@@ -197,6 +202,7 @@ public class FileUploadService {
             }
         }).emitOn(Infrastructure.getDefaultExecutor());
     }
+
 
     public UploadFileDTO getUploadProgress(String uploadId) {
         return uploadProgressMap.get(uploadId);

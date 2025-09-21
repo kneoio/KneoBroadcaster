@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.broadcaster.dto.memory.EventDTO;
+import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
 import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
@@ -138,8 +138,8 @@ public class MemoryController extends AbstractSecuredController<Object, MemoryDT
                 if (memoryTypeStr.equals(MemoryType.EVENT.name())) {
                     for (int i = 0; i < contentArray.size(); i++) {
                         JsonObject contentObj = contentArray.getJsonObject(i);
-                        EventDTO eventDTO = mapper.readValue(contentObj.encode(), EventDTO.class);
-                        Set<ConstraintViolation<EventDTO>> violations = validator.validate(eventDTO);
+                        EventInMemoryDTO eventDTO = mapper.readValue(contentObj.encode(), EventInMemoryDTO.class);
+                        Set<ConstraintViolation<EventInMemoryDTO>> violations = validator.validate(eventDTO);
                         if (!violations.isEmpty()) {
                             String errors = violations.stream()
                                     .map(ConstraintViolation::getMessage)

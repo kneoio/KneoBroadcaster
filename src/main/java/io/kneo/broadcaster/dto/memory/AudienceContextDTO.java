@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AudienceContextDTO {
+public class AudienceContextDTO implements IMemoryContentDTO {
     private String name;
     private String description;
     private String currentMoment;

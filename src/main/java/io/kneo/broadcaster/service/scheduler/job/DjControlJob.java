@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.scheduler.job;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -50,7 +51,7 @@ public class DjControlJob implements Job {
                 .filter(station -> !station.isAiControlAllowed())
                 .forEach(station -> {
                     station.setAiControlAllowed(true);
-                    createEvent(brand, "The shift of the dj started");
+                    createEventMemory(brand, EventType.SHIFT_STARTED, "The shift of the dj started");
                     LOGGER.info("Started DJ control for station: {} with target: {}", brand, target);
                 });
     }
@@ -87,7 +88,7 @@ public class DjControlJob implements Job {
                             .subscribe().with(
                                     deletedCount -> {
                                         LOGGER.debug("Deleted {} existing events for station: {}", deletedCount, brand);
-                                        createEvent(brand, "The shift of the dj ended");
+                                        createEventMemory(brand,  EventType.SHIFT_ENDING,"The shift of the dj ended");
                                     },
                                     failure -> LOGGER.error("Failed to delete existing events for station: {}", brand, failure)
                             );
@@ -96,8 +97,8 @@ public class DjControlJob implements Job {
                 });
     }
 
-    private void createEvent(String stationSlugName, String message) {
-        memoryService.addEvent(stationSlugName, null, message)
+    private void createEventMemory(String stationSlugName, EventType eventType, String message) {
+        memoryService.addEvent(stationSlugName, eventType, null, message)
                 .subscribe().with(
                         id -> LOGGER.debug("Memory created with ID: {} for station: {}", id, stationSlugName),
                         failure -> LOGGER.error("Failed to create memory for station: {}", stationSlugName, failure)

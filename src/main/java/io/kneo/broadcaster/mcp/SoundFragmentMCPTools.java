@@ -60,6 +60,7 @@ public class SoundFragmentMCPTools {
                     .artist(soundFragment.getArtist())
                     .genres(List.of())
                     .album(soundFragment.getAlbum())
+                    .description(soundFragment.getDescription())
                     .build());
         }
 

@@ -25,6 +25,7 @@ public class SoundFragmentMcpDTO extends AbstractDTO {
     private String slugName;
     private List<String> brands;
     private List<UUID> representedInBrands;
+    private String description;
 
     public SoundFragmentMcpDTO(String id) {
         this.id = UUID.fromString(id);

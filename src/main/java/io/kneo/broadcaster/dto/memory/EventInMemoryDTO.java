@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.dto.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.model.cnst.EventType;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,10 +13,10 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class MessageDTO implements IMemoryContentDTO {
+public class EventInMemoryDTO implements IMemoryContentDTO {
     UUID id;
-    @NotBlank(message = "Sender is required")
-    private String from;
-    @NotBlank(message = "Message content is required")
-    private String content;
+    @NotBlank(message = "Event type is required")
+    private EventType type;
+    private String triggerTime;
+    private String description;
 }

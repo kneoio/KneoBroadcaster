@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.scheduler.job;
 
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.service.MemoryService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -25,7 +26,7 @@ public class EventTriggerJob implements Job {
         LOGGER.info("Executing event trigger {} for brand {}", eventId, slugName);
 
         try {
-            memoryService.addEvent(slugName, null, "").subscribe().with(
+            memoryService.addEvent(slugName, EventType.valueOf(type), null,"").subscribe().with(
                     id -> LOGGER.debug("Memory created with ID: {} for event {}", id, eventId),
                     failure -> LOGGER.error("Failed to create memory for event {}", eventId, failure)
             );

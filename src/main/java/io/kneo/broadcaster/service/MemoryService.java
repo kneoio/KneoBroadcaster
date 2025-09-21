@@ -3,11 +3,12 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.dto.memory.AudienceContextDTO;
 import io.kneo.broadcaster.dto.memory.ConversationHistoryDTO;
-import io.kneo.broadcaster.dto.memory.EventDTO;
+import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
 import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
-import io.kneo.broadcaster.dto.memory.ListenerContext;
+import io.kneo.broadcaster.dto.memory.ListenerContextDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
+import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
@@ -71,130 +72,36 @@ public class MemoryService {
     public Uni<JsonObject> getByType(String brand, String... types) {
         JsonObject result = new JsonObject();
         List<Uni<Void>> uniList = new ArrayList<>();
+        ConcurrentMap<String, MemoryDTO> brandMap = memories.computeIfAbsent(brand, k -> new ConcurrentHashMap<>());
 
         for (String type : types) {
             MemoryType memoryType = MemoryType.valueOf(type);
 
             switch (memoryType) {
-                case CONVERSATION_HISTORY -> {
-                    ConcurrentMap<String, MemoryDTO> brandMap = memories.get(brand);
-                    if (brandMap != null) {
-                        JsonArray historyArray = new JsonArray();
-                        brandMap.values().stream()
-                                .filter(dto -> dto.getMemoryType() == MemoryType.CONVERSATION_HISTORY)
-                                .forEach(dto -> {
-                                    List<IMemoryContentDTO> content = dto.getContent();
-                                    if (content != null && !content.isEmpty()) {
-                                        content.forEach(historyItem -> {
-                                            JsonObject historyWithId = new JsonObject()
-                                                    .put("id", dto.getId().toString())
-                                                    .put("content", historyItem);
-                                            historyArray.add(historyWithId);
-                                        });
-                                    }
-                                });
-                        result.put(MemoryType.CONVERSATION_HISTORY.getValue(), historyArray);
-                    }
-                    if (!result.containsKey(MemoryType.CONVERSATION_HISTORY.getValue())) {
-                        result.put(MemoryType.CONVERSATION_HISTORY.getValue(), new JsonArray());
-                    }
+                case AUDIENCE_CONTEXT -> {
+                    Uni<Void> audienceUni = getAudienceContext(brand, brandMap, result);
+                    if (audienceUni != null) uniList.add(audienceUni);
                 }
                 case LISTENER_CONTEXT -> {
-                    Uni<Void> listenerUni = listenerService.getBrandListenersEntities(brand, 1000, 0, SuperUser.build())
-                            .map(brandListeners -> {
-                                List<ListenerContext> listeners = brandListeners.stream()
-                                        .map(bl -> {
-                                            ListenerContext context = new ListenerContext();
-                                            context.setName(bl.getListener().getLocalizedName().get(LanguageCode.en));
-                                            String nickname = bl.getListener().getNickName().get(LanguageCode.en);
-                                            if (nickname != null) {
-                                                context.setNickname(nickname);
-                                            }
-                                            context.setLocation(bl.getListener().getCountry().getCountryName());
-                                            return context;
-                                        })
-                                        .collect(Collectors.toList());
-
-                                result.put(MemoryType.LISTENER_CONTEXT.getValue(), new JsonArray(listeners));
-                                return null;
-                            });
-                    uniList.add(listenerUni);
+                    Uni<Void> listenerUni = getListenerContext(brand, brandMap, result);
+                    if (listenerUni != null) uniList.add(listenerUni);
                 }
-                case AUDIENCE_CONTEXT -> {
-                    Uni<Void> audienceUni = radioStationService.getBySlugName(brand)
-                            .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
-                            .map(profile -> {
-                                AudienceContextDTO audienceContext = new AudienceContextDTO();
-                                audienceContext.setName(profile.getName());
-                                audienceContext.setDescription(profile.getDescription());
-                                audienceContext.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
-
-                                result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(audienceContext));
-                                return null;
-                            });
-                    uniList.add(audienceUni);
-                }
-                case MESSAGE -> {
-                    ConcurrentMap<String, MemoryDTO> brandMap = memories.get(brand);
-                    if (brandMap != null) {
-                        JsonArray messageArray = new JsonArray();
-                        brandMap.values().stream()
-                                .filter(dto -> dto.getMemoryType() == MemoryType.MESSAGE)
-                                .forEach(dto -> {
-                                    List<IMemoryContentDTO> content = dto.getContent();
-                                    if (content != null && !content.isEmpty()) {
-                                        content.forEach(message -> {
-                                            JsonObject messageWithId = new JsonObject()
-                                                    .put("id", dto.getId().toString())
-                                                    .put("content", message);
-                                            messageArray.add(messageWithId);
-                                        });
-                                    }
-                                });
-                        result.put(MemoryType.MESSAGE.getValue(), messageArray);
-                    }
-                    if (!result.containsKey(MemoryType.MESSAGE.getValue())) {
-                        result.put(MemoryType.MESSAGE.getValue(), new JsonArray());
-                    }
-                }
-                case EVENT -> {
-                    ConcurrentMap<String, MemoryDTO> brandMap = memories.get(brand);
-                    if (brandMap != null) {
-                        JsonArray eventArray = new JsonArray();
-                        brandMap.values().stream()
-                                .filter(dto -> dto.getMemoryType() == MemoryType.EVENT)
-                                .findFirst()
-                                .ifPresent(dto -> {
-                                    List<IMemoryContentDTO> content = dto.getContent();
-                                    if (content != null && !content.isEmpty()) {
-                                        JsonObject eventWithId = new JsonObject()
-                                                .put("id", dto.getId().toString())
-                                                .put("content", content.get(0));
-                                        eventArray.add(eventWithId);
-                                    }
-                                });
-                        result.put(MemoryType.EVENT.getValue(), eventArray);
-                    }
-                    if (!result.containsKey(MemoryType.EVENT.getValue())) {
-                        result.put(MemoryType.EVENT.getValue(), new JsonArray());
-                    }
-                }
+                case MESSAGE, EVENT, CONVERSATION_HISTORY -> collectContents(brandMap, memoryType, result);
             }
         }
 
         if (uniList.isEmpty()) {
             return Uni.createFrom().item(result);
         }
-
-        return Uni.combine().all().unis(uniList).with(results -> result);
+        return Uni.combine().all().unis(uniList).with(r -> result);
     }
 
-    public Uni<String> addEvent(String brand, String timestamp, String description) {
-        if (description == null || description.isBlank()) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Event description cannot be empty"));
-        }
-        EventDTO eventDTO = new EventDTO();
-        eventDTO.setTimestamp(timestamp);
+
+
+    public Uni<String> addEvent(String brand, EventType type, String timestamp, String description) {
+        EventInMemoryDTO eventDTO = new EventInMemoryDTO();
+        eventDTO.setType(type);
+        eventDTO.setTriggerTime(timestamp);
         eventDTO.setDescription(description);
         return add(brand, MemoryType.EVENT, eventDTO);
     }
@@ -210,6 +117,7 @@ public class MemoryService {
 
     public Uni<String> add(String brand, MemoryType memoryType, IMemoryContentDTO content) {
         UUID id = UUID.randomUUID();
+        content.setId(id);
         ZonedDateTime now = ZonedDateTime.now();
 
         return Uni.createFrom().item(() -> {
@@ -355,4 +263,97 @@ public class MemoryService {
                 })
                 .onFailure().recoverWithItem(dto);
     }
+
+    private void collectContents(ConcurrentMap<String, MemoryDTO> brandMap,
+                                 MemoryType type,
+                                 JsonObject result) {
+        JsonArray array = new JsonArray();
+        brandMap.values().stream()
+                .filter(dto -> dto.getMemoryType() == type)
+                .forEach(dto -> {
+                    if (dto.getContent() != null) {
+                        dto.getContent().forEach(array::add);
+                    }
+                });
+        result.put(type.getValue(), array);
+    }
+
+
+    private Uni<Void> getAudienceContext(String brand,
+                                         ConcurrentMap<String, MemoryDTO> brandMap,
+                                         JsonObject result) {
+        MemoryDTO cached = brandMap.values().stream()
+                .filter(dto -> dto.getMemoryType() == MemoryType.AUDIENCE_CONTEXT)
+                .findFirst()
+                .orElse(null);
+
+        if (cached != null && cached.getContent() != null && !cached.getContent().isEmpty()) {
+            AudienceContextDTO dto = (AudienceContextDTO) cached.getContent().get(0);
+            dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
+            result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
+            return null;
+        }
+
+        return radioStationService.getBySlugName(brand)
+                .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
+                .map(profile -> {
+                    AudienceContextDTO dto = new AudienceContextDTO();
+                    dto.setName(profile.getName());
+                    dto.setDescription(profile.getDescription());
+                    dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
+
+                    add(brand, MemoryType.AUDIENCE_CONTEXT, dto).subscribe().asCompletionStage();
+                    result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
+                    return null;
+                });
+    }
+
+
+    private Uni<Void> getListenerContext(String brand,
+                                         ConcurrentMap<String, MemoryDTO> brandMap,
+                                         JsonObject result) {
+        MemoryDTO cached = brandMap.values().stream()
+                .filter(dto -> dto.getMemoryType() == MemoryType.LISTENER_CONTEXT)
+                .findFirst()
+                .orElse(null);
+
+        if (cached != null && cached.getContent() != null && !cached.getContent().isEmpty()) {
+            result.put(MemoryType.LISTENER_CONTEXT.getValue(), cached.getContent());
+            return null;
+        }
+
+        return listenerService.getBrandListenersEntities(brand, 1000, 0, SuperUser.build())
+                .map(brandListeners -> {
+                    List<ListenerContextDTO> listeners = brandListeners.stream()
+                            .map(bl -> {
+                                ListenerContextDTO dto = new ListenerContextDTO();
+                                dto.setName(bl.getListener().getLocalizedName().get(LanguageCode.en));
+                                String nickname = bl.getListener().getNickName().get(LanguageCode.en);
+                                if (nickname != null) dto.setNickname(nickname);
+                                dto.setLocation(bl.getListener().getCountry().getCountryName());
+                                return dto;
+                            })
+                            .collect(Collectors.toList());
+
+                    if (!listeners.isEmpty()) {
+                        UUID id = UUID.randomUUID();
+                        ZonedDateTime now = ZonedDateTime.now();
+
+                        MemoryDTO dto = new MemoryDTO();
+                        dto.setId(id);
+                        dto.setBrand(brand);
+                        dto.setMemoryType(MemoryType.LISTENER_CONTEXT);
+                        dto.setContent(new ArrayList<>(listeners));   // ✅ cache the full list
+                        dto.setRegDate(now);
+                        dto.setLastModifiedDate(now);
+
+                        brandMap.put(id.toString(), dto);
+                    }
+
+                    result.put(MemoryType.LISTENER_CONTEXT.getValue(), new JsonArray(listeners));
+                    return null;
+                });
+    }
+
+
 }

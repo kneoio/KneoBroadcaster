@@ -47,23 +47,12 @@ public class SoundFragmentMCPTools {
 
         return Uni.join().all(
                 soundFragments.stream()
-                        .map(this::mapSingleSoundFragmentToAiDTO)
+                        .map(this::mapSoundFragmentToAiDTO)
                         .collect(Collectors.toList())
         ).andFailFast();
     }
 
-    private Uni<SoundFragmentMcpDTO> mapSingleSoundFragmentToAiDTO(SoundFragment soundFragment) {
-        if (soundFragment.getGenres() == null || soundFragment.getGenres().isEmpty()) {
-            return Uni.createFrom().item(SoundFragmentMcpDTO.builder()
-                    .id(soundFragment.getId())
-                    .title(soundFragment.getTitle())
-                    .artist(soundFragment.getArtist())
-                    .genres(List.of())
-                    .album(soundFragment.getAlbum())
-                    .description(soundFragment.getDescription())
-                    .build());
-        }
-
+    private Uni<SoundFragmentMcpDTO> mapSoundFragmentToAiDTO(SoundFragment soundFragment) {
         return Uni.join().all(
                         soundFragment.getGenres().stream()
                                 .map(genreId -> refService.getById(genreId)
@@ -76,6 +65,7 @@ public class SoundFragmentMCPTools {
                         .artist(soundFragment.getArtist())
                         .genres(genreNames)
                         .album(soundFragment.getAlbum())
+                        .description(soundFragment.getDescription())
                         .build());
     }
 }

@@ -8,5 +8,5 @@ import lombok.Setter;
 public class SongIntroductionDTO extends HistoryRecordDTO {
     private String title;
     private String artist;
-    private String content;
+    private String introSpeech;
 }

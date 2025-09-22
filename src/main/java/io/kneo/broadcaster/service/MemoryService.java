@@ -167,7 +167,7 @@ public class MemoryService {
             ConversationHistoryDTO historyDTO = new ConversationHistoryDTO();
             historyDTO.setArtist(dto.getArtist());
             historyDTO.setTitle(dto.getTitle());
-            historyDTO.setContent(dto.getContent());
+            historyDTO.setIntroSpeech(dto.getIntroSpeech());
             add(brand, MemoryType.CONVERSATION_HISTORY, historyDTO).subscribe().asCompletionStage();
             return 1;
         });

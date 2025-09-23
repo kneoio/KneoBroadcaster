@@ -117,6 +117,13 @@ public class TarsosMerger {
         }
     }
 
+
+    private static double smoothFade(double progress) {
+        return Math.pow(progress, 3.5);  // try 2.0 → 4.0, stronger = steeper
+        //return 1.0 / (1.0 + Math.exp(-12 * (progress - 0.5)));
+    }
+
+
     private static void mixWav(String songFile, String introFile, String outputFile,
                                double fadeLengthSeconds, boolean fadeOutBack,
                                double introStartSeconds, double minDuck) throws Exception {
@@ -142,7 +149,7 @@ public class TarsosMerger {
             int songFrames  = songBytes.length / frameSize;
             int introFrames = introBytes.length / frameSize;
 
-            int introStartFrame = (int) (introStartSeconds * targetFormat.getFrameRate());
+            int introStartFrame = (int) ((introStartSeconds - 5) * targetFormat.getFrameRate());
             if (introStartFrame < 0) introStartFrame = 0;
             if (introStartFrame > songFrames - introFrames) {
                 introStartFrame = songFrames - introFrames;
@@ -167,13 +174,15 @@ public class TarsosMerger {
                 if (pos < introStartBytes) {
                     if (pos >= fadeStart) {
                         double progress = (double) (pos - fadeStart) / fadeBytes;
-                        duckFactor = maxDuck - progress * (maxDuck - minDuck);
+                        double eased = smoothFade(progress);
+                        duckFactor = maxDuck - eased * (maxDuck - minDuck);
                     } else {
                         duckFactor = maxDuck;
                     }
                 } else if (fadeOutBack && pos >= fadeEnd && pos < fadeEnd + fadeBytes) {
                     double progress = (double) (pos - fadeEnd) / fadeBytes;
-                    duckFactor = minDuck + progress * (maxDuck - minDuck);
+                    double eased = smoothFade(progress);
+                    duckFactor = minDuck + eased * (maxDuck - minDuck);
                 } else if (pos >= introStartBytes && pos < fadeEnd) {
                     duckFactor = minDuck;
                 } else {
@@ -200,7 +209,8 @@ public class TarsosMerger {
         }
 
         songWav.delete();
-        introWav.delete();
+       // introWav.delete();
     }
+
 
 }

@@ -80,14 +80,82 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                         String tempMixPath = outputDir + "/temp_mix_" +
                                                                 soundFragment1.getSlugName() + "_i_" +
                                                                 System.currentTimeMillis() + ".wav";
-                                                        return mix(tempPath1.toString(), introSongPath, tempMixPath, 2.0, false, 180.0, 0.2);
-                                                        /*return createOutroIntroMix(
-                                                                tempPath1.toString(),
+                                                        return mix(tempPath1.toString(),
                                                                 introSongPath,
                                                                 tempMixPath,
-                                                                settings,
-                                                                gainValue
-                                                        );*/
+                                                                2.0,
+                                                                false,
+                                                                -3,
+                                                                0.2);
+                                                    })
+                                                    .chain(actualTempMixPath -> {
+                                                        return soundFragmentService.getById(soundFragmentId2, SuperUser.build())
+                                                                .chain(soundFragment2 -> {
+                                                                    return repository.getFirstFile(soundFragment2.getId())
+                                                                            .chain(songMetadata2 -> {
+                                                                                return songMetadata2.materializeFileStream(tempBaseDir)
+                                                                                        .chain(tempPath2 -> {
+                                                                                            SoundFragment fragment1 = new SoundFragment();
+                                                                                            fragment1.setId(UUID.randomUUID());
+                                                                                            fragment1.setTitle(soundFragment1.getTitle());
+                                                                                            fragment1.setArtist(soundFragment1.getArtist());
+                                                                                            fragment1.setSource(soundFragment1.getSource());
+                                                                                            FileMetadata fileMetadata1 = new FileMetadata();
+                                                                                            fileMetadata1.setTemporaryFilePath(Path.of(actualTempMixPath));
+                                                                                            fragment1.setFileMetadataList(List.of(fileMetadata1));
+
+                                                                                            SoundFragment fragment2 = new SoundFragment();
+                                                                                            fragment2.setId(soundFragment2.getId());
+                                                                                            fragment2.setTitle(soundFragment2.getTitle());
+                                                                                            fragment2.setArtist(soundFragment2.getArtist());
+                                                                                            fragment2.setSource(soundFragment2.getSource());
+                                                                                            FileMetadata fileMetadata2 = new FileMetadata();
+                                                                                            fileMetadata2.setTemporaryFilePath(tempPath2);
+                                                                                            fragment2.setFileMetadataList(List.of(fileMetadata2));
+
+                                                                                            return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
+                                                                                                            radioStation.getBitRate(), toQueueDTO.getMergingMethod())
+                                                                                                    .chain(() ->
+                                                                                                            playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
+                                                                                                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod()));
+                                                                                        });
+                                                                            });
+                                                                });
+                                                    });
+                                        });
+                            });
+                });
+    }
+
+
+    public Uni<Boolean> handle1(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+        UUID soundFragmentId1 = toQueueDTO.getSoundFragments().get("song1");
+        String introSongPath = toQueueDTO.getFilePaths().get("audio1");
+        UUID soundFragmentId2 = toQueueDTO.getSoundFragments().get("song2");
+        MixingProfile settings = MixingProfile.randomProfile(12345L);
+        LOGGER.info("Applied Mixing {}", settings.description);
+
+        return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                .chain(aiAgent -> {
+                    double gainValue = aiAgent.getMerger().getGainIntro();
+
+                    return soundFragmentService.getById(soundFragmentId1, SuperUser.build())
+                            .chain(soundFragment1 -> {
+                                return repository.getFirstFile(soundFragment1.getId())
+                                        .chain(songMetadata1 -> {
+                                            return songMetadata1.materializeFileStream(tempBaseDir)
+                                                    .chain(tempPath1 -> {
+                                                        String tempMixPath = outputDir + "/temp_mix_" +
+                                                                soundFragment1.getSlugName() + "_i_" +
+                                                                System.currentTimeMillis() + ".wav";
+                                                        return mix(tempPath1.toString(),
+                                                                introSongPath,
+                                                                tempMixPath,
+                                                                2.0,
+                                                                false,
+                                                                -3,
+                                                                0.2);
                                                     })
                                                     .chain(actualTempMixPath -> {
                                                         return soundFragmentService.getById(soundFragmentId2, SuperUser.build())
@@ -182,13 +250,17 @@ public class AudioMixingHandler extends MixingHandlerBase {
 
     private Uni<String> mix(String songFile, String introFile, String outputFile,
                             double fadeLengthSeconds, boolean fadeOutBack,
-                            double introStartSeconds, double minDuck) {
+                            double tail, double minDuck) {
+
 
         return convertToWav(songFile).chain(songWav ->
                 convertToWav(introFile).chain(introWav ->
                         Uni.createFrom().item(() -> {
                             try (AudioInputStream song  = AudioSystem.getAudioInputStream(songWav.file);
                                  AudioInputStream intro = AudioSystem.getAudioInputStream(introWav.file)) {
+
+                                double introStartSeconds = songWav.durationSeconds - introWav.durationSeconds - tail;
+                                if (introStartSeconds < 0) introStartSeconds = 0;
 
                                 AudioFormat targetFormat = new AudioFormat(
                                         AudioFormat.Encoding.PCM_SIGNED,
@@ -227,13 +299,15 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                     if (pos < introStartBytes) {
                                         if (pos >= fadeStart) {
                                             double progress = (double) (pos - fadeStart) / fadeBytes;
-                                            duckFactor = maxDuck - progress * (maxDuck - minDuck);
+                                            double eased = smoothFade(progress);
+                                            duckFactor = maxDuck - eased * (maxDuck - minDuck);
                                         } else {
                                             duckFactor = maxDuck;
                                         }
                                     } else if (fadeOutBack && pos >= fadeEnd && pos < fadeEnd + fadeBytes) {
                                         double progress = (double) (pos - fadeEnd) / fadeBytes;
-                                        duckFactor = minDuck + progress * (maxDuck - minDuck);
+                                        double eased = smoothFade(progress);
+                                        duckFactor = maxDuck - eased * (maxDuck - minDuck);
                                     } else if (pos >= introStartBytes && pos < fadeEnd) {
                                         duckFactor = minDuck;
                                     } else {
@@ -270,6 +344,11 @@ public class AudioMixingHandler extends MixingHandlerBase {
                         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 )
         );
+    }
+
+    private static double smoothFade(double progress) {
+        return Math.pow(progress, 3.5);  // try 2.0 → 4.0, stronger = steeper
+        //return 1.0 / (1.0 + Math.exp(-12 * (progress - 0.5)));
     }
 
     private String buildFilter(

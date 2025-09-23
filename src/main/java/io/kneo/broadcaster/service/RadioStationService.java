@@ -182,6 +182,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setAiAgentId(doc.getAiAgentId());
             dto.setProfileId(doc.getProfileId());
             dto.setSubmissionPolicy(doc.getSubmissionPolicy());
+            dto.setMessagingPolicy(doc.getMessagingPolicy());
 
             ScheduleDTO scheduleDTO = new ScheduleDTO();
             Scheduler schedule = doc.getScheduler();
@@ -268,6 +269,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setAiAgentId(dto.getAiAgentId());
         doc.setProfileId(dto.getProfileId());
         doc.setSubmissionPolicy(dto.getSubmissionPolicy());
+        doc.setMessagingPolicy(dto.getMessagingPolicy());
 
         if (dto.getSchedule() != null) {
             Scheduler schedule = new Scheduler();

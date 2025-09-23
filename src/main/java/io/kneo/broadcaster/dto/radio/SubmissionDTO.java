@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto;
+package io.kneo.broadcaster.dto.radio;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.officeframe.cnst.CountryCode;

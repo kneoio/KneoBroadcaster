@@ -3,9 +3,10 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.dto.RadioStationStatusDTO;
-import io.kneo.broadcaster.dto.SubmissionDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.radio.MessageDTO;
+import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
@@ -204,6 +205,7 @@ public class RadioService {
                                                             description,
                                                             0,
                                                             station.getSubmissionPolicy(),
+                                                            station.getMessagingPolicy(),
                                                             null
                                                     ));
                                                 }
@@ -318,6 +320,11 @@ public class RadioService {
                                         );
                             });
                 });
+    }
+
+    public Uni<MessageDTO> postMessage(String brand, MessageDTO dto) {
+        return memoryService.addMessage(brand, dto.getFrom(), dto.getContent())
+                .map(id -> dto);
     }
 
     private Uni<Void> createContributionAndAgreement(SoundFragment doc, SubmissionDTO dto) {
@@ -436,6 +443,7 @@ public class RadioService {
                             radioStation.getDescription(),
                             0,
                             radioStation.getSubmissionPolicy(),
+                            radioStation.getMessagingPolicy(),
                             includeAnimation ? animationService.generateRandomAnimation() : null
                     ))
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
@@ -451,6 +459,7 @@ public class RadioService {
                             radioStation.getDescription(),
                             0,
                             radioStation.getSubmissionPolicy(),
+                            radioStation.getMessagingPolicy(),
                             includeAnimation ? animationService.generateRandomAnimation() : null
                     ));
         }
@@ -468,6 +477,7 @@ public class RadioService {
                 radioStation.getDescription(),
                 0,
                 radioStation.getSubmissionPolicy(),
+                radioStation.getMessagingPolicy(),
                 includeAnimation ? animationService.generateRandomAnimation() : null
         ));
     }

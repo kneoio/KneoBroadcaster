@@ -1,7 +1,8 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.SubmissionDTO;
+import io.kneo.broadcaster.dto.radio.MessageDTO;
+import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.service.external.MailService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -75,7 +76,7 @@ public class ValidationService {
                             mailService.removeCode(dto.getEmail());
                             return ValidationResult.success();
                         } else {
-                            LOGGER.warn("Email verification failed for {}: {}", dto.getEmail(), result);
+                            LOGGER.warn("Email verification failed for submission {}: {}", dto.getEmail(), result);
                             return ValidationResult.failure(result);
                         }
                     });
@@ -84,4 +85,31 @@ public class ValidationService {
         return Uni.createFrom().item(ValidationResult.success());
     }
 
+    public Uni<ValidationResult> validateMessageDTO(MessageDTO dto) {
+        Set<ConstraintViolation<MessageDTO>> violations = validator.validate(dto);
+
+        if (!violations.isEmpty()) {
+            String errorMessage = violations.stream()
+                    .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+                    .collect(Collectors.joining(", "));
+
+            LOGGER.warn("Validation failed for MessageDTO: {}", errorMessage);
+            return Uni.createFrom().item(ValidationResult.failure(errorMessage));
+        }
+
+        if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
+            return mailService.verifyCode(dto.getEmail(), dto.getConfirmationCode())
+                    .map(result -> {
+                        if (result == null) {
+                            mailService.removeCode(dto.getEmail());
+                            return ValidationResult.success();
+                        } else {
+                            LOGGER.warn("Email verification failed for message {}: {}", dto.getEmail(), result);
+                            return ValidationResult.failure(result);
+                        }
+                    });
+        }
+
+        return Uni.createFrom().item(ValidationResult.success());
+    }
 }

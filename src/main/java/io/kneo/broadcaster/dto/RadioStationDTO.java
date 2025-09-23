@@ -56,6 +56,7 @@ public class RadioStationDTO extends AbstractDTO {
     private Integer archived;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
+    private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private UUID aiAgentId;
     private UUID profileId;
 }

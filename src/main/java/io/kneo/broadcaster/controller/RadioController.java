@@ -1,8 +1,7 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.SubmissionDTO;
-
+import io.kneo.broadcaster.dto.radio.MessageDTO;
+import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.service.FileUploadService;
 import io.kneo.broadcaster.service.GeolocationService;
 import io.kneo.broadcaster.service.RadioService;
@@ -13,8 +12,8 @@ import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
-
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.Json;
@@ -29,7 +28,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.kneo.officeframe.cnst.CountryCode;
 
 @ApplicationScoped
 public class RadioController {
@@ -41,7 +39,7 @@ public class RadioController {
     private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
 
     @Inject
-    public RadioController(BroadcasterConfig config, RadioService service, ValidationService validationService, FileUploadService fileUploadService) {
+    public RadioController(RadioService service, ValidationService validationService, FileUploadService fileUploadService) {
         this.service = service;
         this.validationService = validationService;
         this.fileUploadService = fileUploadService;
@@ -71,8 +69,12 @@ public class RadioController {
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)
                 .handler(this::submit);
+        router.route(HttpMethod.POST, "/radio/:brand/messages")
+                .handler(jsonBodyHandler)
+                .handler(this::validateMixplaAccess)
+                .handler(this::postMessage);
 
-        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile); 
+        router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:id").handler(rc -> rc.response().setStatusCode(204).end());
     }
 
@@ -278,6 +280,46 @@ public class RadioController {
                                     rc.response().setStatusCode(403).end("Not enough rights to update");
                                 } else if (throwable instanceof UploadAbsenceException) {
                                     rc.response().setStatusCode(400).end(throwable.getMessage());
+                                } else {
+                                    rc.fail(throwable);
+                                }
+                            }
+                    );
+
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
+    }
+
+    private void postMessage(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+
+            MessageDTO dto = rc.body().asJsonObject().mapTo(MessageDTO.class);
+            String[] ipCountryParts = GeolocationService.parseIPHeader(rc.request().getHeader("stream-connecting-ip"));
+            dto.setIpAddress(ipCountryParts[0]);
+            dto.setCountry(CountryCode.valueOf(ipCountryParts[1]));
+            dto.setUserAgent(rc.request().getHeader("User-Agent"));
+            String brand = rc.pathParam("brand");
+
+            validationService.validateMessageDTO(dto)
+                    .chain(validationResult -> {
+                        if (!validationResult.valid()) {
+                            return Uni.createFrom().failure(new IllegalArgumentException(validationResult.errorMessage()));
+                        }
+                        return service.postMessage(brand, dto);
+                    })
+                    .subscribe().with(
+                            doc -> rc.response().setStatusCode(200).end(doc.toString()),
+                            throwable -> {
+                                if (throwable instanceof IllegalArgumentException) {
+                                    rc.fail(400, throwable);
                                 } else {
                                     rc.fail(throwable);
                                 }

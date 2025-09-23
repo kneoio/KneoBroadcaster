@@ -37,9 +37,8 @@ import java.util.UUID;
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.BRAND_STATS;
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.RADIO_STATION;
 
-
 @ApplicationScoped
-public class RadioStationRepository extends AsyncRepository implements SchedulableRepository<RadioStation>{
+public class RadioStationRepository extends AsyncRepository implements SchedulableRepository<RadioStation> {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
     private static final EntityData brandStats = KneoBroadcasterNameResolver.create().getEntityNames(BRAND_STATS);
@@ -153,8 +152,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy, messaging_policy) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -176,7 +175,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getDescription())
                         .addUUID(station.getProfileId())
                         .addUUID(station.getAiAgentId())
-                        .addString(station.getSubmissionPolicy().name());
+                        .addString(station.getSubmissionPolicy().name())
+                        .addString(station.getMessagingPolicy().name());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -208,8 +208,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, " +
-                                    "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, submission_policy=$12, last_mod_user=$13, last_mod_date=$14 " +
-                                    "WHERE id=$15";
+                                    "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, submission_policy=$12, messaging_policy=$13, last_mod_user=$14, last_mod_date=$15 " +
+                                    "WHERE id=$16";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -228,6 +228,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addUUID(station.getProfileId())
                                     .addUUID(station.getAiAgentId())
                                     .addString(station.getSubmissionPolicy().name())
+                                    .addString(station.getMessagingPolicy().name())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -267,6 +268,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         doc.setColor(row.getString("color"));
         doc.setDescription(row.getString("description"));
         doc.setSubmissionPolicy(SubmissionPolicy.valueOf(row.getString("submission_policy")));
+        doc.setMessagingPolicy(SubmissionPolicy.valueOf(row.getString("messaging_policy")));
 
         JsonArray bitRateJson = row.getJsonArray("bit_rate");
         if (bitRateJson != null && !bitRateJson.isEmpty()) {
@@ -375,7 +377,9 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .collect().asList();
     }
 
-       public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
+
+
 }

@@ -21,8 +21,16 @@ import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sound.sampled.AudioFileFormat;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -72,13 +80,14 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                         String tempMixPath = outputDir + "/temp_mix_" +
                                                                 soundFragment1.getSlugName() + "_i_" +
                                                                 System.currentTimeMillis() + ".wav";
-                                                        return createOutroIntroMix(
+                                                        return mix(tempPath1.toString(), introSongPath, tempMixPath, 2.0, false, 180.0, 0.2);
+                                                        /*return createOutroIntroMix(
                                                                 tempPath1.toString(),
                                                                 introSongPath,
                                                                 tempMixPath,
                                                                 settings,
                                                                 gainValue
-                                                        );
+                                                        );*/
                                                     })
                                                     .chain(actualTempMixPath -> {
                                                         return soundFragmentService.getById(soundFragmentId2, SuperUser.build())
@@ -169,6 +178,98 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 throw new RuntimeException("Failed to create outro-intro mix", e);
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    private Uni<String> mix(String songFile, String introFile, String outputFile,
+                            double fadeLengthSeconds, boolean fadeOutBack,
+                            double introStartSeconds, double minDuck) {
+
+        return convertToWav(songFile).chain(songWav ->
+                convertToWav(introFile).chain(introWav ->
+                        Uni.createFrom().item(() -> {
+                            try (AudioInputStream song  = AudioSystem.getAudioInputStream(songWav.file);
+                                 AudioInputStream intro = AudioSystem.getAudioInputStream(introWav.file)) {
+
+                                AudioFormat targetFormat = new AudioFormat(
+                                        AudioFormat.Encoding.PCM_SIGNED,
+                                        44100, 16, 2, 4, 44100, false
+                                );
+
+                                AudioInputStream convertedSong  = AudioSystem.getAudioInputStream(targetFormat, song);
+                                AudioInputStream convertedIntro = AudioSystem.getAudioInputStream(targetFormat, intro);
+
+                                byte[] songBytes  = convertedSong.readAllBytes();
+                                byte[] introBytes = convertedIntro.readAllBytes();
+
+                                int frameSize = targetFormat.getFrameSize();
+                                int songFrames  = songBytes.length / frameSize;
+                                int introFrames = introBytes.length / frameSize;
+
+                                int introStartFrame = (int) (introStartSeconds * targetFormat.getFrameRate());
+                                if (introStartFrame < 0) introStartFrame = 0;
+                                if (introStartFrame > songFrames - introFrames) {
+                                    introStartFrame = songFrames - introFrames;
+                                }
+
+                                int introStartBytes = introStartFrame * frameSize;
+                                int fadeFrames = (int) (fadeLengthSeconds * targetFormat.getFrameRate());
+                                int fadeBytes  = fadeFrames * frameSize;
+
+                                byte[] mixed = Arrays.copyOf(songBytes, songBytes.length);
+                                double maxDuck = 1.0;
+
+                                for (int i = 0; i < introBytes.length && (i + introStartBytes + 1) < mixed.length; i += 2) {
+                                    int pos = i + introStartBytes;
+                                    int fadeStart = introStartBytes - fadeBytes;
+                                    int fadeEnd   = introStartBytes + introBytes.length;
+
+                                    double duckFactor;
+                                    if (pos < introStartBytes) {
+                                        if (pos >= fadeStart) {
+                                            double progress = (double) (pos - fadeStart) / fadeBytes;
+                                            duckFactor = maxDuck - progress * (maxDuck - minDuck);
+                                        } else {
+                                            duckFactor = maxDuck;
+                                        }
+                                    } else if (fadeOutBack && pos >= fadeEnd && pos < fadeEnd + fadeBytes) {
+                                        double progress = (double) (pos - fadeEnd) / fadeBytes;
+                                        duckFactor = minDuck + progress * (maxDuck - minDuck);
+                                    } else if (pos >= introStartBytes && pos < fadeEnd) {
+                                        duckFactor = minDuck;
+                                    } else {
+                                        duckFactor = fadeOutBack ? maxDuck : minDuck;
+                                    }
+
+                                    short s1 = (short) ((mixed[pos+1] << 8) | (mixed[pos] & 0xff));
+                                    short s2 = (short) ((introBytes[i+1] << 8) | (introBytes[i] & 0xff));
+
+                                    int scaledSong = (int) Math.round(s1 * duckFactor);
+                                    int sum = scaledSong + s2;
+
+                                    if (sum > Short.MAX_VALUE) sum = Short.MAX_VALUE;
+                                    if (sum < Short.MIN_VALUE) sum = Short.MIN_VALUE;
+
+                                    mixed[pos]   = (byte) (sum & 0xff);
+                                    mixed[pos+1] = (byte) ((sum >> 8) & 0xff);
+                                }
+
+                                try (ByteArrayInputStream bais = new ByteArrayInputStream(mixed);
+                                     AudioInputStream mixedStream = new AudioInputStream(bais, targetFormat, mixed.length / frameSize)) {
+                                    AudioSystem.write(mixedStream, AudioFileFormat.Type.WAVE, new File(outputFile));
+                                } catch (IOException e) {
+                                    throw new RuntimeException("Failed to write mixed audio file", e);
+                                }
+
+                                return outputFile;
+                            } catch (IOException | UnsupportedAudioFileException e) {
+                                throw new RuntimeException("Failed to process audio streams", e);
+                            } finally {
+                                songWav.file.delete();
+                                introWav.file.delete();
+                            }
+                        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                )
+        );
     }
 
     private String buildFilter(

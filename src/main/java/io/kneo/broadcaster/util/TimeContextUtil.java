@@ -15,25 +15,32 @@ public class TimeContextUtil {
         LocalTime now = zonedNow.toLocalTime();
         boolean isWeekday = zonedNow.getDayOfWeek().getValue() <= 5;
 
+        int hour = now.getHour();
+
         if (now.isBefore(LocalTime.of(6, 0))) {
-            return "late night";
+            return "late night hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(9, 0))) {
-            return isWeekday ? "early morning on a weekday" : "early morning on weekend";
+            return isWeekday ? "early morning weekday hours, " + hour + "h"
+                    : "early morning weekend hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(12, 0))) {
-            return isWeekday ? "late morning on a weekday" : "late morning on weekend";
+            return isWeekday ? "late morning weekday hours, " + hour + "h"
+                    : "late morning weekend hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(13, 0))) {
-            return "lunch time";
+            return "lunch hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(14, 0))) {
-            return "early afternoon";
+            return "early afternoon hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(17, 0))) {
-            return isWeekday ? "afternoon on a weekday" : "afternoon on weekend";
+            return isWeekday ? "weekday afternoon hours, " + hour + "h"
+                    : "weekend afternoon hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(19, 0))) {
-            return isWeekday ? "early evening on a weekday" : "early evening on weekend";
+            return isWeekday ? "weekday early evening hours, " + hour + "h"
+                    : "weekend early evening hours, " + hour + "h";
         } else if (now.isBefore(LocalTime.of(21, 0))) {
-            return "evening";
+            return "evening hours, " + hour + "h";
         } else {
-            return "night";
+            return "night hours, " + hour + "h";
         }
+
     }
 
 

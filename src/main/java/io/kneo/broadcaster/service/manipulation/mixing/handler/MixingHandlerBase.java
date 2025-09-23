@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.service.manipulation.mixing.handler;
 
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
@@ -8,6 +10,11 @@ import net.bramp.ffmpeg.probe.FFmpegStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import java.io.File;
 import java.io.IOException;
 
 public class MixingHandlerBase {
@@ -44,11 +51,48 @@ public class MixingHandlerBase {
         }
     }
 
-    protected String getFadeType(int fadeCurve) {
-        return switch (fadeCurve) {
-            case 1 -> "exp";   // Exponential
-            case -1 -> "log";  // Logarithmic
-            default -> "tri";
-        };
+    protected Uni<WavFile> convertToWav(String inputPath) {
+        return Uni.createFrom().item(() -> {
+            File inputFile = new File(inputPath);
+
+            try {
+                if (inputPath.toLowerCase().endsWith(".wav")) {
+                    try (AudioInputStream ais = AudioSystem.getAudioInputStream(inputFile)) {
+                        AudioFormat format = ais.getFormat();
+                        long frames = ais.getFrameLength();
+                        double duration = (double) frames / format.getFrameRate();
+                        return new WavFile(inputFile, duration);
+                    }
+                }
+
+                String outputPath = inputPath + "_tmp.wav";
+                ProcessBuilder pb = new ProcessBuilder(
+                        "ffmpeg", "-y",
+                        "-i", inputPath,
+                        "-ar", "44100",
+                        "-ac", "2",
+                        "-sample_fmt", "s16",
+                        outputPath
+                );
+
+                int exitCode = pb.inheritIO().start().waitFor();
+                if (exitCode != 0) {
+                    throw new IOException("FFmpeg failed with exit code " + exitCode);
+                }
+
+                File outputFile = new File(outputPath);
+                try (AudioInputStream ais = AudioSystem.getAudioInputStream(outputFile)) {
+                    AudioFormat format = ais.getFormat();
+                    long frames = ais.getFrameLength();
+                    double duration = (double) frames / format.getFrameRate();
+                    return new WavFile(outputFile, duration);
+                }
+            } catch (IOException | UnsupportedAudioFileException | InterruptedException e) {
+                throw new RuntimeException("Failed to convert to wav: " + inputPath, e);
+            }
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
+
+
+
 }

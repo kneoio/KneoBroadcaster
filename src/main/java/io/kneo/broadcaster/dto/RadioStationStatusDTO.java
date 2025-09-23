@@ -26,5 +26,6 @@ public class RadioStationStatusDTO {
     private String description;
     private long availableSongs;
     private SubmissionPolicy submissionPolicy;
+    private SubmissionPolicy messagingPolicy;
     private AnimationDTO animation;
 }

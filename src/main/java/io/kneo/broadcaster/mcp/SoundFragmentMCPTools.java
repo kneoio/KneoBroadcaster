@@ -34,10 +34,14 @@ public class SoundFragmentMCPTools {
             @Parameter("brand") String brandName,
             @Parameter("fragment_type") String fragmentType
     ) {
-        int count = RANDOM.nextDouble() < 0.4 ? 2 : 1;
+        int count = decideFragmentCount();
         return songSupplier.getNextSong(brandName, PlaylistItemType.valueOf(fragmentType), count)
                 .chain(this::mapSoundFragmentsToAiDTO)
                 .convert().toCompletableFuture();
+    }
+
+    private int decideFragmentCount() {
+        return RANDOM.nextDouble() < 0.4 ? 2 : 1;
     }
 
     private Uni<List<SoundFragmentMcpDTO>> mapSoundFragmentsToAiDTO(List<SoundFragment> soundFragments) {

@@ -20,6 +20,7 @@ import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -289,24 +290,32 @@ public class MemoryService {
 
         if (cached != null && cached.getContent() != null && !cached.getContent().isEmpty()) {
             AudienceContextDTO dto = (AudienceContextDTO) cached.getContent().get(0);
-            dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
-            result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
-            return null;
+            return radioStationService.getBySlugName(brand)
+                    .map(radioStation -> {
+                        ZoneId zoneId = radioStation.getTimeZone();
+                        dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed(zoneId));
+                        result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
+                        return null;
+                    });
         }
 
         return radioStationService.getBySlugName(brand)
-                .chain(radioStation -> profileService.getById(radioStation.getProfileId()))
-                .map(profile -> {
-                    AudienceContextDTO dto = new AudienceContextDTO();
-                    dto.setName(profile.getName());
-                    dto.setDescription(profile.getDescription());
-                    dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed());
+                .chain(radioStation -> {
+                    ZoneId zoneId = radioStation.getTimeZone();
+                    return profileService.getById(radioStation.getProfileId())
+                            .map(profile -> {
+                                AudienceContextDTO dto = new AudienceContextDTO();
+                                dto.setName(profile.getName());
+                                dto.setDescription(profile.getDescription());
+                                dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed(zoneId));
 
-                    add(brand, MemoryType.AUDIENCE_CONTEXT, dto).subscribe().asCompletionStage();
-                    result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
-                    return null;
+                                add(brand, MemoryType.AUDIENCE_CONTEXT, dto).subscribe().asCompletionStage();
+                                result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
+                                return null;
+                            });
                 });
     }
+
 
 
     private Uni<Void> getListenerContext(String brand,

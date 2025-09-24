@@ -33,7 +33,9 @@ public class MessageDTO {
     private String agreementVersion;
 
     public String toString() {
-        return String.format("%s|%s...", from, content.substring(0, 10));
+        return String.format("%s|%s", from,
+                content.length() > 10 ? content.substring(0, 10) + "..." : content);
     }
+
 
 }

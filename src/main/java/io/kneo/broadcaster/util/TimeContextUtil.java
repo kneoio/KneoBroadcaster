@@ -6,10 +6,6 @@ import java.time.ZonedDateTime;
 
 public class TimeContextUtil {
 
-    public static String getCurrentMomentDetailed() {
-        return getCurrentMomentDetailed(ZoneId.systemDefault());
-    }
-
     public static String getCurrentMomentDetailed(ZoneId zoneId) {
         ZonedDateTime zonedNow = ZonedDateTime.now(zoneId);
         LocalTime now = zonedNow.toLocalTime();

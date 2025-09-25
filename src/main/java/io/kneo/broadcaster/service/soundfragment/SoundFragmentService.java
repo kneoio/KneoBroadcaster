@@ -7,7 +7,7 @@ import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.SoundFragment;
 import io.kneo.broadcaster.model.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;

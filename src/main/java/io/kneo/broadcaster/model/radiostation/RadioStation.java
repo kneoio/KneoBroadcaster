@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.model.radiostation;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;

@@ -4,7 +4,7 @@ import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.dto.dashboard.StatsDTO;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
 import io.kneo.broadcaster.service.scheduler.SchedulerDataService;

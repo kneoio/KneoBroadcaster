@@ -7,7 +7,7 @@ import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;

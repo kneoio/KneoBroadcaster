@@ -2,7 +2,7 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.RadioStationDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.util.WebHelper;

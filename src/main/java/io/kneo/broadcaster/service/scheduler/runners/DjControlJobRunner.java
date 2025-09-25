@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.scheduler.runners;
 
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TriggerType;

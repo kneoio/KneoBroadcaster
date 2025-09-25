@@ -1,8 +1,7 @@
 package io.kneo.broadcaster.service.stream;
 
-import io.kneo.broadcaster.config.HlsPlaylistConfig; // Import HlsPlaylistConfig
-import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
-// Assuming HLSSongStats and HlsSegment are defined in your project.
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
+import io.kneo.broadcaster.model.stats.SegmentHeartbeat;
 import lombok.Getter;
 
 import java.util.Map;
@@ -11,16 +10,18 @@ import java.util.Map;
 public class StreamManagerStats {
     private final Map<Long, HlsSegment> liveSegments;
     private final long requestCount;
-    private final SegmentTimelineDisplay segmentTimelineDisplay;
+    private final boolean heartbeat;
     private final long listenersCount;
 
     public StreamManagerStats(Map<Long, HlsSegment> liveSegments,
-                              SegmentTimelineDisplay segmentTimelineDisplay,
                               long requestCount,
-                              HlsPlaylistConfig config) {
+                              HlsPlaylistConfig config,
+                              boolean heartbeat) {
         this.liveSegments = liveSegments;
         this.requestCount = requestCount;
-        this.segmentTimelineDisplay = segmentTimelineDisplay;
+
+
+        this.heartbeat = heartbeat;
 
         int segmentDurationSeconds = 0;
         if (config != null) {

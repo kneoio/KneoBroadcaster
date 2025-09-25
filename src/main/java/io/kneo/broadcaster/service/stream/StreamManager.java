@@ -3,9 +3,9 @@ package io.kneo.broadcaster.service.stream;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.live.LiveSoundFragment;
-import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.live.LiveSoundFragment;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
@@ -289,9 +289,9 @@ public class StreamManager implements IStreamManager {
         long recentRequestsCount = countAndPruneRecentSegmentRequests();
         return new StreamManagerStats(
                 Map.copyOf(liveSegments),
-                getSegmentTimelineDisplay(3,3),
                 recentRequestsCount,
-                config
+                config,
+                getSegmentHeartbeat()
         );
     }
 
@@ -313,6 +313,11 @@ public class StreamManager implements IStreamManager {
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
         }
     }
+
+    public boolean getSegmentHeartbeat() {
+        return !liveSegments.isEmpty();
+    }
+
 
     public SegmentTimelineDisplay getSegmentTimelineDisplay(int numPastSegmentsToShow, int numUpcomingSegmentsToShow) {
         List<Long> visibleSegmentSequences;

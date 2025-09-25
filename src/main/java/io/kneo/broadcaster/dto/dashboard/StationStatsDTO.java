@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.dto.dashboard;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
 import io.kneo.broadcaster.service.stream.HLSSongStats;
@@ -25,6 +25,8 @@ public class StationStatsDTO {
     private PlaylistManagerStats playlistManagerStats;
     @Getter
     private SegmentTimelineDisplay timeline;
+    @Getter
+    private boolean heartbeat;
     @Getter
     private HLSSongStats songStatistics;
     @Getter

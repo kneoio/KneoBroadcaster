@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -60,6 +60,23 @@ public class QueueService {
                         }
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_INTRO_SONG) {
+            return getRadioStation(brandName)
+                    .chain(radioStation -> {
+                        AudioMixingHandler songIntroSongHandler = null;
+                        try {
+                            songIntroSongHandler = new AudioMixingHandler(
+                                    broadcasterConfig,
+                                    repository,
+                                    soundFragmentService,
+                                    aiAgentService,
+                                    fFmpegProvider
+                            );
+                        } catch (IOException | AudioMergeException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return songIntroSongHandler.handle(radioStation, toQueueDTO);
+                    });
+        } else if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG_INTRO_SONG) {
             return getRadioStation(brandName)
                     .chain(radioStation -> {
                         AudioMixingHandler songIntroSongHandler = null;

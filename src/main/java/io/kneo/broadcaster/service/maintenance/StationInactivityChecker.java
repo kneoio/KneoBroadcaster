@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.maintenance;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.BrandActivityLogger;

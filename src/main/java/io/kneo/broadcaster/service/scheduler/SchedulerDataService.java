@@ -4,7 +4,7 @@ import io.kneo.broadcaster.dto.dashboard.JobExecutionDTO;
 import io.kneo.broadcaster.dto.dashboard.ScheduledTaskDTO;
 import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;

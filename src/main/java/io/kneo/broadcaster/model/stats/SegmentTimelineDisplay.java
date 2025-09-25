@@ -2,6 +2,7 @@ package io.kneo.broadcaster.model.stats;
 
 import java.util.List;
 
+@Deprecated
 public record SegmentTimelineDisplay(
         List<Long> pastSegmentSequences,
         List<Long> visibleSegmentSequences,

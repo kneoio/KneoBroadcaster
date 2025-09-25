@@ -6,7 +6,7 @@ import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
-import io.kneo.broadcaster.model.RadioStation;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.dto.DocumentAccessDTO;

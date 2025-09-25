@@ -40,6 +40,8 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private Scheduler scheduler;
     private UUID aiAgentId;
     private UUID profileId;
+    private AiOverriding aiOverriding;
+    private ProfileOverriding profileOverriding;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private List<Label> labelList;

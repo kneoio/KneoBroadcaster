@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto;
+package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.aihelper.AnimationDTO;

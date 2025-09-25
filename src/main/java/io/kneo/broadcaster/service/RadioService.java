@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.RadioStationDTO;
-import io.kneo.broadcaster.dto.RadioStationStatusDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.MessageDTO;

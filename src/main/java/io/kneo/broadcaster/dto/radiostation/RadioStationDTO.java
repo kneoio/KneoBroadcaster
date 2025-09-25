@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto;
+package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
@@ -59,4 +59,6 @@ public class RadioStationDTO extends AbstractDTO {
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private UUID aiAgentId;
     private UUID profileId;
+    private AiOverridingDTO aiOverriding;
+    private ProfileOverridingDTO profileOverriding;
 }

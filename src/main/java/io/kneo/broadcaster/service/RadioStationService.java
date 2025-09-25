@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.RadioStationDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;

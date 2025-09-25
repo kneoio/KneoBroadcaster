@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.RadioStationDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;

@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
+import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
@@ -67,8 +69,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve radio stations for user: {}", user.getId(), throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
-                .collect().asList()
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to transform radio stations for user: {}", user.getId(), throwable));
+                .collect().asList();
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
@@ -81,7 +82,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         return client.query(sql)
                 .execute()
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to count radio stations for user: {}", user.getId(), throwable))
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
@@ -97,36 +97,10 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(user.getId(), id))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by id: {} for user: {}", id, user.getId(), throwable))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
-                        Row row = iterator.next();
-                        return Uni.createFrom().item(from(row));
-                    } else {
-                        return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                    }
-                });
-    }
-
-    public Uni<RadioStation> findById(UUID id, Long userID, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id = $2";
-
-        if (!includeArchived) {
-            sql += " AND theTable.archived = 0";
-        }
-
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(userID, id))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by id: {} for userID: {}", id, userID, throwable))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transformToUni(iterator -> {
-                    if (iterator.hasNext()) {
-                        Row row = iterator.next();
-                        return Uni.createFrom().item(from(row));
+                        return Uni.createFrom().item(from(iterator.next()));
                     } else {
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                     }
@@ -137,7 +111,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find radio station by brand name: {}", name, throwable))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
@@ -152,8 +125,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy, messaging_policy) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy, messaging_policy, title_font) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -170,27 +143,28 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getColor())
                         .addJsonObject(localizedNameJson)
                         .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getScheduler())))
+                        .addJsonObject(JsonObject.mapFrom(station.getAiOverriding()))
+                        .addJsonObject(JsonObject.mapFrom(station.getProfileOverriding()))
                         .addJsonArray(bitRateArray)
                         .addString(station.getSlugName())
                         .addString(station.getDescription())
                         .addUUID(station.getProfileId())
                         .addUUID(station.getAiAgentId())
                         .addString(station.getSubmissionPolicy().name())
-                        .addString(station.getMessagingPolicy().name());
+                        .addString(station.getMessagingPolicy().name())
+                        .addString(station.getTitleFont());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
                                         .execute(params)
-                                        .onFailure().invoke(throwable -> LOGGER.error("Failed to insert radio station for user: {}", user.getId(), throwable))
                                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                                         .onItem().transformToUni(id ->
                                                 insertRLSPermissions(tx, id, entityData, user)
                                                         .onItem().transform(ignored -> id)
                                         )
-                        ).onFailure().invoke(throwable -> LOGGER.error("Transaction failed for radio station insert for user: {}", user.getId(), throwable))
+                        )
                         .onItem().transformToUni(id -> findById(id, user, true));
             } catch (Exception e) {
-                LOGGER.error("Failed to prepare insert parameters for radio station, user: {}", user.getId(), e);
                 return Uni.createFrom().failure(e);
             }
         });
@@ -200,16 +174,15 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update radio station: {} by user: {}", id, user.getId(), throwable))
                         .onItem().transformToUni(permissions -> {
                             if (!permissions[0]) {
                                 return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, " +
-                                    "bit_rate=$7, slug_name=$8, description=$9, profile_id=$10, ai_agent_id=$11, submission_policy=$12, messaging_policy=$13, last_mod_user=$14, last_mod_date=$15 " +
-                                    "WHERE id=$16";
+                                    " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, ai_overriding=$7, profile_overriding=$8, " +
+                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, submission_policy=$14, messaging_policy=$15, title_font=$16, last_mod_user=$17, last_mod_date=$18 " +
+                                    "WHERE id=$19";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -220,8 +193,10 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getTimeZone().getId())
                                     .addString(station.getManagedBy().name())
                                     .addString(station.getColor())
-                                    .addValue(localizedNameJson)
+                                    .addJsonObject(localizedNameJson)
                                     .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(station.getScheduler())))
+                                    .addJsonObject(JsonObject.mapFrom(station.getAiOverriding()))
+                                    .addJsonObject(JsonObject.mapFrom(station.getProfileOverriding()))
                                     .addJsonArray(bitRateArray)
                                     .addString(station.getSlugName())
                                     .addString(station.getDescription())
@@ -229,13 +204,13 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addUUID(station.getAiAgentId())
                                     .addString(station.getSubmissionPolicy().name())
                                     .addString(station.getMessagingPolicy().name())
+                                    .addString(station.getTitleFont())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
 
                             return client.preparedQuery(sql)
                                     .execute(params)
-                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update radio station: {} by user: {}", id, user.getId(), throwable))
                                     .onItem().transformToUni(rowSet -> {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
@@ -244,7 +219,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     });
                         });
             } catch (Exception e) {
-                LOGGER.error("Failed to prepare update parameters for radio station: {} by user: {}", id, user.getId(), e);
                 return Uni.createFrom().failure(e);
             }
         });
@@ -257,9 +231,11 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {
             EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-            localizedNameJson.getMap().forEach((key, value) -> localizedName.put(LanguageCode.valueOf(key), (String) value));
+            localizedNameJson.getMap().forEach((key, value) ->
+                    localizedName.put(LanguageCode.valueOf(key), (String) value));
             doc.setLocalizedName(localizedName);
         }
+
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
@@ -269,6 +245,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         doc.setDescription(row.getString("description"));
         doc.setSubmissionPolicy(SubmissionPolicy.valueOf(row.getString("submission_policy")));
         doc.setMessagingPolicy(SubmissionPolicy.valueOf(row.getString("messaging_policy")));
+        doc.setTitleFont(row.getString("title_font"));
 
         JsonArray bitRateJson = row.getJsonArray("bit_rate");
         if (bitRateJson != null && !bitRateJson.isEmpty()) {
@@ -279,14 +256,40 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         JsonObject scheduleJson = row.getJsonObject("scheduler");
         if (scheduleJson != null) {
-            try {
-                JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
-                if (scheduleData != null) {
-                    Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
+            JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
+            if (scheduleData != null) {
+                try {
+                    Scheduler schedule = mapper.treeToValue(
+                            mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
                     doc.setScheduler(schedule);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to parse scheduler JSON for radio station: "
+                            + row.getUUID("id"), e);
                 }
+            }
+        }
+
+        JsonObject aiOverridingJson = row.getJsonObject("ai_overriding");
+        if (!aiOverridingJson.isEmpty()) {
+            try {
+                AiOverriding ai = mapper.treeToValue(
+                        mapper.valueToTree(aiOverridingJson.getMap()), AiOverriding.class);
+                doc.setAiOverriding(ai);
             } catch (Exception e) {
-                LOGGER.error("Failed to parse schedule JSON for radio station: {}", row.getUUID("id"), e);
+                throw new RuntimeException("Failed to parse ai_overriding JSON for radio station: "
+                        + row.getUUID("id"), e);
+            }
+        }
+
+        JsonObject profileOverridingJson = row.getJsonObject("profile_overriding");
+        if (!profileOverridingJson.isEmpty()) {
+            try {
+                ProfileOverriding profile = mapper.treeToValue(
+                        mapper.valueToTree(profileOverridingJson.getMap()), ProfileOverriding.class);
+                doc.setProfileOverriding(profile);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to parse profile_overriding JSON for radio station: "
+                        + row.getUUID("id"), e);
             }
         }
 
@@ -303,13 +306,13 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return doc;
     }
 
+
     public Uni<Integer> archive(UUID id, IUser user) {
         return archive(id, entityData, user);
     }
 
     public Uni<Integer> delete(UUID id, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for delete radio station: {} by user: {}", id, user.getId(), throwable))
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[1]) {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have delete permission", user.getUserName(), id));
@@ -321,14 +324,12 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                         return tx.preparedQuery(deleteRlsSql)
                                 .execute(Tuple.of(id))
-                                .onFailure().invoke(throwable -> LOGGER.error("Failed to delete RLS permissions for radio station: {} by user: {}", id, user.getId(), throwable))
                                 .onItem().transformToUni(ignored ->
                                         tx.preparedQuery(deleteDocSql)
                                                 .execute(Tuple.of(id))
-                                                .onFailure().invoke(throwable -> LOGGER.error("Failed to delete radio station: {} by user: {}", id, user.getId(), throwable))
                                 )
                                 .onItem().transform(RowSet::rowCount);
-                    }).onFailure().invoke(throwable -> LOGGER.error("Transaction failed for radio station delete: {} by user: {}", id, user.getId(), throwable));
+                    });
                 });
     }
 
@@ -341,7 +342,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(stationName, accessCount, lastAccessTime, userAgent, ipAddress, countryCode))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to upsert station access with geo data for: {}", stationName, throwable))
                 .replaceWithVoid();
     }
 
@@ -351,7 +351,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(stationName))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to find last access time for: {}", stationName, throwable))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> {
                     if (iterator.hasNext()) {
@@ -370,7 +369,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(SuperUser.build().getId()))
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve active scheduled radio stations", throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .select().where(r -> r.getScheduler() != null && r.getScheduler().isEnabled())
@@ -380,6 +378,4 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
-
-
 }

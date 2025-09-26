@@ -37,6 +37,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private ManagedBy managedBy = ManagedBy.ITSELF;
     private String color;
     private String description;
+    private String titleFont;
     private Scheduler scheduler;
     private UUID aiAgentId;
     private UUID profileId;

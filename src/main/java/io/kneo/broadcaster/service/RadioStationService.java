@@ -1,15 +1,19 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
+import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
+import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
@@ -176,6 +180,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setColor(doc.getColor());
             dto.setTimeZone(doc.getTimeZone().getId());
             dto.setDescription(doc.getDescription());
+            dto.setTitleFont(doc.getTitleFont());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());
             dto.setBitRate(doc.getBitRate());
@@ -183,6 +188,28 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setProfileId(doc.getProfileId());
             dto.setSubmissionPolicy(doc.getSubmissionPolicy());
             dto.setMessagingPolicy(doc.getMessagingPolicy());
+
+            if (doc.getAiOverriding() != null) {
+                AiOverridingDTO aiDto = new AiOverridingDTO();
+                aiDto.setName(doc.getAiOverriding().getName());
+                aiDto.setPrompt(doc.getAiOverriding().getPrompt());
+                aiDto.setTalkativity(doc.getAiOverriding().getTalkativity());
+                aiDto.setPreferredVoice(doc.getAiOverriding().getPreferredVoice());
+                dto.setAiOverriding(aiDto);
+                dto.setAiOverridingEnabled(true);
+            } else {
+                dto.setAiOverridingEnabled(false);
+            }
+
+            if (doc.getProfileOverriding() != null) {
+                ProfileOverridingDTO profileDto = new ProfileOverridingDTO();
+                profileDto.setName(doc.getProfileOverriding().getName());
+                profileDto.setDescription(doc.getProfileOverriding().getDescription());
+                dto.setProfileOverriding(profileDto);
+                dto.setProfileOverridingEnabled(true);
+            } else {
+                dto.setProfileOverridingEnabled(false);
+            }
 
             ScheduleDTO scheduleDTO = new ScheduleDTO();
             Scheduler schedule = doc.getScheduler();
@@ -263,6 +290,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setManagedBy(dto.getManagedBy());
         doc.setColor(dto.getColor());
         doc.setDescription(dto.getDescription());
+        doc.setTitleFont(dto.getTitleFont());
         doc.setTimeZone(ZoneId.of(dto.getTimeZone()));
         doc.setSlugName(WebHelper.generateSlug(dto.getLocalizedName()));
         doc.setBitRate(dto.getBitRate());
@@ -270,6 +298,22 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setProfileId(dto.getProfileId());
         doc.setSubmissionPolicy(dto.getSubmissionPolicy());
         doc.setMessagingPolicy(dto.getMessagingPolicy());
+
+        if (dto.getAiOverriding() != null) {
+            AiOverriding ai = new AiOverriding();
+            ai.setName(dto.getAiOverriding().getName());
+            ai.setPrompt(dto.getAiOverriding().getPrompt());
+            ai.setTalkativity(dto.getAiOverriding().getTalkativity());
+            ai.setPreferredVoice(dto.getAiOverriding().getPreferredVoice());
+            doc.setAiOverriding(ai);
+        }
+
+        if (dto.getProfileOverriding() != null) {
+            ProfileOverriding profile = new ProfileOverriding();
+            profile.setName(dto.getProfileOverriding().getName());
+            profile.setDescription(dto.getProfileOverriding().getDescription());
+            doc.setProfileOverriding(profile);
+        }
 
         if (dto.getSchedule() != null) {
             Scheduler schedule = new Scheduler();

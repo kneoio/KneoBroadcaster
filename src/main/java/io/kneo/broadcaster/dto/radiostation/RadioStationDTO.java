@@ -50,6 +50,7 @@ public class RadioStationDTO extends AbstractDTO {
     private String timeZone;
     private String color;
     private String description;
+    private String titleFont;
     private long bitRate;
     private ScheduleDTO schedule;
     private boolean aiControlAllowed;
@@ -59,6 +60,8 @@ public class RadioStationDTO extends AbstractDTO {
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private UUID aiAgentId;
     private UUID profileId;
+    private boolean aiOverridingEnabled;
+    private boolean profileOverridingEnabled;
     private AiOverridingDTO aiOverriding;
     private ProfileOverridingDTO profileOverriding;
 }

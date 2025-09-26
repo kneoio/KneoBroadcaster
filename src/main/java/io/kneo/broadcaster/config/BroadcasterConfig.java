@@ -61,6 +61,6 @@ public interface BroadcasterConfig {
     int getMaxSilenceDuration();
 
     @WithName("station.whitelist")
-    @WithDefault("aye-ayes-ear,lumisonic,noiseline")
+    @WithDefault("aye-ayes-ear,lumisonic,v-o-i-d")
     List<String> getStationWhitelist();
 }

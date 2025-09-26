@@ -40,13 +40,16 @@ public class MailService {
         <body style="font-family: Arial, sans-serif; padding: 20px;">
             <h2>Mixpla Email Confirmation</h2>
             <p>Your code: <strong style="font-size: 24px; color: #3498db;">%s</strong></p>
-            <p style="color: #7f8c8d;">Enter the number to the submission form. WARNING: It will expire in 15 minutes.</p>
+            <p style="color: #7f8c8d;">Enter the number to the submission form. WARNING: It will expire in 60 minutes.</p>
         </body>
         </html>
         """.formatted(code);
 
+        String textBody = "Confirmation code: " + code +
+                "\n\nEnter this code in the form. It will expire in 60 minutes.";
+
         Mail mail = Mail.withHtml(email, "Confirmation Code", htmlBody)
-                .setText("Your code is: " + code)
+                .setText(textBody)
                 .setFrom("Mixpla <" + fromAddress + ">");
 
         return reactiveMailer.send(mail)
@@ -76,10 +79,10 @@ public class MailService {
                 long minutesAge = Duration.between(entry.timestamp, LocalDateTime.now()).toMinutes();
                 LOG.info("Code age: {} minutes", minutesAge);
 
-                if (minutesAge > 15) {
+                if (minutesAge > 60) {
                     LOG.warn("Code expired for email: {}. Age: {} minutes", email, minutesAge);
                     confirmationCodes.remove(email);
-                    return "Confirmation code has expired (valid for 15 minutes)";
+                    return "Confirmation code has expired (valid for 60 minutes)";
                 }
 
                 if (!entry.code.equals(code) && !code.equals("fafa")) {

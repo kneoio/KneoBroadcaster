@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
@@ -84,30 +83,6 @@ public class AiHelperService {
                         } else {
                             return Uni.createFrom().item(brand);
                         }
-                    })
-                    .collect(Collectors.toList());
-
-            return Uni.join().all(brandUnis).andFailFast();
-        });
-    }
-
-    public Uni<List<LiveRadioStationMcpDTO>> getLiveStations(List<RadioStationStatus> statuses) {
-        return Uni.createFrom().item(() ->
-                radioStationPool.getOnlineStationsSnapshot().stream()
-                        .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
-                        .filter(station -> statuses.contains(station.getStatus()))
-                        .collect(Collectors.toList())
-        ).chain(stations -> {
-            if (stations.isEmpty()) {
-                return Uni.createFrom().item(List.of());
-            }
-
-            List<Uni<LiveRadioStationMcpDTO>> brandUnis = stations.stream()
-                    .map(station -> {
-                        LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
-                        liveRadioStation.setRadioStationSlugName(station.getSlugName());
-                        liveRadioStation.setQueueSize(station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size());
-                        return Uni.createFrom().item(liveRadioStation);
                     })
                     .collect(Collectors.toList());
 

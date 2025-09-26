@@ -77,7 +77,7 @@ public class RadioService {
     @Inject
     MemoryService memoryService;
 
-    private static final List<String> FEATURED_STATIONS = List.of("bratan","aye-ayes-ear","lumisonic", "voltage-georgia");
+    private static final List<String> FEATURED_STATIONS = List.of("bratan","aye-ayes-ear","lumisonic", "noiseline");
 
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);

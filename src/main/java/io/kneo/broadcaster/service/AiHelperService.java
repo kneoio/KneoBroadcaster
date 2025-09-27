@@ -56,7 +56,7 @@ public class AiHelperService {
                     .map(station -> {
                         BrandInfoDTO brand = new BrandInfoDTO();
                         brand.setRadioStationName(station.getSlugName());
-                        if (station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2){
+                        if (station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2) {
                             brand.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
                         } else {
                             brand.setRadioStationStatus(station.getStatus());
@@ -73,9 +73,7 @@ public class AiHelperService {
                                         String randomPrompt = prompts.get(random.nextInt(prompts.size()));
                                         liveAgentDTO.setPrompt(randomPrompt);
                                         liveAgentDTO.setFillers(agent.getFillerPrompt());
-                                        if (agent.getPreferredVoice() != null && !agent.getPreferredVoice().isEmpty()) {
-                                            liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
-                                        }
+                                        liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
                                         liveAgentDTO.setTalkativity(agent.getTalkativity());
                                         brand.setAgent(liveAgentDTO);
                                         return brand;

@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -71,10 +72,22 @@ public class AiHelperService {
                                         List<String> prompts = agent.getPrompts();
                                         Random random = new Random();
                                         String randomPrompt = prompts.get(random.nextInt(prompts.size()));
-                                        liveAgentDTO.setPrompt(randomPrompt);
+                                        AiOverriding aiOverriding = station.getAiOverriding();
+                                        if (aiOverriding != null) {
+                                            String newName = aiOverriding.getName();
+                                            if (!newName.isEmpty()) {
+                                                liveAgentDTO.setName(newName);
+                                            }
+                                            liveAgentDTO.setPreferredVoice(aiOverriding.getPreferredVoice());
+                                            liveAgentDTO.setTalkativity(aiOverriding.getTalkativity());
+                                            String additionalPrompt = aiOverriding.getPrompt();
+                                            liveAgentDTO.setPrompt(String.format("%s\n------\n%s", randomPrompt, additionalPrompt));
+                                        } else {
+                                            liveAgentDTO.setName(agent.getName());
+                                            liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
+                                            liveAgentDTO.setTalkativity(agent.getTalkativity());
+                                        }
                                         liveAgentDTO.setFillers(agent.getFillerPrompt());
-                                        liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
-                                        liveAgentDTO.setTalkativity(agent.getTalkativity());
                                         brand.setAgent(liveAgentDTO);
                                         return brand;
                                     });

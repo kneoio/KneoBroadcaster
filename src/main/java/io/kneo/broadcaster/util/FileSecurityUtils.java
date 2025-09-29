@@ -22,13 +22,27 @@ public class FileSecurityUtils {
         if (filename == null || filename.trim().isEmpty()) {
             throw new SecurityException("Filename cannot be null or empty");
         }
+
         String sanitized = filename.replaceAll("[/\\\\]", "");
         sanitized = sanitized.replaceAll("[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]", "");
         sanitized = sanitized.replaceAll("[:\\*\\?\"<>\\|]", "");
         sanitized = sanitized.trim();
+
+        sanitized = sanitized.replaceAll(",", "");          // remove commas
+        sanitized = sanitized.replaceAll("\\s{2,}", " ");   // collapse multiple spaces to one
+
+        int dotIndex = sanitized.lastIndexOf('.');
+        if (dotIndex > 0) {
+            String name = sanitized.substring(0, dotIndex).replaceAll("[,\\s\\.]+$", "");
+            String ext = sanitized.substring(dotIndex);
+            sanitized = name + ext;
+        } else {
+            sanitized = sanitized.replaceAll("[,\\s\\.]+$", "");
+        }
+
         if (sanitized.length() > MAX_FILENAME_LENGTH) {
             String extension = "";
-            int dotIndex = sanitized.lastIndexOf('.');
+            dotIndex = sanitized.lastIndexOf('.');
             if (dotIndex > 0 && dotIndex < sanitized.length() - 1) {
                 extension = sanitized.substring(dotIndex);
                 if (extension.length() > 10) {

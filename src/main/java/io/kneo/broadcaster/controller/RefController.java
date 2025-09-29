@@ -55,6 +55,7 @@ public class RefController extends BaseController {
         router.route(HttpMethod.GET, "/api/genres/:id").handler(this::get);
         router.route(HttpMethod.POST, "/api/genres").handler(this::upsert);
         router.route(HttpMethod.DELETE, "/api/genres/:id").handler(this::delete);
+        router.route(HttpMethod.GET, "/alexa/skill").handler(this::getSkill);
     }
 
     @Deprecated
@@ -261,6 +262,31 @@ public class RefController extends BaseController {
             default:
                 rc.response().setStatusCode(404).end();
         }
+    }
+
+    private void getSkill(RoutingContext rc) {
+        JsonObject response = new JsonObject()
+                .put("version", "1.0")
+                .put("response", new JsonObject()
+                        .put("shouldEndSession", true)
+                        .put("directives", List.of(
+                                new JsonObject()
+                                        .put("type", "AudioPlayer.Play")
+                                        .put("playBehavior", "REPLACE_ALL")
+                                        .put("audioItem", new JsonObject()
+                                                .put("stream", new JsonObject()
+                                                        .put("token", "aye-ayes-ear-001")
+                                                        .put("url", "https://mixpla.online/aye-ayes-ear/radio/stream.m3u8")
+                                                        .put("offsetInMilliseconds", 0)
+                                                )
+                                        )
+                        ))
+                );
+
+        rc.response()
+                .putHeader("Content-Type", "application/json")
+                .setStatusCode(200)
+                .end(response.encode());
     }
 
     private void upsert(RoutingContext rc) {

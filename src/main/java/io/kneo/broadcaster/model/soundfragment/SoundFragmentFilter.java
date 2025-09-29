@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.model.soundfragment;
 
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;

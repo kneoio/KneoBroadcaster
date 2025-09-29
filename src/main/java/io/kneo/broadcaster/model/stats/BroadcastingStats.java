@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model.stats;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.model.soundfragment;
 
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import lombok.Getter;

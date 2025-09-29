@@ -9,7 +9,7 @@ import io.kneo.broadcaster.dto.radio.MessageDTO;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.repository.ContributionRepository;
@@ -253,7 +253,7 @@ public class RadioService {
         return radioStationService.getBySlugName(brand)
                 .chain(radioStation -> {
                     SoundFragment entity = buildEntity(dto);
-                    entity.setSource(SourceType.SUBMISSION);
+                    entity.setSource(SourceType.CONTRIBUTION);
                     List<FileMetadata> fileMetadataList = new ArrayList<>();
                     if (dto.getNewlyUploaded() != null && !dto.getNewlyUploaded().isEmpty()) {
                         for (String fileName : dto.getNewlyUploaded()) {
@@ -346,7 +346,7 @@ public class RadioService {
 
     private SoundFragment buildEntity(SubmissionDTO dto) {
         SoundFragment doc = new SoundFragment();
-        doc.setSource(SourceType.SUBMISSION);
+        doc.setSource(SourceType.CONTRIBUTION);
         doc.setStatus(50);
         doc.setType(PlaylistItemType.SONG);
         doc.setTitle(dto.getTitle());

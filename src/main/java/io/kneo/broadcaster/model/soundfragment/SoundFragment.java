@@ -1,5 +1,6 @@
-package io.kneo.broadcaster.model;
+package io.kneo.broadcaster.model.soundfragment;
 
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.model.SecureDataEntity;
@@ -26,6 +27,7 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String description;
     private Integer archived;
     private List<FileMetadata> fileMetadataList;
+    private ContributionWorkflow contributionWorkflow;
     private Object addInfo;
 
     public String getMetadata() {

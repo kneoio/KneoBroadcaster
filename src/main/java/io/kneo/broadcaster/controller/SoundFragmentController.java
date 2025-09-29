@@ -6,7 +6,7 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.service.FileDownloadService;

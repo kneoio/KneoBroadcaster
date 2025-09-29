@@ -5,7 +5,7 @@ import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;

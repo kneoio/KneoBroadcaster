@@ -2,10 +2,10 @@ package io.kneo.broadcaster.service.playlist;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.BrandSoundFragment;
+import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
@@ -163,14 +163,14 @@ public class PlaylistManager {
             liveSoundFragment.setSoundFragmentId(soundFragment.getId());
             liveSoundFragment.setMetadata(songMetadata);
 
-            if (soundFragment.getSource() == SourceType.SUBMISSION){
+            if (soundFragment.getSource() == SourceType.CONTRIBUTION){
 
             }
 
             return segmentationService.slice(songMetadata, metadata.getTemporaryFilePath(), List.of(maxRate))
                     .onItem().transformToUni(segments -> {
                         if (segments.isEmpty()) {
-                            LOGGER.warn("Slicing from metadata {} resulted in zero segments.", metadata.getFileKey());
+                            LOGGER.warn("Slicing from metadata {} set in zero segments.", metadata.getFileKey());
                             return Uni.createFrom().item(false);
                         }
 
@@ -179,7 +179,7 @@ public class PlaylistManager {
 
                         if (isAiDjSubmit) {
                             prioritizedQueue.add(liveSoundFragment);
-                            LOGGER.info("Added AI submit fragment for brand {}: {}", brand, metadata.getFileOriginalName());
+                            LOGGER.info("Added submit fragment for brand {}: {}", brand, metadata.getFileOriginalName());
                         } else {
                             if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
                                 LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);

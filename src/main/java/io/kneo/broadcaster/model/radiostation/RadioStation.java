@@ -71,18 +71,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
         return String.format("id: %s, slug: %s", getId(), slugName);
     }
 
-    @Getter
-    public static class StatusChangeRecord {
-        private final LocalDateTime timestamp;
-        private final RadioStationStatus oldStatus;
-        private final RadioStationStatus newStatus;
-
-        public StatusChangeRecord(LocalDateTime timestamp,
-                                  RadioStationStatus oldStatus,
-                                  RadioStationStatus newStatus) {
-            this.timestamp = timestamp;
-            this.oldStatus = oldStatus;
-            this.newStatus = newStatus;
-        }
+    public record StatusChangeRecord(LocalDateTime timestamp, RadioStationStatus oldStatus,
+                                     RadioStationStatus newStatus) {
     }
 }

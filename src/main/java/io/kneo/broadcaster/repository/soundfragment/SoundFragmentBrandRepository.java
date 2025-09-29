@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.broadcaster.model.BrandSoundFragment;
-import io.kneo.broadcaster.model.SoundFragment;
-import io.kneo.broadcaster.model.SoundFragmentFilter;
+import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.rls.RLSRepository;

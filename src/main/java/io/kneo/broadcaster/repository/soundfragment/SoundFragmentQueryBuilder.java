@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
-import io.kneo.broadcaster.model.SoundFragmentFilter;
+import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.core.model.user.IUser;
 import jakarta.enterprise.context.ApplicationScoped;
 

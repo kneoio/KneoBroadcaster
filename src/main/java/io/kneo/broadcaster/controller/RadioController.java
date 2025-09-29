@@ -29,6 +29,8 @@ import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
+
 @ApplicationScoped
 public class RadioController {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioController.class);
@@ -64,7 +66,8 @@ public class RadioController {
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
-       
+        router.route(HttpMethod.GET, "/alexa/skill").handler(this::getSkill);
+
          router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)
@@ -422,6 +425,32 @@ public class RadioController {
         } catch (Exception e) {
             rc.fail(e);
         }
+    }
+
+
+    private void getSkill(RoutingContext rc) {
+        JsonObject response = new JsonObject()
+                .put("version", "1.0")
+                .put("response", new JsonObject()
+                        .put("shouldEndSession", true)
+                        .put("directives", List.of(
+                                new JsonObject()
+                                        .put("type", "AudioPlayer.Play")
+                                        .put("playBehavior", "REPLACE_ALL")
+                                        .put("audioItem", new JsonObject()
+                                                .put("stream", new JsonObject()
+                                                        .put("token", "aye-ayes-ear-001")
+                                                        .put("url", "https://mixpla.online/aye-ayes-ear/radio/stream.m3u8")
+                                                        .put("offsetInMilliseconds", 0)
+                                                )
+                                        )
+                        ))
+                );
+
+        rc.response()
+                .putHeader("Content-Type", "application/json")
+                .setStatusCode(200)
+                .end(response.encode());
     }
 
 

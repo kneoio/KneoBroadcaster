@@ -400,7 +400,7 @@ public class FileOrphanCleanup {
                     .artist(metadata.getArtist())
                     //.genres(List.of(genre))
                     .album(metadata.getAlbum())
-                    .source(SourceType.RECOVERED_FROM_SPACES)
+                    .source(SourceType.RECOVERED_FROM_STORAGE)
                     .status(1)
                     .type(PlaylistItemType.SONG)
                     .newlyUploaded(List.of())

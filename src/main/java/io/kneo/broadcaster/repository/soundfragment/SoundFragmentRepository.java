@@ -178,7 +178,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 : null;
 
         if (filesToProcess != null && !filesToProcess.isEmpty()) {
-            //doc.setSource(SourceType.USERS_UPLOAD);
             FileMetadata meta = filesToProcess.get(0);
             Path filePath = meta.getFilePath();
             if (filePath == null) {
@@ -486,12 +485,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     private Uni<RowSet<Row>> updateSoundFragmentRecord(SqlClient tx, UUID id, SoundFragment doc, IUser user, LocalDateTime nowTime) {
         String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
-                        "source=$3, status=$4, type=$5, title=$6, " +
-                        "artist=$7, album=$8, description=$9, slug_name=$10 WHERE id=$11;",
+                        "status=$3, type=$4, title=$5, " +
+                        "artist=$6, album=$7, description=$8, slug_name=$9 WHERE id=$10;",
                 entityData.getTableName());
 
         Tuple params = Tuple.of(user.getId(), nowTime)
-                .addString(doc.getSource().name())
                 .addInteger(doc.getStatus())
                 .addString(doc.getType().name())
                 .addString(doc.getTitle())

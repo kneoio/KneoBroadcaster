@@ -5,9 +5,10 @@ import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
-import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
@@ -290,6 +291,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         entity.setFileMetadataList(fileMetadataList);
 
         if (id == null) {
+            entity.setSource(SourceType.USER_UPLOAD);
             return repository.insert(entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))
                     .chain(doc -> mapToDTO(doc, true, null))
@@ -481,7 +483,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     private SoundFragment buildEntity(SoundFragmentDTO dto) {
         SoundFragment doc = new SoundFragment();
-        doc.setSource(dto.getSource());
         doc.setStatus(dto.getStatus());
         doc.setType(dto.getType());
         doc.setTitle(dto.getTitle());

@@ -77,7 +77,7 @@ public class RadioService {
     @Inject
     MemoryService memoryService;
 
-    private static final List<String> FEATURED_STATIONS = List.of("bratan","aye-ayes-ear","lumisonic", "v-o-i-d");
+    private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d");
 
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
@@ -168,7 +168,7 @@ public class RadioService {
     }
 
     public Uni<List<RadioStationStatusDTO>> getAllStations() {
-        return radioStationService.getAllDTO(5, 0, SuperUser.build())
+        return radioStationService.getAllDTO(10, 0, SuperUser.build())
                 .chain(stations -> {
                     if (stations.isEmpty()) {
                         return Uni.createFrom().item(List.of());

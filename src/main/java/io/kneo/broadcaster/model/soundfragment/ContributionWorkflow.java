@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model.soundfragment;
 
+import io.kneo.broadcaster.model.cnst.ApprovalStatus;
 import lombok.Getter;
 import lombok.Setter;
 

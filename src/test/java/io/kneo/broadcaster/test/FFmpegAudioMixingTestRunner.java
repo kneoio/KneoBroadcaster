@@ -167,6 +167,6 @@ public class FFmpegAudioMixingTestRunner {
             }
         };
 
-        return new AudioMixingHandler(config, null, null,null, ffmpegProvider);
+        return new AudioMixingHandler(config, null, null,null, null, ffmpegProvider);
     }
 }

@@ -86,6 +86,7 @@ public class AiHelperService {
                                             liveAgentDTO.setName(agent.getName());
                                             liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
                                             liveAgentDTO.setTalkativity(agent.getTalkativity());
+                                            liveAgentDTO.setPrompt(randomPrompt);
                                         }
                                         liveAgentDTO.setFillers(agent.getFillerPrompt());
                                         brand.setAgent(liveAgentDTO);

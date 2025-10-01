@@ -3,17 +3,17 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.BulkBrandUpdateDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.FileDownloadService;
 import io.kneo.broadcaster.service.FileUploadService;
 import io.kneo.broadcaster.service.ValidationResult;
-import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.ValidationService;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.InputStreamReadStream;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -23,7 +23,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.repository.exception.DocumentHasNotFoundException;
+import io.kneo.core.repository.exception.UserNotFoundException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -42,7 +42,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -128,7 +127,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        rc::fail
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -152,7 +151,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             page.addPayload(PayloadType.DOC_DATA, doc);
                             rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
-                        rc::fail
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -177,7 +176,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        rc::fail
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -209,7 +208,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        rc::fail
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -232,7 +231,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
-                            throwable -> handleUpsertFailure(rc, throwable)
+                            t -> handleFailure(rc, t)
                     );
 
         } catch (Exception e) {
@@ -274,7 +273,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 })
                 .subscribe().with(
                         success -> LOGGER.info("Upload done: {}", uploadId),
-                        error -> LOGGER.error("Upload failed: {}", uploadId, error)
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -284,7 +283,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .chain(user -> service.archive(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
-                        rc::fail
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -315,16 +314,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         success -> {
                             LOGGER.info("Upload session started for uploadId: {}", uploadId);
                         },
-                        error -> {
-                            LOGGER.error("Error starting upload session for uploadId: {}", uploadId, error);
-                            if (!rc.response().ended()) {
-                                rc.fail(500, error);
-                            }
-                        }
+                        t -> handleFailure(rc, t)
                 );
     }
-
-
 
     private void streamProgress(RoutingContext rc) {
         String uploadId = rc.pathParam("uploadId");
@@ -351,7 +343,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         });
     }
 
-
     private void getBySlugName(RoutingContext rc) {
         String id = rc.pathParam("id");
         String requestedFileName = rc.pathParam("slug");
@@ -374,13 +365,10 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                     .putHeader("Content-Length", String.valueOf(fileData.getContentLength()));
 
                             if (fileData.hasByteArray()) {
-                                // Handle byte[] data (existing local files)
                                 response.end(Buffer.buffer(fileData.getData()));
                             } else if (fileData.hasInputStream()) {
-                                // Handle InputStream data (cloud storage) - stream reactively
                                 response.setChunked(true);
 
-                                // Create reactive stream from InputStream
                                 InputStreamReadStream inputStreamReadStream = new InputStreamReadStream(vertx, fileData.getInputStream(), STREAM_BUFFER_SIZE);
                                 inputStreamReadStream.pipeTo(response)
                                         .onComplete(ar -> {
@@ -393,18 +381,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                         });
                             }
                         },
-                        throwable -> {
-                            if (throwable instanceof SecurityException) {
-                                rc.fail(403, throwable);
-                            } else if (throwable instanceof IllegalArgumentException) {
-                                rc.fail(400, throwable);
-                            } else if (throwable instanceof FileNotFoundException ||
-                                    throwable instanceof DocumentHasNotFoundException) {
-                                rc.fail(404, throwable);
-                            } else {
-                                rc.fail(500, throwable);
-                            }
-                        }
+                        t -> handleFailure(rc, t)
                 );
     }
 
@@ -444,14 +421,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                         .putHeader("Content-Type", "application/json")
                                         .end(response.encode());
                             },
-                            throwable -> {
-                                LOGGER.error("Bulk brand update failed", throwable);
-                                if (throwable instanceof IllegalArgumentException) {
-                                    rc.fail(400, throwable);
-                                } else {
-                                    rc.fail(500, throwable);
-                                }
-                            }
+                            t -> handleFailure(rc, t)
                     );
 
         } catch (Exception e) {
@@ -478,13 +448,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                                         .putHeader("Content-Type", "application/json")
                                         .end(response.encode());
                             },
-                            throwable -> {
-                                if (throwable instanceof IllegalArgumentException) {
-                                    rc.fail(400, throwable);
-                                } else {
-                                    rc.fail(500, throwable);
-                                }
-                            }
+                            t -> handleFailure(rc, t)
                     );
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
@@ -556,5 +520,15 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             return null;
         }
         return any ? dto : null;
+    }
+
+    protected void handleFailure(RoutingContext rc, Throwable throwable) {
+        if (throwable instanceof IllegalStateException
+                || throwable instanceof IllegalArgumentException
+                || throwable instanceof UserNotFoundException) {
+            rc.fail(401, throwable);
+        } else {
+            rc.fail(throwable); // default bubbling
+        }
     }
 }

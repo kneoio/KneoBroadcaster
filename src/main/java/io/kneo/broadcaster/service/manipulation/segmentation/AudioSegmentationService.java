@@ -144,12 +144,26 @@ public class AudioSegmentationService {
                         .addExtraArgs("-map", "0:a")
                         .addExtraArgs("-metadata", "title=" + songMetadata.getTitle())
                         .addExtraArgs("-metadata", "artist=" + songMetadata.getArtist())
-                        // Performance optimizations
+                        // currently using dynamic auto-normalizer + light compressor.
+                        // later maybe, replace with: "-af", "loudnorm,acompressor"
+                        // For no processing, remove this line.
+                        .addExtraArgs("-af", "dynaudnorm,acompressor")
+                        //.addExtraArgs("-af", "dynaudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50")
                         .addExtraArgs("-threads", "0")
                         .addExtraArgs("-preset", "ultrafast")
                         .addExtraArgs("-aac_coder", "twoloop")
                         .done();
+
+
             }
+
+            //TODO
+          /*  if (preset != CompressionPreset.NONE) {
+                builder.addExtraArgs("-af", globalNormalizer + "," + preset.getFfmpegArgs());
+            } else {
+                builder.addExtraArgs("-af", globalNormalizer);
+            }*/
+
 
             LOGGER.info("FFmpeg multi-bitrate segmentation command: {}", builder.toString());
 

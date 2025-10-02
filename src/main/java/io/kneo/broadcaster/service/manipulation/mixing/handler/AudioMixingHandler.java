@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.manipulation.mixing.handler;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
@@ -194,6 +195,52 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                         });
                             });
                 });
+    }
+
+    public Uni<Boolean> handleSongCrossfadeSong(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+        UUID songId1 = toQueueDTO.getSoundFragments().get("song1");
+        UUID songId2 = toQueueDTO.getSoundFragments().get("song2");
+
+        MixingProfile settings = MixingProfile.randomProfile(12345L);
+        LOGGER.info("Applied Crossfade Mixing {}", settings.description);
+
+        return soundFragmentService.getById(songId1, SuperUser.build())
+                .chain(sf1 -> soundFragmentRepository.getFirstFile(sf1.getId())
+                        .chain(meta1 -> meta1.materializeFileStream(tempBaseDir)
+                                .chain(tempPath1 ->
+                                        soundFragmentService.getById(songId2, SuperUser.build())
+                                                .chain(sf2 -> soundFragmentRepository.getFirstFile(sf2.getId())
+                                                        .chain(meta2 -> meta2.materializeFileStream(tempBaseDir)
+                                                                .chain(tempPath2 -> {
+                                                                    String outputPath = outputDir + "/crossfade_" +
+                                                                            System.currentTimeMillis() + ".wav";
+                                                                    return audioConcatenator.concatenate(
+                                                                                    tempPath1.toString(),
+                                                                                    tempPath2.toString(),
+                                                                                    outputPath,
+                                                                                    ConcatenationType.CROSSFADE,
+                                                                                    0
+                                                                            )
+                                                                            .chain(finalPath -> {
+                                                                                SoundFragment crossfadeFragment = new SoundFragment();
+                                                                                crossfadeFragment.setId(UUID.randomUUID());
+                                                                                crossfadeFragment.setTitle(sf1.getTitle() + " → " + sf2.getTitle());
+                                                                                crossfadeFragment.setArtist(sf1.getArtist() + " / " + sf2.getArtist());
+                                                                                crossfadeFragment.setSource(SourceType.TEMPORARY_MIX);
+
+                                                                                FileMetadata fileMetadata = new FileMetadata();
+                                                                                fileMetadata.setTemporaryFilePath(Path.of(finalPath));
+                                                                                crossfadeFragment.setFileMetadataList(List.of(fileMetadata));
+
+                                                                                return playlistManager.addFragmentToSlice(
+                                                                                        crossfadeFragment,
+                                                                                        toQueueDTO.getPriority(),
+                                                                                        radioStation.getBitRate(),
+                                                                                        toQueueDTO.getMergingMethod()
+                                                                                ).replaceWith(Boolean.TRUE);
+                                                                            });
+                                                                }))))));
     }
 
 

@@ -99,6 +99,24 @@ public class QueueService {
                         }
                         return songIntroSongHandler.handleIntroSongIntroSong(radioStation, toQueueDTO);
                     });
+        } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_CROSSFADE_SONG) {
+            return getRadioStation(brandName)
+                    .chain(radioStation -> {
+                        AudioMixingHandler songIntroSongHandler;
+                        try {
+                            songIntroSongHandler = new AudioMixingHandler(
+                                    broadcasterConfig,
+                                    soundFragmentRepository,
+                                    soundFragmentService,
+                                    audioConcatenator,
+                                    aiAgentService,
+                                    fFmpegProvider
+                            );
+                        } catch (IOException | AudioMergeException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return songIntroSongHandler.handleSongCrossfadeSong(radioStation, toQueueDTO);
+                    });
         } else {
             return Uni.createFrom().item(Boolean.FALSE);
         }

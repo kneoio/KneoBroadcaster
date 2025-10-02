@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 public class AudioMixingHandler extends MixingHandlerBase {
@@ -71,8 +72,6 @@ public class AudioMixingHandler extends MixingHandlerBase {
 
         return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
-                    double gainValue = aiAgent.getMerger().getGainIntro();
-
                     return soundFragmentService.getById(soundFragmentId1, SuperUser.build())
                             .chain(soundFragment1 -> {
                                 return soundFragmentRepository.getFirstFile(soundFragment1.getId())
@@ -140,8 +139,6 @@ public class AudioMixingHandler extends MixingHandlerBase {
 
         return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
-                    double gainValue = aiAgent.getMerger().getGainIntro();
-
                     return soundFragmentService.getById(part2, SuperUser.build())
                             .chain(soundFragment1 -> {
                                 return soundFragmentRepository.getFirstFile(soundFragment1.getId())
@@ -201,9 +198,12 @@ public class AudioMixingHandler extends MixingHandlerBase {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID songId1 = toQueueDTO.getSoundFragments().get("song1");
         UUID songId2 = toQueueDTO.getSoundFragments().get("song2");
+        ConcatenationType concatType = Arrays.stream(ConcatenationType.values())
+                .skip(new Random().nextInt(ConcatenationType.values().length))
+                .findFirst()
+                .orElse(ConcatenationType.DIRECT_CONCAT);
 
-        MixingProfile settings = MixingProfile.randomProfile(12345L);
-        LOGGER.info("Applied Crossfade Mixing {}", settings.description);
+        LOGGER.info("Applied Concatenation Type {}", concatType);
 
         return soundFragmentService.getById(songId1, SuperUser.build())
                 .chain(sf1 -> soundFragmentRepository.getFirstFile(sf1.getId())
@@ -219,7 +219,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                     tempPath1.toString(),
                                                                                     tempPath2.toString(),
                                                                                     outputPath,
-                                                                                    ConcatenationType.CROSSFADE,
+                                                                                    concatType,
                                                                                     0
                                                                             )
                                                                             .chain(finalPath -> {

@@ -41,7 +41,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    protected Uni<SoundFragment> from(Row row, boolean includeGenres, boolean includeFiles) {
+    protected Uni<SoundFragment> from(Row row, boolean includeGenres, boolean includeFiles, boolean includeLabels) {
         SoundFragment doc = new SoundFragment();
         setDefaultFields(doc, row);
         doc.setSource(SourceType.valueOf(row.getString("source")));
@@ -65,6 +65,15 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
             doc.setGenres(List.of());
         }
 
+        if (includeLabels) {
+            uni = uni.chain(d -> loadLabels(d.getId()).onItem().transform(labels -> {
+                d.setLabels(labels);
+                return d;
+            }));
+        } else {
+            doc.setLabels(List.of());
+        }
+
         if (includeFiles) {
             String fileQuery = "SELECT id, reg_date, last_mod_date, parent_table, parent_id, archived, archived_date, storage_type, mime_type, slug_name, file_original_name, file_key FROM _files WHERE parent_table = '" + entityData.getTableName() + "' AND parent_id = $1 AND archived = 0 ORDER BY reg_date ASC";
             uni = uni.chain(d -> client.preparedQuery(fileQuery)
@@ -72,27 +81,24 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                     .onItem().transform(rowSet -> {
                         List<FileMetadata> files = new ArrayList<>();
                         for (Row fileRow : rowSet) {
-                            FileMetadata fileMetadata = new FileMetadata();
-                            fileMetadata.setId(fileRow.getLong("id"));
-                            fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
-                            fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
-                            fileMetadata.setParentTable(fileRow.getString("parent_table"));
-                            fileMetadata.setParentId(fileRow.getUUID("parent_id"));
-                            fileMetadata.setArchived(fileRow.getInteger("archived"));
-                            if (fileRow.getLocalDateTime("archived_date") != null) {
-                                fileMetadata.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
-                            }
-                            fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
-                            fileMetadata.setMimeType(fileRow.getString("mime_type"));
-                            fileMetadata.setSlugName(fileRow.getString("slug_name"));
-                            fileMetadata.setFileOriginalName(fileRow.getString("file_original_name"));
-                            fileMetadata.setFileKey(fileRow.getString("file_key"));
-                            files.add(fileMetadata);
+                            FileMetadata f = new FileMetadata();
+                            f.setId(fileRow.getLong("id"));
+                            f.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
+                            f.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
+                            f.setParentTable(fileRow.getString("parent_table"));
+                            f.setParentId(fileRow.getUUID("parent_id"));
+                            f.setArchived(fileRow.getInteger("archived"));
+                            if (fileRow.getLocalDateTime("archived_date") != null)
+                                f.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
+                            f.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
+                            f.setMimeType(fileRow.getString("mime_type"));
+                            f.setSlugName(fileRow.getString("slug_name"));
+                            f.setFileOriginalName(fileRow.getString("file_original_name"));
+                            f.setFileKey(fileRow.getString("file_key"));
+                            files.add(f);
                         }
                         d.setFileMetadataList(files);
-                        if (files.isEmpty()) {
-                            markAsCorrupted(d.getId()).subscribe().with(r -> {}, e -> {});
-                        }
+                        if (files.isEmpty()) markAsCorrupted(d.getId()).subscribe().with(r -> {}, e -> {});
                         return d;
                     }));
         } else {
@@ -102,6 +108,14 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         return uni;
     }
 
+    private Uni<List<UUID>> loadLabels(UUID soundFragmentId) {
+        String sql = "SELECT label_id FROM kneobroadcaster__sound_fragment_labels WHERE id = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(soundFragmentId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("label_id"))
+                .collect().asList();
+    }
 
 
     private Uni<List<UUID>> loadGenres(UUID soundFragmentId) {

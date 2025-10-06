@@ -22,6 +22,7 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String title;
     private String artist;
     private List<UUID> genres;
+    private List<UUID> labels;
     private String album;
     private String slugName;
     private String description;

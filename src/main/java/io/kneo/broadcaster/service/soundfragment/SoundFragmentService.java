@@ -448,17 +448,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             List<UploadFileDTO> files = new ArrayList<>();
 
             if (exposeFileUrl && doc.getFileMetadataList() != null) {
-                doc.getFileMetadataList()
-                        .forEach(meta -> {
-                            String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
-                            files.add(UploadFileDTO.builder()
-                                    .id(meta.getSlugName())
-                                    .name(safeFileName)
-                                    .status("finished")
-                                    .url("/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName())
-                                    .percentage(100)
-                                    .build());
-                        });
+                doc.getFileMetadataList().forEach(meta -> {
+                    String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
+                    files.add(UploadFileDTO.builder()
+                            .id(meta.getSlugName())
+                            .name(safeFileName)
+                            .status("finished")
+                            .url("/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName())
+                            .percentage(100)
+                            .build());
+                });
             }
 
             return SoundFragmentDTO.builder()
@@ -473,6 +472,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .title(doc.getTitle())
                     .artist(doc.getArtist())
                     .genres(doc.getGenres())
+                    .labels(doc.getLabels())
                     .album(doc.getAlbum())
                     .description(doc.getDescription())
                     .uploadedFiles(files)
@@ -488,6 +488,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setTitle(dto.getTitle());
         doc.setArtist(dto.getArtist());
         doc.setGenres(dto.getGenres());
+        doc.setLabels(dto.getLabels());
         doc.setAlbum(dto.getAlbum());
         doc.setDescription(dto.getDescription());
         doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));

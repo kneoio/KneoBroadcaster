@@ -82,7 +82,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false))
+                .onItem().transformToUni(row -> from(row, false, false, false))
                 .concatenate()
                 .collect().asList();
     }
@@ -126,7 +126,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.preparedQuery(sql)
                 .execute(Tuple.from(params))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false))
+                .onItem().transformToUni(row -> from(row, false, false, false))
                 .concatenate()
                 .collect().asList();
     }
@@ -162,7 +162,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
                         Row row = iterator.next();
-                        return from(row, includeGenres, includeFiles);
+                        return from(row, includeGenres, includeFiles, true);
                     } else {
                         return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
                     }
@@ -350,6 +350,28 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
         return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
     }
+
+    private Uni<Void> upsertLabels(UUID fragmentId, List<UUID> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return client.preparedQuery("DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1")
+                    .execute(Tuple.of(fragmentId))
+                    .replaceWithVoid();
+        }
+
+        String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_labels (id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+
+        return client.preparedQuery(deleteSql)
+                .execute(Tuple.of(fragmentId))
+                .chain(() -> Multi.createFrom().iterable(labels)
+                        .onItem().transformToUni(labelId ->
+                                client.preparedQuery(insertSql).execute(Tuple.of(fragmentId, labelId))
+                        )
+                        .merge()
+                        .collect().asList()
+                        .replaceWithVoid());
+    }
+
 
     //TODO will be refactored later (fabric)
     public Uni<List<BrandSoundFragment>> getForBrand(UUID brandId, final int limit, final int offset,

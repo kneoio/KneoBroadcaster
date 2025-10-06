@@ -13,4 +13,5 @@ public class ConversationHistoryDTO implements IMemoryContentDTO {
     private String title;
     private String artist;
     private String introSpeech;
+    private HistoryStatus status;
 }

@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class MemoryService {
 
-    private static final int MAX_CONVERSATION_HISTORY = 1;
+    private static final int MAX_CONVERSATION_HISTORY = 3;
     private static final int MAX_EVENTS = 20;
     private static final int MAX_MESSAGES = 20;
 

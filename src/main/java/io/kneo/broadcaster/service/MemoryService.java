@@ -23,6 +23,7 @@ import jakarta.inject.Inject;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -51,11 +52,13 @@ public class MemoryService {
     public Uni<List<MemoryDTO>> getAll(final int limit, final int offset, final IUser user) {
         return flattenMemories().map(allMemories ->
                 allMemories.stream()
+                        .sorted(Comparator.comparing(MemoryDTO::getRegDate))
                         .skip(offset)
                         .limit(limit > 0 ? limit : allMemories.size())
                         .collect(Collectors.toList())
         );
     }
+
 
     public Uni<Integer> getAllCount(IUser user) {
         return flattenMemories().map(List::size);
@@ -271,6 +274,7 @@ public class MemoryService {
         JsonArray array = new JsonArray();
         brandMap.values().stream()
                 .filter(dto -> dto.getMemoryType() == type)
+                .sorted((a, b) -> a.getRegDate().compareTo(b.getRegDate()))
                 .forEach(dto -> {
                     if (dto.getContent() != null) {
                         dto.getContent().forEach(array::add);
@@ -278,6 +282,7 @@ public class MemoryService {
                 });
         result.put(type.getValue(), array);
     }
+
 
 
     private Uni<Void> getAudienceContext(String brand,

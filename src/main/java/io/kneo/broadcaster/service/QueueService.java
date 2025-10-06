@@ -81,7 +81,7 @@ public class QueueService {
                         ConcatenationType concatType = Arrays.stream(ConcatenationType.values())
                                 .skip(new Random().nextInt(ConcatenationType.values().length))
                                 .findFirst()
-                                .orElse(ConcatenationType.DIRECT_CONCAT);
+                                .orElse(ConcatenationType.CROSSFADE);
                         return handler.handleConcatenation(radioStation, toQueueDTO, concatType);
                     });
         } else {

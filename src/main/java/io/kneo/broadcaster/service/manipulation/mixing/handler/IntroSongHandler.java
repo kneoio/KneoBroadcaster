@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
+@Deprecated
 public class IntroSongHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(IntroSongHandler.class);
     private final SoundFragmentRepository repository;

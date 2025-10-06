@@ -92,32 +92,4 @@ public class MixingHandlerBase {
             }
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
-
-    protected Uni<File> normalizeAndCompress(String inputPath) {
-        return Uni.createFrom().item(() -> {
-            try {
-                String outputPath = inputPath + "_norm.wav";
-                ProcessBuilder pb = new ProcessBuilder(
-                        "ffmpeg", "-y",
-                        "-i", inputPath,
-                        "-af", "loudnorm,acompressor",
-                        "-ar", "44100",
-                        "-ac", "2",
-                        "-sample_fmt", "s16",
-                        outputPath
-                );
-
-                int exitCode = pb.inheritIO().start().waitFor();
-                if (exitCode != 0) {
-                    throw new IOException("FFmpeg normalize/compress failed with exit code " + exitCode);
-                }
-                return new File(outputPath);
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException("Failed to normalize/compress: " + inputPath, e);
-            }
-        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
-    }
-
-
-
 }

@@ -27,12 +27,10 @@ public class AudioConcatenator {
     private final FFmpegExecutor executor;
     private final String tempBaseDir;
     private final FFprobe ffprobe;
-    private final BroadcasterConfig config;
     private final String outputDir;
 
     @Inject
-    public AudioConcatenator(BroadcasterConfig config, FFmpegProvider ffmpeg) throws IOException, AudioMergeException {
-        this.config = config;
+    public AudioConcatenator(BroadcasterConfig config, FFmpegProvider ffmpeg) throws AudioMergeException {
         this.outputDir = config.getPathForMerged();
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
 

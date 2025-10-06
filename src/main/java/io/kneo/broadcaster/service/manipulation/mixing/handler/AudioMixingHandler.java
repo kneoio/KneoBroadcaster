@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 
 public class AudioMixingHandler extends MixingHandlerBase {
@@ -194,14 +193,10 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
-    public Uni<Boolean> handleSongCrossfadeSong(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+    public Uni<Boolean> handleConcatenation(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO, ConcatenationType concatType) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID songId1 = toQueueDTO.getSoundFragments().get("song1");
         UUID songId2 = toQueueDTO.getSoundFragments().get("song2");
-        ConcatenationType concatType = Arrays.stream(ConcatenationType.values())
-                .skip(new Random().nextInt(ConcatenationType.values().length))
-                .findFirst()
-                .orElse(ConcatenationType.DIRECT_CONCAT);
 
         LOGGER.info("Applied Concatenation Type {}", concatType);
 

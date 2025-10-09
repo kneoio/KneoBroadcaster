@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -24,8 +25,9 @@ public class AiAgentDTO extends AbstractDTO {
     private LlmType llmType;
     private MergerDTO merger;
     private List<String> prompts;
-    private List<String> fillerPrompt;
     private List<VoiceDTO> preferredVoice;
+    private UUID copilot;
     private List<ToolDTO> enabledTools;
     private double talkativity;
+    private double podcastMode;
 }

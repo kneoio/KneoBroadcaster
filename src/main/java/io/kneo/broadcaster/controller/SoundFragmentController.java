@@ -100,7 +100,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);
-        router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile);
+        router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile1);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
 
     }
@@ -243,7 +243,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
-    private void uploadFile(RoutingContext rc) {
+    private void uploadFile1(RoutingContext rc) {
         if (rc.fileUploads().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("No file uploaded"));
             return;
@@ -274,6 +274,32 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 .subscribe().with(
                         success -> LOGGER.info("Upload done: {}", uploadId),
                         t -> handleFailure(rc, t)
+                );
+    }
+
+    private void uploadFile(RoutingContext rc) {
+        String uploadId = rc.request().getParam("uploadId");
+        String entityId = rc.pathParam("id");
+
+        getContextUser(rc, false, true)
+                .chain(user -> fileUploadService.processDirectStream(rc, uploadId, "sound-fragment-controller", entityId, user, true))
+                .subscribe().with(
+                        dto -> {
+                            LOGGER.info("Upload done: {}", uploadId);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(io.vertx.core.json.Json.encode(dto));
+                        },
+                        err -> {
+                            LOGGER.error("Upload failed: {}", uploadId, err);
+                            if (err instanceof IllegalArgumentException e) {
+                                int status = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
+                                rc.response().setStatusCode(status).end(e.getMessage());
+                            } else {
+                                rc.response().setStatusCode(500).end("Upload failed");
+                            }
+                        }
                 );
     }
 

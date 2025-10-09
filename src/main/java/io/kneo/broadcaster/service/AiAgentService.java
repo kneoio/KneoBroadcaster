@@ -106,7 +106,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setPreferredLang(doc.getPreferredLang());
             dto.setLlmType(doc.getLlmType());
             dto.setPrompts(doc.getPrompts());
-            dto.setFillerPrompt(doc.getFillerPrompt());
             dto.setTalkativity(doc.getTalkativity());
 
             MergerDTO mergerDTO = new MergerDTO();
@@ -124,6 +123,10 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                         })
                         .toList();
                 dto.setPreferredVoice(voiceDTOs);
+            }
+
+            if (doc.getCopilot() != null) {
+                dto.setCopilot(doc.getCopilot());
             }
 
             if (doc.getEnabledTools() != null && !doc.getEnabledTools().isEmpty()) {
@@ -147,9 +150,9 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         AiAgent doc = new AiAgent();
         doc.setId(dto.getId());
         doc.setName(dto.getName());
+        doc.setCopilot(dto.getCopilot());
         doc.setPreferredLang(dto.getPreferredLang());
         doc.setPrompts(dto.getPrompts());
-        doc.setFillerPrompt(dto.getFillerPrompt());
         doc.setTalkativity(dto.getTalkativity());
         doc.setLlmType(dto.getLlmType());
         Merger merger = new Merger();

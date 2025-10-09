@@ -141,8 +141,8 @@ public class AiAgentRepository extends AsyncRepository {
 
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, prompts, " +
-                "filler_prompt, preferred_voice, enabled_tools, talkativity, merger) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
+                "filler_prompt, preferred_voice, copilot, enabled_tools, talkativity, merger) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id";
 
         JsonObject mergerJson = null;
         if (agent.getMerger() != null) {
@@ -162,8 +162,9 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getPreferredLang().name())
                 .addString(agent.getLlmType().name())
                 .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
-                .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
+                .addJsonArray(JsonArray.of())
                 .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
+                .addUUID(agent.getCopilot())
                 .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
                 .addDouble(agent.getTalkativity())
                 .addJsonObject(mergerJson);
@@ -194,8 +195,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, prompts=$6, filler_prompt=$7, preferred_voice=$8, enabled_tools=$9, talkativity=$10, merger=$11 " +
-                                    "WHERE id=$12";
+                                    "llm_type=$5, prompts=$6, filler_prompt=$7, preferred_voice=$8, copilot=$9, enabled_tools=$10, talkativity=$11, merger=$12 " +
+                                    "WHERE id=$13";
 
                             JsonObject mergerJson = null;
                             if (agent.getMerger() != null) {
@@ -213,8 +214,9 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getPreferredLang().name())
                                     .addString(agent.getLlmType().name())
                                     .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
-                                    .addJsonArray(JsonArray.of(agent.getFillerPrompt().toArray()))
+                                    .addJsonArray(JsonArray.of())
                                     .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
+                                    .addUUID(agent.getCopilot())
                                     .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : JsonArray.of())
                                     .addDouble(agent.getTalkativity())
                                     .addJsonObject(mergerJson)
@@ -261,24 +263,12 @@ public class AiAgentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<AiAgent>> findActiveAgents(IUser user) {
-        String sql = "SELECT theTable.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.archived = 0";
-
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(user.getId()))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
-                .collect().asList();
-    }
-
     private AiAgent from(Row row) {
         AiAgent doc = new AiAgent();
         setDefaultFields(doc, row);
         doc.setArchived(row.getInteger("archived"));
         doc.setName(row.getString("name"));
+        doc.setCopilot(row.getUUID("copilot"));
         doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
         doc.setTalkativity(row.getDouble("talkativity"));
@@ -307,19 +297,6 @@ public class AiAgentRepository extends AsyncRepository {
         } catch (JsonProcessingException e) {
             LOGGER.error("Failed to deserialize prompts field for agent: {}", doc.getName(), e);
             doc.setPrompts(new ArrayList<>());
-        }
-
-        try {
-            JsonArray fillerPromptJson = row.getJsonArray("filler_prompt");
-            if (fillerPromptJson != null) {
-                List<String> prompt = mapper.readValue(fillerPromptJson.encode(), new TypeReference<List<String>>() {});
-                doc.setFillerPrompt(prompt);
-            } else {
-                doc.setFillerPrompt(new ArrayList<>());
-            }
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Failed to deserialize filler prompt fields for agent: {}", doc.getName(), e);
-            doc.setFillerPrompt(new ArrayList<>());
         }
 
         try {

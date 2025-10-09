@@ -256,7 +256,7 @@ public class RadioController {
 
     private void submit(RoutingContext rc) {
         try {
-            if (!validateJsonBody(rc)) {
+            if (jsonBodyIsBad(rc)) {
                 return;
             }
 
@@ -300,7 +300,7 @@ public class RadioController {
 
     private void postMessage(RoutingContext rc) {
         try {
-            if (!validateJsonBody(rc)) {
+            if (jsonBodyIsBad(rc)) {
                 return;
             }
 
@@ -371,7 +371,7 @@ public class RadioController {
     }
 
     private boolean isValidMixplaApp(String mixplaApp) {
-        if (!mixplaApp.startsWith("Mixpla/")) {
+        if (!mixplaApp.startsWith("mixpla-mobile")) { //mixpla-mobile
             return false;
         }
 
@@ -386,13 +386,13 @@ public class RadioController {
         return false;
     }
 
-    protected boolean validateJsonBody(RoutingContext rc) {
+    protected boolean jsonBodyIsBad(RoutingContext rc) {
         JsonObject json = rc.body().asJsonObject();
         if (json == null) {
             rc.response().setStatusCode(400).end("Request body must be a valid JSON object");
-            return false;
-        } else {
             return true;
+        } else {
+            return false;
         }
     }
 

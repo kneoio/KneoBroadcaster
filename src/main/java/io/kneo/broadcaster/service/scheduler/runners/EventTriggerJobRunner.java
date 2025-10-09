@@ -54,18 +54,21 @@ public class EventTriggerJobRunner implements JobRunner {
 
     @Override
     public void schedule(Schedulable entity, Task task, ZoneId timeZone) throws SchedulerException {
+        //TODO here timeZon is null
+        if (timeZone == null) timeZone = ZoneId.systemDefault();
         Event event = (Event) entity;
         removeFor(entity);
         LOGGER.info("Found scheduled periodic event {}", event.getBrandId());
+        ZoneId finalTimeZone = timeZone;
         radioStationService.getById(event.getBrandId(), SuperUser.build())
                 .subscribe().with(
                         radioStation -> {
                             try {
                                 String slugName = radioStation.getSlugName();
                                 if (task.getTriggerType() == TriggerType.PERIODIC) {
-                                    schedulePeriodicEventWithSlugName(event, timeZone, task, slugName);
+                                    schedulePeriodicEventWithSlugName(event, finalTimeZone, task, slugName);
                                     // Add recovery check after scheduling
-                                    checkAndResumeIfActive(event, task, timeZone, slugName);
+                                    checkAndResumeIfActive(event, task, finalTimeZone, slugName);
                                 }
                             } catch (SchedulerException e) {
                                 LOGGER.error("Failed to schedule event {}: {}", event.getId(), e.getMessage());

@@ -49,38 +49,11 @@ public class RefController extends BaseController {
     ProfileService profileService;
 
     public void setupRoutes(Router router) {
-        router.route(HttpMethod.GET, "/api/genres").handler(this::getAllGenres);
-        router.route(HttpMethod.GET, "/api/countries").handler(this::getAllCountries);
         router.route(HttpMethod.GET, "/api/dictionary/:type").handler(this::getDictionary);
         router.route(HttpMethod.GET, "/api/genres/:id").handler(this::get);
         router.route(HttpMethod.POST, "/api/genres").handler(this::upsert);
         router.route(HttpMethod.DELETE, "/api/genres/:id").handler(this::delete);
 
-    }
-
-    @Deprecated
-    private void getAllGenres(RoutingContext rc) {
-        int page = Integer.parseInt(rc.request().getParam("page", "0"));
-        int size = Integer.parseInt(rc.request().getParam("size", "10"));
-        service.getAllCount(AnonymousUser.build())
-                .onItem().transformToUni(count -> {
-                    int maxPage = countMaxPage(count, size);
-                    int pageNum = (page == 0) ? 1 : page;
-                    int offset = RuntimeUtil.calcStartEntry(pageNum, size);
-                    LanguageCode languageCode = resolveLanguage(rc);
-                    return service.getAll(size, offset, languageCode)
-                            .onItem().transform(dtoList -> {
-                                ViewPage viewPage = new ViewPage();
-                                viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
-                                View<GenreDTO> dtoEntries = new View<>(dtoList, count, pageNum, maxPage, size);
-                                viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                                return viewPage;
-                            });
-                })
-                .subscribe().with(
-                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        rc::fail
-                );
     }
 
     private void get(RoutingContext rc) {
@@ -96,34 +69,6 @@ public class RefController extends BaseController {
                         formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
                         rc::fail
                 );
-    }
-
-    @Deprecated
-    private void getAllCountries(RoutingContext rc) {
-        int page = Integer.parseInt(rc.request().getParam("page", "0"));
-        int size = Integer.parseInt(rc.request().getParam("size", "10"));
-
-        List<CountryDTO> allCountries = Arrays.stream(CountryCode.values())
-                .filter(countryCode -> countryCode != CountryCode.UNKNOWN)
-                .map(countryCode -> new CountryDTO(countryCode.getCode(), countryCode.getIsoCode(), countryCode.name()))
-                .toList();
-
-        int totalCount = allCountries.size();
-        int maxPage = countMaxPage(totalCount, size);
-        int pageNum = (page == 0) ? 1 : page;
-        int offset = RuntimeUtil.calcStartEntry(pageNum, size);
-
-        List<CountryDTO> pagedCountries = allCountries.stream()
-                .skip(offset)
-                .limit(size)
-                .collect(Collectors.toList());
-
-        ViewPage viewPage = new ViewPage();
-        viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
-        View<CountryDTO> dtoEntries = new View<>(pagedCountries, totalCount, pageNum, maxPage, size);
-        viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-
-        rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode());
     }
 
     private void getDictionary(RoutingContext rc) {

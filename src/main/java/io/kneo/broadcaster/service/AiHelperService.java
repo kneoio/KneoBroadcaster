@@ -14,6 +14,7 @@ import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -36,69 +37,73 @@ public class AiHelperService {
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
                         .filter(station -> statuses.contains(station.getStatus()))
-                        .filter(station -> {
-                            if (station.getScheduler().isEnabled()) {
-                                if (station.isAiControlAllowed()) {
-                                    return true;
-                                } else {
-                                    return false;
-                                }
-                            } else {
-                                return true;
-                            }
-                        })
+                        .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).chain(stations -> {
             if (stations.isEmpty()) {
                 return Uni.createFrom().item(List.of());
             }
 
-            List<Uni<BrandInfoDTO>> brandUnis = stations.stream()
-                    .map(station -> {
-                        BrandInfoDTO brand = new BrandInfoDTO();
-                        brand.setRadioStationName(station.getSlugName());
-                        if (station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2) {
-                            brand.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
-                        } else {
-                            brand.setRadioStationStatus(station.getStatus());
-                        }
+            List<Uni<BrandInfoDTO>> tasks = stations.stream().map(station -> {
+                BrandInfoDTO brand = new BrandInfoDTO();
+                brand.setRadioStationName(station.getSlugName());
 
-                        if (station.getAiAgentId() != null) {
-                            return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                                    .map(agent -> {
-                                        AiLiveAgentDTO liveAgentDTO = new AiLiveAgentDTO();
-                                        liveAgentDTO.setName(agent.getName());
-                                        liveAgentDTO.setLlmType(agent.getLlmType());
-                                        List<String> prompts = agent.getPrompts();
-                                        Random random = new Random();
-                                        String randomPrompt = prompts.get(random.nextInt(prompts.size()));
-                                        AiOverriding aiOverriding = station.getAiOverriding();
-                                        if (aiOverriding != null) {
-                                            String newName = aiOverriding.getName();
-                                            if (!newName.isEmpty()) {
-                                                liveAgentDTO.setName(newName);
-                                            }
-                                            liveAgentDTO.setPreferredVoice(aiOverriding.getPreferredVoice());
-                                            liveAgentDTO.setTalkativity(aiOverriding.getTalkativity());
-                                            String additionalPrompt = aiOverriding.getPrompt();
-                                            liveAgentDTO.setPrompt(String.format("%s\n------\n%s", randomPrompt, additionalPrompt));
-                                        } else {
-                                            liveAgentDTO.setName(agent.getName());
-                                            liveAgentDTO.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
-                                            liveAgentDTO.setTalkativity(agent.getTalkativity());
-                                            liveAgentDTO.setPrompt(randomPrompt);
-                                        }
-                                        liveAgentDTO.setFillers(agent.getFillerPrompt());
-                                        brand.setAgent(liveAgentDTO);
+                if (station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2) {
+                    brand.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
+                } else {
+                    brand.setRadioStationStatus(station.getStatus());
+                }
+
+                UUID agentId = station.getAiAgentId();
+                if (agentId == null) {
+                    return Uni.createFrom().item(brand);
+                }
+
+                return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en).flatMap(agent -> {
+                    AiLiveAgentDTO dto = new AiLiveAgentDTO();
+                    dto.setName(agent.getName());
+                    dto.setLlmType(agent.getLlmType());
+
+                    List<String> prompts = agent.getPrompts();
+                    if (prompts == null || prompts.isEmpty()) {
+                        return Uni.createFrom().item(brand);
+                    }
+
+                    String randomPrompt = prompts.get(new Random().nextInt(prompts.size()));
+                    AiOverriding override = station.getAiOverriding();
+
+                    if (override != null) {
+                        if (!override.getName().isEmpty()) {
+                            dto.setName(override.getName());
+                        }
+                        dto.setPreferredVoice(override.getPreferredVoice());
+                        dto.setTalkativity(override.getTalkativity());
+                        dto.setPrompt(String.format("%s\n------\n%s", randomPrompt, override.getPrompt()));
+                        brand.setAgent(dto);
+                        return Uni.createFrom().item(brand);
+                    } else {
+                        dto.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
+                        dto.setTalkativity(agent.getTalkativity());
+                        dto.setPrompt(randomPrompt);
+
+                        UUID copilotId = agent.getCopilot();
+                        if (copilotId != null) {
+                            return aiAgentService.getById(copilotId, SuperUser.build(), LanguageCode.en)
+                                    .map(copilot -> {
+                                        dto.setSecondaryVoice(copilot.getPreferredVoice().get(0).getId());
+                                        dto.setSecondaryVoiceName(copilot.getName());
+                                        brand.setAgent(dto);
                                         return brand;
                                     });
                         } else {
+                            brand.setAgent(dto);
                             return Uni.createFrom().item(brand);
                         }
-                    })
-                    .collect(Collectors.toList());
+                    }
+                });
+            }).collect(Collectors.toList());
 
-            return Uni.join().all(brandUnis).andFailFast();
+            return Uni.join().all(tasks).andFailFast();
         });
     }
 }

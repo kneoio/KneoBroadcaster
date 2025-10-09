@@ -95,7 +95,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                     if ("new".equals(id)) {
                         AiAgentDTO dto = new AiAgentDTO();
                         dto.setTalkativity(0.3);
-                        dto.setFillerPrompt(DEFAULT_FILLER_PROMPTS);
                         dto.setPrompts(List.of(PROMPT_BASIC));
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
@@ -202,14 +201,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
             rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
         }
     }
-
-    public static final List<String> DEFAULT_FILLER_PROMPTS = List.of(
-            "Eerie mood music with smooth transition, 4-6 seconds",
-            "Eerie ambient music with gentle fade out, 4-6 seconds",
-            "Huge epic braam with natural decay, 4-6 seconds",
-            "Deep epic braam with gradual fade, 4-6 seconds",
-            "Massive cinematic braam with soft ending, 4-6 seconds"
-    );
 
     private static final String PROMPT_BASIC = """
             You are a radio DJ called {ai_dj_name} of radio station named {brand}. Introduce {title} by {artist} to our audience,

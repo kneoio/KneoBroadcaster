@@ -48,7 +48,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .execute(Tuple.of(brandId, user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
+                    Uni<SoundFragment> soundFragmentUni = from(row, false, false, false);
                     return soundFragmentUni.onItem().transform(soundFragment -> {
                         BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
                         brandSoundFragment.setSoundFragment(soundFragment);
@@ -102,7 +102,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .execute(Tuple.of(brandId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
-                    Uni<SoundFragment> soundFragmentUni = from(row, false, false);
+                    Uni<SoundFragment> soundFragmentUni = from(row, false, false, false);
                     return soundFragmentUni.onItem().transform(soundFragment -> {
                         BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
                         brandSoundFragment.setSoundFragment(soundFragment);
@@ -128,7 +128,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return client.preparedQuery(sql)
                 .execute(params)
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, true, true))
+                .onItem().transformToUni(row -> from(row, true, true, true))
                 .concatenate()
                 .collect().asList();
     }

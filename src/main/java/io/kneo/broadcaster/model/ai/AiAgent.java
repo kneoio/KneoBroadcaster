@@ -8,6 +8,7 @@ import lombok.Setter;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Setter
 @Getter
@@ -19,10 +20,11 @@ public class AiAgent extends SimpleReferenceEntity {
     private LlmType llmType;
     private Merger merger;
     private List<String> prompts;
-    private List<String> fillerPrompt;
     private List<Voice> preferredVoice;
+    private UUID copilot;
     private List<Tool> enabledTools;
     private double talkativity;
+    private double podcastMode;
 
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();

@@ -6,13 +6,10 @@ import io.kneo.broadcaster.model.ai.SearchEngineType;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.List;
-
 @Getter
 @Setter
 public class AiLiveAgentDTO {
     private String name;
-    private List<String> fillers;
     private String prompt;
     private LlmType llmType;
     @JsonProperty("search_engine_type")
@@ -22,5 +19,7 @@ public class AiLiveAgentDTO {
     private String decisionPrompt = AiPrompts.getDecisionPrompt();
 
     private String preferredVoice;
+    private String secondaryVoice;
+    private String secondaryVoiceName;
     private double talkativity;
 }

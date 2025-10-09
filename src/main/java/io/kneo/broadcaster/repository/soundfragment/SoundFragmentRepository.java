@@ -294,6 +294,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                         Uni<Void> fileMetadataUni = insertFileMetadata(tx, id, doc);
                         return fileMetadataUni
                                 .onItem().transformToUni(ignored -> insertGenreAssociations(tx, id, doc.getGenres()))
+                                .onItem().transformToUni(ignored -> upsertLabels(tx, id, doc.getLabels()))
                                 .onItem().transformToUni(ignored -> insertRLSPermissions(tx, id, entityData, user))
                                 .onItem().transformToUni(ignored -> {
                                     assert brandHandler != null;
@@ -352,8 +353,12 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     }
 
     private Uni<Void> upsertLabels(UUID fragmentId, List<UUID> labels) {
+        return client.withTransaction(tx -> upsertLabels(tx, fragmentId, labels));
+    }
+
+    private Uni<Void> upsertLabels(SqlClient tx, UUID fragmentId, List<UUID> labels) {
         if (labels == null || labels.isEmpty()) {
-            return client.preparedQuery("DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1")
+            return tx.preparedQuery("DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1")
                     .execute(Tuple.of(fragmentId))
                     .replaceWithVoid();
         }
@@ -361,16 +366,17 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1";
         String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_labels (id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
 
-        return client.preparedQuery(deleteSql)
+        return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(fragmentId))
                 .chain(() -> Multi.createFrom().iterable(labels)
                         .onItem().transformToUni(labelId ->
-                                client.preparedQuery(insertSql).execute(Tuple.of(fragmentId, labelId))
+                                tx.preparedQuery(insertSql).execute(Tuple.of(fragmentId, labelId))
                         )
                         .merge()
                         .collect().asList()
                         .replaceWithVoid());
     }
+
 
 
     //TODO will be refactored later (fabric)
@@ -430,6 +436,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                         }
                                         return chain
                                                 .onItem().transformToUni(v -> updateGenreAssociations(tx, id, doc.getGenres()))
+                                                .onItem().transformToUni(v -> upsertLabels(tx, id, doc.getLabels()))
                                                 .onItem().transformToUni(v -> {
                                                     assert brandHandler != null;
                                                     return brandHandler.updateBrandAssociations(tx, id, representedInBrands, user);

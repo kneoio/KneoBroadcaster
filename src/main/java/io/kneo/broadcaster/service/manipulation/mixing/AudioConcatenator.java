@@ -72,7 +72,7 @@ public class AudioConcatenator {
 
                 return switch (mixingType) {
                     case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, gainValue);
-                    case SILENCE_GAP -> concatenateWithSilenceGap(firstPath, secondPath, outputPath, gainValue);
+                    //case SILENCE_GAP -> concatenateWithSilenceGap(firstPath, secondPath, outputPath, gainValue);
                     case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, gainValue);
                     case SIMULATED_CROSSFADE -> simulatedCrossfade(firstPath, secondPath, outputPath, gainValue);
                     case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, gainValue);

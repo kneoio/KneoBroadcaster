@@ -339,6 +339,13 @@ public class RadioController {
     }
 
     private void validateMixplaAccess(RoutingContext rc) {
+        String host = rc.request().remoteAddress().host();
+        if ("127.0.0.1".equals(host) || "::1".equals(host)) {
+            LOGGER.debug("Localhost Mixpla access from {}", host);
+            rc.next();
+            return;
+        }
+
         String referer = rc.request().getHeader("Referer");
         String clientId = rc.request().getHeader("X-Client-ID");
         String mixplaApp = rc.request().getHeader("X-Mixpla-App");
@@ -348,17 +355,18 @@ public class RadioController {
             return;
         }
 
-        if (referer != null && isValidRefererHost(referer) && clientId != null && clientId.equals("mixpla-web")) {
+        if (referer != null && isValidRefererHost(referer) && "mixpla-web".equals(clientId)) {
             rc.next();
             return;
         }
 
-        LOGGER.warn("Invalid Mixpla access from IP: {}", rc.request().remoteAddress());
+        LOGGER.warn("Invalid Mixpla access from host: {}", host);
         rc.response()
                 .setStatusCode(403)
                 .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                 .end("Access denied");
     }
+
 
     private boolean isValidRefererHost(String referer) {
         try {

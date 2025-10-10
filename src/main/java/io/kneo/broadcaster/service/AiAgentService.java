@@ -100,7 +100,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setPrompts(doc.getPrompts());
             dto.setEventPrompts(doc.getEventPrompts());
             dto.setMessagePrompts(doc.getMessagePrompts());
-            dto.setMiniPodcastPrompt(doc.getMiniPodcastPrompts());
+            dto.setMiniPodcastPrompts(doc.getMiniPodcastPrompts());
             dto.setTalkativity(doc.getTalkativity());
             dto.setPodcastMode(doc.getPodcastMode());
 
@@ -151,7 +151,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setPrompts(dto.getPrompts());
         doc.setEventPrompts(dto.getEventPrompts());
         doc.setMessagePrompts(dto.getMessagePrompts());
-        doc.setMiniPodcastPrompts(dto.getMiniPodcastPrompt());
+        doc.setMiniPodcastPrompts(dto.getMiniPodcastPrompts());
         doc.setTalkativity(dto.getTalkativity());
         doc.setPodcastMode(dto.getPodcastMode());
         doc.setLlmType(dto.getLlmType());

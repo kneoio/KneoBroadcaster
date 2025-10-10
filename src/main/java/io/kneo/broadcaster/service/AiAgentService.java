@@ -42,22 +42,17 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
     }
 
     public Uni<List<AiAgentDTO>> getAll(final int limit, final int offset, final IUser user) {
-        assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<AiAgentDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
-                                .collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
+                    if (list.isEmpty()) return Uni.createFrom().item(List.of());
+                    List<Uni<AiAgentDTO>> unis = list.stream()
+                            .map(this::mapToDTO)
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
                 });
     }
 
     public Uni<Integer> getAllCount(final IUser user) {
-        assert repository != null;
         return repository.getAllCount(user, false);
     }
 
@@ -71,18 +66,15 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
 
     @Override
     public Uni<Integer> delete(String id, IUser user) {
-        assert repository != null;
         return repository.delete(UUID.fromString(id), user);
     }
 
     @Override
     public Uni<AiAgentDTO> getDTO(UUID id, IUser user, LanguageCode language) {
-        assert repository != null;
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
     public Uni<AiAgentDTO> upsert(String id, AiAgentDTO dto, IUser user, LanguageCode code) {
-        assert repository != null;
         AiAgent entity = buildEntity(dto);
         if (id == null || id.isEmpty()) {
             return repository.insert(entity, user).chain(this::mapToDTO);
@@ -106,12 +98,18 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setPreferredLang(doc.getPreferredLang());
             dto.setLlmType(doc.getLlmType());
             dto.setPrompts(doc.getPrompts());
+            dto.setEventPrompts(doc.getEventPrompts());
+            dto.setMessagePrompts(doc.getMessagePrompts());
+            dto.setMiniPodcastPrompt(doc.getMiniPodcastPrompts());
             dto.setTalkativity(doc.getTalkativity());
+            dto.setPodcastMode(doc.getPodcastMode());
 
-            MergerDTO mergerDTO = new MergerDTO();
-            mergerDTO.setMethod(doc.getMerger().getMethod().name());
-            mergerDTO.setGainIntro(doc.getMerger().getGainIntro());
-            dto.setMerger(mergerDTO);
+            if (doc.getMerger() != null) {
+                MergerDTO mergerDTO = new MergerDTO();
+                mergerDTO.setMethod(doc.getMerger().getMethod().name());
+                mergerDTO.setGainIntro(doc.getMerger().getGainIntro());
+                dto.setMerger(mergerDTO);
+            }
 
             if (doc.getPreferredVoice() != null && !doc.getPreferredVoice().isEmpty()) {
                 List<VoiceDTO> voiceDTOs = doc.getPreferredVoice().stream()
@@ -125,9 +123,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                 dto.setPreferredVoice(voiceDTOs);
             }
 
-            if (doc.getCopilot() != null) {
-                dto.setCopilot(doc.getCopilot());
-            }
+            if (doc.getCopilot() != null) dto.setCopilot(doc.getCopilot());
 
             if (doc.getEnabledTools() != null && !doc.getEnabledTools().isEmpty()) {
                 List<ToolDTO> toolDTOs = doc.getEnabledTools().stream()
@@ -153,12 +149,20 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setCopilot(dto.getCopilot());
         doc.setPreferredLang(dto.getPreferredLang());
         doc.setPrompts(dto.getPrompts());
+        doc.setEventPrompts(dto.getEventPrompts());
+        doc.setMessagePrompts(dto.getMessagePrompts());
+        doc.setMiniPodcastPrompts(dto.getMiniPodcastPrompt());
         doc.setTalkativity(dto.getTalkativity());
+        doc.setPodcastMode(dto.getPodcastMode());
         doc.setLlmType(dto.getLlmType());
-        Merger merger = new Merger();
-        merger.setMethod(MergeMethod.valueOf(dto.getMerger().getMethod()));
-        merger.setGainIntro(dto.getMerger().getGainIntro());
-        doc.setMerger(merger);
+
+        if (dto.getMerger() != null) {
+            Merger merger = new Merger();
+            merger.setMethod(MergeMethod.valueOf(dto.getMerger().getMethod()));
+            merger.setGainIntro(dto.getMerger().getGainIntro());
+            doc.setMerger(merger);
+        }
+
         if (dto.getPreferredVoice() != null && !dto.getPreferredVoice().isEmpty()) {
             List<Voice> voices = dto.getPreferredVoice().stream()
                     .map(voiceDto -> {
@@ -188,7 +192,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
-        assert repository != null;
         return repository.getDocumentAccessInfo(documentId, user)
                 .onItem().transform(accessInfoList ->
                         accessInfoList.stream()
@@ -196,5 +199,4 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                                 .collect(Collectors.toList())
                 );
     }
-
 }

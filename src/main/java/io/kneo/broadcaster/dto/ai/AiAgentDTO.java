@@ -25,6 +25,9 @@ public class AiAgentDTO extends AbstractDTO {
     private LlmType llmType;
     private MergerDTO merger;
     private List<String> prompts;
+    private List<String> eventPrompts;
+    private List<String> messagePrompts;
+    private List<String> miniPodcastPrompt;
     private List<VoiceDTO> preferredVoice;
     private UUID copilot;
     private List<ToolDTO> enabledTools;

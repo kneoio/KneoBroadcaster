@@ -66,9 +66,6 @@ public class HetznerStorageService {
                     metadata.setContentLength(responseInputStream.response().contentLength());
                     metadata.setFileKey(keyName);
 
-                    LOGGER.info("S3 response for key: {}, contentLength: {}, contentType: {}, hasInputStream: {}", 
-                            keyName, responseInputStream.response().contentLength(), 
-                            responseInputStream.response().contentType(), responseInputStream != null);
                     LOGGER.debug("Stream created for key: {}, size: {} bytes", keyName, responseInputStream.response().contentLength());
                     return metadata;
                 })

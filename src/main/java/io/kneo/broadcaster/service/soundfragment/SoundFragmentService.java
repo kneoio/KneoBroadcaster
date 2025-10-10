@@ -278,7 +278,8 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
                 if (!Files.exists(secureFilePath)) {
                     LOGGER.error("File not found at expected secure path: {} for user: {}", secureFilePath, user.getUserName());
-                    continue;
+                    return Uni.createFrom().failure(new IllegalArgumentException("Something happen wrong with the uploaded file"));
+                   // continue;
                 }
 
                 fileMetadata.setFilePath(secureFilePath);

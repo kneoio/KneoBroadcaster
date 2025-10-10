@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.model.cnst.AccessType;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
+import io.kneo.broadcaster.service.exceptions.FileMaterializationException;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import lombok.Getter;
@@ -76,10 +76,7 @@ public class FileMetadata {
                     }
                 }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().transform(failure -> {
-                    if (failure instanceof RuntimeException && failure.getCause() instanceof IOException) {
-                        return new AudioMergeException("Failed to create temporary file", failure.getCause());
-                    }
-                    return new AudioMergeException("Failed to create temporary file", failure);
+                    return new FileMaterializationException(String.format("Failed to create temporary file dir: %s", tempBaseDir), failure.getCause());
                 });
     }
 

@@ -132,8 +132,11 @@ public class PlaylistManager {
                                         metadata.getSlugName(),
                                         SuperUser.build()
                                 )
-                                .chain(fetchedMetadata -> fetchedMetadata.materializeFileStream(tempBaseDir)
-                                        .onItem().transform(tempFilePath -> fetchedMetadata))
+                                .chain(fetchedMetadata -> {
+                                    LOGGER.info("File to materialize: {}", fetchedMetadata.getFileOriginalName());
+                                    return fetchedMetadata.materializeFileStream(tempBaseDir)
+                                            .onItem().transform(tempFilePath -> fetchedMetadata);
+                                })
                                 .chain(materializedMetadata ->
                                         addFragmentToSlice(fragment, materializedMetadata, radioStation.getBitRate()));
                     } catch (Exception e) {

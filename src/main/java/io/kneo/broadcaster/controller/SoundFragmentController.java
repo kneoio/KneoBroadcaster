@@ -33,7 +33,6 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -100,7 +99,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
         router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);
-        router.route(HttpMethod.POST, path + "/files/:id").handler(bodyHandler).handler(this::uploadFile1);
+        router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
 
     }
@@ -243,46 +242,12 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
     }
 
-    private void uploadFile1(RoutingContext rc) {
-        if (rc.fileUploads().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("No file uploaded"));
-            return;
-        }
-
-        String entityId = rc.pathParam("id");
-        FileUpload uploadedFile = rc.fileUploads().get(0);
-        String uploadId = rc.request().getParam("uploadId");
-
-        if (uploadId == null || uploadId.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
-            return;
-        }
-
-        try {
-            fileUploadService.validateUpload(uploadedFile);
-        } catch (IllegalArgumentException e) {
-            int statusCode = e.getMessage().contains("too large") ? 413 : 415;
-            rc.fail(statusCode, e);
-            return;
-        }
-
-        getContextUser(rc, false, true)
-                .chain(user -> {
-                    rc.response().setStatusCode(202).end();
-                    return fileUploadService.processFile(uploadedFile, uploadId, entityId, user, uploadedFile.fileName());
-                })
-                .subscribe().with(
-                        success -> LOGGER.info("Upload done: {}", uploadId),
-                        t -> handleFailure(rc, t)
-                );
-    }
-
     private void uploadFile(RoutingContext rc) {
         String uploadId = rc.request().getParam("uploadId");
         String entityId = rc.pathParam("id");
 
         getContextUser(rc, false, true)
-                .chain(user -> fileUploadService.processDirectStream(rc, uploadId, "sound-fragment-controller", entityId, user, true))
+                .chain(user -> fileUploadService.processDirectStream(rc, uploadId, "sound-fragments-controller", entityId, user, true))
                 .subscribe().with(
                         dto -> {
                             LOGGER.info("Upload done: {}", uploadId);

@@ -63,15 +63,36 @@ public class AiHelperService {
                     AiLiveAgentDTO dto = new AiLiveAgentDTO();
                     dto.setName(agent.getName());
                     dto.setLlmType(agent.getLlmType());
+                    dto.setPreferredLang(agent.getPreferredLang());
 
                     List<String> prompts = agent.getPrompts();
+                    List<String> msgPrompts = agent.getMessagePrompts();
+                    List<String> podcastPrompts = agent.getMiniPodcastPrompts();
+
                     if (prompts == null || prompts.isEmpty()) {
                         return Uni.createFrom().item(brand);
                     }
 
                     String randomPrompt = prompts.get(new Random().nextInt(prompts.size()));
-                    AiOverriding override = station.getAiOverriding();
 
+                    String msgPrompt;
+                    if (msgPrompts != null && !msgPrompts.isEmpty()) {
+                        msgPrompt = msgPrompts.get(new Random().nextInt(msgPrompts.size()));
+                    } else {
+                        msgPrompt = randomPrompt;
+                    }
+
+                    String podcastPrompt;
+                    if (podcastPrompts != null && !podcastPrompts.isEmpty()) {
+                        podcastPrompt = podcastPrompts.get(new Random().nextInt(podcastPrompts.size()));
+                    } else {
+                        podcastPrompt = randomPrompt;
+                    }
+
+                    dto.setMessagePrompt(msgPrompt);
+                    dto.setMiniPodcastPrompt(podcastPrompt);
+
+                    AiOverriding override = station.getAiOverriding();
                     if (override != null) {
                         if (!override.getName().isEmpty()) {
                             dto.setName(override.getName());

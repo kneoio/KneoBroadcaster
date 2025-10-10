@@ -20,6 +20,9 @@ public class AiAgent extends SimpleReferenceEntity {
     private LlmType llmType;
     private Merger merger;
     private List<String> prompts;
+    private List<String> eventPrompts;
+    private List<String> messagePrompts;
+    private List<String> miniPodcastPrompts;
     private List<Voice> preferredVoice;
     private UUID copilot;
     private List<Tool> enabledTools;
@@ -28,5 +31,10 @@ public class AiAgent extends SimpleReferenceEntity {
 
     public AiAgent() {
         this.preferredVoice = new ArrayList<>();
+        this.prompts = new ArrayList<>();
+        this.eventPrompts = new ArrayList<>();
+        this.messagePrompts = new ArrayList<>();
+        this.miniPodcastPrompts = new ArrayList<>();
+        this.enabledTools = new ArrayList<>();
     }
 }

@@ -91,6 +91,7 @@ public class AiHelperService {
 
                     dto.setMessagePrompt(msgPrompt);
                     dto.setMiniPodcastPrompt(podcastPrompt);
+                    dto.setPodcastMode(agent.getPodcastMode());
 
                     AiOverriding override = station.getAiOverriding();
                     if (override != null) {

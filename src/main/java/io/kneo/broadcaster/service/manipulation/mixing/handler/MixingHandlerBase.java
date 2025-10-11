@@ -21,10 +21,12 @@ public class MixingHandlerBase {
     private static final Logger LOGGER = LoggerFactory.getLogger(MixingHandlerBase.class);
     protected final FFmpegExecutor executor;
     protected final FFprobe ffprobe;
+    private final String ffmpegPath;
 
     public MixingHandlerBase(FFmpegProvider fFmpegProvider) throws IOException {
         this.executor = new FFmpegExecutor(fFmpegProvider.getFFmpeg());
         this.ffprobe = fFmpegProvider.getFFprobe();
+        this.ffmpegPath = fFmpegProvider.getFFmpeg().getPath();
     }
 
     protected double getAudioDuration(String filePath) throws IOException {
@@ -67,7 +69,7 @@ public class MixingHandlerBase {
 
                 String outputPath = inputPath + "_tmp.wav";
                 ProcessBuilder pb = new ProcessBuilder(
-                        "ffmpeg", "-y",
+                        ffmpegPath, "-y",
                         "-i", inputPath,
                         "-ar", "44100",
                         "-ac", "2",

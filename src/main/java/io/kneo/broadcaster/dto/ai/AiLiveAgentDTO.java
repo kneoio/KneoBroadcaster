@@ -22,4 +22,5 @@ public class AiLiveAgentDTO {
     private String secondaryVoice;
     private String secondaryVoiceName;
     private double talkativity;
+    private double podcastMode;
 }

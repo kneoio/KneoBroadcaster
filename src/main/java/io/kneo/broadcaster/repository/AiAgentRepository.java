@@ -141,8 +141,8 @@ public class AiAgentRepository extends AsyncRepository {
 
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, prompts, " +
-                "event_prompts, message_prompts, mini_podcast_prompt, preferred_voice, copilot, enabled_tools, talkativity, merger) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id";
+                "event_prompts, message_prompts, mini_podcast_prompt, preferred_voice, copilot, enabled_tools, talkativity, merger, podcast_mode) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id";
 
         JsonObject mergerJson = null;
         if (agent.getMerger() != null) {
@@ -169,7 +169,8 @@ public class AiAgentRepository extends AsyncRepository {
                 .addUUID(agent.getCopilot())
                 .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
                 .addDouble(agent.getTalkativity())
-                .addJsonObject(mergerJson);
+                .addJsonObject(mergerJson)
+                .addDouble(agent.getPodcastMode());
 
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
@@ -197,8 +198,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, prompts=$6, event_prompts=$7, message_prompts=$8, mini_podcast_prompt=$9, preferred_voice=$10, copilot=$11, enabled_tools=$12, talkativity=$13, merger=$14 " +
-                                    "WHERE id=$15";
+                                    "llm_type=$5, prompts=$6, event_prompts=$7, message_prompts=$8, mini_podcast_prompt=$9, preferred_voice=$10, copilot=$11, enabled_tools=$12, talkativity=$13, merger=$14, podcast_mode=$15 " +
+                                    "WHERE id=$16";
 
                             JsonObject mergerJson = null;
                             if (agent.getMerger() != null) {
@@ -224,6 +225,7 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : JsonArray.of())
                                     .addDouble(agent.getTalkativity())
                                     .addJsonObject(mergerJson)
+                                    .addDouble(agent.getPodcastMode())
                                     .addUUID(id);
 
                             return client.preparedQuery(sql)
@@ -276,6 +278,7 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
         doc.setTalkativity(row.getDouble("talkativity"));
+        doc.setPodcastMode(row.getDouble("podcast_mode"));
 
         JsonObject mergerJson = row.getJsonObject("merger");
         if (mergerJson != null) {

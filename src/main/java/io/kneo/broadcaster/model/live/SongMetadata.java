@@ -16,10 +16,8 @@ public class SongMetadata {
     private String album;
     private String genre;
     private MergingType mergingType;
-    private String duration;
     private String bitrate;
     private SongSource source;
-    private boolean obtained;
 
 
     public SongMetadata(String title, String artist) {

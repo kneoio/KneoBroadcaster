@@ -2,12 +2,12 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.dto.memory.AudienceContextDTO;
-import io.kneo.broadcaster.dto.memory.ConversationHistoryDTO;
 import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
 import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.ListenerContextDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
+import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.util.TimeContextUtil;
@@ -19,6 +19,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -33,7 +35,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MemoryService {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(MemoryService.class);
     private static final int MAX_CONVERSATION_HISTORY = 3;
     private static final int MAX_EVENTS = 20;
     private static final int MAX_MESSAGES = 20;
@@ -48,6 +50,7 @@ public class MemoryService {
     RadioStationService radioStationService;
 
     private final ConcurrentMap<String, ConcurrentMap<String, MemoryDTO>> memories = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<SongIntroduction>> initiatedHistories = new ConcurrentHashMap<>();
 
     public Uni<List<MemoryDTO>> getAll(final int limit, final int offset, final IUser user) {
         return flattenMemories().map(allMemories ->
@@ -168,14 +171,46 @@ public class MemoryService {
 
     public Uni<Integer> updateHistory(String brand, SongIntroductionDTO dto) {
         return Uni.createFrom().item(() -> {
-            ConversationHistoryDTO historyDTO = new ConversationHistoryDTO();
-            historyDTO.setArtist(dto.getArtist());
-            historyDTO.setTitle(dto.getTitle());
-            historyDTO.setIntroSpeech(dto.getIntroSpeech());
-            add(brand, MemoryType.CONVERSATION_HISTORY, historyDTO).subscribe().asCompletionStage();
+            SongIntroduction history = new SongIntroduction();
+            history.setId(UUID.randomUUID());
+            history.setRelevantSoundFragmentId(UUID.fromString(dto.getRelevantSoundFragmentId()));
+            history.setArtist(dto.getArtist());
+            history.setTitle(dto.getTitle());
+            history.setIntroSpeech(dto.getIntroSpeech());
+            initiatedHistories.computeIfAbsent(brand, k -> new ArrayList<>()).add(history);
             return 1;
         });
     }
+
+    public Uni<Integer> commitHistory(String brand, UUID id) {
+        return Uni.createFrom().item(() -> {
+            List<SongIntroduction> list = initiatedHistories.get(brand);
+            if (list == null) return 0;
+            SongIntroduction found = list.stream()
+                    .filter(h -> h.getRelevantSoundFragmentId().equals(id))
+                    .findFirst()
+                    .orElse(null);
+            if (found != null) {
+                add(brand, MemoryType.CONVERSATION_HISTORY, found).subscribe().asCompletionStage();
+                list.remove(found);
+                cleanupInitiatedHistories();
+                return 1;
+            }
+            return 0;
+        });
+    }
+
+    public void cleanupInitiatedHistories() {
+        initiatedHistories.forEach((brand, list) -> {
+            int limit = 10;
+            if (list.size() > limit) {
+                int toRemove = list.size() - limit;
+                list.subList(0, toRemove).clear();
+                LOGGER.info("Cleaned {} old initiated histories for brand {}", toRemove, brand);
+            }
+        });
+    }
+
 
     public Uni<Integer> delete(String id) {
         return Uni.createFrom().item(() -> {

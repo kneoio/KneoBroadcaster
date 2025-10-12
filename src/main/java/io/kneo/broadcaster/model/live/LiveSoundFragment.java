@@ -15,5 +15,6 @@ public class LiveSoundFragment {
     private Map<Long,ConcurrentLinkedQueue<HlsSegment>> segments;
     private int queueNum = 1000;
     private SongMetadata metadata;
+    private boolean played;
 
 }

@@ -37,8 +37,8 @@ public class AudioSegmentationService {
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
     private final FFmpegProvider ffmpeg;
 
-    private final int segmentDuration;
     private final String outputDir;
+    private final int segmentDuration;
 
     @Inject
     public AudioSegmentationService(BroadcasterConfig broadcasterConfig, FFmpegProvider ffmpeg, HlsPlaylistConfig hlsPlaylistConfig) {
@@ -169,7 +169,6 @@ public class AudioSegmentationService {
 
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
-
             Map<Long, List<SegmentInfo>> processedSegments = new ConcurrentHashMap<>();
 
             List<Uni<Void>> segmentTasks = outputInfoMap.entrySet().stream()
@@ -196,13 +195,12 @@ public class AudioSegmentationService {
         } catch (Exception e) {
             LOGGER.error("Error segmenting audio file: {}", audioFilePath, e);
         }
-
         return segmentsByBitrate;
     }
 
     private List<SegmentInfo> processSegmentList(Long bitRate, BitrateOutputInfo outputInfo) {
         List<SegmentInfo> segments = new ArrayList<>();
-
+        int segmentsCount = 0;
         try {
             List<String> segmentFiles = Files.readAllLines(Paths.get(outputInfo.segmentListFile));
 
@@ -212,7 +210,8 @@ public class AudioSegmentationService {
                 LOGGER.info("Debugging first segment for {}k bitrate: {}", bitRate, firstSegmentPath);
             }
 
-            for (int i = 0; i < segmentFiles.size(); i++) {
+            segmentsCount = segmentFiles.size();
+            for (int i = 0; i < segmentsCount; i++) {
                 String segmentFile = segmentFiles.get(i).trim();
                 if (!segmentFile.isEmpty()) {
                     Path segmentPath = Paths.get(outputInfo.songDir.toString(), segmentFile);

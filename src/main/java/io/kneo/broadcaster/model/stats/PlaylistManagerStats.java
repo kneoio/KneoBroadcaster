@@ -1,42 +1,46 @@
 package io.kneo.broadcaster.model.stats;
 
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
+import io.kneo.broadcaster.dto.live.LiveSoundFragmentDTO;
+import io.kneo.broadcaster.model.cnst.SongSource;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
-import io.kneo.broadcaster.model.cnst.SongSource;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
-import lombok.Builder;
+import jakarta.inject.Inject;
 import lombok.Getter;
+import lombok.Setter;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Getter
-@Builder
+@Setter
 public class PlaylistManagerStats {
-    private List<SongMetadata> livePlaylist;
+
+    private List<LiveSoundFragmentDTO> livePlaylist;
+    private List<LiveSoundFragmentDTO> queued;
     private String brand;
+    private int duration;
 
-    public static PlaylistManagerStats from(PlaylistManager playlistManager) {
-        List<SongMetadata> allSongs = new ArrayList<>();
+    @Inject
+    HlsPlaylistConfig hlsPlaylistConfig;
 
-        playlistManager.getRegularQueue().stream()
-                .map(LiveSoundFragment::getMetadata)
-                .peek(md -> md.setSource(SongSource.REGULAR))
-                .forEach(allSongs::add);
+    public PlaylistManagerStats(PlaylistManager playlistManager, int duration) {
+        this.brand = playlistManager.getBrand();
+        this.livePlaylist = mapList(playlistManager.getPrioritizedQueue(), SongSource.PRIORITIZED);
+        this.queued = mapList(playlistManager.getObtainedByHlsPlaylist(), SongSource.QUEUED);
+        this.duration = duration;
+    }
 
-        playlistManager.getPrioritizedQueue().stream()
-                .map(LiveSoundFragment::getMetadata)
-                .peek(md -> md.setSource(SongSource.PRIORITIZED))
-                .forEach(allSongs::add);
-
-        playlistManager.getObtainedByHlsPlaylist().stream()
-                .map(LiveSoundFragment::getMetadata)
-                .peek(md -> md.setObtained(true))
-                .forEach(allSongs::add);
-
-        return PlaylistManagerStats.builder()
-                .brand(playlistManager.getBrand())
-                .livePlaylist(allSongs)
-                .build();
+    private List<LiveSoundFragmentDTO> mapList(List<LiveSoundFragment> list, SongSource type) {
+        return list.stream().map(live -> {
+            SongMetadata m = live.getMetadata();
+            LiveSoundFragmentDTO dto = new LiveSoundFragmentDTO();
+            dto.setTitle(m.getTitle());
+            dto.setArtist(m.getArtist());
+            dto.setMergingType(m.getMergingType());
+            dto.setDuration(live.getSegments().values().iterator().next().size() * duration);
+            dto.setQueueType(type);
+            return dto;
+        }).toList();
     }
 }

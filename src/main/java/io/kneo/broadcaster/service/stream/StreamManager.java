@@ -6,7 +6,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.stats.SegmentTimelineDisplay;
+import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -21,10 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,9 +65,8 @@ public class StreamManager implements IStreamManager {
 
     private final int maxVisibleSegments;
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
-
     private final BrandSoundFragmentUpdateService updateService;
-
+    private final MemoryService memoryService;
     private final Object fragmentRetrievalLock = new Object();
 
     public StreamManager(
@@ -81,7 +77,8 @@ public class StreamManager implements IStreamManager {
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService, SongSupplier songSupplier,
             int maxVisibleSegments,
-            BrandSoundFragmentUpdateService updateService
+            BrandSoundFragmentUpdateService updateService,
+            MemoryService memoryService
     ) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
@@ -92,6 +89,7 @@ public class StreamManager implements IStreamManager {
         this.songSupplier = songSupplier;
         this.maxVisibleSegments = maxVisibleSegments;
         this.updateService = updateService;
+        this.memoryService = memoryService;
     }
 
     @Override
@@ -109,7 +107,7 @@ public class StreamManager implements IStreamManager {
 
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
-        playlistManager = new PlaylistManager(broadcasterConfig, this, songSupplier, updateService);
+        playlistManager = new PlaylistManager(config, broadcasterConfig, this, songSupplier, updateService, memoryService);
         if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();
         }
@@ -290,7 +288,6 @@ public class StreamManager implements IStreamManager {
         return new StreamManagerStats(
                 Map.copyOf(liveSegments),
                 recentRequestsCount,
-                config,
                 getSegmentHeartbeat()
         );
     }
@@ -316,38 +313,5 @@ public class StreamManager implements IStreamManager {
 
     public boolean getSegmentHeartbeat() {
         return !liveSegments.isEmpty();
-    }
-
-
-    public SegmentTimelineDisplay getSegmentTimelineDisplay(int numPastSegmentsToShow, int numUpcomingSegmentsToShow) {
-        List<Long> visibleSegmentSequences;
-        List<Long> pastSegmentSequences = new ArrayList<>();
-
-        if (liveSegments.isEmpty()) {
-            visibleSegmentSequences = Collections.emptyList();
-        } else {
-            visibleSegmentSequences = new ArrayList<>(liveSegments.keySet());
-            if (numPastSegmentsToShow > 0 && !visibleSegmentSequences.isEmpty()) {
-                long firstVisibleSequence = visibleSegmentSequences.get(0);
-                for (int i = numPastSegmentsToShow; i >= 1; i--) {
-                    long pastSequence = firstVisibleSequence - i;
-                    pastSegmentSequences.add(pastSequence);
-                }
-            }
-        }
-
-        List<Long> upcomingSegmentSequences;
-        synchronized (pendingFragmentSegmentsQueue) {
-            upcomingSegmentSequences = pendingFragmentSegmentsQueue.stream()
-                    .map(HlsSegment::getSequence)
-                    .limit(numUpcomingSegmentsToShow)
-                    .toList();
-        }
-
-        return new SegmentTimelineDisplay(
-                Collections.unmodifiableList(pastSegmentSequences),
-                Collections.unmodifiableList(visibleSegmentSequences),
-                upcomingSegmentSequences
-        );
     }
 }

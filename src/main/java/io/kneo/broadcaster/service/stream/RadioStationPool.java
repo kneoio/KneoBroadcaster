@@ -108,7 +108,8 @@ public class RadioStationPool {
                                             segmentationService,
                                             songSupplier,
                                             10,
-                                            updateService
+                                            updateService,
+                                            memoryService
                                     );
                                     stationFromDb.setStreamManager(newPlaylist);
                                     newPlaylist.setRadioStation(stationFromDb);

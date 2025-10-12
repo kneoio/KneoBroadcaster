@@ -1,16 +1,18 @@
 package io.kneo.broadcaster.service.playlist;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
+import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
@@ -66,11 +68,16 @@ public class PlaylistManager {
     private final RadioStation radioStation;
     private final String tempBaseDir;
     private volatile long lastStarvingFeedTime = 0;
+    private final int segmentDuration;
+    private final MemoryService memoryService;
 
-    public PlaylistManager(BroadcasterConfig broadcasterConfig,
+    public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
+                           BroadcasterConfig broadcasterConfig,
                            IStreamManager streamManager,
                            SongSupplier songSupplier,
-                           BrandSoundFragmentUpdateService brandSoundFragmentUpdateService) {
+                           BrandSoundFragmentUpdateService brandSoundFragmentUpdateService,
+                           MemoryService memoryService
+    ) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
         this.segmentationService = streamManager.getSegmentationService();
         this.radioStation = streamManager.getRadioStation();
@@ -79,6 +86,8 @@ public class PlaylistManager {
         this.brand = radioStation.getSlugName();
         this.brandId = radioStation.getId();
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
+        this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
+        this.memoryService = memoryService;
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
     }
 
@@ -191,6 +200,8 @@ public class PlaylistManager {
                             regularQueue.add(liveSoundFragment);
                             LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, metadata.getFileOriginalName());
                         }
+                        memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId())
+                                .subscribe().asCompletionStage();
                         return Uni.createFrom().item(true);
                     });
         } catch (Exception e) {
@@ -237,6 +248,8 @@ public class PlaylistManager {
                         regularQueue.add(liveSoundFragment);
                         LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, materializedMetadata.getFileOriginalName());
                     }
+                    memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId())
+                            .subscribe().asCompletionStage();
                     return Uni.createFrom().item(true);
                 });
     }
@@ -259,7 +272,7 @@ public class PlaylistManager {
     }
 
     public PlaylistManagerStats getStats() {
-        return PlaylistManagerStats.from(this);
+        return new PlaylistManagerStats(this, segmentDuration);
     }
 
     private void moveFragmentToProcessedList(LiveSoundFragment fragmentToMove) {

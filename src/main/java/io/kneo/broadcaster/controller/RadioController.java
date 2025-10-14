@@ -439,6 +439,7 @@ public class RadioController {
     private void getSkill(RoutingContext rc) {
         JsonObject response = new JsonObject()
                 .put("version", "1.0")
+                .put("sessionAttributes", new JsonObject())
                 .put("response", new JsonObject()
                         .put("outputSpeech", new JsonObject()
                                 .put("type", "PlainText")

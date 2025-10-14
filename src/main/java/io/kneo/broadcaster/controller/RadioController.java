@@ -440,6 +440,9 @@ public class RadioController {
         JsonObject response = new JsonObject()
                 .put("version", "1.0")
                 .put("response", new JsonObject()
+                        .put("outputSpeech", new JsonObject()
+                                .put("type", "PlainText")
+                                .put("text", "Playing Mixpla Radio"))
                         .put("shouldEndSession", true)
                         .put("directives", List.of(
                                 new JsonObject()

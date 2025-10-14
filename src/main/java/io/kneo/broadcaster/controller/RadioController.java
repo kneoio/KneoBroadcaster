@@ -66,7 +66,7 @@ public class RadioController {
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
-        router.route(HttpMethod.GET, "/radio/alexa/skill").handler(this::getSkill);
+        router.route(HttpMethod.POST, "/radio/alexa/skill").handler(this::getSkill);
 
          router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)

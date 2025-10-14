@@ -443,9 +443,12 @@ public class RadioController {
                 .put("response", new JsonObject()
                         .put("outputSpeech", new JsonObject()
                                 .put("type", "PlainText")
-                                .put("text", "Playing Mixpla Radio"))
+                                .put("text", "Starting Mixpla Radio. Enjoy!"))
                         .put("shouldEndSession", true)
                         .put("directives", List.of(
+                                new JsonObject()
+                                        .put("type", "AudioPlayer.ClearQueue")
+                                        .put("clearBehavior", "CLEAR_ALL"),
                                 new JsonObject()
                                         .put("type", "AudioPlayer.Play")
                                         .put("playBehavior", "REPLACE_ALL")
@@ -457,6 +460,7 @@ public class RadioController {
                                                 )
                                         )
                         ))
+
                 );
 
         rc.response()

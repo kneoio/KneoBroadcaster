@@ -7,9 +7,9 @@ import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
@@ -29,6 +29,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -159,7 +160,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setBrandId(tuple.getItem3().getId().toString());
             dto.setBrand(tuple.getItem3().getSlugName());
-            dto.setTimeZone(tuple.getItem3().getTimeZone());
             dto.setType(doc.getType().name());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
@@ -175,6 +175,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
                         taskDTO.setType(task.getType());
                         taskDTO.setTarget(task.getTarget());
                         taskDTO.setTriggerType(task.getTriggerType());
+                        dto.setTimeZone(schedule.getTimeZone().getId());
 
                         if (task.getTriggerType() == TriggerType.ONCE) {
                             OnceTriggerDTO onceTriggerDTO = new OnceTriggerDTO();
@@ -218,8 +219,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
         doc.setType(EventType.valueOf(dto.getType()));
         doc.setDescription(dto.getDescription());
         doc.setPriority(EventPriority.valueOf(dto.getPriority()));
-        doc.setTimeZone(dto.getTimeZone());
-
+        doc.setTimeZone(ZoneId.of(dto.getTimeZone()));
         if (dto.getSchedule() != null) {
             Scheduler schedule = new Scheduler();
             ScheduleDTO scheduleDTO = dto.getSchedule();

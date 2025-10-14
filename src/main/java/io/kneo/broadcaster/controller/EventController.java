@@ -2,6 +2,7 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.dto.event.EventEntryDTO;
+import io.kneo.broadcaster.dto.scheduler.ScheduleFactory;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.service.EventService;
@@ -86,7 +87,7 @@ public class EventController extends AbstractSecuredController<Event, EventDTO> 
                     if ("new".equals(id)) {
                         EventDTO dto = new EventDTO();
                         dto.setPriority(EventPriority.LOW.name());
-                        dto.setSchedule(io.kneo.broadcaster.dto.scheduler.ScheduleFactory.createWorkdaySchedule(ScheduledTaskType.EVENT_TRIGGER, "default", 60));
+                        dto.setSchedule(ScheduleFactory.createWorkdaySchedule(ScheduledTaskType.EVENT_TRIGGER, "default", 60));
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, resolveLanguage(rc))

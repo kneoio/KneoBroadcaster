@@ -72,11 +72,8 @@ public class AudioConcatenator {
 
                 return switch (mixingType) {
                     case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, gainValue);
-                    //case SILENCE_GAP -> concatenateWithSilenceGap(firstPath, secondPath, outputPath, gainValue);
                     case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, gainValue);
-                    //case SIMULATED_CROSSFADE -> simulatedCrossfade(firstPath, secondPath, outputPath, gainValue);
                     case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, gainValue);
-
                 };
             } catch (Exception e) {
                 LOGGER.error("Error in concatenateWithMixing: {}", e.getMessage(), e);
@@ -104,47 +101,27 @@ public class AudioConcatenator {
         return outputPath;
     }
 
-
-    private String concatenateWithSilenceGap(String firstPath, String secondPath, String outputPath,
-                                             double silenceDuration) throws Exception {
-        String silencePath = createSilenceFile(silenceDuration);
-        String concatListPath = tempBaseDir + "/concat_silence_" + System.currentTimeMillis() + ".txt";
-        String concatContent = String.format("file '%s'\nfile '%s'\nfile '%s'",
-                new File(firstPath).getAbsolutePath(),
-                new File(silencePath).getAbsolutePath(),
-                new File(secondPath).getAbsolutePath());
-        Files.writeString(Path.of(concatListPath), concatContent);
-
-        FFmpegBuilder builder = new FFmpegBuilder()
-                .addExtraArgs("-f", "concat")
-                .addExtraArgs("-safe", "0")
-                .setInput(concatListPath)
-                .addOutput(outputPath)
-                .setAudioCodec("pcm_s16le")
-                .setAudioSampleRate(SAMPLE_RATE)
-                .setAudioChannels(2)
-                .done();
-
-        executor.createJob(builder).run();
-        cleanupFiles(concatListPath, silencePath);
-        return outputPath;
-    }
-
     private String createCrossfadeMix(String firstPath, String secondPath, String outputPath,
                                       double crossfadeDuration) throws Exception {
         double firstDuration = getAudioDuration(firstPath);
         double crossfadeStart = Math.max(0, firstDuration - crossfadeDuration);
 
         String filterComplex = String.format(
-                "[0:a]afade=t=out:st=%.2f:d=%.2f[a1];" +
-                        "[1:a]afade=t=in:st=0:d=%.2f,adelay=%.0f|%.0f[a2];" +
+                "[0:a]silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=-1:stop_threshold=-40dB:detection=peak," +
+                        "atrim=start=0:end=%.2f,aresample=async=1,asetpts=N/SR/TB,afade=t=out:st=%.2f:d=%.2f[a1];" +
+                        "[1:a]silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=-1:stop_threshold=-40dB:detection=peak," +
+                        "aresample=async=1,atrim=start=0,asetpts=N/SR/TB,afade=t=in:st=0:d=%.2f,adelay=%.0f|%.0f[a2];" +
                         "[a1][a2]amix=inputs=2:duration=longest:dropout_transition=0",
+                crossfadeStart + 0.15,  // small safety margin before fade-out
                 crossfadeStart, crossfadeDuration,
                 crossfadeDuration,
                 crossfadeStart * 1000, crossfadeStart * 1000
         );
 
         FFmpegBuilder builder = new FFmpegBuilder()
+                .addExtraArgs("-err_detect", "ignore_err")
+                .addExtraArgs("-fflags", "+genpts")
+                .addExtraArgs("-avoid_negative_ts", "1")
                 .setInput(firstPath)
                 .addInput(secondPath)
                 .setComplexFilter(filterComplex)
@@ -155,60 +132,6 @@ public class AudioConcatenator {
                 .done();
 
         executor.createJob(builder).run();
-        return outputPath;
-    }
-
-    private String simulatedCrossfade(String firstPath, String secondPath, String outputPath,
-                                      double crossfadeDuration) throws Exception {
-        double firstDuration = getAudioDuration(firstPath);
-
-        String paddedFirstPath = tempBaseDir + "/padded_first_" + System.currentTimeMillis() + ".wav";
-        String fadeOutFilter = String.format(
-                "afade=t=out:st=%.2f:d=%.2f,apad=pad_dur=%.2f",
-                Math.max(0, firstDuration - crossfadeDuration),
-                crossfadeDuration,
-                crossfadeDuration
-        );
-
-        FFmpegBuilder firstBuilder = new FFmpegBuilder()
-                .setInput(firstPath)
-                .addOutput(paddedFirstPath)
-                .setAudioFilter(fadeOutFilter)
-                .setAudioCodec("pcm_s16le")
-                .setAudioSampleRate(SAMPLE_RATE)
-                .setAudioChannels(2)
-                .done();
-        executor.createJob(firstBuilder).run();
-
-        String delayedSecondPath = tempBaseDir + "/delayed_second_" + System.currentTimeMillis() + ".wav";
-        String delayFilter = String.format(
-                "afade=t=in:st=0:d=%.2f,adelay=%.0f|%.0f",
-                crossfadeDuration,
-                firstDuration * 1000, firstDuration * 1000
-        );
-
-        FFmpegBuilder secondBuilder = new FFmpegBuilder()
-                .setInput(secondPath)
-                .addOutput(delayedSecondPath)
-                .setAudioFilter(delayFilter)
-                .setAudioCodec("pcm_s16le")
-                .setAudioSampleRate(SAMPLE_RATE)
-                .setAudioChannels(2)
-                .done();
-        executor.createJob(secondBuilder).run();
-
-        FFmpegBuilder mixBuilder = new FFmpegBuilder()
-                .setInput(paddedFirstPath)
-                .addInput(delayedSecondPath)
-                .setComplexFilter("[0:a][1:a]amix=inputs=2:duration=longest:dropout_transition=0")
-                .addOutput(outputPath)
-                .setAudioCodec("pcm_s16le")
-                .setAudioSampleRate(SAMPLE_RATE)
-                .setAudioChannels(2)
-                .done();
-
-        executor.createJob(mixBuilder).run();
-        cleanupFiles(paddedFirstPath, delayedSecondPath);
         return outputPath;
     }
 
@@ -236,20 +159,6 @@ public class AudioConcatenator {
         FFmpegProbeResult probeResult = ffprobe.probe(filePath);
         return probeResult.getFormat().duration;
     }
-
-    private String createSilenceFile(double duration) throws Exception {
-        String silencePath = tempBaseDir + "/silence_" + System.currentTimeMillis() + ".wav";
-        FFmpegBuilder builder = new FFmpegBuilder()
-                .addExtraArgs("-f", "lavfi")
-                .addExtraArgs("-i", String.format("anullsrc=channel_layout=stereo:sample_rate=%d:duration=%.2f",
-                        SAMPLE_RATE, duration))
-                .addOutput(silencePath)
-                .setAudioCodec("pcm_s16le")
-                .done();
-        executor.createJob(builder).run();
-        return silencePath;
-    }
-
     private void cleanupFiles(String... paths) {
         for (String path : paths) {
             try {

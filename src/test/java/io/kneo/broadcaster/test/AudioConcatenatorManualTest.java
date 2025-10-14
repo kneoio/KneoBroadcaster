@@ -22,10 +22,10 @@ public class AudioConcatenatorManualTest {
         Properties props = new Properties();
         props.load(new FileInputStream("src/main/resources/application.properties"));
 
-        String musicDir = props.getProperty("broadcaster.path.uploads", "C:/Users/justa/Music/mixed_test");
-        String outputDir = props.getProperty("broadcaster.path.output", musicDir + "/output");
-        String ffmpegPath = props.getProperty("broadcaster.ffmpeg.path", "ffmpeg");
-        String ffprobePath = props.getProperty("broadcaster.ffprobe.path", "ffprobe");
+        String musicDir = props.getProperty("broadcaster.path.uploads", "C:/Users/justa/Music");
+        String outputDir = props.getProperty("broadcaster.path.output", musicDir + "/mixed_test");
+        String ffmpegPath = "C:/Users/justa/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Essentials_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-7.1-essentials_build/bin/ffmpeg.exe";
+        String ffprobePath = "C:/Users/justa/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Essentials_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-7.1-essentials_build/bin/ffprobe.exe";
 
         List<String> audioFiles = getAudioFiles(musicDir);
         if (audioFiles.isEmpty()) {

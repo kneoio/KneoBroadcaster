@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -65,7 +66,7 @@ public class AiHelperService {
                     dto.setLlmType(agent.getLlmType());
                     dto.setPreferredLang(agent.getPreferredLang());
 
-                    List<String> prompts = agent.getPrompts();
+                    List<Prompt> prompts = agent.getPrompts();
                     List<String> msgPrompts = agent.getMessagePrompts();
                     List<String> podcastPrompts = agent.getMiniPodcastPrompts();
 
@@ -73,7 +74,7 @@ public class AiHelperService {
                         return Uni.createFrom().item(brand);
                     }
 
-                    String randomPrompt = prompts.get(new Random().nextInt(prompts.size()));
+                    String randomPrompt = prompts.get(new Random().nextInt(prompts.size())).getPrompt();
 
                     String msgPrompt;
                     if (msgPrompts != null && !msgPrompts.isEmpty()) {

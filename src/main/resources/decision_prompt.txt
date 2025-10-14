@@ -1,8 +1,0 @@
-INPUTS:
-- Events: {events}
-ANALYSIS:
-1. Check the event
-2. IF "ad" event present:
-   - Set action: "ad"
-OTHERWISE:
-   - Set action: "song"

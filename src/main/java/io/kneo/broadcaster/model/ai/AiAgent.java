@@ -19,7 +19,7 @@ public class AiAgent extends SimpleReferenceEntity {
 
     private LlmType llmType;
     private Merger merger;
-    private List<String> prompts;
+    private List<Prompt> prompts;
     private List<String> eventPrompts;
     private List<String> messagePrompts;
     private List<String> miniPodcastPrompts;

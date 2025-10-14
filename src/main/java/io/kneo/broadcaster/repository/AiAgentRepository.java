@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.Merger;
+import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -295,7 +296,7 @@ public class AiAgentRepository extends AsyncRepository {
 
         try {
             JsonArray promptsJson = row.getJsonArray("prompts");
-            doc.setPrompts(promptsJson != null ? mapper.readValue(promptsJson.encode(), new TypeReference<List<String>>() {}) : new ArrayList<>());
+            doc.setPrompts(promptsJson != null ? mapper.readValue(promptsJson.encode(), new TypeReference<List<Prompt>>() {}) : new ArrayList<>());
 
             JsonArray eventPromptsJson = row.getJsonArray("event_prompts");
             doc.setEventPrompts(eventPromptsJson != null ? mapper.readValue(eventPromptsJson.encode(), new TypeReference<List<String>>() {}) : new ArrayList<>());

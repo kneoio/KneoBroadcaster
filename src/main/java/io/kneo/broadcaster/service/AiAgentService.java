@@ -2,11 +2,13 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.ai.MergerDTO;
+import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.ai.ToolDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.MergeMethod;
 import io.kneo.broadcaster.model.ai.Merger;
+import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.AiAgentRepository;
@@ -97,7 +99,17 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setName(doc.getName());
             dto.setPreferredLang(doc.getPreferredLang());
             dto.setLlmType(doc.getLlmType());
-            dto.setPrompts(doc.getPrompts());
+            dto.setPrompts(
+                    doc.getPrompts().stream()
+                            .map(p -> {
+                                PromptDTO d = new PromptDTO();
+                                d.setEnabled(p.isEnabled());
+                                d.setPrompt(p.getPrompt());
+                                return d;
+                            })
+                            .toList()
+            );
+
             dto.setEventPrompts(doc.getEventPrompts());
             dto.setMessagePrompts(doc.getMessagePrompts());
             dto.setMiniPodcastPrompts(doc.getMiniPodcastPrompts());
@@ -148,7 +160,16 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setName(dto.getName());
         doc.setCopilot(dto.getCopilot());
         doc.setPreferredLang(dto.getPreferredLang());
-        doc.setPrompts(dto.getPrompts());
+        doc.setPrompts(
+                dto.getPrompts().stream()
+                        .map(p -> {
+                            Prompt d = new Prompt();
+                            d.setEnabled(p.isEnabled());
+                            d.setPrompt(p.getPrompt());
+                            return d;
+                        })
+                        .toList()
+        );
         doc.setEventPrompts(dto.getEventPrompts());
         doc.setMessagePrompts(dto.getMessagePrompts());
         doc.setMiniPodcastPrompts(dto.getMiniPodcastPrompts());

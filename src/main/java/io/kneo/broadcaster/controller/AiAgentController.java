@@ -25,7 +25,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
-import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -95,7 +94,7 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                     if ("new".equals(id)) {
                         AiAgentDTO dto = new AiAgentDTO();
                         dto.setTalkativity(0.3);
-                        dto.setPrompts(List.of(PROMPT_BASIC));
+                      //  dto.setPrompts(List.of(PROMPT_BASIC));
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)

@@ -74,7 +74,11 @@ public class AiHelperService {
                         return Uni.createFrom().item(brand);
                     }
 
-                    String randomPrompt = prompts.get(new Random().nextInt(prompts.size())).getPrompt();
+                    List<Prompt> enabledPrompts = prompts.stream()
+                            .filter(Prompt::isEnabled)
+                            .toList();
+                    String randomPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size())).getPrompt();
+
 
                     String msgPrompt;
                     if (msgPrompts != null && !msgPrompts.isEmpty()) {

@@ -12,7 +12,7 @@
 /uploads
 /merged
 /controller-uploads
-audio_files_cache.txt
+audio_files_cache*.txt
 
 /**/*.properties
 /qodana.yaml

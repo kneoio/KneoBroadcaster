@@ -172,6 +172,7 @@ public class PlaylistManager {
             songMetadata.setMergingType(mergingType);
             liveSoundFragment.setSoundFragmentId(soundFragment.getId());
             liveSoundFragment.setMetadata(songMetadata);
+            liveSoundFragment.setSourceFilePath(metadata.getTemporaryFilePath());
 
             if (soundFragment.getSource() == SourceType.CONTRIBUTION){
 
@@ -225,6 +226,7 @@ public class PlaylistManager {
         SongMetadata songMetadata = new SongMetadata(soundFragment.getTitle(), soundFragment.getArtist());
         liveSoundFragment.setSoundFragmentId(soundFragment.getId());
         liveSoundFragment.setMetadata(songMetadata);
+        liveSoundFragment.setSourceFilePath(materializedMetadata.getTemporaryFilePath());
         return segmentationService.slice(songMetadata, materializedMetadata.getTemporaryFilePath(), List.of(maxRate))
                 .onItem().transformToUni(segments -> {
                     if (segments.isEmpty()) {

@@ -10,6 +10,7 @@ import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
+import io.kneo.broadcaster.service.stream.Mp3Streamer;
 import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
@@ -54,6 +55,9 @@ public class RadioController {
 
     @Inject
     FFmpegProvider ffmpegProvider;
+
+    @Inject
+    Mp3Streamer mp3Streamer;
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -115,6 +119,42 @@ public class RadioController {
                                 rc.fail(throwable);
                             }
                         }
+                );
+    }
+
+    private void getMp3Stream(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        service.getPlaylist(brand)
+                .subscribe().with(
+                        manager -> {
+                            rc.response()
+                                    .putHeader("Content-Type", "audio/mpeg")
+                                    .putHeader("Cache-Control", "no-cache")
+                                    .setChunked(true);
+
+                            mp3Streamer.stream(manager.getPlaylistManager())
+                                    .subscribe().with(
+                                            chunk -> {
+                                                if (!rc.response().closed()) {
+                                                    rc.response().write(chunk);
+                                                }
+                                            },
+                                            err -> {
+                                                if (!rc.response().closed()) {
+                                                    rc.response().setStatusCode(500).end("Stream error");
+                                                }
+                                            },
+                                            () -> {
+                                                if (!rc.response().closed()) {
+                                                    rc.response().end();
+                                                }
+                                            }
+                                    );
+                        },
+                        throwable -> rc.response()
+                                .setStatusCode(404)
+                                .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                .end("Stream unavailable")
                 );
     }
 
@@ -439,40 +479,6 @@ public class RadioController {
             rc.fail(statusCode, e);
         } catch (Exception e) {
             rc.fail(e);
-        }
-    }
-
-
-    private void getMp3Stream(RoutingContext rc) {
-        String brand = rc.pathParam("brand").toLowerCase();
-        String hlsUrl = "https://mixpla.online/" + brand + "/radio/stream.m3u8";
-
-        String ffmpegPath = ffmpegProvider.getFFmpeg().getPath();  // use configured ffmpeg.exe path
-
-        ProcessBuilder pb = new ProcessBuilder(
-                ffmpegPath, "-re", "-i", hlsUrl,
-                "-f", "mp3", "-b:a", "128k", "-"
-        );
-        try {
-            Process process = pb.start();
-            rc.response()
-                    .putHeader("Content-Type", "audio/mpeg")
-                    .setChunked(true);
-
-            new Thread(() -> {
-                try (var in = process.getInputStream()) {
-                    byte[] buffer = new byte[4096];
-                    int len;
-                    while ((len = in.read(buffer)) != -1 && !rc.response().closed()) {
-                        rc.response().write(Buffer.buffer(buffer).slice(0, len));
-                    }
-                } catch (Exception ignored) {}
-                process.destroyForcibly();
-            }).start();
-
-        } catch (Exception e) {
-            LOGGER.error("FFmpeg streaming failed: {}", e.getMessage());
-            rc.response().setStatusCode(500).end("Stream unavailable");
         }
     }
 

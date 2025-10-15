@@ -34,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
@@ -68,6 +69,7 @@ public class PlaylistManager {
     private volatile long lastStarvingFeedTime = 0;
     private final int segmentDuration;
     private final MemoryService memoryService;
+    private final LinkedBlockingQueue<LiveSoundFragment> mp3Queue = new LinkedBlockingQueue<>();
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
                            BroadcasterConfig broadcasterConfig,
@@ -275,6 +277,10 @@ public class PlaylistManager {
         return new PlaylistManagerStats(this, segmentDuration);
     }
 
+    public LinkedBlockingQueue<LiveSoundFragment> getMp3Queue() {
+        return mp3Queue;
+    }
+
     private void moveFragmentToProcessedList(LiveSoundFragment fragmentToMove) {
         if (fragmentToMove != null) {
             slicedFragmentsLock.writeLock().lock();
@@ -285,6 +291,7 @@ public class PlaylistManager {
                                 unused -> {},
                                 error -> LOGGER.error("Failed to update played count: {}", error.getMessage(), error)
                         );
+                mp3Queue.offer(fragmentToMove);
                 if (obtainedByHlsPlaylist.size() > PROCESSED_QUEUE_MAX_SIZE) {
                     LiveSoundFragment removed = obtainedByHlsPlaylist.poll();
                     LOGGER.debug("Removed oldest fragment from processed queue: {}",

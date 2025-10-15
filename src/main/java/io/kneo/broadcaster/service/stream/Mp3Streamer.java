@@ -26,9 +26,13 @@ public class Mp3Streamer {
                 Process process = null;
                 try {
                     while (!Thread.currentThread().isInterrupted()) {
-                        LiveSoundFragment fragment = playlistManager.getNextFragment();
+                        LiveSoundFragment fragment;
+                        try {
+                            fragment = playlistManager.getMp3Queue().take();
+                        } catch (InterruptedException e) {
+                            break;
+                        }
                         if (fragment == null) {
-                            try { Thread.sleep(300); } catch (InterruptedException e) { break; }
                             continue;
                         }
                         Path source = fragment.getSourceFilePath();

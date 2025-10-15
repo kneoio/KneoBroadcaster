@@ -9,7 +9,6 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.service.MemoryService;
@@ -59,7 +58,6 @@ public class PlaylistManager {
     @Getter
     private final String brand;
     private final UUID brandId;
-
     private final SoundFragmentService soundFragmentService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final AudioSegmentationService segmentationService;
@@ -210,7 +208,7 @@ public class PlaylistManager {
         }
     }
 
-    @Deprecated
+   /* @Deprecated
     public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, long bitRate) {
         try {
             List<FileMetadata> metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
@@ -220,7 +218,7 @@ public class PlaylistManager {
             LOGGER.warn("Skipping fragment due to metadata error, position 657: {}", e.getMessage());
             return Uni.createFrom().item(false);
         }
-    }
+    }*/
 
     private Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, FileMetadata materializedMetadata, long maxRate) {
         LiveSoundFragment liveSoundFragment = new LiveSoundFragment();

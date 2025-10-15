@@ -7,6 +7,7 @@ import io.kneo.broadcaster.service.GeolocationService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.AnonymousUser;
@@ -50,6 +51,10 @@ public class RadioController {
     @Inject
     private GeolocationService geoService;
 
+
+    @Inject
+    FFmpegProvider ffmpegProvider;
+
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
 
@@ -62,6 +67,8 @@ public class RadioController {
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
         router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
+        router.route(HttpMethod.GET, path + "/stream.mp3").handler(this::getMp3Stream);
+
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
@@ -435,6 +442,39 @@ public class RadioController {
         }
     }
 
+
+    private void getMp3Stream(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        String hlsUrl = "https://mixpla.online/" + brand + "/radio/stream.m3u8";
+
+        String ffmpegPath = ffmpegProvider.getFFmpeg().getPath();  // use configured ffmpeg.exe path
+
+        ProcessBuilder pb = new ProcessBuilder(
+                ffmpegPath, "-re", "-i", hlsUrl,
+                "-f", "mp3", "-b:a", "128k", "-"
+        );
+        try {
+            Process process = pb.start();
+            rc.response()
+                    .putHeader("Content-Type", "audio/mpeg")
+                    .setChunked(true);
+
+            new Thread(() -> {
+                try (var in = process.getInputStream()) {
+                    byte[] buffer = new byte[4096];
+                    int len;
+                    while ((len = in.read(buffer)) != -1 && !rc.response().closed()) {
+                        rc.response().write(Buffer.buffer(buffer).slice(0, len));
+                    }
+                } catch (Exception ignored) {}
+                process.destroyForcibly();
+            }).start();
+
+        } catch (Exception e) {
+            LOGGER.error("FFmpeg streaming failed: {}", e.getMessage());
+            rc.response().setStatusCode(500).end("Stream unavailable");
+        }
+    }
 
     private void getSkill(RoutingContext rc) {
         JsonObject response = new JsonObject()

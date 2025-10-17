@@ -130,7 +130,12 @@ public class RadioController {
                             rc.response()
                                     .putHeader("Content-Type", "audio/mpeg")
                                     .putHeader("Cache-Control", "no-cache")
+                                    .putHeader("icy-name", "Mixpla Radio")
+                                    .putHeader("icy-genre", "Electronic")
+                                    .putHeader("icy-pub", "1")
+                                    .putHeader("icy-metaint", "0")
                                     .setChunked(true);
+
                             rc.response().closeHandler(v -> {
                                 LOGGER.info("Client disconnected from brand {}", brand);
                                 mp3Streamer.listenerLeft(brand);
@@ -507,7 +512,7 @@ public class RadioController {
                                         .put("audioItem", new JsonObject()
                                                 .put("stream", new JsonObject()
                                                         .put("token", "aye-ayes-ear-001")
-                                                        .put("url", "https://mixpla.online/aye-ayes-ear/radio/stream.m3u8")
+                                                        .put("url", "https://mixpla.online/lumisonic/radio/stream.mp3")
                                                         .put("offsetInMilliseconds", 0)
                                                 )
                                         )

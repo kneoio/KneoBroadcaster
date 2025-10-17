@@ -44,6 +44,7 @@ public class RadioStationDTO extends AbstractDTO {
     private ManagedBy managedBy;
     private URL hlsUrl;
     private URL iceCastUrl;
+    private URL mp3Url;
     private URL mixplaUrl;
     @NotBlank
     @Pattern(regexp = "^[A-Za-z]+/[A-Za-z_]+$", message = "Invalid timezone format")

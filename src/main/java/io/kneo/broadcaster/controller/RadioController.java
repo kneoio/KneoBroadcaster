@@ -97,7 +97,7 @@ public class RadioController {
         String userAgent = rc.request().getHeader("User-Agent");
         String clientIP = rc.request().getHeader("stream-connecting-ip");
         geoService.recordAccessWithGeolocation(brand, userAgent, clientIP)
-                .chain(country -> service.getPlaylist(brand))
+                .chain(country -> service.getStreamManager(brand))
                 .onItem().transform(IStreamManager::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -124,15 +124,21 @@ public class RadioController {
 
     private void getMp3Stream(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
-        service.getPlaylist(brand)
+        service.getStreamManager(brand)
                 .subscribe().with(
-                        manager -> {
+                        streamManager -> {
                             rc.response()
                                     .putHeader("Content-Type", "audio/mpeg")
                                     .putHeader("Cache-Control", "no-cache")
                                     .setChunked(true);
+                            rc.response().closeHandler(v -> {
+                                LOGGER.info("Client disconnected from brand {}", brand);
+                                mp3Streamer.listenerLeft(brand);
+                            });
 
-                            mp3Streamer.stream(manager.getPlaylistManager())
+                            mp3Streamer.listenerJoined(brand);
+
+                            mp3Streamer.stream(streamManager.getPlaylistManager())
                                     .subscribe().with(
                                             chunk -> {
                                                 if (!rc.response().closed()) {
@@ -162,7 +168,7 @@ public class RadioController {
         String segmentParam = rc.pathParam("segment");
         String brand = rc.pathParam("brand").toLowerCase();
 
-        service.getPlaylist(brand)
+        service.getStreamManager(brand)
                 .onItem().transform(playlist -> {
                     HlsSegment segment = playlist.getSegment(segmentParam);
                     if (segment == null) {

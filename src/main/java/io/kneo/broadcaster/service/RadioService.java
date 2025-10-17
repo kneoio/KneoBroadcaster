@@ -105,7 +105,7 @@ public class RadioService {
                 );
     }
 
-    public Uni<IStreamManager> getPlaylist(String brand) {
+    public Uni<IStreamManager> getStreamManager(String brand) {
         return radioStationPool.get(brand)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
@@ -117,7 +117,7 @@ public class RadioService {
     }
 
     public Uni<RadioStationStatusDTO> getStatus(String brand) {
-        return getPlaylist(brand)
+        return getStreamManager(brand)
                 .onItem().transform(IStreamManager::getRadioStation)
                 .chain(v -> toStatusDTO(v, true));
     }

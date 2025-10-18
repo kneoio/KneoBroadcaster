@@ -77,9 +77,12 @@ public class RadioController {
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
-        router.route(HttpMethod.POST, "/radio/alexa/skill").handler(this::getSkill);
+        router.route(HttpMethod.POST, "/radio/alexa/skill")
+                .handler(BodyHandler.create().setHandleFileUploads(false))
+                .handler(this::getSkill);
 
-         router.route(HttpMethod.POST, "/radio/:brand/submissions")
+
+        router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)
                 .handler(this::submit);
@@ -494,20 +497,19 @@ public class RadioController {
     }
 
     private void getSkill(RoutingContext rc) {
-        JsonObject body = rc.body().asJsonObject();
-        String intentName = body
-                .getJsonObject("request", new JsonObject())
-                .getJsonObject("intent", new JsonObject())
-                .getString("name", "");
+        JsonObject body = rc.body() != null ? rc.body().asJsonObject() : null;
 
-        String brand = "lumisonic";
-        JsonObject slots = body
-                .getJsonObject("request", new JsonObject())
-                .getJsonObject("intent", new JsonObject())
-                .getJsonObject("slots", new JsonObject());
-        if (slots.containsKey("brand")) {
-            brand = slots.getJsonObject("brand").getString("value", brand).toLowerCase();
+        if (body == null || !body.containsKey("request")) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "application/json")
+                    .end("{\"error\":\"Missing or invalid Alexa request body\"}");
+            return;
         }
+
+        JsonObject request = body.getJsonObject("request");
+        JsonObject intent = request.getJsonObject("intent");
+        String intentName = intent != null ? intent.getString("name", "") : "";
 
         JsonObject response;
 
@@ -520,11 +522,17 @@ public class RadioController {
                             ))
                             .put("shouldEndSession", true)
                     );
-        } else {
+        } else if ("PlayRadioIntent".equals(intentName)) {
+            JsonObject slots = intent.getJsonObject("slots", new JsonObject());
+            String brand = "lumisonic";
+            if (slots.containsKey("brand")) {
+                brand = slots.getJsonObject("brand").getString("value", brand).toLowerCase();
+            }
+
             String url = "https://mixpla.online/" + brand + "/radio/stream.mp3";
+
             response = new JsonObject()
                     .put("version", "1.0")
-                    .put("sessionAttributes", new JsonObject())
                     .put("response", new JsonObject()
                             .put("outputSpeech", new JsonObject()
                                     .put("type", "PlainText")
@@ -546,6 +554,15 @@ public class RadioController {
                                             )
                             ))
                     );
+        } else {
+            response = new JsonObject()
+                    .put("version", "1.0")
+                    .put("response", new JsonObject()
+                            .put("outputSpeech", new JsonObject()
+                                    .put("type", "PlainText")
+                                    .put("text", "Welcome to Mixpla Radio. Say play Lumisonic or play Aye-Aye’s Ear."))
+                            .put("shouldEndSession", false)
+                    );
         }
 
         rc.response()
@@ -553,4 +570,5 @@ public class RadioController {
                 .setStatusCode(200)
                 .end(response.encode());
     }
+
 }

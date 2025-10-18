@@ -494,38 +494,63 @@ public class RadioController {
     }
 
     private void getSkill(RoutingContext rc) {
-        JsonObject response = new JsonObject()
-                .put("version", "1.0")
-                .put("sessionAttributes", new JsonObject())
-                .put("response", new JsonObject()
-                        .put("outputSpeech", new JsonObject()
-                                .put("type", "PlainText")
-                                .put("text", "Starting Mixpla Radio. Enjoy!"))
-                        .put("shouldEndSession", true)
-                        .put("directives", List.of(
-                                new JsonObject()
-                                        .put("type", "AudioPlayer.ClearQueue")
-                                        .put("clearBehavior", "CLEAR_ALL"),
-                                new JsonObject()
-                                        .put("type", "AudioPlayer.Play")
-                                        .put("playBehavior", "REPLACE_ALL")
-                                        .put("audioItem", new JsonObject()
-                                                .put("stream", new JsonObject()
-                                                        .put("token", "aye-ayes-ear-001")
-                                                        .put("url", "https://mixpla.online/lumisonic/radio/stream.mp3")
-                                                        .put("offsetInMilliseconds", 0)
-                                                )
-                                        )
-                        ))
+        JsonObject body = rc.body().asJsonObject();
+        String intentName = body
+                .getJsonObject("request", new JsonObject())
+                .getJsonObject("intent", new JsonObject())
+                .getString("name", "");
 
-                );
+        String brand = "lumisonic";
+        JsonObject slots = body
+                .getJsonObject("request", new JsonObject())
+                .getJsonObject("intent", new JsonObject())
+                .getJsonObject("slots", new JsonObject());
+        if (slots.containsKey("brand")) {
+            brand = slots.getJsonObject("brand").getString("value", brand).toLowerCase();
+        }
+
+        JsonObject response;
+
+        if ("AMAZON.StopIntent".equals(intentName)) {
+            response = new JsonObject()
+                    .put("version", "1.0")
+                    .put("response", new JsonObject()
+                            .put("directives", List.of(
+                                    new JsonObject().put("type", "AudioPlayer.Stop")
+                            ))
+                            .put("shouldEndSession", true)
+                    );
+        } else {
+            String url = "https://mixpla.online/" + brand + "/radio/stream.mp3";
+            response = new JsonObject()
+                    .put("version", "1.0")
+                    .put("sessionAttributes", new JsonObject())
+                    .put("response", new JsonObject()
+                            .put("outputSpeech", new JsonObject()
+                                    .put("type", "PlainText")
+                                    .put("text", "Starting " + brand + " Radio. Enjoy!"))
+                            .put("shouldEndSession", true)
+                            .put("directives", List.of(
+                                    new JsonObject()
+                                            .put("type", "AudioPlayer.ClearQueue")
+                                            .put("clearBehavior", "CLEAR_ALL"),
+                                    new JsonObject()
+                                            .put("type", "AudioPlayer.Play")
+                                            .put("playBehavior", "REPLACE_ALL")
+                                            .put("audioItem", new JsonObject()
+                                                    .put("stream", new JsonObject()
+                                                            .put("token", brand + "-001")
+                                                            .put("url", url)
+                                                            .put("offsetInMilliseconds", 0)
+                                                    )
+                                            )
+                            ))
+                    );
+        }
 
         rc.response()
                 .putHeader("Content-Type", "application/json")
                 .setStatusCode(200)
                 .end(response.encode());
     }
-
-
-
 }

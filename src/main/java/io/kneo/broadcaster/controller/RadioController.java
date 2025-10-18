@@ -77,12 +77,9 @@ public class RadioController {
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
-        router.route(HttpMethod.POST, "/radio/alexa/skill")
-                .handler(BodyHandler.create().setHandleFileUploads(false))
-                .handler(this::getSkill);
+        router.route(HttpMethod.POST, "/radio/alexa/skill").handler(jsonBodyHandler).handler(this::getSkill);
 
-
-        router.route(HttpMethod.POST, "/radio/:brand/submissions")
+         router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)
                 .handler(this::submit);
@@ -497,46 +494,38 @@ public class RadioController {
     }
 
     private void getSkill(RoutingContext rc) {
-        JsonObject body = rc.body() != null ? rc.body().asJsonObject() : null;
+        JsonObject requestJson = rc.body().asJsonObject();
+        String brand = "lumisonic";
 
-        if (body == null || !body.containsKey("request")) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "application/json")
-                    .end("{\"error\":\"Missing or invalid Alexa request body\"}");
-            return;
-        }
-
-        JsonObject request = body.getJsonObject("request");
-        JsonObject intent = request.getJsonObject("intent");
-        String intentName = intent != null ? intent.getString("name", "") : "";
-
-        JsonObject response;
-
-        if ("AMAZON.StopIntent".equals(intentName)) {
-            response = new JsonObject()
-                    .put("version", "1.0")
-                    .put("response", new JsonObject()
-                            .put("directives", List.of(
-                                    new JsonObject().put("type", "AudioPlayer.Stop")
-                            ))
-                            .put("shouldEndSession", true)
-                    );
-        } else if ("PlayRadioIntent".equals(intentName)) {
-            JsonObject slots = intent.getJsonObject("slots", new JsonObject());
-            String brand = "lumisonic";
-            if (slots.containsKey("brand")) {
-                brand = slots.getJsonObject("brand").getString("value", brand).toLowerCase();
+        try {
+            if (requestJson.containsKey("request")) {
+                JsonObject request = requestJson.getJsonObject("request");
+                if (request.getString("type").equals("IntentRequest")) {
+                    JsonObject intent = request.getJsonObject("intent");
+                    if (intent.getString("name").equals("PlayRadioIntent")) {
+                        JsonObject slots = intent.getJsonObject("slots");
+                        if (slots != null && slots.containsKey("Brand")) {
+                            String requestedBrand = slots.getJsonObject("Brand").getString("value");
+                            if (requestedBrand != null && !requestedBrand.isEmpty()) {
+                                brand = requestedBrand.toLowerCase();
+                            }
+                        }
+                    }
+                }
             }
 
-            String url = "https://mixpla.online/" + brand + "/radio/stream.mp3";
+            String streamUrl = "https://mixpla.online/" + brand + "/radio/stream.mp3";
+            String speechText = "Starting " + brand + " radio. Enjoy!";
 
-            response = new JsonObject()
+            LOGGER.info("Serving Alexa skill request for brand: {} with URL: {}", brand, streamUrl);
+
+            JsonObject response = new JsonObject()
                     .put("version", "1.0")
+                    .put("sessionAttributes", new JsonObject())
                     .put("response", new JsonObject()
                             .put("outputSpeech", new JsonObject()
                                     .put("type", "PlainText")
-                                    .put("text", "Starting " + brand + " Radio. Enjoy!"))
+                                    .put("text", speechText))
                             .put("shouldEndSession", true)
                             .put("directives", List.of(
                                     new JsonObject()
@@ -547,28 +536,36 @@ public class RadioController {
                                             .put("playBehavior", "REPLACE_ALL")
                                             .put("audioItem", new JsonObject()
                                                     .put("stream", new JsonObject()
-                                                            .put("token", brand + "-001")
-                                                            .put("url", url)
+                                                            .put("token", brand + "-radio-stream")
+                                                            .put("url", streamUrl)
                                                             .put("offsetInMilliseconds", 0)
                                                     )
                                             )
                             ))
+
                     );
-        } else {
-            response = new JsonObject()
+
+            rc.response()
+                    .putHeader("Content-Type", "application/json")
+                    .setStatusCode(200)
+                    .end(response.encode());
+
+        } catch (Exception e) {
+            LOGGER.error("Error processing Alexa skill request: {}", e.getMessage());
+            JsonObject errorResponse = new JsonObject()
                     .put("version", "1.0")
                     .put("response", new JsonObject()
                             .put("outputSpeech", new JsonObject()
                                     .put("type", "PlainText")
-                                    .put("text", "Welcome to Mixpla Radio. Say play Lumisonic or play Aye-Aye’s Ear."))
-                            .put("shouldEndSession", false)
-                    );
-        }
+                                    .put("text", "Sorry, I had trouble finding that station."))
+                            .put("shouldEndSession", true));
 
-        rc.response()
-                .putHeader("Content-Type", "application/json")
-                .setStatusCode(200)
-                .end(response.encode());
+            rc.response()
+                    .putHeader("Content-Type", "application/json")
+                    .setStatusCode(200)
+                    .end(errorResponse.encode());
+        }
     }
+
 
 }

@@ -504,8 +504,9 @@ public class RadioController {
                     JsonObject intent = request.getJsonObject("intent");
                     if (intent.getString("name").equals("PlayRadioIntent")) {
                         JsonObject slots = intent.getJsonObject("slots");
-                        if (slots != null && slots.containsKey("Brand")) {
-                            String requestedBrand = slots.getJsonObject("Brand").getString("value");
+                        if (slots != null && slots.containsKey("brand")) {
+                            String requestedBrand = slots.getJsonObject("brand").getString("value");
+
                             if (requestedBrand != null && !requestedBrand.isEmpty()) {
                                 brand = requestedBrand.toLowerCase();
                             }

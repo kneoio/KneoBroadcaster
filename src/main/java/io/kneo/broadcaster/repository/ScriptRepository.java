@@ -3,6 +3,7 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
+import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
@@ -199,5 +200,9 @@ public class ScriptRepository extends AsyncRepository {
                                 .onItem().transform(RowSet::rowCount);
                     });
                 });
+    }
+
+    public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
+        return getDocumentAccessInfo(documentId, entityData, user);
     }
 }

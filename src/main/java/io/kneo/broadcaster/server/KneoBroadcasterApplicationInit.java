@@ -67,6 +67,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     FileMaintenanceService fileMaintenanceService;
 
     @Inject
+    ScriptController scriptController;
+
+    @Inject
     public KneoBroadcasterApplicationInit(PgPool client) {
         super(client);
     }
@@ -90,6 +93,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         memoryController.setupRoutes(router);
         profileController.setupRoutes(router);
         eventController.setupRoutes(router);
+        scriptController.setupRoutes(router);
 
         super.setupRoutes(router);
         logRegisteredRoutes(router);

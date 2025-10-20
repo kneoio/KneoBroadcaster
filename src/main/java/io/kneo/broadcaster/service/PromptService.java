@@ -1,0 +1,94 @@
+package io.kneo.broadcaster.service;
+
+import io.kneo.broadcaster.dto.ai.PromptDTO;
+import io.kneo.broadcaster.model.ai.Prompt;
+import io.kneo.broadcaster.repository.PromptRepository;
+import io.kneo.core.dto.DocumentAccessDTO;
+import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.IUser;
+import io.kneo.core.service.AbstractService;
+import io.kneo.core.service.UserService;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class PromptService extends AbstractService<Prompt, PromptDTO> {
+    private final PromptRepository repository;
+
+    @Inject
+    public PromptService(UserService userService, PromptRepository repository) {
+        super(userService);
+        this.repository = repository;
+    }
+
+    public Uni<List<PromptDTO>> getAll(final int limit, final int offset, final IUser user) {
+        return repository.getAll(limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<PromptDTO>> unis = list.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                        return Uni.join().all(unis).andFailFast();
+                    }
+                });
+    }
+
+    public Uni<Integer> getAllCount(final IUser user) {
+        return repository.getAllCount(user, false);
+    }
+
+    @Override
+    public Uni<PromptDTO> getDTO(UUID id, IUser user, LanguageCode language) {
+        return repository.findById(id, user, false).chain(this::mapToDTO);
+    }
+
+    public Uni<PromptDTO> upsert(String id, PromptDTO dto, IUser user) {
+        Prompt entity = buildEntity(dto);
+        if (id == null) {
+            return repository.insert(entity, user).chain(this::mapToDTO);
+        } else {
+            return repository.update(UUID.fromString(id), entity, user).chain(this::mapToDTO);
+        }
+    }
+
+    public Uni<Integer> archive(String id, IUser user) {
+        return repository.archive(UUID.fromString(id), user);
+    }
+
+    @Override
+    public Uni<Integer> delete(String id, IUser user) {
+        return repository.delete(UUID.fromString(id), user);
+    }
+
+    private Uni<PromptDTO> mapToDTO(Prompt doc) {
+        PromptDTO dto = new PromptDTO();
+        dto.setEnabled(doc.isEnabled());
+        dto.setPrompt(doc.getPrompt());
+        dto.setPromptType(doc.getPromptType());
+        return Uni.createFrom().item(dto);
+    }
+
+    private Prompt buildEntity(PromptDTO dto) {
+        Prompt entity = new Prompt();
+        entity.setEnabled(dto.isEnabled());
+        entity.setPrompt(dto.getPrompt());
+        entity.setPromptType(dto.getPromptType());
+        return entity;
+    }
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
+    }
+}

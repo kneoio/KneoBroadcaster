@@ -8,4 +8,5 @@ import lombok.Setter;
 public class Prompt {
     private boolean enabled;
     private String prompt;
+    private PromptType promptType;
 }

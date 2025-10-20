@@ -220,7 +220,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             SoundFragmentDTO dto = rc.body().asJsonObject().mapTo(SoundFragmentDTO.class);
             String id = rc.pathParam("id");
 
-            ValidationResult validationResult = validationService.validateSoundFragmentDTO(dto);
+            ValidationResult validationResult = validationService.validateSoundFragmentDTO(id, dto);
             if (!validationResult.valid()) {
                 rc.fail(400, new IllegalArgumentException(validationResult.errorMessage()));
                 return;

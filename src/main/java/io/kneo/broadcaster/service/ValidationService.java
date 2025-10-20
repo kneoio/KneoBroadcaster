@@ -29,10 +29,10 @@ public class ValidationService {
         this.mailService = mailService;
     }
 
-    public ValidationResult validateSoundFragmentDTO(SoundFragmentDTO dto) {
+    public ValidationResult validateSoundFragmentDTO(String id, SoundFragmentDTO dto) {
         Set<ConstraintViolation<SoundFragmentDTO>> violations = validator.validate(dto);
 
-        if (dto.getId() == null && (dto.getNewlyUploaded() == null || dto.getNewlyUploaded().isEmpty())) {
+        if (id == null && (dto.getNewlyUploaded() == null || dto.getNewlyUploaded().isEmpty())) {
             violations = new HashSet<>(violations);
             String errorMessage = violations.isEmpty() ?
                     "Music file is required - either provide an existing ID or upload new files" :

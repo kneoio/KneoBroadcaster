@@ -16,6 +16,7 @@ import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.broadcaster.util.InputStreamReadStream;
+import io.kneo.broadcaster.server.EnvConst;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -570,7 +571,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         }
         JsonObject problem = new JsonObject();
         if (status == 400 && hasFieldErrors) {
-            problem.put("type", "https://kneo.io/problems/validation-error");
+            problem.put("type", EnvConst.VALIDATION_ERROR_PAGE);
             problem.put("title", "Constraint Violation");
             problem.put("status", status);
             problem.put("detail", detail);

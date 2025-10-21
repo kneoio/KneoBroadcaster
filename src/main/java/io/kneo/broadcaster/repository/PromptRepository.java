@@ -100,8 +100,8 @@ public class PromptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, prompt_type, language_code, is_master, locked) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, prompt_type, language_code, is_master, locked, title, backup) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -115,7 +115,9 @@ public class PromptRepository extends AsyncRepository {
                         .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : null)
                         .addString(prompt.getLanguageCode() != null ? prompt.getLanguageCode().name() : null)
                         .addBoolean(prompt.isMaster())
-                        .addBoolean(prompt.isLocked());
+                        .addBoolean(prompt.isLocked())
+                        .addString(prompt.getTitle())
+                        .addJsonObject(prompt.getBackup() != null ? io.vertx.core.json.JsonObject.of("backup", prompt.getBackup()) : null);
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -143,8 +145,8 @@ public class PromptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET enabled=$1, prompt=$2, prompt_type=$3, language_code=$4, is_master=$5, locked=$6, last_mod_user=$7, last_mod_date=$8 " +
-                                    "WHERE id=$9";
+                                    " SET enabled=$1, prompt=$2, prompt_type=$3, language_code=$4, is_master=$5, locked=$6, title=$7, backup=$8, last_mod_user=$9, last_mod_date=$10 " +
+                                    "WHERE id=$11";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -155,6 +157,8 @@ public class PromptRepository extends AsyncRepository {
                                     .addString(prompt.getLanguageCode() != null ? prompt.getLanguageCode().name() : null)
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
+                                    .addString(prompt.getTitle())
+                                    .addJsonObject(prompt.getBackup() != null ? io.vertx.core.json.JsonObject.of("backup", prompt.getBackup()) : null)
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -198,6 +202,14 @@ public class PromptRepository extends AsyncRepository {
             doc.setLocked(l);
         } else {
             doc.setLocked(false);
+        }
+        doc.setTitle(row.getString("title"));
+        io.vertx.core.json.JsonObject backupJson = row.getJsonObject("backup");
+        if (backupJson != null) {
+            io.vertx.core.json.JsonObject inner = backupJson.getJsonObject("backup");
+            if (inner != null) {
+                doc.setBackup(inner);
+            }
         }
         Integer archived = row.getInteger("archived");
         if (archived != null) {

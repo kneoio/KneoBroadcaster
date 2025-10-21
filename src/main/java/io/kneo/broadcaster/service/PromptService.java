@@ -75,6 +75,8 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         dto.setLanguageCode(doc.getLanguageCode());
         dto.setMaster(doc.isMaster());
         dto.setLocked(doc.isLocked());
+        dto.setTitle(doc.getTitle());
+        dto.setBackup(doc.getBackup());
         return Uni.createFrom().item(dto);
     }
 
@@ -86,6 +88,8 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         entity.setLanguageCode(dto.getLanguageCode());
         entity.setMaster(dto.isMaster());
         entity.setLocked(dto.isLocked());
+        entity.setTitle(dto.getTitle());
+        entity.setBackup(dto.getBackup());
         return entity;
     }
 

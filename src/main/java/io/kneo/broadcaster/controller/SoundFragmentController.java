@@ -87,7 +87,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
 
-        router.route(path + "*").handler(this::addHeaders);
+        router.route(path + "*").handler(this::addHeaders).failureHandler(this::problemDetailsFailureHandler);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
@@ -222,7 +222,14 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             ValidationResult validationResult = validationService.validateSoundFragmentDTO(id, dto);
             if (!validationResult.valid()) {
-                rc.fail(400, new IllegalArgumentException(validationResult.errorMessage()));
+                rc.put("fieldErrors", validationResult.fieldErrors());
+                String message;
+                if (validationResult.errorMessage() != null) {
+                    message = validationResult.errorMessage();
+                } else {
+                    message = "Validation failed";
+                }
+                rc.fail(400, new IllegalArgumentException(message));
                 return;
             }
 
@@ -259,10 +266,15 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         err -> {
                             LOGGER.error("Upload failed: {}", uploadId, err);
                             if (err instanceof IllegalArgumentException e) {
-                                int status = e.getMessage() != null && e.getMessage().contains("Unsupported") ? 415 : 400;
-                                rc.response().setStatusCode(status).end(e.getMessage());
+                                int status;
+                                if (e.getMessage() != null && e.getMessage().contains("Unsupported")) {
+                                    status = 415;
+                                } else {
+                                    status = 400;
+                                }
+                                rc.fail(status, e);
                             } else {
-                                rc.response().setStatusCode(500).end("Upload failed");
+                                rc.fail(500, new RuntimeException("Upload failed"));
                             }
                         }
                 );
@@ -521,5 +533,59 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         } else {
             rc.fail(throwable); // default bubbling
         }
+    }
+
+    private void problemDetailsFailureHandler(RoutingContext rc) {
+        Throwable t = rc.failure();
+        int status = rc.statusCode();
+        if (status < 0) {
+            if (t instanceof IllegalArgumentException) {
+                status = 400;
+            } else {
+                status = 500;
+            }
+        }
+        String title;
+        if (status == 400) {
+            title = "Bad Request";
+        } else if (status == 401) {
+            title = "Unauthorized";
+        } else if (status == 404) {
+            title = "Not Found";
+        } else if (status == 415) {
+            title = "Unsupported Media Type";
+        } else {
+            title = "Internal Server Error";
+        }
+        String detail;
+        if (t != null && t.getMessage() != null) {
+            detail = t.getMessage();
+        } else {
+            detail = title;
+        }
+        Object errorsObj = rc.get("fieldErrors");
+        boolean hasFieldErrors = false;
+        if (errorsObj instanceof java.util.Map<?, ?> m) {
+            hasFieldErrors = !m.isEmpty();
+        }
+        JsonObject problem = new JsonObject();
+        if (status == 400 && hasFieldErrors) {
+            problem.put("type", "https://kneo.io/problems/validation-error");
+            problem.put("title", "Constraint Violation");
+            problem.put("status", status);
+            problem.put("detail", detail);
+            problem.put("instance", rc.request().path());
+            problem.put("errors", errorsObj);
+        } else {
+            problem.put("type", "about:blank");
+            problem.put("title", title);
+            problem.put("status", status);
+            problem.put("detail", detail);
+            problem.put("instance", rc.request().path());
+        }
+        rc.response()
+                .setStatusCode(status)
+                .putHeader("Content-Type", "application/problem+json")
+                .end(problem.encode());
     }
 }

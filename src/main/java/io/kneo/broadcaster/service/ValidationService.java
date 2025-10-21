@@ -12,7 +12,11 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,30 +35,29 @@ public class ValidationService {
 
     public ValidationResult validateSoundFragmentDTO(String id, SoundFragmentDTO dto) {
         Set<ConstraintViolation<SoundFragmentDTO>> violations = validator.validate(dto);
+        Map<String, List<String>> fieldErrors = new HashMap<>();
 
         if (id == null && (dto.getNewlyUploaded() == null || dto.getNewlyUploaded().isEmpty())) {
             violations = new HashSet<>(violations);
-            String errorMessage = violations.isEmpty() ?
-                    "Music file is required - either provide an existing ID or upload new files" :
-                    violations.stream()
-                            .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
-                            .collect(Collectors.joining(", ")) +
-                            ", Music file is required - either provide an existing ID or upload new files";
-
-            LOGGER.warn("Validation failed for SoundFragmentDTO: {}", errorMessage);
-            return ValidationResult.failure(errorMessage);
+            fieldErrors.computeIfAbsent("newlyUploaded", k -> new ArrayList<>())
+                    .add("Music file is required - either provide an existing ID or upload new files");
         }
 
-        if (violations.isEmpty()) {
+        for (ConstraintViolation<SoundFragmentDTO> v : violations) {
+            String field = v.getPropertyPath().toString();
+            fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+        }
+
+        if (fieldErrors.isEmpty()) {
             return ValidationResult.success();
         }
 
-        String errorMessage = violations.stream()
-                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+        String errorMessage = fieldErrors.entrySet().stream()
+                .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
                 .collect(Collectors.joining(", "));
 
         LOGGER.warn("Validation failed for SoundFragmentDTO: {}", errorMessage);
-        return ValidationResult.failure(errorMessage);
+        return ValidationResult.failure(errorMessage, fieldErrors);
     }
 
     public Uni<ValidationResult> validateSubmissionDTO(SubmissionDTO dto) {

@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
@@ -152,6 +153,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     dto.setLastModifier(user.getUserName());
                     dto.setNewlyUploaded(List.of());
                     dto.setUploadedFiles(List.of());
+                    dto.setType(PlaylistItemType.SONG);
 
                     List<UUID> stationIds = userRadioStations.stream()
                             .map(RadioStation::getId)
@@ -254,10 +256,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return Uni.createFrom().failure(new IllegalArgumentException("Invalid filename: " + fileName));
                 }
 
+                String tempFolderName = "";
                 FileMetadata fileMetadata = new FileMetadata();
-                String entityId = id != null ? id : "temp";
-
-                if (id != null) {
+                if (id == null || "new".equalsIgnoreCase(id)) {
+                    tempFolderName = "temp";
+                } else {
                     try {
                         UUID.fromString(id);
                     } catch (IllegalArgumentException e) {
@@ -266,7 +269,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     }
                 }
 
-                Path baseDir = Paths.get(uploadDir, user.getUserName(), entityId);
+                Path baseDir = Paths.get(uploadDir, user.getUserName(), tempFolderName);
                 Path secureFilePath;
                 try {
                     secureFilePath = FileSecurityUtils.secureResolve(baseDir, safeFileName);
@@ -291,7 +294,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
         entity.setFileMetadataList(fileMetadataList);
 
-        if (id == null) {
+        if ("new".equalsIgnoreCase(id) || id == null) {
             entity.setSource(SourceType.USER_UPLOAD);
             return repository.insert(entity, dto.getRepresentedInBrands(), user)
                     .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user))

@@ -79,16 +79,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
     public void setupRoutes(Router router) {
         String path = "/api/soundfragments";
-
-        BodyHandler bodyHandler = BodyHandler.create()
-                .setHandleFileUploads(true)
-                .setMergeFormAttributes(true)
-                .setDeleteUploadedFilesOnEnd(false)
-                .setBodyLimit(BODY_HANDLER_LIMIT);
-
         BodyHandler jsonBodyHandler = BodyHandler.create().setHandleFileUploads(false);
-
-        router.route(path + "*").handler(this::addHeaders).failureHandler(this::problemDetailsFailureHandler);
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
@@ -223,14 +214,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             ValidationResult validationResult = validationService.validateSoundFragmentDTO(id, dto);
             if (!validationResult.valid()) {
-                rc.put("fieldErrors", validationResult.fieldErrors());
-                String message;
-                if (validationResult.errorMessage() != null) {
-                    message = validationResult.errorMessage();
-                } else {
-                    message = "Validation failed";
-                }
-                rc.fail(400, new IllegalArgumentException(message));
+                JsonObject problem = new JsonObject()
+                        .put("type", EnvConst.VALIDATION_ERROR_PAGE)
+                        .put("title", "Constraint Violation")
+                        .put("status", 400)
+                        .put("detail", validationResult.errorMessage())
+                        .put("instance", rc.request().path())
+                        .put("errors", validationResult.fieldErrors());
+                rc.response()
+                        .setStatusCode(400)
+                        .putHeader("Content-Type", "application/problem+json")
+                        .end(problem.encode());
                 return;
             }
 
@@ -475,7 +469,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     if (o instanceof String s) {
                         try {
                             genres.add(java.util.UUID.fromString(s));
-                        } catch (IllegalArgumentException ignored) {}
+                        } catch (IllegalArgumentException ignored) {
+                        }
                     }
                 }
                 if (!genres.isEmpty()) {
@@ -490,7 +485,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     if (o instanceof String str) {
                         try {
                             sources.add(SourceType.valueOf(str));
-                        } catch (IllegalArgumentException ignored) {}
+                        } catch (IllegalArgumentException ignored) {
+                        }
                     }
                 }
                 if (!sources.isEmpty()) {
@@ -505,7 +501,8 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     if (o instanceof String str) {
                         try {
                             types.add(PlaylistItemType.valueOf(str));
-                        } catch (IllegalArgumentException ignored) {}
+                        } catch (IllegalArgumentException ignored) {
+                        }
                     }
                 }
                 if (!types.isEmpty()) {
@@ -534,59 +531,5 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         } else {
             rc.fail(throwable); // default bubbling
         }
-    }
-
-    private void problemDetailsFailureHandler(RoutingContext rc) {
-        Throwable t = rc.failure();
-        int status = rc.statusCode();
-        if (status < 0) {
-            if (t instanceof IllegalArgumentException) {
-                status = 400;
-            } else {
-                status = 500;
-            }
-        }
-        String title;
-        if (status == 400) {
-            title = "Bad Request";
-        } else if (status == 401) {
-            title = "Unauthorized";
-        } else if (status == 404) {
-            title = "Not Found";
-        } else if (status == 415) {
-            title = "Unsupported Media Type";
-        } else {
-            title = "Internal Server Error";
-        }
-        String detail;
-        if (t != null && t.getMessage() != null) {
-            detail = t.getMessage();
-        } else {
-            detail = title;
-        }
-        Object errorsObj = rc.get("fieldErrors");
-        boolean hasFieldErrors = false;
-        if (errorsObj instanceof java.util.Map<?, ?> m) {
-            hasFieldErrors = !m.isEmpty();
-        }
-        JsonObject problem = new JsonObject();
-        if (status == 400 && hasFieldErrors) {
-            problem.put("type", EnvConst.VALIDATION_ERROR_PAGE);
-            problem.put("title", "Constraint Violation");
-            problem.put("status", status);
-            problem.put("detail", detail);
-            problem.put("instance", rc.request().path());
-            problem.put("errors", errorsObj);
-        } else {
-            problem.put("type", "about:blank");
-            problem.put("title", title);
-            problem.put("status", status);
-            problem.put("detail", detail);
-            problem.put("instance", rc.request().path());
-        }
-        rc.response()
-                .setStatusCode(status)
-                .putHeader("Content-Type", "application/problem+json")
-                .end(problem.encode());
     }
 }

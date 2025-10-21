@@ -37,7 +37,7 @@ public class ValidationService {
         Set<ConstraintViolation<SoundFragmentDTO>> violations = validator.validate(dto);
         Map<String, List<String>> fieldErrors = new HashMap<>();
 
-        if (id == null && (dto.getNewlyUploaded() == null || dto.getNewlyUploaded().isEmpty())) {
+        if (("new".equalsIgnoreCase(id) || id == null) && (dto.getNewlyUploaded() == null || dto.getNewlyUploaded().isEmpty())) {
             violations = new HashSet<>(violations);
             fieldErrors.computeIfAbsent("newlyUploaded", k -> new ArrayList<>())
                     .add("Music file is required - either provide an existing ID or upload new files");

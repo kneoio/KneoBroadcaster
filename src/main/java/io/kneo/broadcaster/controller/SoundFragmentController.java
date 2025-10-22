@@ -15,8 +15,8 @@ import io.kneo.broadcaster.service.ValidationResult;
 import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.broadcaster.util.InputStreamReadStream;
-import io.kneo.broadcaster.server.EnvConst;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -214,17 +214,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
             ValidationResult validationResult = validationService.validateSoundFragmentDTO(id, dto);
             if (!validationResult.valid()) {
-                JsonObject problem = new JsonObject()
-                        .put("type", EnvConst.VALIDATION_ERROR_PAGE)
-                        .put("title", "Constraint Violation")
-                        .put("status", 400)
-                        .put("detail", validationResult.errorMessage())
-                        .put("instance", rc.request().path())
-                        .put("errors", validationResult.fieldErrors());
-                rc.response()
-                        .setStatusCode(400)
-                        .putHeader("Content-Type", "application/problem+json")
-                        .end(problem.encode());
+                ProblemDetailsUtil.respondValidationError(rc, validationResult.errorMessage(), validationResult.fieldErrors());
                 return;
             }
 

@@ -17,6 +17,7 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -27,8 +28,14 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class RadioStationController extends AbstractSecuredController<RadioStation, RadioStationDTO> {
@@ -120,22 +127,46 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
     }
 
     private void upsert(RoutingContext rc) {
-        String id = rc.pathParam("id");
-        JsonObject jsonObject = rc.body().asJsonObject();
-        RadioStationDTO dto = jsonObject.mapTo(RadioStationDTO.class);
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
 
-        if (!validateDTO(rc, dto, validator)) return;
+            String id = rc.pathParam("id");
+            RadioStationDTO dto = rc.body().asJsonObject().mapTo(RadioStationDTO.class);
 
+            Set<jakarta.validation.ConstraintViolation<RadioStationDTO>> violations = validator.validate(dto);
+            if (violations != null && !violations.isEmpty()) {
+                Map<String, List<String>> fieldErrors = new HashMap<>();
+                for (jakarta.validation.ConstraintViolation<RadioStationDTO> v : violations) {
+                    String field = v.getPropertyPath().toString();
+                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                }
 
-        getContextUser(rc, false, true)
-                .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
-                .subscribe().with(
-                        doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
-                        throwable -> {
-                            LOGGER.error("Failed to upsert radio station with id: {}", id, throwable);
-                            rc.fail(throwable);
-                        }
-                );
+                String detail = fieldErrors.entrySet().stream()
+                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                        .collect(Collectors.joining(", "));
+
+                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                return;
+            }
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
+                    .subscribe().with(
+                            doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
+                            throwable -> {
+                                LOGGER.error("Failed to upsert radio station with id: {}", id, throwable);
+                                rc.fail(throwable);
+                            }
+                    );
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
     }
 
     private void delete(RoutingContext rc) {

@@ -21,9 +21,18 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 
 @ApplicationScoped
 public class ProfileController extends AbstractSecuredController<Profile, ProfileDTO> {
@@ -113,7 +122,19 @@ public class ProfileController extends AbstractSecuredController<Profile, Profil
             ProfileDTO dto = rc.body().asJsonObject().mapTo(ProfileDTO.class);
             String id = rc.pathParam("id");
 
-            if (!validateDTO(rc, dto, validator)) return;
+            Set<ConstraintViolation<ProfileDTO>> violations = validator.validate(dto);
+            if (violations != null && !violations.isEmpty()) {
+                Map<String, List<String>> fieldErrors = new HashMap<>();
+                for (ConstraintViolation<ProfileDTO> v : violations) {
+                    String field = v.getPropertyPath().toString();
+                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                }
+                String detail = fieldErrors.entrySet().stream()
+                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                        .collect(Collectors.joining(", "));
+                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                return;
+            }
 
             getContextUser(rc, false, true)
                     .chain(user -> service.upsert(id, dto, user, LanguageCode.en))

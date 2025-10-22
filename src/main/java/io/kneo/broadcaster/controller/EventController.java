@@ -26,6 +26,12 @@ import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 
 @ApplicationScoped
 public class EventController extends AbstractSecuredController<Event, EventDTO> {
@@ -136,7 +142,19 @@ public class EventController extends AbstractSecuredController<Event, EventDTO> 
             EventDTO dto = rc.body().asJsonObject().mapTo(EventDTO.class);
             String id = rc.pathParam("id");
 
-            if (!validateDTO(rc, dto, validator)) return;
+            java.util.Set<jakarta.validation.ConstraintViolation<EventDTO>> violations = validator.validate(dto);
+            if (violations != null && !violations.isEmpty()) {
+                Map<String, List<String>> fieldErrors = new HashMap<>();
+                for (jakarta.validation.ConstraintViolation<EventDTO> v : violations) {
+                    String field = v.getPropertyPath().toString();
+                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                }
+                String detail = fieldErrors.entrySet().stream()
+                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                        .collect(Collectors.joining(", "));
+                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                return;
+            }
 
             getContextUser(rc, false, true)
                     .chain(user -> service.upsert(id, dto, user))

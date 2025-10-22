@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.ai.ToolDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.MergeMethod;
 import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.Prompt;
@@ -97,8 +98,8 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setName(doc.getName());
-            dto.setPreferredLang(doc.getPreferredLang());
-            dto.setLlmType(doc.getLlmType());
+            dto.setPreferredLang(doc.getPreferredLang().name());
+            dto.setLlmType(doc.getLlmType().name());
             dto.setPrompts(
                     doc.getPrompts().stream()
                             .map(p -> {
@@ -159,7 +160,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setId(dto.getId());
         doc.setName(dto.getName());
         doc.setCopilot(dto.getCopilot());
-        doc.setPreferredLang(dto.getPreferredLang());
+        doc.setPreferredLang(LanguageCode.valueOf(dto.getPreferredLang()));
         doc.setPrompts(
                 dto.getPrompts().stream()
                         .map(p -> {
@@ -175,7 +176,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setMiniPodcastPrompts(dto.getMiniPodcastPrompts());
         doc.setTalkativity(dto.getTalkativity());
         doc.setPodcastMode(dto.getPodcastMode());
-        doc.setLlmType(dto.getLlmType());
+        doc.setLlmType(LlmType.valueOf(dto.getLlmType()));
 
         if (dto.getMerger() != null) {
             Merger merger = new Merger();

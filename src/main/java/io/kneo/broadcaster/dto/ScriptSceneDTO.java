@@ -6,7 +6,7 @@ import io.kneo.core.dto.AbstractDTO;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,5 +17,5 @@ public class ScriptSceneDTO extends AbstractDTO {
     private UUID scriptId;
     private String type;
     private List<PromptDTO> prompts;
-    private LocalDateTime startTime;
+    private LocalTime startTime;
 }

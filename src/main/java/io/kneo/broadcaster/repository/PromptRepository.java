@@ -14,6 +14,7 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -112,12 +113,12 @@ public class PromptRepository extends AsyncRepository {
                         .addOffsetDateTime(now)
                         .addBoolean(prompt.isEnabled())
                         .addString(prompt.getPrompt())
-                        .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : null)
-                        .addString(prompt.getLanguageCode() != null ? prompt.getLanguageCode().name() : null)
+                        .addString(prompt.getPromptType().name())
+                        .addString(prompt.getLanguageCode().name())
                         .addBoolean(prompt.isMaster())
                         .addBoolean(prompt.isLocked())
                         .addString(prompt.getTitle())
-                        .addJsonObject(prompt.getBackup() != null ? io.vertx.core.json.JsonObject.of("backup", prompt.getBackup()) : null);
+                        .addJsonObject(JsonObject.of("backup", prompt.getBackup()));
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -153,12 +154,12 @@ public class PromptRepository extends AsyncRepository {
                             Tuple params = Tuple.tuple()
                                     .addBoolean(prompt.isEnabled())
                                     .addString(prompt.getPrompt())
-                                    .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : null)
-                                    .addString(prompt.getLanguageCode() != null ? prompt.getLanguageCode().name() : null)
+                                    .addString(prompt.getPromptType().name())
+                                    .addString(prompt.getLanguageCode().name())
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
                                     .addString(prompt.getTitle())
-                                    .addJsonObject(prompt.getBackup() != null ? io.vertx.core.json.JsonObject.of("backup", prompt.getBackup()) : null)
+                                    .addJsonObject(prompt.getBackup())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -181,40 +182,15 @@ public class PromptRepository extends AsyncRepository {
     private Prompt from(Row row) {
         Prompt doc = new Prompt();
         setDefaultFields(doc, row);
-        doc.setEnabled(Boolean.TRUE.equals(row.getBoolean("enabled")));
+        doc.setEnabled(row.getBoolean("enabled"));
         doc.setPrompt(row.getString("prompt"));
-        String pt = row.getString("prompt_type");
-        if (pt != null) {
-            doc.setPromptType(PromptType.valueOf(pt));
-        }
-        String lc = row.getString("language_code");
-        if (lc != null) {
-            doc.setLanguageCode(LanguageCode.valueOf(lc));
-        }
-        Boolean master = row.getBoolean("is_master");
-        if (master != null) {
-            doc.setMaster(master);
-        } else {
-            doc.setMaster(false);
-        }
-        Boolean l = row.getBoolean("locked");
-        if (l != null) {
-            doc.setLocked(l);
-        } else {
-            doc.setLocked(false);
-        }
+        doc.setPromptType(PromptType.valueOf(row.getString("prompt_type")));
+        doc.setLanguageCode(LanguageCode.valueOf(row.getString("language_code")));
+        doc.setMaster(row.getBoolean("is_master"));
+        doc.setLocked(row.getBoolean("locked"));
         doc.setTitle(row.getString("title"));
-        io.vertx.core.json.JsonObject backupJson = row.getJsonObject("backup");
-        if (backupJson != null) {
-            io.vertx.core.json.JsonObject inner = backupJson.getJsonObject("backup");
-            if (inner != null) {
-                doc.setBackup(inner);
-            }
-        }
-        Integer archived = row.getInteger("archived");
-        if (archived != null) {
-            doc.setArchived(archived);
-        }
+        doc.setBackup(row.getJsonObject("backup"));
+        doc.setArchived(row.getInteger("archived"));
         return doc;
     }
 

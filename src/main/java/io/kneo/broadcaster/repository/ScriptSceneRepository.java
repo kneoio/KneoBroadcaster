@@ -96,7 +96,7 @@ public class ScriptSceneRepository extends AsyncRepository {
                 .addUUID(scene.getScriptId())
                 .addString(scene.getType())
                 .addJsonArray(scene.getPrompts() != null ? JsonArray.of(scene.getPrompts().toArray()) : JsonArray.of())
-                .addLocalDateTime(scene.getStartTime());
+                .addLocalTime(scene.getStartTime());
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
                         .execute(params)
@@ -117,7 +117,7 @@ public class ScriptSceneRepository extends AsyncRepository {
                     Tuple params = Tuple.tuple()
                             .addString(scene.getType())
                             .addJsonArray(scene.getPrompts() != null ? JsonArray.of(scene.getPrompts().toArray()) : JsonArray.of())
-                            .addLocalDateTime(scene.getStartTime())
+                            .addLocalTime(scene.getStartTime())
                             .addLong(user.getId())
                             .addLocalDateTime(nowTime)
                             .addUUID(id);
@@ -164,8 +164,7 @@ public class ScriptSceneRepository extends AsyncRepository {
         } catch (Exception e) {
             doc.setPrompts(new ArrayList<>());
         }
-        LocalDateTime st = row.getLocalDateTime("start_time");
-        doc.setStartTime(st);
+        doc.setStartTime(row.getLocalTime("start_time"));
         return doc;
     }
 

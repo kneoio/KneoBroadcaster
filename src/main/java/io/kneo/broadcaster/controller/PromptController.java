@@ -3,6 +3,7 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.service.PromptService;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -20,15 +21,16 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
-import java.util.UUID;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import io.kneo.broadcaster.util.ProblemDetailsUtil;
 
 @ApplicationScoped
 public class PromptController extends AbstractSecuredController<Prompt, PromptDTO> {
@@ -114,10 +116,10 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
             PromptDTO dto = rc.body().asJsonObject().mapTo(PromptDTO.class);
             String id = rc.pathParam("id");
 
-            java.util.Set<jakarta.validation.ConstraintViolation<PromptDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<PromptDTO>> violations = validator.validate(dto);
             if (violations != null && !violations.isEmpty()) {
                 Map<String, List<String>> fieldErrors = new HashMap<>();
-                for (jakarta.validation.ConstraintViolation<PromptDTO> v : violations) {
+                for (ConstraintViolation<PromptDTO> v : violations) {
                     String field = v.getPropertyPath().toString();
                     fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
                 }

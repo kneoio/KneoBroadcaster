@@ -68,29 +68,40 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
     }
 
     private Uni<PromptDTO> mapToDTO(Prompt doc) {
-        PromptDTO dto = new PromptDTO();
-        dto.setEnabled(doc.isEnabled());
-        dto.setPrompt(doc.getPrompt());
-        dto.setPromptType(doc.getPromptType());
-        dto.setLanguageCode(doc.getLanguageCode());
-        dto.setMaster(doc.isMaster());
-        dto.setLocked(doc.isLocked());
-        dto.setTitle(doc.getTitle());
-        dto.setBackup(doc.getBackup());
-        return Uni.createFrom().item(dto);
+        return Uni.combine().all().unis(
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
+        ).asTuple().map(tuple -> {
+            PromptDTO dto = new PromptDTO();
+            dto.setId(doc.getId());
+            dto.setAuthor(tuple.getItem1());
+            dto.setRegDate(doc.getRegDate());
+            dto.setLastModifier(tuple.getItem2());
+            dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setEnabled(doc.isEnabled());
+            dto.setPrompt(doc.getPrompt());
+            dto.setPromptType(doc.getPromptType());
+            dto.setLanguageCode(doc.getLanguageCode());
+            dto.setMaster(doc.isMaster());
+            dto.setLocked(doc.isLocked());
+            dto.setTitle(doc.getTitle());
+            dto.setBackup(doc.getBackup());
+            return dto;
+        });
     }
 
     private Prompt buildEntity(PromptDTO dto) {
-        Prompt entity = new Prompt();
-        entity.setEnabled(dto.isEnabled());
-        entity.setPrompt(dto.getPrompt());
-        entity.setPromptType(dto.getPromptType());
-        entity.setLanguageCode(dto.getLanguageCode());
-        entity.setMaster(dto.isMaster());
-        entity.setLocked(dto.isLocked());
-        entity.setTitle(dto.getTitle());
-        entity.setBackup(dto.getBackup());
-        return entity;
+        Prompt doc = new Prompt();
+        doc.setId(dto.getId());
+        doc.setEnabled(dto.isEnabled());
+        doc.setPrompt(dto.getPrompt());
+        doc.setPromptType(dto.getPromptType());
+        doc.setLanguageCode(dto.getLanguageCode());
+        doc.setMaster(dto.isMaster());
+        doc.setLocked(dto.isLocked());
+        doc.setTitle(dto.getTitle());
+        doc.setBackup(dto.getBackup());
+        return doc;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,6 +17,6 @@ public class ScriptScene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String type;
     private List<Prompt> prompts;
-    private LocalDateTime startTime;
+    private LocalTime startTime;
     private Integer archived;
 }

@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
 
+    protected ScriptService() {
+        super();
+        this.repository = null;
+    }
+
     @Inject
     public ScriptService(UserService userService, ScriptRepository repository) {
         super(userService);
@@ -29,6 +34,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
+        assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
@@ -43,15 +49,18 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<Integer> getAllCount(final IUser user) {
+        assert repository != null;
         return repository.getAllCount(user, false);
     }
 
     @Override
     public Uni<ScriptDTO> getDTO(UUID id, IUser user, LanguageCode language) {
+        assert repository != null;
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
     public Uni<ScriptDTO> upsert(String id, ScriptDTO dto, IUser user) {
+        assert repository != null;
         Script entity = buildEntity(dto);
         if (id == null) {
             return repository.insert(entity, user).chain(this::mapToDTO);
@@ -61,11 +70,13 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<Integer> archive(String id, IUser user) {
+        assert repository != null;
         return repository.archive(UUID.fromString(id), user);
     }
 
     @Override
     public Uni<Integer> delete(String id, IUser user) {
+        assert repository != null;
         return repository.delete(UUID.fromString(id), user);
     }
 
@@ -98,6 +109,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
         return repository.getDocumentAccessInfo(documentId, user)
                 .onItem().transform(accessInfoList ->
                         accessInfoList.stream()
@@ -107,6 +119,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<BrandScriptDTO>> getForBrand(UUID brandId, final int limit, final int offset, IUser user) {
+        assert repository != null;
         return repository.findForBrand(brandId, limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
@@ -120,6 +133,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<Integer> getForBrandCount(UUID brandId, IUser user) {
+        assert repository != null;
         return repository.findForBrandCount(brandId, false, user);
     }
 

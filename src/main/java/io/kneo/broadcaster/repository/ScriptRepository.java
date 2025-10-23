@@ -20,8 +20,6 @@ import io.vertx.mutiny.sqlclient.SqlClient;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -32,7 +30,6 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.S
 
 @ApplicationScoped
 public class ScriptRepository extends AsyncRepository {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ScriptRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SCRIPT);
 
     @Inject

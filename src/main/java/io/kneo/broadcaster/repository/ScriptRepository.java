@@ -15,6 +15,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
+import io.vertx.mutiny.sqlclient.SqlClient;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -22,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,11 +40,15 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+        String sql = """
+            SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
+            FROM %s t
+            JOIN %s rls ON t.id = rls.entity_id
+            WHERE rls.reader = %s
+        """.formatted(entityData.getTableName(), entityData.getRlsName(), user.getId());
 
         if (!includeArchived) {
-            sql += " AND t.archived = 0";
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
         }
 
         sql += " ORDER BY t.last_mod_date DESC";
@@ -53,8 +59,6 @@ public class ScriptRepository extends AsyncRepository {
 
         return client.query(sql)
                 .execute()
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve scripts for user: {}", user.getId(),
-                        throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
@@ -74,16 +78,18 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<Script> findById(UUID id, IUser user, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.id = $2";
+        String sql = """
+            SELECT theTable.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = theTable.id) AS labels
+            FROM %s theTable
+            JOIN %s rls ON theTable.id = rls.entity_id
+            WHERE rls.reader = $1 AND theTable.id = $2
+        """.formatted(entityData.getTableName(), entityData.getRlsName());
 
         if (!includeArchived) {
             sql += " AND theTable.archived = 0";
         }
 
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
+        return client.preparedQuery(sql)
                 .execute(Tuple.of(user.getId(), id))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
@@ -113,15 +119,17 @@ public class ScriptRepository extends AsyncRepository {
                         .addString(script.getDescription());
 
                 return client.withTransaction(tx ->
-                                tx.preparedQuery(sql)
-                                        .execute(params)
-                                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                                        .onItem().transformToUni(id ->
-                                                insertRLSPermissions(tx, id, entityData, user)
-                                                        .onItem().transform(ignored -> id)
-                                        )
-                        )
-                        .onItem().transformToUni(id -> findById(id, user, true));
+                        tx.preparedQuery(sql)
+                                .execute(params)
+                                .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                                .onItem().transformToUni(id ->
+                                        upsertLabels(tx, id, script.getLabels())
+                                                .onItem().transformToUni(ignored ->
+                                                        insertRLSPermissions(tx, id, entityData, user)
+                                                )
+                                                .onItem().transform(ignored -> id)
+                                )
+                ).onItem().transformToUni(id -> findById(id, user, true));
             } catch (Exception e) {
                 return Uni.createFrom().failure(e);
             }
@@ -134,7 +142,9 @@ public class ScriptRepository extends AsyncRepository {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                         .onItem().transformToUni(permissions -> {
                             if (!permissions[0]) {
-                                return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
+                                return Uni.createFrom().failure(
+                                        new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id)
+                                );
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
@@ -150,14 +160,17 @@ public class ScriptRepository extends AsyncRepository {
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
 
-                            return client.preparedQuery(sql)
-                                    .execute(params)
-                                    .onItem().transformToUni(rowSet -> {
-                                        if (rowSet.rowCount() == 0) {
-                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                        }
-                                        return findById(id, user, true);
-                                    });
+                            return client.withTransaction(tx ->
+                                    upsertLabels(tx, id, script.getLabels())
+                                            .onItem().transformToUni(ignored ->
+                                                    tx.preparedQuery(sql).execute(params)
+                                            )
+                            ).onItem().transformToUni(rowSet -> {
+                                if (rowSet.rowCount() == 0) {
+                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                }
+                                return findById(id, user, true);
+                            });
                         });
             } catch (Exception e) {
                 return Uni.createFrom().failure(e);
@@ -165,14 +178,40 @@ public class ScriptRepository extends AsyncRepository {
         });
     }
 
+    private Uni<Void> upsertLabels(SqlClient tx, UUID scriptId, List<UUID> labels) {
+        String deleteSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
+        if (labels == null || labels.isEmpty()) {
+            return tx.preparedQuery(deleteSql)
+                    .execute(Tuple.of(scriptId))
+                    .replaceWithVoid();
+        }
+        String insertSql = "INSERT INTO mixpla_script_labels (script_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(scriptId))
+                .chain(() -> Multi.createFrom().iterable(labels)
+                        .onItem().transformToUni(labelId ->
+                                tx.preparedQuery(insertSql).execute(Tuple.of(scriptId, labelId))
+                        )
+                        .merge()
+                        .collect().asList()
+                        .replaceWithVoid());
+    }
+
     private Script from(Row row) {
         Script doc = new Script();
         setDefaultFields(doc, row);
-
         doc.setName(row.getString("name"));
         doc.setDescription(row.getString("description"));
         doc.setArchived(row.getInteger("archived"));
 
+        Object[] arr = row.getArrayOfUUIDs("labels");
+        if (arr != null && arr.length > 0) {
+            List<UUID> labels = new ArrayList<>();
+            for (Object o : arr) {
+                labels.add((UUID) o);
+            }
+            doc.setLabels(labels);
+        }
         return doc;
     }
 
@@ -184,18 +223,23 @@ public class ScriptRepository extends AsyncRepository {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[1]) {
-                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have delete permission", user.getUserName(), id));
+                        return Uni.createFrom().failure(
+                                new DocumentModificationAccessException("User does not have delete permission", user.getUserName(), id)
+                        );
                     }
 
                     return client.withTransaction(tx -> {
+                        String deleteLabelsSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
                         String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
                         String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
 
-                        return tx.preparedQuery(deleteRlsSql)
+                        return tx.preparedQuery(deleteLabelsSql)
                                 .execute(Tuple.of(id))
                                 .onItem().transformToUni(ignored ->
-                                        tx.preparedQuery(deleteDocSql)
-                                                .execute(Tuple.of(id))
+                                        tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
+                                )
+                                .onItem().transformToUni(ignored ->
+                                        tx.preparedQuery(deleteDocSql).execute(Tuple.of(id))
                                 )
                                 .onItem().transform(RowSet::rowCount);
                     });

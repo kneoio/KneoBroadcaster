@@ -352,10 +352,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return tx.preparedQuery(filesSql).executeBatch(filesParams).onItem().ignore().andContinueWithNull();
     }
 
-    private Uni<Void> upsertLabels(UUID fragmentId, List<UUID> labels) {
-        return client.withTransaction(tx -> upsertLabels(tx, fragmentId, labels));
-    }
-
     private Uni<Void> upsertLabels(SqlClient tx, UUID fragmentId, List<UUID> labels) {
         if (labels == null || labels.isEmpty()) {
             return tx.preparedQuery("DELETE FROM kneobroadcaster__sound_fragment_labels WHERE id = $1")

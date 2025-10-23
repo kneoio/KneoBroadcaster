@@ -15,6 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 public class ScriptScene extends SecureDataEntity<UUID> {
     private UUID scriptId;
+    private String title;
     private String type;
     private List<Prompt> prompts;
     private LocalTime startTime;

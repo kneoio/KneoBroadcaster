@@ -67,24 +67,25 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         return repository.delete(UUID.fromString(id), user);
     }
 
-    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene scene) {
+    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc) {
         return Uni.combine().all().unis(
-                userService.getUserName(scene.getAuthor()),
-                userService.getUserName(scene.getLastModifier())
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
         ).asTuple().map(tuple -> {
             ScriptSceneDTO dto = new ScriptSceneDTO();
-            dto.setId(scene.getId());
+            dto.setId(doc.getId());
+            dto.setTitle(doc.getTitle());
             dto.setAuthor(tuple.getItem1());
-            dto.setRegDate(scene.getRegDate());
+            dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
-            dto.setLastModifiedDate(scene.getLastModifiedDate());
-            dto.setScriptId(scene.getScriptId());
-            dto.setType(scene.getType());
-            dto.setStartTime(scene.getStartTime());
-            if (scene.getPrompts() == null) {
+            dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setScriptId(doc.getScriptId());
+            dto.setType(doc.getType());
+            dto.setStartTime(doc.getStartTime());
+            if (doc.getPrompts() == null) {
                 dto.setPrompts(List.of());
             } else {
-                dto.setPrompts(scene.getPrompts().stream().map(this::toPromptDTO).collect(Collectors.toList()));
+                dto.setPrompts(doc.getPrompts().stream().map(this::toPromptDTO).collect(Collectors.toList()));
             }
             return dto;
         });
@@ -93,6 +94,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
     private ScriptScene buildEntity(ScriptSceneDTO dto) {
         ScriptScene entity = new ScriptScene();
         entity.setType(dto.getType());
+        entity.setTitle(dto.getTitle());
         entity.setStartTime(dto.getStartTime());
         if (dto.getPrompts() == null) {
             entity.setPrompts(List.of());

@@ -15,6 +15,7 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ScriptSceneDTO extends AbstractDTO {
     private UUID scriptId;
+    private String title;
     private String type;
     private List<PromptDTO> prompts;
     private LocalTime startTime;

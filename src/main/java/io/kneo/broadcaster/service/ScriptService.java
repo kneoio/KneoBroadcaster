@@ -4,7 +4,6 @@ import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
-import io.kneo.broadcaster.repository.ScriptBrandRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -22,13 +21,11 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
-    private final ScriptBrandRepository brandRepository;
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository, ScriptBrandRepository brandRepository) {
+    public ScriptService(UserService userService, ScriptRepository repository) {
         super(userService);
         this.repository = repository;
-        this.brandRepository = brandRepository;
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -110,7 +107,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<BrandScriptDTO>> getForBrand(UUID brandId, final int limit, final int offset, IUser user) {
-        return brandRepository.findForBrand(brandId, limit, offset, false, user)
+        return repository.findForBrand(brandId, limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -123,7 +120,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<Integer> getForBrandCount(UUID brandId, IUser user) {
-        return brandRepository.findForBrandCount(brandId, false, user);
+        return repository.findForBrandCount(brandId, false, user);
     }
 
     private Uni<BrandScriptDTO> mapBrandScriptToDTO(BrandScript brandScript) {

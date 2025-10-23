@@ -18,4 +18,5 @@ public class ScriptDTO extends AbstractDTO {
     @NotBlank
     private String description;
     private List<UUID> labels;
+    private List<UUID> brands;
 }

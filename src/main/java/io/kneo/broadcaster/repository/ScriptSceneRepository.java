@@ -86,8 +86,8 @@ public class ScriptSceneRepository extends AsyncRepository {
     public Uni<ScriptScene> insert(ScriptScene scene, IUser user) {
         LocalDateTime nowTime = LocalDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, script_id, type, prompts, start_time) " +
-                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, script_id, type, title, prompts, start_time, weekdays) " +
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addLocalDateTime(nowTime)
@@ -95,8 +95,10 @@ public class ScriptSceneRepository extends AsyncRepository {
                 .addLocalDateTime(nowTime)
                 .addUUID(scene.getScriptId())
                 .addString(scene.getType())
+                .addString(scene.getTitle())
                 .addJsonArray(scene.getPrompts() != null ? JsonArray.of(scene.getPrompts().toArray()) : JsonArray.of())
-                .addLocalTime(scene.getStartTime());
+                .addLocalTime(scene.getStartTime())
+                .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null);
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
                         .execute(params)
@@ -113,11 +115,13 @@ public class ScriptSceneRepository extends AsyncRepository {
                     }
                     LocalDateTime nowTime = LocalDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET type=$1, prompts=$2, start_time=$3, last_mod_user=$4, last_mod_date=$5 WHERE id=$6";
+                            " SET type=$1, title=$2, prompts=$3, start_time=$4, weekdays=$5, last_mod_user=$6, last_mod_date=$7 WHERE id=$8";
                     Tuple params = Tuple.tuple()
                             .addString(scene.getType())
+                            .addString(scene.getTitle())
                             .addJsonArray(scene.getPrompts() != null ? JsonArray.of(scene.getPrompts().toArray()) : JsonArray.of())
                             .addLocalTime(scene.getStartTime())
+                            .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
                             .addLong(user.getId())
                             .addLocalDateTime(nowTime)
                             .addUUID(id);
@@ -157,6 +161,7 @@ public class ScriptSceneRepository extends AsyncRepository {
         setDefaultFields(doc, row);
         doc.setScriptId(row.getUUID("script_id"));
         doc.setType(row.getString("type"));
+        doc.setTitle(row.getString("title"));
         doc.setArchived(row.getInteger("archived"));
         try {
             JsonArray promptsJson = row.getJsonArray("prompts");
@@ -165,6 +170,14 @@ public class ScriptSceneRepository extends AsyncRepository {
             doc.setPrompts(new ArrayList<>());
         }
         doc.setStartTime(row.getLocalTime("start_time"));
+        Object[] weekdaysArr = row.getArrayOfIntegers("weekdays");
+        if (weekdaysArr != null && weekdaysArr.length > 0) {
+            List<Integer> weekdays = new ArrayList<>();
+            for (Object o : weekdaysArr) {
+                weekdays.add((Integer) o);
+            }
+            doc.setWeekdays(weekdays);
+        }
         return doc;
     }
 

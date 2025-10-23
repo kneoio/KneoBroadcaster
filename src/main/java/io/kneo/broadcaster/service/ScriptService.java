@@ -1,7 +1,10 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
+import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.repository.ScriptBrandRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -19,11 +22,13 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
+    private final ScriptBrandRepository brandRepository;
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository) {
+    public ScriptService(UserService userService, ScriptRepository repository, ScriptBrandRepository brandRepository) {
         super(userService);
         this.repository = repository;
+        this.brandRepository = brandRepository;
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -81,6 +86,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setName(script.getName());
             dto.setDescription(script.getDescription());
             dto.setLabels(script.getLabels());
+            dto.setBrands(script.getBrands());
             return dto;
         });
     }
@@ -90,6 +96,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setLabels(dto.getLabels());
+        entity.setBrands(dto.getBrands());
         return entity;
     }
 
@@ -100,5 +107,35 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                                 .map(this::mapToDocumentAccessDTO)
                                 .collect(Collectors.toList())
                 );
+    }
+
+    public Uni<List<BrandScriptDTO>> getForBrand(UUID brandId, final int limit, final int offset, IUser user) {
+        return brandRepository.findForBrand(brandId, limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    List<Uni<BrandScriptDTO>> unis = list.stream()
+                            .map(this::mapBrandScriptToDTO)
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
+                });
+    }
+
+    public Uni<Integer> getForBrandCount(UUID brandId, IUser user) {
+        return brandRepository.findForBrandCount(brandId, false, user);
+    }
+
+    private Uni<BrandScriptDTO> mapBrandScriptToDTO(BrandScript brandScript) {
+        return mapToDTO(brandScript.getScript()).map(scriptDTO -> {
+            BrandScriptDTO dto = new BrandScriptDTO();
+            dto.setId(brandScript.getId());
+            dto.setDefaultBrandId(brandScript.getDefaultBrandId());
+            dto.setRank(brandScript.getRank());
+            dto.setActive(brandScript.isActive());
+            dto.setScriptDTO(scriptDTO);
+            dto.setRepresentedInBrands(brandScript.getRepresentedInBrands());
+            return dto;
+        });
     }
 }

@@ -82,6 +82,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
             dto.setScriptId(doc.getScriptId());
             dto.setType(doc.getType());
             dto.setStartTime(doc.getStartTime());
+            dto.setWeekdays(doc.getWeekdays());
             if (doc.getPrompts() == null) {
                 dto.setPrompts(List.of());
             } else {
@@ -96,6 +97,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         entity.setType(dto.getType());
         entity.setTitle(dto.getTitle());
         entity.setStartTime(dto.getStartTime());
+        entity.setWeekdays(dto.getWeekdays());
         if (dto.getPrompts() == null) {
             entity.setPrompts(List.of());
         } else {

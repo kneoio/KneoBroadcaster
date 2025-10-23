@@ -1,8 +1,10 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.service.BrandScriptUpdateService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.ScriptSceneService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -38,6 +40,8 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
     ScriptService service;
     @Inject
     ScriptSceneService sceneService;
+    @Inject
+    BrandScriptUpdateService brandScriptUpdateService;
     private Validator validator;
 
     public ScriptController() {
@@ -45,9 +49,10 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
     }
 
     @Inject
-    public ScriptController(UserService userService, ScriptService service, Validator validator) {
+    public ScriptController(UserService userService, ScriptService service, BrandScriptUpdateService brandScriptUpdateService, Validator validator) {
         super(userService);
         this.service = service;
+        this.brandScriptUpdateService = brandScriptUpdateService;
         this.validator = validator;
     }
 
@@ -71,6 +76,14 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.get(scenePath + "/:id").handler(this::getSceneById);
         router.post(scenePath + "/:id").handler(this::upsertScene);
         router.delete(scenePath + "/:id").handler(this::deleteScene);
+
+        String brandScriptsPath = "/api/brands/:brandId/scripts";
+        router.route(brandScriptsPath + "*").handler(BodyHandler.create());
+        router.get(brandScriptsPath).handler(this::getScriptsForBrand);
+        router.post(brandScriptsPath + "/:scriptId").handler(this::addScriptToBrand);
+        router.delete(brandScriptsPath + "/:scriptId").handler(this::removeScriptFromBrand);
+        router.put(brandScriptsPath + "/:scriptId/rank").handler(this::updateScriptRank);
+        router.put(brandScriptsPath + "/:scriptId/active").handler(this::toggleScriptActive);
     }
 
     private void getAll(RoutingContext rc) {
@@ -305,5 +318,137 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail
                 );
+    }
+
+    private void getScriptsForBrand(RoutingContext rc) {
+        String brandId = rc.pathParam("brandId");
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        try {
+            UUID brandUUID = UUID.fromString(brandId);
+            getContextUser(rc, false, true)
+                    .chain(user -> Uni.combine().all().unis(
+                            service.getForBrandCount(brandUUID, user),
+                            service.getForBrand(brandUUID, size, (page - 1) * size, user)
+                    ).asTuple().map(tuple -> {
+                        ViewPage viewPage = new ViewPage();
+                        View<BrandScriptDTO> dtoEntries = new View<>(tuple.getItem2(),
+                                tuple.getItem1(), page,
+                                RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                                size);
+                        viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                        viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                        return viewPage;
+                    }))
+                    .subscribe().with(
+                            viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid brand ID format"));
+        }
+    }
+
+    private void addScriptToBrand(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+            String brandId = rc.pathParam("brandId");
+            String scriptId = rc.pathParam("scriptId");
+            JsonObject body = rc.body().asJsonObject();
+            int rank = body.getInteger("rank", 0);
+            boolean active = body.getBoolean("active", true);
+
+            UUID brandUUID = UUID.fromString(brandId);
+            UUID scriptUUID = UUID.fromString(scriptId);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> brandScriptUpdateService.addScriptToBrand(brandUUID, scriptUUID, rank, active))
+                    .subscribe().with(
+                            v -> rc.response().setStatusCode(200).end(),
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid ID format"));
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
+    }
+
+    private void removeScriptFromBrand(RoutingContext rc) {
+        try {
+            String brandId = rc.pathParam("brandId");
+            String scriptId = rc.pathParam("scriptId");
+
+            UUID brandUUID = UUID.fromString(brandId);
+            UUID scriptUUID = UUID.fromString(scriptId);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> brandScriptUpdateService.removeScriptFromBrand(brandUUID, scriptUUID))
+                    .subscribe().with(
+                            v -> rc.response().setStatusCode(204).end(),
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid ID format"));
+        }
+    }
+
+    private void updateScriptRank(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+            String brandId = rc.pathParam("brandId");
+            String scriptId = rc.pathParam("scriptId");
+            JsonObject body = rc.body().asJsonObject();
+            int rank = body.getInteger("rank");
+
+            if (rank < 0) {
+                rc.fail(400, new IllegalArgumentException("Rank must be non-negative"));
+                return;
+            }
+
+            UUID brandUUID = UUID.fromString(brandId);
+            UUID scriptUUID = UUID.fromString(scriptId);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> brandScriptUpdateService.updateScriptRank(brandUUID, scriptUUID, rank))
+                    .subscribe().with(
+                            v -> rc.response().setStatusCode(200).end(),
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid ID format or rank value"));
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
+    }
+
+    private void toggleScriptActive(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+            String brandId = rc.pathParam("brandId");
+            String scriptId = rc.pathParam("scriptId");
+            JsonObject body = rc.body().asJsonObject();
+            boolean active = body.getBoolean("active");
+
+            UUID brandUUID = UUID.fromString(brandId);
+            UUID scriptUUID = UUID.fromString(scriptId);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> brandScriptUpdateService.toggleScriptActive(brandUUID, scriptUUID, active))
+                    .subscribe().with(
+                            v -> rc.response().setStatusCode(200).end(),
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid ID format"));
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
     }
 }

@@ -16,4 +16,5 @@ public class Script extends SecureDataEntity<UUID> {
     private String description;
     private Integer archived;
     private List<UUID> labels;
+    private List<UUID> brands;
 }

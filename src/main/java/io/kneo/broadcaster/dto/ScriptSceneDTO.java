@@ -19,4 +19,5 @@ public class ScriptSceneDTO extends AbstractDTO {
     private String type;
     private List<PromptDTO> prompts;
     private LocalTime startTime;
+    private List<Integer> weekdays;
 }

@@ -20,4 +20,5 @@ public class ScriptScene extends SecureDataEntity<UUID> {
     private List<Prompt> prompts;
     private LocalTime startTime;
     private Integer archived;
+    private List<Integer> weekdays;
 }

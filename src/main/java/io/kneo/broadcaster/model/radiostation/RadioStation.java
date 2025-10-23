@@ -2,6 +2,7 @@ package io.kneo.broadcaster.model.radiostation;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
@@ -45,6 +46,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private ProfileOverriding profileOverriding;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
+    private AiAgentMode aiAgentMode = AiAgentMode.BASIC;
     private List<Label> labelList;
 
     //*transient**//

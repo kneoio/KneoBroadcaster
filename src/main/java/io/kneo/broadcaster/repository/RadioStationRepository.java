@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
@@ -125,8 +126,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy, messaging_policy, title_font) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy, messaging_policy, ai_agent_mode, title_font) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -152,6 +153,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addUUID(station.getAiAgentId())
                         .addString(station.getSubmissionPolicy().name())
                         .addString(station.getMessagingPolicy().name())
+                        .addString(station.getAiAgentMode().name())
                         .addString(station.getTitleFont());
 
                 return client.withTransaction(tx ->
@@ -181,8 +183,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, ai_overriding=$7, profile_overriding=$8, " +
-                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, submission_policy=$14, messaging_policy=$15, title_font=$16, last_mod_user=$17, last_mod_date=$18 " +
-                                    "WHERE id=$19";
+                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, submission_policy=$14, messaging_policy=$15, ai_agent_mode=$16, title_font=$17, last_mod_user=$18, last_mod_date=$19 " +
+                                    "WHERE id=$20";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -204,6 +206,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addUUID(station.getAiAgentId())
                                     .addString(station.getSubmissionPolicy().name())
                                     .addString(station.getMessagingPolicy().name())
+                                    .addString(station.getAiAgentMode().name())
                                     .addString(station.getTitleFont())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
@@ -245,6 +248,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         doc.setDescription(row.getString("description"));
         doc.setSubmissionPolicy(SubmissionPolicy.valueOf(row.getString("submission_policy")));
         doc.setMessagingPolicy(SubmissionPolicy.valueOf(row.getString("messaging_policy")));
+        doc.setAiAgentMode(AiAgentMode.valueOf(row.getString("ai_agent_mode")));
         doc.setTitleFont(row.getString("title_font"));
 
         JsonArray bitRateJson = row.getJsonArray("bit_rate");

@@ -399,12 +399,10 @@ public class RadioController {
     private void validateMixplaAccess(RoutingContext rc) {
         String host = rc.request().remoteAddress().host();
         if ("127.0.0.1".equals(host) || "::1".equals(host)) {
-            LOGGER.debug("Localhost Mixpla access from {}", host);
             rc.next();
             return;
         }
 
-        String referer = rc.request().getHeader("Referer");
         String clientId = rc.request().getHeader("X-Client-ID");
         String mixplaApp = rc.request().getHeader("X-Mixpla-App");
 
@@ -413,42 +411,28 @@ public class RadioController {
             return;
         }
 
-        if (referer != null && isValidRefererHost(referer) && "mixpla-web".equals(clientId)) {
+        if ("mixpla-web".equals(clientId)) {
             rc.next();
             return;
         }
 
-        LOGGER.warn("Invalid Mixpla access from host: {}", host);
         rc.response()
                 .setStatusCode(403)
                 .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                 .end("Access denied");
     }
 
-
-    private boolean isValidRefererHost(String referer) {
-        try {
-            java.net.URL url = new java.net.URL(referer);
-            String host = url.getHost().toLowerCase();
-            return "mixpla.io".equals(host) || "localhost".equals(host);
-        } catch (java.net.MalformedURLException e) {
-            return false;
-        }
-    }
-
     private boolean isValidMixplaApp(String mixplaApp) {
-        if (!mixplaApp.startsWith("mixpla-mobile")) { //mixpla-mobile
+        final String prefix = "mixpla-mobile";
+        if (!mixplaApp.startsWith(prefix)) {
             return false;
         }
-
-        String version = mixplaApp.substring(7);
+        String version = mixplaApp.substring(prefix.length()).replaceFirst("^[^0-9]*", "");
         for (String supportedVersion : SUPPORTED_MIXPLA_VERSIONS) {
             if (supportedVersion.equals(version)) {
                 return true;
             }
         }
-
-        LOGGER.warn("Unsupported Mixpla app version: {}", version);
         return false;
     }
 

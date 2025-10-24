@@ -77,7 +77,7 @@ public class RadioService {
     @Inject
     MemoryService memoryService;
 
-    private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d");
+    private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d", "malucra");
 
     public Uni<RadioStation> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
@@ -172,49 +172,31 @@ public class RadioService {
                 .chain(stations -> {
                     if (stations.isEmpty()) {
                         return Uni.createFrom().item(List.of());
-                    } else {
-                        List<RadioStationDTO> stationsToProcess = stations.stream()
-                                .filter(station -> FEATURED_STATIONS.contains(station.getSlugName()))
-                                .toList();
-
-                        List<Uni<RadioStationStatusDTO>> statusUnis = stationsToProcess.stream()
-                                .map(station -> {
-                                    return radioStationPool.get(station.getSlugName())
-                                            .chain(onlineStation -> {
-                                                String description = station.getDescription();
-                                                if (onlineStation != null) {
-                                                    if (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
-                                                            onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                                                            onlineStation.getStatus() == RadioStationStatus.IDLE ||
-                                                            onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR
-                                                    ) {
-                                                        onlineStation.setStatus(RadioStationStatus.ON_LINE);
-                                                    }
-                                                    return toStatusDTO(onlineStation, false);
-                                                } else {
-                                                    return Uni.createFrom().item(new RadioStationStatusDTO(
-                                                            station.getLocalizedName().getOrDefault(CountryCode.valueOf(station.getCountry()).getPreferredLanguage(), station.getSlugName()),
-                                                            station.getSlugName(),
-                                                            null,
-                                                            null,
-                                                            null,
-                                                            null,
-                                                            RadioStationStatus.OFF_LINE.name(),
-                                                            station.getCountry(),
-                                                            station.getColor(),
-                                                            description,
-                                                            0,
-                                                            station.getSubmissionPolicy(),
-                                                            station.getMessagingPolicy(),
-                                                            null
-                                                    ));
-                                                }
-                                            })
-                                            .onFailure().recoverWithItem(RadioStationStatusDTO::new);
-                                })
-                                .collect(Collectors.toList());
-                        return Uni.join().all(statusUnis).andFailFast();
                     }
+
+                    List<RadioStationDTO> stationsToProcess = stations.stream()
+                            .filter(station -> FEATURED_STATIONS.contains(station.getSlugName()))
+                            .toList();
+
+                    List<Uni<RadioStationStatusDTO>> statusUnis = stationsToProcess.stream()
+                            .map(station -> radioStationPool.get(station.getSlugName())
+                                    .chain(onlineStation -> {
+                                        if (onlineStation != null &&
+                                                (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
+                                                        onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                                                        onlineStation.getStatus() == RadioStationStatus.IDLE ||
+                                                        onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR)) {
+                                            return toStatusDTO(onlineStation, false);
+                                        }
+                                        return Uni.createFrom().nullItem();
+                                    })
+                                    .onFailure().recoverWithItem(() -> null))
+                            .collect(Collectors.toList());
+
+                    return Uni.join().all(statusUnis).andFailFast()
+                            .onItem().transform(results -> results.stream()
+                                    .filter(dto -> dto != null)
+                                    .collect(Collectors.toList()));
                 });
     }
 

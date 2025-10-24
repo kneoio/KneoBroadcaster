@@ -185,7 +185,8 @@ public class RadioService {
                                                 (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
                                                         onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
                                                         onlineStation.getStatus() == RadioStationStatus.IDLE ||
-                                                        onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR)) {
+                                                        onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
+                                                        onlineStation.getStatus() == RadioStationStatus.WARMING_UP)) {
                                             return toStatusDTO(onlineStation, false);
                                         }
                                         return Uni.createFrom().nullItem();

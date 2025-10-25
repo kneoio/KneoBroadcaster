@@ -21,29 +21,20 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class LiveRadioStationsMCPTools {
     private static final Logger LOGGER = LoggerFactory.getLogger(LiveRadioStationsMCPTools.class);
+    private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
+            RadioStationStatus.ON_LINE,
+            RadioStationStatus.WARMING_UP,
+            RadioStationStatus.QUEUE_SATURATED,
+            RadioStationStatus.WAITING_FOR_CURATOR
+    );
 
     @Inject
     AiHelperService aiHelperService;
 
     @Tool("get_live_radio_stations")
     @Description("Get live radio stations by status")
-    public CompletableFuture<LiveRadioStationsMcpDTO> getLiveRadioStations(
-            @Parameter("statuses") String... statuses
-    ) {
-        List<RadioStationStatus> statusList = new ArrayList<>();
-        for (String status : statuses) {
-            try {
-                statusList.add(RadioStationStatus.valueOf(status));
-            } catch (IllegalArgumentException e) {
-                LOGGER.warn("Invalid status value: {}", status);
-            }
-        }
-
-        if (statusList.isEmpty()) {
-            return CompletableFuture.completedFuture(new LiveRadioStationsMcpDTO());
-        }
-
-        return aiHelperService.getByStatus(statusList)
+    public CompletableFuture<LiveRadioStationsMcpDTO> getLiveRadioStations() {
+        return aiHelperService.getByStatus(ACTIVE_STATUSES)
                 .chain(this::mapToLiveRadioStationsMcpDTO)
                 .convert().toCompletableFuture();
     }

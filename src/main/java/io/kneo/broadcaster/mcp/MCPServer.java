@@ -277,24 +277,13 @@ public class MCPServer extends AbstractVerticle {
     private ObjectNode createLiveRadioStationsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
         tool.put("name", "get_live_radio_stations");
-        tool.put("description", "Get live radio stations by status");
+        tool.put("description", "Get live radio stations with statuses: ON_LINE, WARMING_UP, QUEUE_SATURATED, WAITING_FOR_CURATOR");
 
         ObjectNode schema = objectMapper.createObjectNode();
         schema.put("type", "object");
         ObjectNode props = objectMapper.createObjectNode();
 
-        ObjectNode statusesProp = objectMapper.createObjectNode();
-        statusesProp.put("type", "array");
-        ObjectNode itemsProp = objectMapper.createObjectNode();
-        itemsProp.put("type", "string");
-        statusesProp.set("items", itemsProp);
-        statusesProp.put("description", "Radio station statuses to filter by (LIVE, IDLE, QUEUE_SATURATED)");
-        props.set("statuses", statusesProp);
-
         schema.set("properties", props);
-        ArrayNode required = objectMapper.createArrayNode();
-        required.add("statuses");
-        schema.set("required", required);
         tool.set("inputSchema", schema);
 
         return tool;
@@ -422,16 +411,7 @@ public class MCPServer extends AbstractVerticle {
     }
 
     private CompletableFuture<Object> handleLiveRadioStationsCall(JsonNode arguments) {
-        JsonNode statusesNode = arguments.get("statuses");
-        List<String> statusesList = new ArrayList<>();
-        if (statusesNode.isArray()) {
-            for (JsonNode statusNode : statusesNode) {
-                statusesList.add(statusNode.asText());
-            }
-        }
-        String[] statuses = statusesList.toArray(new String[0]);
-
-        return liveRadioStationsMCPTools.getLiveRadioStations(statuses)
+        return liveRadioStationsMCPTools.getLiveRadioStations()
                 .thenApply(result -> (Object) result);
     }
 

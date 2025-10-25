@@ -34,12 +34,12 @@ public class AiHelperController {
     }
 
     public void setupRoutes(Router router) {
-        router.route("/api/ai/*").handler(BodyHandler.create());
+        BodyHandler bodyHandler = BodyHandler.create();
         router.get("/api/ai/brands/status").handler(this::getBrandsByStatus);
         router.get("/api/ai/memory/:brand").handler(this::getMemoriesByType);
         router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
-        router.patch("/api/ai/memory/history/brand/:brand").handler(this::patchHistory);
-        router.patch("/api/ai/memory/reset/:brand/:type").handler(this::resetMemory);
+        router.patch("/api/ai/memory/history/brand/:brand").handler(bodyHandler).handler(this::patchHistory);
+        router.patch("/api/ai/memory/reset/:brand/:type").handler(bodyHandler).handler(this::resetMemory);
     }
 
     private void getBrandsByStatus(RoutingContext rc) {

@@ -9,5 +9,5 @@ import java.util.List;
 @Setter
 @Getter
 public class LiveRadioStationsMcpDTO extends AbstractDTO {
-    private List<RadioStationMcpDTO> radioStations;
+    private List<LiveRadioStationMcpDTO> radioStations;
 }

@@ -5,7 +5,6 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.AiHelperService;
 import io.kneo.broadcaster.service.MemoryService;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;

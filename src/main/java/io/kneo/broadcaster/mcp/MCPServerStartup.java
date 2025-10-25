@@ -29,6 +29,9 @@ public class MCPServerStartup {
     @Inject
     QueueMCPTools queueMCPTools;
 
+    @Inject
+    LiveRadioStationsMCPTools liveRadioStationsMCPTools;
+
     private String deploymentId;
 
     void onStart(@Observes StartupEvent ev) {
@@ -40,7 +43,7 @@ public class MCPServerStartup {
         LOGGER.info("Starting MCP Server...");
         LOGGER.info("Target host: {}, port: {}", mcpConfig.getServerHost(), mcpConfig.getServerPort());
 
-        MCPServer mcpServer = new MCPServer(soundFragmentMCPTools, memoryMCPTools, queueMCPTools, mcpConfig);
+        MCPServer mcpServer = new MCPServer(soundFragmentMCPTools, memoryMCPTools, queueMCPTools, liveRadioStationsMCPTools, mcpConfig);
 
         vertx.deployVerticle(mcpServer)
                 .onSuccess(id -> {
@@ -48,7 +51,7 @@ public class MCPServerStartup {
                     LOGGER.info("MCP Server deployed");
                     LOGGER.info("Deployment ID: {}", id);
                     LOGGER.info("WebSocket endpoint: ws://{}:{}", mcpConfig.getServerHost(), mcpConfig.getServerPort());
-                    LOGGER.info("Available tools: get_brand_sound_fragment, get_memory_by_type, add_to_queue");
+                    LOGGER.info("Available tools: get_brand_sound_fragment, get_memory_by_type, add_to_queue, get_live_radio_stations");
                     LOGGER.info("MCP Server ready to accept connections");
 
                     testServerConnection();

@@ -28,16 +28,18 @@ public class MCPServer extends AbstractVerticle {
     private final SoundFragmentMCPTools soundFragmentMCPTools;
     private final MemoryMCPTools memoryMCPTools;
     private final QueueMCPTools queueMCPTools;
+    private final LiveRadioStationsMCPTools liveRadioStationsMCPTools;
     private final MCPConfig mcpConfig;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
     private HttpServer server;
 
-    public MCPServer(SoundFragmentMCPTools soundFragmentMCPTools, MemoryMCPTools memoryMCPTools, QueueMCPTools queueMCPTools, MCPConfig mcpConfig) {
+    public MCPServer(SoundFragmentMCPTools soundFragmentMCPTools, MemoryMCPTools memoryMCPTools, QueueMCPTools queueMCPTools, LiveRadioStationsMCPTools liveRadioStationsMCPTools, MCPConfig mcpConfig) {
         this.soundFragmentMCPTools = soundFragmentMCPTools;
         this.memoryMCPTools = memoryMCPTools;
         this.queueMCPTools = queueMCPTools;
+        this.liveRadioStationsMCPTools = liveRadioStationsMCPTools;
         this.mcpConfig = mcpConfig;
     }
 
@@ -164,6 +166,7 @@ public class MCPServer extends AbstractVerticle {
         tools.add(createBrandSoundFragmentsTool());
         tools.add(createMemoryTool());
         tools.add(createAddToQueueTool());
+        tools.add(createLiveRadioStationsTool());
 
         ObjectNode result = objectMapper.createObjectNode();
         result.set("tools", tools);
@@ -271,6 +274,32 @@ public class MCPServer extends AbstractVerticle {
         return tool;
     }
 
+    private ObjectNode createLiveRadioStationsTool() {
+        ObjectNode tool = objectMapper.createObjectNode();
+        tool.put("name", "get_live_radio_stations");
+        tool.put("description", "Get live radio stations by status");
+
+        ObjectNode schema = objectMapper.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = objectMapper.createObjectNode();
+
+        ObjectNode statusesProp = objectMapper.createObjectNode();
+        statusesProp.put("type", "array");
+        ObjectNode itemsProp = objectMapper.createObjectNode();
+        itemsProp.put("type", "string");
+        statusesProp.set("items", itemsProp);
+        statusesProp.put("description", "Radio station statuses to filter by (LIVE, IDLE, QUEUE_SATURATED)");
+        props.set("statuses", statusesProp);
+
+        schema.set("properties", props);
+        ArrayNode required = objectMapper.createArrayNode();
+        required.add("statuses");
+        schema.set("required", required);
+        tool.set("inputSchema", schema);
+
+        return tool;
+    }
+
     private void addStringProperty(ObjectNode props, String name, String description) {
         ObjectNode prop = objectMapper.createObjectNode();
         prop.put("type", "string");
@@ -305,7 +334,9 @@ public class MCPServer extends AbstractVerticle {
                 case "add_to_queue":
                     future = handleAddToQueueCall(arguments);
                     break;
-
+                case "get_live_radio_stations":
+                    future = handleLiveRadioStationsCall(arguments);
+                    break;
 
                 default:
                     sendError(webSocket, "tool_not_found", "Tool not found: " + toolName, id);
@@ -387,6 +418,20 @@ public class MCPServer extends AbstractVerticle {
         }
 
         return queueMCPTools.addToQueue(brand, mergingMethod, songIds, filePaths, priority)
+                .thenApply(result -> (Object) result);
+    }
+
+    private CompletableFuture<Object> handleLiveRadioStationsCall(JsonNode arguments) {
+        JsonNode statusesNode = arguments.get("statuses");
+        List<String> statusesList = new ArrayList<>();
+        if (statusesNode.isArray()) {
+            for (JsonNode statusNode : statusesNode) {
+                statusesList.add(statusNode.asText());
+            }
+        }
+        String[] statuses = statusesList.toArray(new String[0]);
+
+        return liveRadioStationsMCPTools.getLiveRadioStations(statuses)
                 .thenApply(result -> (Object) result);
     }
 

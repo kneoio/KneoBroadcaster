@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.BrandScriptDTO;
-import io.kneo.broadcaster.dto.ScriptSceneDTO;
+import io.kneo.broadcaster.model.BrandScript;
+import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
@@ -35,6 +35,7 @@ public class AiHelperService {
     private final RadioStationPool radioStationPool;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
+    private final PromptService promptService;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
@@ -46,11 +47,13 @@ public class AiHelperService {
     public AiHelperService(
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
-            ScriptService scriptService
+            ScriptService scriptService,
+            PromptService promptService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
+        this.promptService = promptService;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -129,47 +132,40 @@ public class AiHelperService {
 
         return Uni.combine().all()
                 .unis(
-                        scriptService.getAllScriptsForBrand(station.getId(), SuperUser.build()),
+                        scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
                         aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
                 )
                 .asTuple()
-                .map(tuple -> {
-                    List<BrandScriptDTO> scripts = tuple.getItem1();
+                .flatMap(tuple -> {
+                    List<BrandScript> scripts = tuple.getItem1();
                     AiAgentDTO agent = tuple.getItem2();
 
                     if (scripts.isEmpty()) {
-                        return null;
+                        return Uni.createFrom().item(() -> null);
                     }
 
-                    List<PromptDTO> allPrompts = new ArrayList<>();
-                    for (BrandScriptDTO brandScript : scripts) {
-                        for (ScriptSceneDTO scene : brandScript.getScript().getScenes()) {
+                    List<UUID> allPromptIds = new ArrayList<>();
+                    for (BrandScript brandScript : scripts) {
+                        for (ScriptScene scene : brandScript.getScript().getScenes()) {
                             if (scene.getPrompts() != null) {
-                                allPrompts.addAll(scene.getPrompts());
+                                allPromptIds.addAll(scene.getPrompts());
                             }
                         }
                     }
 
-                    if (allPrompts.isEmpty()) {
-                        return null;
+                    if (allPromptIds.isEmpty()) {
+                        return Uni.createFrom().item(() -> null);
                     }
 
-                    List<PromptDTO> enabledPrompts = allPrompts.stream()
-                            .filter(p -> p.isEnabled())
-                            .toList();
+                    UUID selectedPromptId = allPromptIds.get(new Random().nextInt(allPromptIds.size()));
 
-                    if (enabledPrompts.isEmpty()) {
-                        return null;
-                    }
-
-                    PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
-
-                    return new LivePromptDTO(
-                            selectedPrompt.getPrompt(),
-                            selectedPrompt.getPromptType(),
-                            LlmType.valueOf(agent.getLlmType()),
-                            SearchEngineType.valueOf(agent.getSearchEngineType())
-                    );
+                    return promptService.getDTO(selectedPromptId, SuperUser.build(), LanguageCode.en)
+                            .map(promptDTO -> new LivePromptDTO(
+                                    promptDTO.getPrompt(),
+                                    promptDTO.getPromptType(),
+                                    LlmType.valueOf(agent.getLlmType()),
+                                    SearchEngineType.valueOf(agent.getSearchEngineType())
+                            ));
                 });
     }
 

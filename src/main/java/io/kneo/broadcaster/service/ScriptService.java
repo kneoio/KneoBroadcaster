@@ -4,11 +4,11 @@ import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -120,12 +120,12 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 );
     }
 
-    public Uni<List<BrandScriptDTO>> getAllScriptsForBrand(UUID brandId, IUser user) {
+    public Uni<List<BrandScript>> getAllScriptsForBrandWithScenes(UUID brandId, IUser user) {
         assert repository != null;
         return repository.findForBrand(brandId, 100, 0, false, user)
                 .chain(list -> {
-                    List<Uni<BrandScriptDTO>> unis = list.stream()
-                            .map(brandScript -> mapBrandScriptToDTO(brandScript, user))
+                    List<Uni<BrandScript>> unis = list.stream()
+                            .map(brandScript -> populateScenes(brandScript, user))
                             .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
@@ -145,6 +145,27 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     public Uni<Integer> getForBrandCount(UUID brandId, IUser user) {
         assert repository != null;
         return repository.findForBrandCount(brandId, false, user);
+    }
+
+    private Uni<BrandScript> populateScenes(BrandScript brandScript, IUser user) {
+        return scriptSceneService.getForScript(brandScript.getScript().getId(), 100, 0, user)
+                .map(sceneDTOs -> {
+                    List<ScriptScene> scenes = sceneDTOs.stream()
+                            .map(dto -> {
+                                ScriptScene scene = new ScriptScene();
+                                scene.setId(dto.getId());
+                                scene.setScriptId(dto.getScriptId());
+                                scene.setType(dto.getType());
+                                scene.setTitle(dto.getTitle());
+                                scene.setStartTime(dto.getStartTime());
+                                scene.setWeekdays(dto.getWeekdays());
+                                scene.setPrompts(dto.getPrompts().stream().map(p -> p.getId()).collect(Collectors.toList()));
+                                return scene;
+                            })
+                            .collect(Collectors.toList());
+                    brandScript.getScript().setScenes(scenes);
+                    return brandScript;
+                });
     }
 
     private Uni<BrandScriptDTO> mapBrandScriptToDTO(BrandScript brandScript, IUser user) {

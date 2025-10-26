@@ -89,18 +89,35 @@ public class AiHelperService {
                         : station.getStatus()
         );
 
-        if (station.getAiAgentMode() == AiAgentMode.SCRIPT_FOLLOWING) {
-            return fetchPromptForStation(station)
-                    .map(prompt -> {
-                        liveRadioStation.setPrompt(prompt);
-                        return liveRadioStation;
-                    });
-        }
+        UUID agentId = station.getAiAgentId();
+        
+        return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
+                .flatMap(agent -> {
+                    Uni<LivePromptDTO> promptUni;
+                    if (station.getAiAgentMode() == AiAgentMode.SCRIPT_FOLLOWING) {
+                        promptUni = fetchPromptForStation(station);
+                    } else {
+                        promptUni = fetchPromptFromAgent(station);
+                    }
 
-        return fetchPromptFromAgent(station)
-                .map(prompt -> {
-                    liveRadioStation.setPrompt(prompt);
-                    return liveRadioStation;
+                    return promptUni.flatMap(prompt -> {
+                        liveRadioStation.setPrompt(prompt);
+
+                        String preferredVoice = agent.getPreferredVoice().get(0).getId();
+                        UUID copilotId = agent.getCopilot();
+
+                        return aiAgentService.getDTO(copilotId, SuperUser.build(), LanguageCode.en)
+                                .map(copilot -> {
+                                    String secondaryVoice = copilot.getPreferredVoice().get(0).getId();
+                                    String secondaryVoiceName = copilot.getName();
+                                    liveRadioStation.setTts(new io.kneo.broadcaster.dto.mcp.TtsMcpDTO(
+                                            preferredVoice,
+                                            secondaryVoice,
+                                            secondaryVoiceName
+                                    ));
+                                    return liveRadioStation;
+                                });
+                    });
                 });
     }
 

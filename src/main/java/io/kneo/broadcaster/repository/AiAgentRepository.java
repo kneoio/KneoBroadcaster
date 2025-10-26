@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.Merger;
+import io.kneo.broadcaster.model.ai.SearchEngineType;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
@@ -141,9 +142,9 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, prompts, " +
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, prompts, " +
                 "event_prompts, message_prompts, mini_podcast_prompt, preferred_voice, copilot, enabled_tools, talkativity, merger, podcast_mode) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id";
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id";
 
         JsonObject mergerJson = null;
         if (agent.getMerger() != null) {
@@ -162,6 +163,7 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getName())
                 .addString(agent.getPreferredLang().name())
                 .addString(agent.getLlmType().name())
+                .addString(agent.getSearchEngineType().name())
                 .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
                 .addJsonArray(agent.getEventPrompts() != null ? JsonArray.of(agent.getEventPrompts().toArray()) : JsonArray.of())
                 .addJsonArray(agent.getMessagePrompts() != null ? JsonArray.of(agent.getMessagePrompts().toArray()) : JsonArray.of())
@@ -199,8 +201,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, prompts=$6, event_prompts=$7, message_prompts=$8, mini_podcast_prompt=$9, preferred_voice=$10, copilot=$11, enabled_tools=$12, talkativity=$13, merger=$14, podcast_mode=$15 " +
-                                    "WHERE id=$16";
+                                    "llm_type=$5, search_engine_type=$6, prompts=$7, event_prompts=$8, message_prompts=$9, mini_podcast_prompt=$10, preferred_voice=$11, copilot=$12, enabled_tools=$13, talkativity=$14, merger=$15, podcast_mode=$16 " +
+                                    "WHERE id=$17";
 
                             JsonObject mergerJson = null;
                             if (agent.getMerger() != null) {
@@ -217,6 +219,7 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getName())
                                     .addString(agent.getPreferredLang().name())
                                     .addString(agent.getLlmType().name())
+                                    .addString(agent.getSearchEngineType().name())
                                     .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
                                     .addJsonArray(agent.getEventPrompts() != null ? JsonArray.of(agent.getEventPrompts().toArray()) : JsonArray.of())
                                     .addJsonArray(agent.getMessagePrompts() != null ? JsonArray.of(agent.getMessagePrompts().toArray()) : JsonArray.of())
@@ -278,6 +281,7 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setCopilot(row.getUUID("copilot"));
         doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
+        doc.setSearchEngineType(SearchEngineType.valueOf(row.getString("search_engine_type")));
         doc.setTalkativity(row.getDouble("talkativity"));
         doc.setPodcastMode(row.getDouble("podcast_mode"));
 

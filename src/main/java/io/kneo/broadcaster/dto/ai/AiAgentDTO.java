@@ -19,6 +19,7 @@ public class AiAgentDTO extends AbstractDTO {
     private String preferredLang;
     @NotBlank
     private String llmType;
+    private String searchEngineType;
     private MergerDTO merger;
     private List<PromptDTO> prompts;
     private List<String> eventPrompts;

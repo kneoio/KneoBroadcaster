@@ -8,6 +8,7 @@ import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.MergeMethod;
+import io.kneo.broadcaster.model.ai.SearchEngineType;
 import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.ai.Tool;
@@ -100,6 +101,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setName(doc.getName());
             dto.setPreferredLang(doc.getPreferredLang().name());
             dto.setLlmType(doc.getLlmType().name());
+            dto.setSearchEngineType(doc.getSearchEngineType().name());
             dto.setPrompts(
                     doc.getPrompts().stream()
                             .map(p -> {
@@ -177,6 +179,10 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setTalkativity(dto.getTalkativity());
         doc.setPodcastMode(dto.getPodcastMode());
         doc.setLlmType(LlmType.valueOf(dto.getLlmType()));
+        
+        if (dto.getSearchEngineType() != null) {
+            doc.setSearchEngineType(SearchEngineType.valueOf(dto.getSearchEngineType()));
+        }
 
         if (dto.getMerger() != null) {
             Merger merger = new Merger();

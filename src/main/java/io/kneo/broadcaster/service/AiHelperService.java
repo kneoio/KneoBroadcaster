@@ -5,7 +5,10 @@ import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
+import io.kneo.broadcaster.dto.mcp.LivePromptDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
+import io.kneo.broadcaster.model.ai.SearchEngineType;
+import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
@@ -28,6 +31,7 @@ public class AiHelperService {
     private final RadioStationPool radioStationPool;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
+    private final PromptService promptService;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
@@ -39,11 +43,13 @@ public class AiHelperService {
     public AiHelperService(
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
-            ScriptService scriptService
+            ScriptService scriptService,
+            PromptService promptService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
+        this.promptService = promptService;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -54,24 +60,118 @@ public class AiHelperService {
                         .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
-            LiveContainerMcpDTO container = new LiveContainerMcpDTO();
-            List<LiveRadioStationMcpDTO> liveStations = new ArrayList<>();
+            List<Uni<LiveRadioStationMcpDTO>> stationUnis = stations.stream()
+                    .map(this::buildLiveRadioStation)
+                    .collect(Collectors.toList());
 
-            for (RadioStation station : stations) {
-                LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
-                liveRadioStation.setName(station.getSlugName());
-                liveRadioStation.setDjName(station.getSlugName());
-                liveRadioStation.setRadioStationStatus(
-                        station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2
-                                ? RadioStationStatus.QUEUE_SATURATED
-                                : station.getStatus()
-                );
-                liveStations.add(liveRadioStation);
-            }
-
-            container.setRadioStations(liveStations);
-            return Uni.createFrom().item(container);
+            return Uni.join().all(stationUnis).andFailFast()
+                    .map(liveStations -> {
+                        LiveContainerMcpDTO container = new LiveContainerMcpDTO();
+                        container.setRadioStations(liveStations);
+                        return container;
+                    });
         });
+    }
+
+    private Uni<LiveRadioStationMcpDTO> buildLiveRadioStation(RadioStation station) {
+        LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
+        liveRadioStation.setName(station.getSlugName());
+        liveRadioStation.setDjName(station.getSlugName());
+        liveRadioStation.setRadioStationStatus(
+                station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2
+                        ? RadioStationStatus.QUEUE_SATURATED
+                        : station.getStatus()
+        );
+
+        if (station.getAiAgentMode() == AiAgentMode.SCRIPT_FOLLOWING) {
+            return fetchPromptForStation(station)
+                    .map(prompt -> {
+                        liveRadioStation.setPrompt(prompt);
+                        return liveRadioStation;
+                    });
+        }
+
+        return fetchPromptFromAgent(station)
+                .map(prompt -> {
+                    liveRadioStation.setPrompt(prompt);
+                    return liveRadioStation;
+                });
+    }
+
+    private Uni<LivePromptDTO> fetchPromptForStation(RadioStation station) {
+        UUID agentId = station.getAiAgentId();
+        if (agentId == null) {
+            return Uni.createFrom().item(() -> null);
+        }
+
+        return Uni.combine().all()
+                .unis(
+                        promptService.getAll(100, 0, SuperUser.build()),
+                        aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
+                )
+                .asTuple()
+                .map(tuple -> {
+                    List<io.kneo.broadcaster.dto.ai.PromptDTO> prompts = tuple.getItem1();
+                    io.kneo.broadcaster.dto.ai.AiAgentDTO agent = tuple.getItem2();
+
+                    if (prompts.isEmpty()) {
+                        return null;
+                    }
+
+                    List<Prompt> enabledPrompts = prompts.stream()
+                            .filter(p -> p.isEnabled())
+                            .map(dto -> {
+                                Prompt prompt = new Prompt();
+                                prompt.setPrompt(dto.getPrompt());
+                                prompt.setPromptType(dto.getPromptType());
+                                prompt.setEnabled(dto.isEnabled());
+                                return prompt;
+                            })
+                            .collect(Collectors.toList());
+
+                    if (enabledPrompts.isEmpty()) {
+                        return null;
+                    }
+
+                    Prompt selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
+                    return new LivePromptDTO(
+                            selectedPrompt.getPrompt(),
+                            selectedPrompt.getPromptType(),
+                            agent.getLlmType(),
+                            agent.getSearchEngineType()
+                    );
+                });
+    }
+
+    private Uni<LivePromptDTO> fetchPromptFromAgent(RadioStation station) {
+        UUID agentId = station.getAiAgentId();
+        if (agentId == null) {
+            return Uni.createFrom().item(() -> null);
+        }
+
+        return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
+                .map(agent -> {
+                    List<Prompt> prompts = agent.getPrompts();
+                    if (prompts == null || prompts.isEmpty()) {
+                        return null;
+                    }
+
+                    List<Prompt> enabledPrompts = prompts.stream()
+                            .filter(Prompt::isEnabled)
+                            .toList();
+
+                    if (enabledPrompts.isEmpty()) {
+                        return null;
+                    }
+
+                    Prompt selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
+                    return new LivePromptDTO(
+                            selectedPrompt.getPrompt(),
+                            selectedPrompt.getPromptType(),
+                            agent.getLlmType(),
+                            agent.getSearchEngineType()
+                    );
+                });
     }
 
 

@@ -18,6 +18,7 @@ public class AiAgent extends SimpleReferenceEntity {
     private ZoneId timeZone;
 
     private LlmType llmType;
+    private SearchEngineType searchEngineType = SearchEngineType.PERPLEXITY;
     private Merger merger;
     private List<Prompt> prompts;
     private List<String> eventPrompts;

@@ -5,8 +5,9 @@ import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.service.BrandScriptUpdateService;
-import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.ScriptSceneService;
+import io.kneo.broadcaster.service.ScriptService;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -26,13 +27,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
-import java.util.UUID;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import io.kneo.broadcaster.util.ProblemDetailsUtil;
 
 @ApplicationScoped
 public class ScriptController extends AbstractSecuredController<Script, ScriptDTO> {
@@ -325,11 +325,11 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
         try {
-            UUID brandUUID = UUID.fromString(brandId);
+            UUID uuid = UUID.fromString(brandId);
             getContextUser(rc, false, true)
                     .chain(user -> Uni.combine().all().unis(
-                            service.getForBrandCount(brandUUID, user),
-                            service.getForBrand(brandUUID, size, (page - 1) * size, user)
+                            service.getForBrandCount(uuid, user),
+                            service.getForBrand(uuid, size, (page - 1) * size, user)
                     ).asTuple().map(tuple -> {
                         ViewPage viewPage = new ViewPage();
                         View<BrandScriptDTO> dtoEntries = new View<>(tuple.getItem2(),

@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.repository.ScriptRepository;
+import io.kneo.broadcaster.repository.ScriptSceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -23,18 +24,21 @@ import java.util.stream.Collectors;
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
     private final ScriptSceneService scriptSceneService;
+    private final ScriptSceneRepository scriptSceneRepository;
 
     protected ScriptService() {
         super();
         this.repository = null;
         this.scriptSceneService = null;
+        this.scriptSceneRepository = null;
     }
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository, ScriptSceneService scriptSceneService) {
+    public ScriptService(UserService userService, ScriptRepository repository, ScriptSceneService scriptSceneService, ScriptSceneRepository scriptSceneRepository) {
         super(userService);
         this.repository = repository;
         this.scriptSceneService = scriptSceneService;
+        this.scriptSceneRepository = scriptSceneRepository;
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -148,21 +152,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     private Uni<BrandScript> populateScenes(BrandScript brandScript, IUser user) {
-        return scriptSceneService.getForScript(brandScript.getScript().getId(), 100, 0, user)
-                .map(sceneDTOs -> {
-                    List<ScriptScene> scenes = sceneDTOs.stream()
-                            .map(dto -> {
-                                ScriptScene scene = new ScriptScene();
-                                scene.setId(dto.getId());
-                                scene.setScriptId(dto.getScriptId());
-                                scene.setType(dto.getType());
-                                scene.setTitle(dto.getTitle());
-                                scene.setStartTime(dto.getStartTime());
-                                scene.setWeekdays(dto.getWeekdays());
-                                scene.setPrompts(dto.getPrompts().stream().map(p -> p.getId()).collect(Collectors.toList()));
-                                return scene;
-                            })
-                            .collect(Collectors.toList());
+        return scriptSceneRepository.listByScript(brandScript.getScript().getId(), 100, 0, false, user)
+                .map(scenes -> {
                     brandScript.getScript().setScenes(scenes);
                     return brandScript;
                 });

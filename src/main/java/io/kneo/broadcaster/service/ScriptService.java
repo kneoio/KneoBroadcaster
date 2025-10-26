@@ -124,6 +124,15 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 );
     }
 
+    public Uni<List<BrandScript>> getAllScriptsForBrand(UUID brandId, IUser user) {
+        assert repository != null;
+        return repository.findForBrand(brandId, 100, 0, false, user)
+                .chain(list -> {
+
+                    return Uni.createFrom().item(null);
+                });
+    }
+
     public Uni<List<BrandScriptDTO>> getForBrand(UUID brandId, final int limit, final int offset, IUser user) {
         assert repository != null;
         return repository.findForBrand(brandId, limit, offset, false, user)
@@ -150,7 +159,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setDefaultBrandId(brandScript.getDefaultBrandId());
             dto.setRank(brandScript.getRank());
             dto.setActive(brandScript.isActive());
-            dto.setScriptDTO(scriptDTO);
+            dto.setScript(scriptDTO);
             dto.setRepresentedInBrands(brandScript.getRepresentedInBrands());
             return dto;
         });

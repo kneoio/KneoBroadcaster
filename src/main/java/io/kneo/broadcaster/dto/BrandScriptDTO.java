@@ -15,6 +15,6 @@ public class BrandScriptDTO {
     private int rank;
     private boolean active;
     @JsonProperty("script")
-    private ScriptDTO scriptDTO;
+    private ScriptDTO script;
     private List<UUID> representedInBrands;
 }

@@ -143,7 +143,7 @@ public class AiHelperService {
 
                     List<PromptDTO> allPrompts = new ArrayList<>();
                     for (BrandScriptDTO brandScript : scripts) {
-                        for (ScriptSceneDTO scene : brandScript.getScriptDTO().getScenes()) {
+                        for (ScriptSceneDTO scene : brandScript.getScript().getScenes()) {
                             if (scene.getPrompts() != null) {
                                 allPrompts.addAll(scene.getPrompts());
                             }

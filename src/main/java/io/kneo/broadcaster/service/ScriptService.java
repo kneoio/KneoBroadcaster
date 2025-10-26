@@ -42,7 +42,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     List<Uni<ScriptDTO>> unis = list.stream()
-                            .map(this::mapToDTO)
+                            .map(script -> mapToDTO(script, user))
                             .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
@@ -56,16 +56,16 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     @Override
     public Uni<ScriptDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;
-        return repository.findById(id, user, false).chain(this::mapToDTO);
+        return repository.findById(id, user, false).chain(script -> mapToDTO(script, user));
     }
 
     public Uni<ScriptDTO> upsert(String id, ScriptDTO dto, IUser user) {
         assert repository != null;
         Script entity = buildEntity(dto);
         if (id == null) {
-            return repository.insert(entity, user).chain(this::mapToDTO);
+            return repository.insert(entity, user).chain(script -> mapToDTO(script, user));
         } else {
-            return repository.update(UUID.fromString(id), entity, user).chain(this::mapToDTO);
+            return repository.update(UUID.fromString(id), entity, user).chain(script -> mapToDTO(script, user));
         }
     }
 
@@ -80,11 +80,11 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.delete(UUID.fromString(id), user);
     }
 
-    private Uni<ScriptDTO> mapToDTO(Script script) {
+    private Uni<ScriptDTO> mapToDTO(Script script, IUser user) {
         return Uni.combine().all().unis(
                 userService.getUserName(script.getAuthor()),
                 userService.getUserName(script.getLastModifier()),
-                scriptSceneService.getForScript(script.getId(), 100, 0, SuperUser.build())
+                scriptSceneService.getForScript(script.getId(), 100, 0, user)
         ).asTuple().map(tuple -> {
             ScriptDTO dto = new ScriptDTO();
             dto.setId(script.getId());
@@ -125,7 +125,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.findForBrand(brandId, 100, 0, false, user)
                 .chain(list -> {
                     List<Uni<BrandScriptDTO>> unis = list.stream()
-                            .map(this::mapBrandScriptToDTO)
+                            .map(brandScript -> mapBrandScriptToDTO(brandScript, user))
                             .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
@@ -136,7 +136,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.findForBrand(brandId, limit, offset, false, user)
                 .chain(list -> {
                     List<Uni<BrandScriptDTO>> unis = list.stream()
-                            .map(this::mapBrandScriptToDTO)
+                            .map(brandScript -> mapBrandScriptToDTO(brandScript, user))
                             .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
@@ -147,8 +147,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.findForBrandCount(brandId, false, user);
     }
 
-    private Uni<BrandScriptDTO> mapBrandScriptToDTO(BrandScript brandScript) {
-        return mapToDTO(brandScript.getScript()).map(scriptDTO -> {
+    private Uni<BrandScriptDTO> mapBrandScriptToDTO(BrandScript brandScript, IUser user) {
+        return mapToDTO(brandScript.getScript(), user).map(scriptDTO -> {
             BrandScriptDTO dto = new BrandScriptDTO();
             dto.setId(brandScript.getId());
             dto.setDefaultBrandId(brandScript.getDefaultBrandId());

@@ -31,7 +31,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
     public Uni<List<ScriptSceneDTO>> getForScript(final UUID scriptId, final int limit, final int offset, final IUser user) {
         return repository.listByScript(scriptId, limit, offset, false, user)
                 .chain(list -> {
-                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
+                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(scene -> mapToDTO(scene, user)).collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
     }
@@ -42,16 +42,16 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
 
     @Override
     public Uni<ScriptSceneDTO> getDTO(UUID id, IUser user, io.kneo.core.localization.LanguageCode language) {
-        return repository.findById(id, user, false).chain(this::mapToDTO);
+        return repository.findById(id, user, false).chain(scene -> mapToDTO(scene, user));
     }
 
     public Uni<ScriptSceneDTO> upsert(String id, UUID scriptId, ScriptSceneDTO dto, IUser user) {
         ScriptScene entity = buildEntity(dto);
         if (id == null) {
             entity.setScriptId(scriptId);
-            return repository.insert(entity, user).chain(this::mapToDTO);
+            return repository.insert(entity, user).chain(scene -> mapToDTO(scene, user));
         } else {
-            return repository.update(UUID.fromString(id), entity, user).chain(this::mapToDTO);
+            return repository.update(UUID.fromString(id), entity, user).chain(scene -> mapToDTO(scene, user));
         }
     }
 
@@ -64,13 +64,13 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         return repository.delete(UUID.fromString(id), user);
     }
 
-    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc) {
+    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, IUser user) {
         Uni<List<PromptDTO>> promptsUni;
         if (doc.getPrompts() == null || doc.getPrompts().isEmpty()) {
             promptsUni = Uni.createFrom().item(List.of());
         } else {
             List<Uni<PromptDTO>> promptUnis = doc.getPrompts().stream()
-                    .map(promptId -> promptService.getDTO(promptId, io.kneo.core.model.user.SuperUser.build(), io.kneo.core.localization.LanguageCode.en))
+                    .map(promptId -> promptService.getDTO(promptId, user, io.kneo.core.localization.LanguageCode.en))
                     .collect(Collectors.toList());
             promptsUni = Uni.join().all(promptUnis).andFailFast();
         }

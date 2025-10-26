@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,7 +16,7 @@ public class ScriptScene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
     private String type;
-    private List<Prompt> prompts;
+    private List<UUID> prompts;
     private LocalTime startTime;
     private Integer archived;
     private List<Integer> weekdays;

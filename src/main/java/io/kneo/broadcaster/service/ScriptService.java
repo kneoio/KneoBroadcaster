@@ -41,14 +41,10 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<ScriptDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
-                                .collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
+                    List<Uni<ScriptDTO>> unis = list.stream()
+                            .map(this::mapToDTO)
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
                 });
     }
 
@@ -124,12 +120,14 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 );
     }
 
-    public Uni<List<BrandScript>> getAllScriptsForBrand(UUID brandId, IUser user) {
+    public Uni<List<BrandScriptDTO>> getAllScriptsForBrand(UUID brandId, IUser user) {
         assert repository != null;
         return repository.findForBrand(brandId, 100, 0, false, user)
                 .chain(list -> {
-
-                    return Uni.createFrom().item(null);
+                    List<Uni<BrandScriptDTO>> unis = list.stream()
+                            .map(this::mapBrandScriptToDTO)
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
                 });
     }
 
@@ -137,9 +135,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert repository != null;
         return repository.findForBrand(brandId, limit, offset, false, user)
                 .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    }
                     List<Uni<BrandScriptDTO>> unis = list.stream()
                             .map(this::mapBrandScriptToDTO)
                             .collect(Collectors.toList());

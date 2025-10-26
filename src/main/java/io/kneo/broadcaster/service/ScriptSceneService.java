@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.model.ScriptScene;
-import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.repository.ScriptSceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.model.user.IUser;
@@ -20,22 +19,20 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ScriptSceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
     private final ScriptSceneRepository repository;
+    private final PromptService promptService;
 
     @Inject
-    public ScriptSceneService(UserService userService, ScriptSceneRepository repository) {
+    public ScriptSceneService(UserService userService, ScriptSceneRepository repository, PromptService promptService) {
         super(userService);
         this.repository = repository;
+        this.promptService = promptService;
     }
 
     public Uni<List<ScriptSceneDTO>> getForScript(final UUID scriptId, final int limit, final int offset, final IUser user) {
         return repository.listByScript(scriptId, limit, offset, false, user)
                 .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
+                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
                 });
     }
 
@@ -68,9 +65,20 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
     }
 
     private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc) {
+        Uni<List<PromptDTO>> promptsUni;
+        if (doc.getPrompts() == null || doc.getPrompts().isEmpty()) {
+            promptsUni = Uni.createFrom().item(List.of());
+        } else {
+            List<Uni<PromptDTO>> promptUnis = doc.getPrompts().stream()
+                    .map(promptId -> promptService.getDTO(promptId, io.kneo.core.model.user.SuperUser.build(), io.kneo.core.localization.LanguageCode.en))
+                    .collect(Collectors.toList());
+            promptsUni = Uni.join().all(promptUnis).andFailFast();
+        }
+
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
-                userService.getUserName(doc.getLastModifier())
+                userService.getUserName(doc.getLastModifier()),
+                promptsUni
         ).asTuple().map(tuple -> {
             ScriptSceneDTO dto = new ScriptSceneDTO();
             dto.setId(doc.getId());
@@ -83,11 +91,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
             dto.setType(doc.getType());
             dto.setStartTime(doc.getStartTime());
             dto.setWeekdays(doc.getWeekdays());
-            if (doc.getPrompts() == null) {
-                dto.setPrompts(List.of());
-            } else {
-                dto.setPrompts(doc.getPrompts().stream().map(this::toPromptDTO).collect(Collectors.toList()));
-            }
+            dto.setPrompts(tuple.getItem3());
             return dto;
         });
     }
@@ -101,23 +105,9 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         if (dto.getPrompts() == null) {
             entity.setPrompts(List.of());
         } else {
-            entity.setPrompts(dto.getPrompts().stream().map(this::toPrompt).collect(Collectors.toList()));
+            entity.setPrompts(dto.getPrompts().stream().map(PromptDTO::getId).collect(Collectors.toList()));
         }
         return entity;
-    }
-
-    private PromptDTO toPromptDTO(Prompt p) {
-        PromptDTO dto = new PromptDTO();
-        dto.setEnabled(p.isEnabled());
-        dto.setPrompt(p.getPrompt());
-        return dto;
-    }
-
-    private Prompt toPrompt(PromptDTO dto) {
-        Prompt p = new Prompt();
-        p.setEnabled(dto.isEnabled());
-        p.setPrompt(dto.getPrompt());
-        return p;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

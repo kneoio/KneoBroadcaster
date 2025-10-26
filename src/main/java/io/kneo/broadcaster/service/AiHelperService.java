@@ -129,7 +129,7 @@ public class AiHelperService {
 
         return Uni.combine().all()
                 .unis(
-                        scriptService.getForBrand(station.getId(), 100, 0, SuperUser.build()),
+                        scriptService.getAllScriptsForBrand(station.getId(), SuperUser.build()),
                         aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
                 )
                 .asTuple()

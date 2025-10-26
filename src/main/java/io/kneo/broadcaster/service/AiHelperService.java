@@ -155,7 +155,7 @@ public class AiHelperService {
             return Uni.createFrom().item(() -> null);
         }
 
-        return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
                 .map(agent -> {
                     List<io.kneo.broadcaster.dto.ai.PromptDTO> prompts = agent.getPrompts();
                     if (prompts == null || prompts.isEmpty()) {
@@ -214,7 +214,7 @@ public class AiHelperService {
                     return Uni.createFrom().item(brand);
                 }
 
-                return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en).flatMap(agent -> {
+                return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en).flatMap(agent -> {
                     AiLiveAgentDTO dto = new AiLiveAgentDTO();
                     dto.setName(agent.getName());
                     dto.setLlmType(io.kneo.broadcaster.model.ai.LlmType.valueOf(agent.getLlmType()));

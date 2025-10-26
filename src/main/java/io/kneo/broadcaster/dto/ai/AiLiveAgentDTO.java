@@ -9,6 +9,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
+@Deprecated
 public class AiLiveAgentDTO {
     private String name;
     private String prompt;

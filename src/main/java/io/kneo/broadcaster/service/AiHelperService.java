@@ -1,11 +1,17 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.dto.BrandScriptDTO;
+import io.kneo.broadcaster.dto.ScriptSceneDTO;
+import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
+import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LivePromptDTO;
+import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
+import io.kneo.broadcaster.model.ai.LlmType;
+import io.kneo.broadcaster.model.ai.SearchEngineType;
 import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
@@ -55,13 +61,18 @@ public class AiHelperService {
                         .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
+            LiveContainerMcpDTO container = new LiveContainerMcpDTO();
+            if (stations.isEmpty()) {
+                container.setRadioStations(List.of());
+                return Uni.createFrom().item(container);
+            }
             List<Uni<LiveRadioStationMcpDTO>> stationUnis = stations.stream()
                     .map(this::buildLiveRadioStation)
                     .collect(Collectors.toList());
 
             return Uni.join().all(stationUnis).andFailFast()
                     .map(liveStations -> {
-                        LiveContainerMcpDTO container = new LiveContainerMcpDTO();
+
                         container.setRadioStations(liveStations);
                         return container;
                     });
@@ -106,20 +117,18 @@ public class AiHelperService {
                 )
                 .asTuple()
                 .map(tuple -> {
-                    List<io.kneo.broadcaster.dto.BrandScriptDTO> scripts = tuple.getItem1();
-                    io.kneo.broadcaster.dto.ai.AiAgentDTO agent = tuple.getItem2();
+                    List<BrandScriptDTO> scripts = tuple.getItem1();
+                    AiAgentDTO agent = tuple.getItem2();
 
                     if (scripts.isEmpty()) {
                         return null;
                     }
 
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> allPrompts = new ArrayList<>();
-                    for (io.kneo.broadcaster.dto.BrandScriptDTO brandScript : scripts) {
-                        if (brandScript.getScriptDTO() != null && brandScript.getScriptDTO().getScenes() != null) {
-                            for (io.kneo.broadcaster.dto.ScriptSceneDTO scene : brandScript.getScriptDTO().getScenes()) {
-                                if (scene.getPrompts() != null) {
-                                    allPrompts.addAll(scene.getPrompts());
-                                }
+                    List<PromptDTO> allPrompts = new ArrayList<>();
+                    for (BrandScriptDTO brandScript : scripts) {
+                        for (ScriptSceneDTO scene : brandScript.getScriptDTO().getScenes()) {
+                            if (scene.getPrompts() != null) {
+                                allPrompts.addAll(scene.getPrompts());
                             }
                         }
                     }
@@ -128,7 +137,7 @@ public class AiHelperService {
                         return null;
                     }
 
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> enabledPrompts = allPrompts.stream()
+                    List<PromptDTO> enabledPrompts = allPrompts.stream()
                             .filter(p -> p.isEnabled())
                             .toList();
 
@@ -136,18 +145,13 @@ public class AiHelperService {
                         return null;
                     }
 
-                    io.kneo.broadcaster.dto.ai.PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
-                    
-                    io.kneo.broadcaster.model.ai.SearchEngineType searchEngineType = io.kneo.broadcaster.model.ai.SearchEngineType.PERPLEXITY;
-                    if (agent.getSearchEngineType() != null) {
-                        searchEngineType = io.kneo.broadcaster.model.ai.SearchEngineType.valueOf(agent.getSearchEngineType());
-                    }
-                    
+                    PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
+
                     return new LivePromptDTO(
                             selectedPrompt.getPrompt(),
                             selectedPrompt.getPromptType(),
-                            io.kneo.broadcaster.model.ai.LlmType.valueOf(agent.getLlmType()),
-                            searchEngineType
+                            LlmType.valueOf(agent.getLlmType()),
+                            SearchEngineType.valueOf(agent.getSearchEngineType())
                     );
                 });
     }
@@ -160,12 +164,12 @@ public class AiHelperService {
 
         return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
                 .map(agent -> {
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> prompts = agent.getPrompts();
-                    if (prompts == null || prompts.isEmpty()) {
+                    List<PromptDTO> prompts = agent.getPrompts();
+                    if (prompts.isEmpty()) {
                         return null;
                     }
 
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> enabledPrompts = prompts.stream()
+                    List<PromptDTO> enabledPrompts = prompts.stream()
                             .filter(p -> p.isEnabled())
                             .toList();
 
@@ -173,18 +177,13 @@ public class AiHelperService {
                         return null;
                     }
 
-                    io.kneo.broadcaster.dto.ai.PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
-                    
-                    io.kneo.broadcaster.model.ai.SearchEngineType searchEngineType = io.kneo.broadcaster.model.ai.SearchEngineType.PERPLEXITY;
-                    if (agent.getSearchEngineType() != null) {
-                        searchEngineType = io.kneo.broadcaster.model.ai.SearchEngineType.valueOf(agent.getSearchEngineType());
-                    }
-                    
+                    PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
+
                     return new LivePromptDTO(
                             selectedPrompt.getPrompt(),
                             selectedPrompt.getPromptType(),
-                            io.kneo.broadcaster.model.ai.LlmType.valueOf(agent.getLlmType()),
-                            searchEngineType
+                            LlmType.valueOf(agent.getLlmType()),
+                            SearchEngineType.valueOf(agent.getSearchEngineType())
                     );
                 });
     }
@@ -223,15 +222,15 @@ public class AiHelperService {
                     dto.setLlmType(io.kneo.broadcaster.model.ai.LlmType.valueOf(agent.getLlmType()));
                     dto.setPreferredLang(io.kneo.core.localization.LanguageCode.valueOf(agent.getPreferredLang()));
 
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> prompts = agent.getPrompts();
+                    List<PromptDTO> prompts = agent.getPrompts();
                     List<String> msgPrompts = agent.getMessagePrompts();
                     List<String> podcastPrompts = agent.getMiniPodcastPrompts();
 
-                    if (prompts == null || prompts.isEmpty()) {
+                    if (prompts.isEmpty()) {
                         return Uni.createFrom().item(brand);
                     }
 
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> enabledPrompts = prompts.stream()
+                    List<PromptDTO> enabledPrompts = prompts.stream()
                             .filter(p -> p.isEnabled())
                             .toList();
                     String randomPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size())).getPrompt();

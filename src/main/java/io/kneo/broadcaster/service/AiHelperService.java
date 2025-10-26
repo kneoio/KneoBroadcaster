@@ -107,7 +107,7 @@ public class AiHelperService {
         return Uni.combine().all()
                 .unis(
                         promptService.getAll(100, 0, SuperUser.build()),
-                        aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
+                        aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
                 )
                 .asTuple()
                 .map(tuple -> {

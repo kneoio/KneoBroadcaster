@@ -11,5 +11,5 @@ public class LiveRadioStationMcpDTO {
     private RadioStationStatus radioStationStatus;
     private String djName;
     private TtsMcpDTO tts;
-    private LivePromptDTO prompt;
+    private LivePromptMcpDTO prompt;
 }

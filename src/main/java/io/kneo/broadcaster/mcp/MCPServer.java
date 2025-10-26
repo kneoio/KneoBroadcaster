@@ -47,7 +47,16 @@ public class MCPServer extends AbstractVerticle {
     public void start(Promise<Void> startPromise) {
         try {
             server = vertx.createHttpServer();
-            server.webSocketHandler(webSocket -> {
+            server.requestHandler(request -> {
+                        if (request.headers().contains("Upgrade", "websocket", true)) {
+                            return;
+                        }
+                        LOGGER.warn("Non-WebSocket HTTP request rejected: {} {}", request.method(), request.path());
+                        request.response()
+                                .setStatusCode(400)
+                                .end("WebSocket connection required");
+                    })
+                    .webSocketHandler(webSocket -> {
                         LOGGER.info("WebSocket connection attempt: path={}, remote={}",
                                 webSocket.path(), webSocket.remoteAddress());
 

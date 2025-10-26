@@ -8,6 +8,7 @@ import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -21,16 +22,19 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
+    private final ScriptSceneService scriptSceneService;
 
     protected ScriptService() {
         super();
         this.repository = null;
+        this.scriptSceneService = null;
     }
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository) {
+    public ScriptService(UserService userService, ScriptRepository repository, ScriptSceneService scriptSceneService) {
         super(userService);
         this.repository = repository;
+        this.scriptSceneService = scriptSceneService;
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -83,7 +87,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private Uni<ScriptDTO> mapToDTO(Script script) {
         return Uni.combine().all().unis(
                 userService.getUserName(script.getAuthor()),
-                userService.getUserName(script.getLastModifier())
+                userService.getUserName(script.getLastModifier()),
+                scriptSceneService.getForScript(script.getId(), 100, 0, SuperUser.build())
         ).asTuple().map(tuple -> {
             ScriptDTO dto = new ScriptDTO();
             dto.setId(script.getId());
@@ -95,6 +100,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setDescription(script.getDescription());
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
+            dto.setScenes(tuple.getItem3());
             return dto;
         });
     }

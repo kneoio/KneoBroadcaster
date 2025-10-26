@@ -6,8 +6,6 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LivePromptDTO;
-import io.kneo.broadcaster.model.ai.Prompt;
-import io.kneo.broadcaster.model.ai.SearchEngineType;
 import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
@@ -31,7 +29,6 @@ public class AiHelperService {
     private final RadioStationPool radioStationPool;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
-    private final PromptService promptService;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
@@ -43,13 +40,11 @@ public class AiHelperService {
     public AiHelperService(
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
-            ScriptService scriptService,
-            PromptService promptService
+            ScriptService scriptService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
-        this.promptService = promptService;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -106,34 +101,42 @@ public class AiHelperService {
 
         return Uni.combine().all()
                 .unis(
-                        promptService.getAll(100, 0, SuperUser.build()),
+                        scriptService.getForBrand(station.getId(), 100, 0, SuperUser.build()),
                         aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
                 )
                 .asTuple()
                 .map(tuple -> {
-                    List<io.kneo.broadcaster.dto.ai.PromptDTO> prompts = tuple.getItem1();
+                    List<io.kneo.broadcaster.dto.BrandScriptDTO> scripts = tuple.getItem1();
                     io.kneo.broadcaster.dto.ai.AiAgentDTO agent = tuple.getItem2();
 
-                    if (prompts.isEmpty()) {
+                    if (scripts.isEmpty()) {
                         return null;
                     }
 
-                    List<Prompt> enabledPrompts = prompts.stream()
+                    List<io.kneo.broadcaster.dto.ai.PromptDTO> allPrompts = new ArrayList<>();
+                    for (io.kneo.broadcaster.dto.BrandScriptDTO brandScript : scripts) {
+                        if (brandScript.getScriptDTO() != null && brandScript.getScriptDTO().getScenes() != null) {
+                            for (io.kneo.broadcaster.dto.ScriptSceneDTO scene : brandScript.getScriptDTO().getScenes()) {
+                                if (scene.getPrompts() != null) {
+                                    allPrompts.addAll(scene.getPrompts());
+                                }
+                            }
+                        }
+                    }
+
+                    if (allPrompts.isEmpty()) {
+                        return null;
+                    }
+
+                    List<io.kneo.broadcaster.dto.ai.PromptDTO> enabledPrompts = allPrompts.stream()
                             .filter(p -> p.isEnabled())
-                            .map(dto -> {
-                                Prompt prompt = new Prompt();
-                                prompt.setPrompt(dto.getPrompt());
-                                prompt.setPromptType(dto.getPromptType());
-                                prompt.setEnabled(dto.isEnabled());
-                                return prompt;
-                            })
-                            .collect(Collectors.toList());
+                            .toList();
 
                     if (enabledPrompts.isEmpty()) {
                         return null;
                     }
 
-                    Prompt selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
+                    io.kneo.broadcaster.dto.ai.PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
                     
                     io.kneo.broadcaster.model.ai.SearchEngineType searchEngineType = io.kneo.broadcaster.model.ai.SearchEngineType.PERPLEXITY;
                     if (agent.getSearchEngineType() != null) {

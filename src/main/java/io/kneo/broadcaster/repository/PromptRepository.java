@@ -223,4 +223,33 @@ public class PromptRepository extends AsyncRepository {
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
+
+    public Uni<List<UUID>> getPromptsForScene(UUID sceneId) {
+        String sql = "SELECT prompt_id FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 ORDER BY rank ASC";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(sceneId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("prompt_id"))
+                .collect().asList();
+    }
+
+    public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<UUID> prompts) {
+        String deleteSql = "DELETE FROM mixpla_script_scene_prompts WHERE script_scene_id = $1";
+        if (prompts == null || prompts.isEmpty()) {
+            return tx.preparedQuery(deleteSql)
+                    .execute(Tuple.of(sceneId))
+                    .replaceWithVoid();
+        }
+        String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank) VALUES ($1, $2, $3)";
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(sceneId))
+                .chain(() -> {
+                    List<Tuple> batches = new java.util.ArrayList<>();
+                    for (int i = 0; i < prompts.size(); i++) {
+                        batches.add(Tuple.of(sceneId, prompts.get(i), i));
+                    }
+                    return tx.preparedQuery(insertSql).executeBatch(batches);
+                })
+                .replaceWithVoid();
+    }
 }

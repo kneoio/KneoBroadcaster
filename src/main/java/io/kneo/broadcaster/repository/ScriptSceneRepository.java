@@ -12,7 +12,6 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonArray;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -30,10 +29,12 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.S
 @ApplicationScoped
 public class ScriptSceneRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SCRIPT_SCENE);
+    private final PromptRepository promptRepository;
 
     @Inject
-    public ScriptSceneRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public ScriptSceneRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, PromptRepository promptRepository) {
         super(client, mapper, rlsRepository);
+        this.promptRepository = promptRepository;
     }
 
     public Uni<List<ScriptScene>> listByScript(UUID scriptId, int limit, int offset, boolean includeArchived, IUser user) {
@@ -102,7 +103,7 @@ public class ScriptSceneRepository extends AsyncRepository {
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transformToUni(ignored -> upsertPrompts(tx, id, scene.getPrompts()))
+                                        .onItem().transformToUni(ignored -> promptRepository.updatePromptsForScene(tx, id, scene.getPrompts()))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
@@ -132,7 +133,7 @@ public class ScriptSceneRepository extends AsyncRepository {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                         }
-                                        return upsertPrompts(tx, id, scene.getPrompts());
+                                        return promptRepository.updatePromptsForScene(tx, id, scene.getPrompts());
                                     })
                     ).onItem().transformToUni(ignored -> findById(id, user, true));
                 });
@@ -177,35 +178,6 @@ public class ScriptSceneRepository extends AsyncRepository {
             doc.setWeekdays(weekdays);
         }
         return doc;
-    }
-
-    private Uni<List<UUID>> loadPrompts(UUID sceneId) {
-        String sql = "SELECT prompt_id FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 ORDER BY rank ASC";
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(sceneId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("prompt_id"))
-                .collect().asList();
-    }
-
-    private Uni<Void> upsertPrompts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<UUID> prompts) {
-        String deleteSql = "DELETE FROM mixpla_script_scene_prompts WHERE script_scene_id = $1";
-        if (prompts == null || prompts.isEmpty()) {
-            return tx.preparedQuery(deleteSql)
-                    .execute(Tuple.of(sceneId))
-                    .replaceWithVoid();
-        }
-        String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank) VALUES ($1, $2, $3)";
-        return tx.preparedQuery(deleteSql)
-                .execute(Tuple.of(sceneId))
-                .chain(() -> {
-                    List<Tuple> batches = new ArrayList<>();
-                    for (int i = 0; i < prompts.size(); i++) {
-                        batches.add(Tuple.of(sceneId, prompts.get(i), i));
-                    }
-                    return tx.preparedQuery(insertSql).executeBatch(batches);
-                })
-                .replaceWithVoid();
     }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {

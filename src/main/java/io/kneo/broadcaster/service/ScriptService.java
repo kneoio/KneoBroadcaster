@@ -125,7 +125,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         return Uni.createFrom().item(List.of());
                     }
                     List<Uni<BrandScript>> unis = list.stream()
-                            .map(brandScript -> populateScenes(brandScript, user))
+                            .map(brandScript -> populateScenesWithPrompts(brandScript, user))
                             .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
@@ -150,8 +150,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.findForBrandCount(brandId, false, user);
     }
 
-    private Uni<BrandScript> populateScenes(BrandScript brandScript, IUser user) {
-        return scriptSceneRepository.listByScript(brandScript.getScript().getId(), 100, 0, false, user)
+    private Uni<BrandScript> populateScenesWithPrompts(BrandScript brandScript, IUser user) {
+        assert scriptSceneService != null;
+        return scriptSceneService.getAllWithPromptIds(brandScript.getScript().getId(), 100, 0, user)
                 .map(scenes -> {
                     brandScript.getScript().setScenes(scenes);
                     return brandScript;

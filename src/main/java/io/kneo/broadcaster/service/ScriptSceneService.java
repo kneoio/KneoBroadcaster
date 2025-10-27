@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.repository.PromptRepository;
 import io.kneo.broadcaster.repository.ScriptSceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.model.user.IUser;
@@ -20,12 +21,14 @@ import java.util.stream.Collectors;
 public class ScriptSceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
     private final ScriptSceneRepository repository;
     private final PromptService promptService;
+    private final PromptRepository promptRepository;
 
     @Inject
-    public ScriptSceneService(UserService userService, ScriptSceneRepository repository, PromptService promptService) {
+    public ScriptSceneService(UserService userService, ScriptSceneRepository repository, PromptService promptService, PromptRepository promptRepository) {
         super(userService);
         this.repository = repository;
         this.promptService = promptService;
+        this.promptRepository = promptRepository;
     }
 
     public Uni<List<ScriptSceneDTO>> getAll(final UUID scriptId, final int limit, final int offset, final IUser user) {
@@ -35,6 +38,23 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
                         return Uni.createFrom().item(List.of());
                     }
                     List<Uni<ScriptSceneDTO>> unis = list.stream().map(scene -> mapToDTO(scene, user)).collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
+                });
+    }
+
+    public Uni<List<ScriptScene>> getAllWithPromptIds(final UUID scriptId, final int limit, final int offset, final IUser user) {
+        return repository.listByScript(scriptId, limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    List<Uni<ScriptScene>> unis = list.stream()
+                            .map(scene -> promptRepository.getPromptsForScene(scene.getId())
+                                    .map(promptIds -> {
+                                        scene.setPrompts(promptIds);
+                                        return scene;
+                                    }))
+                            .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
     }
@@ -68,35 +88,38 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
     }
 
     private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, IUser user) {
-        Uni<List<PromptDTO>> promptsUni;
-        if (doc.getPrompts() == null || doc.getPrompts().isEmpty()) {
-            promptsUni = Uni.createFrom().item(List.of());
-        } else {
-            List<Uni<PromptDTO>> promptUnis = doc.getPrompts().stream()
-                    .map(promptId -> promptService.getDTO(promptId, user, io.kneo.core.localization.LanguageCode.en))
-                    .collect(Collectors.toList());
-            promptsUni = Uni.join().all(promptUnis).andFailFast();
-        }
+        return promptRepository.getPromptsForScene(doc.getId())
+                .chain(promptIds -> {
+                    Uni<List<PromptDTO>> promptsUni;
+                    if (promptIds.isEmpty()) {
+                        promptsUni = Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<PromptDTO>> promptUnis = promptIds.stream()
+                                .map(promptId -> promptService.getDTO(promptId, user, io.kneo.core.localization.LanguageCode.en))
+                                .collect(Collectors.toList());
+                        promptsUni = Uni.join().all(promptUnis).andFailFast();
+                    }
 
-        return Uni.combine().all().unis(
-                userService.getUserName(doc.getAuthor()),
-                userService.getUserName(doc.getLastModifier()),
-                promptsUni
-        ).asTuple().map(tuple -> {
-            ScriptSceneDTO dto = new ScriptSceneDTO();
-            dto.setId(doc.getId());
-            dto.setTitle(doc.getTitle());
-            dto.setAuthor(tuple.getItem1());
-            dto.setRegDate(doc.getRegDate());
-            dto.setLastModifier(tuple.getItem2());
-            dto.setLastModifiedDate(doc.getLastModifiedDate());
-            dto.setScriptId(doc.getScriptId());
-            dto.setType(doc.getType());
-            dto.setStartTime(doc.getStartTime());
-            dto.setWeekdays(doc.getWeekdays());
-            dto.setPrompts(tuple.getItem3());
-            return dto;
-        });
+                    return Uni.combine().all().unis(
+                            userService.getUserName(doc.getAuthor()),
+                            userService.getUserName(doc.getLastModifier()),
+                            promptsUni
+                    ).asTuple().map(tuple -> {
+                        ScriptSceneDTO dto = new ScriptSceneDTO();
+                        dto.setId(doc.getId());
+                        dto.setTitle(doc.getTitle());
+                        dto.setAuthor(tuple.getItem1());
+                        dto.setRegDate(doc.getRegDate());
+                        dto.setLastModifier(tuple.getItem2());
+                        dto.setLastModifiedDate(doc.getLastModifiedDate());
+                        dto.setScriptId(doc.getScriptId());
+                        dto.setType(doc.getType());
+                        dto.setStartTime(doc.getStartTime());
+                        dto.setWeekdays(doc.getWeekdays());
+                        dto.setPrompts(tuple.getItem3());
+                        return dto;
+                    });
+                });
     }
 
     private ScriptScene buildEntity(ScriptSceneDTO dto) {

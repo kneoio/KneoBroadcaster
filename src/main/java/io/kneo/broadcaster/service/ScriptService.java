@@ -45,6 +45,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
                     List<Uni<ScriptDTO>> unis = list.stream()
                             .map(script -> mapToDTO(script, user))
                             .collect(Collectors.toList());
@@ -128,6 +131,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert repository != null;
         return repository.findForBrand(brandId, 100, 0, false, user)
                 .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
                     List<Uni<BrandScript>> unis = list.stream()
                             .map(brandScript -> populateScenes(brandScript, user))
                             .collect(Collectors.toList());
@@ -139,6 +145,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert repository != null;
         return repository.findForBrand(brandId, limit, offset, false, user)
                 .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
                     List<Uni<BrandScriptDTO>> unis = list.stream()
                             .map(brandScript -> mapBrandScriptToDTO(brandScript, user))
                             .collect(Collectors.toList());

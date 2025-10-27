@@ -1,17 +1,17 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.model.BrandScript;
-import io.kneo.broadcaster.model.ScriptScene;
-import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
-import io.kneo.broadcaster.dto.mcp.LivePromptDTO;
+import io.kneo.broadcaster.dto.mcp.LivePromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
-import io.kneo.broadcaster.model.ai.LlmType;
-import io.kneo.broadcaster.model.ai.SearchEngineType;
+import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
+import io.kneo.broadcaster.model.BrandScript;
+import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
@@ -94,9 +94,9 @@ public class AiHelperService {
 
         UUID agentId = station.getAiAgentId();
         
-        return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
-                    Uni<LivePromptDTO> promptUni;
+                    Uni<LivePromptMcpDTO> promptUni;
                     if (station.getAiAgentMode() == AiAgentMode.SCRIPT_FOLLOWING) {
                         promptUni = fetchPromptForStation(station);
                     } else {
@@ -113,7 +113,7 @@ public class AiHelperService {
                                 .map(copilot -> {
                                     String secondaryVoice = copilot.getPreferredVoice().get(0).getId();
                                     String secondaryVoiceName = copilot.getName();
-                                    liveRadioStation.setTts(new io.kneo.broadcaster.dto.mcp.TtsMcpDTO(
+                                    liveRadioStation.setTts(new TtsMcpDTO(
                                             preferredVoice,
                                             secondaryVoice,
                                             secondaryVoiceName
@@ -124,7 +124,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<LivePromptDTO> fetchPromptForStation(RadioStation station) {
+    private Uni<LivePromptMcpDTO> fetchPromptForStation(RadioStation station) {
         UUID agentId = station.getAiAgentId();
         if (agentId == null) {
             return Uni.createFrom().item(() -> null);
@@ -133,12 +133,12 @@ public class AiHelperService {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
-                        aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
+                        aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
                 )
                 .asTuple()
                 .flatMap(tuple -> {
                     List<BrandScript> scripts = tuple.getItem1();
-                    AiAgentDTO agent = tuple.getItem2();
+                    AiAgent agent = tuple.getItem2();
 
                     if (scripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
@@ -157,46 +157,48 @@ public class AiHelperService {
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    UUID selectedPromptId = allPromptIds.get(new Random().nextInt(allPromptIds.size()));
+                    UUID promptId = allPromptIds.get(new Random().nextInt(allPromptIds.size()));
 
-                    return promptService.getDTO(selectedPromptId, SuperUser.build(), LanguageCode.en)
-                            .map(promptDTO -> new LivePromptDTO(
-                                    promptDTO.getPrompt(),
-                                    promptDTO.getPromptType(),
-                                    LlmType.valueOf(agent.getLlmType()),
-                                    SearchEngineType.valueOf(agent.getSearchEngineType())
+                    return promptService.getById(promptId, SuperUser.build())
+                            .map(prompt -> new LivePromptMcpDTO(
+                                    prompt.getPrompt(),
+                                    prompt.getPrompt(),
+                                    prompt.getPromptType(),
+                                    agent.getLlmType(),
+                                    agent.getSearchEngineType()
                             ));
                 });
     }
 
-    private Uni<LivePromptDTO> fetchPromptFromAgent(RadioStation station) {
+    private Uni<LivePromptMcpDTO> fetchPromptFromAgent(RadioStation station) {
         UUID agentId = station.getAiAgentId();
         if (agentId == null) {
             return Uni.createFrom().item(() -> null);
         }
 
-        return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
                 .map(agent -> {
-                    List<PromptDTO> prompts = agent.getPrompts();
+                    List<Prompt> prompts = agent.getPrompts();
                     if (prompts.isEmpty()) {
                         return null;
                     }
 
-                    List<PromptDTO> enabledPrompts = prompts.stream()
-                            .filter(p -> p.isEnabled())
+                    List<Prompt> enabledPrompts = prompts.stream()
+                            .filter(Prompt::isEnabled)
                             .toList();
 
                     if (enabledPrompts.isEmpty()) {
                         return null;
                     }
 
-                    PromptDTO selectedPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
+                    Prompt prompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
 
-                    return new LivePromptDTO(
-                            selectedPrompt.getPrompt(),
-                            selectedPrompt.getPromptType(),
-                            LlmType.valueOf(agent.getLlmType()),
-                            SearchEngineType.valueOf(agent.getSearchEngineType())
+                    return new LivePromptMcpDTO(
+                            prompt.getPrompt(),
+                            prompt.getPrompt(),
+                            prompt.getPromptType(),
+                            agent.getLlmType(),
+                            agent.getSearchEngineType()
                     );
                 });
     }

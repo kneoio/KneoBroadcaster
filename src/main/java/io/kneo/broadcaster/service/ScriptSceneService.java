@@ -28,7 +28,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         this.promptService = promptService;
     }
 
-    public Uni<List<ScriptSceneDTO>> getForScript(final UUID scriptId, final int limit, final int offset, final IUser user) {
+    public Uni<List<ScriptSceneDTO>> getAll(final UUID scriptId, final int limit, final int offset, final IUser user) {
         return repository.listByScript(scriptId, limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
@@ -39,7 +39,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
                 });
     }
 
-    public Uni<Integer> getForScriptCount(final UUID scriptId, final IUser user) {
+    public Uni<Integer> getAllCount(final UUID scriptId, final IUser user) {
         return repository.countByScript(scriptId, false, user);
     }
 

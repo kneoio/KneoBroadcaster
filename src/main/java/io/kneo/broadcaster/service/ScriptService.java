@@ -4,7 +4,6 @@ import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
-import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.repository.ScriptSceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -88,10 +87,11 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     private Uni<ScriptDTO> mapToDTO(Script script, IUser user) {
+        assert scriptSceneService != null;
         return Uni.combine().all().unis(
                 userService.getUserName(script.getAuthor()),
                 userService.getUserName(script.getLastModifier()),
-                scriptSceneService.getForScript(script.getId(), 100, 0, user)
+                scriptSceneService.getAll(script.getId(), 100, 0, user)
         ).asTuple().map(tuple -> {
             ScriptDTO dto = new ScriptDTO();
             dto.setId(script.getId());
@@ -115,16 +115,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
         return entity;
-    }
-
-    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
-        assert repository != null;
-        return repository.getDocumentAccessInfo(documentId, user)
-                .onItem().transform(accessInfoList ->
-                        accessInfoList.stream()
-                                .map(this::mapToDocumentAccessDTO)
-                                .collect(Collectors.toList())
-                );
     }
 
     public Uni<List<BrandScript>> getAllScriptsForBrandWithScenes(UUID brandId, IUser user) {
@@ -179,5 +169,16 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setRepresentedInBrands(brandScript.getRepresentedInBrands());
             return dto;
         });
+    }
+
+
+    public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {
+        assert repository != null;
+        return repository.getDocumentAccessInfo(documentId, user)
+                .onItem().transform(accessInfoList ->
+                        accessInfoList.stream()
+                                .map(this::mapToDocumentAccessDTO)
+                                .collect(Collectors.toList())
+                );
     }
 }

@@ -5,7 +5,6 @@ import io.kneo.core.localization.LanguageCode;
 import lombok.Setter;
 
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -67,7 +66,6 @@ public class DraftBuilder {
         if (chance(combinedProbability)) {
             intro.append(messages.get("dj.persona")).append(aiDjName)
                     .append("\n").append(messages.get("station.brand")).append(brand);
-            added = true;
         } else {
             if (chance(djProbability)) {
                 intro.append(messages.get("dj.persona")).append(aiDjName);
@@ -76,7 +74,6 @@ public class DraftBuilder {
             if (chance(brandProbability)) {
                 if (added) intro.append("\n");
                 intro.append(messages.get("station.brand")).append(brand);
-                added = true;
             }
         }
 
@@ -86,11 +83,13 @@ public class DraftBuilder {
         intro.append("\n").append(messages.get("description")).append(songDescription);
         intro.append("\n").append(messages.get("genres")).append(String.join(", ", genres));
         
-        Map<String, Object> prev = history.get(history.size() - 1);
-        intro.append("\n").append(messages.get("history.played")).append("\"").append(prev.get("title"))
-                .append(messages.get("by")).append(prev.get("artist")).append(".");
-        Object introSpeech = prev.get("introSpeech");
-        intro.append(messages.get("last.intro.speech")).append(introSpeech);
+        if (!history.isEmpty()) {
+            Map<String, Object> prev = history.get(history.size() - 1);
+            intro.append("\n").append(messages.get("history.played")).append("\"").append(prev.get("title"))
+                    .append(messages.get("by")).append(prev.get("artist")).append(".");
+            Object introSpeech = prev.get("introSpeech");
+            intro.append(messages.get("last.intro.speech")).append(introSpeech);
+        }
         
         if (chance(atmosphereProbability)) {
             Object first = context.get(0);

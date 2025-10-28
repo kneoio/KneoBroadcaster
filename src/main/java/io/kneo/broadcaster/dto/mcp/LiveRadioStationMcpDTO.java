@@ -4,6 +4,8 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Setter
 @Getter
 public class LiveRadioStationMcpDTO {
@@ -11,5 +13,5 @@ public class LiveRadioStationMcpDTO {
     private RadioStationStatus radioStationStatus;
     private String djName;
     private TtsMcpDTO tts;
-    private LivePromptMcpDTO prompt;
+    private List<SongPromptMcpDTO> prompts;
 }

@@ -41,7 +41,7 @@ public class SoundFragmentMCPTools {
                 .convert().toCompletableFuture();
     }
 
-    private int decideFragmentCount() {
+    public int decideFragmentCount() {
         return RANDOM.nextDouble() < 0.4 ? 2 : 1;
     }
 

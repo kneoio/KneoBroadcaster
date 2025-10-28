@@ -4,7 +4,10 @@ import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
 
-public record LivePromptMcpDTO(
+import java.util.UUID;
+
+public record SongPromptMcpDTO(
+        UUID songId,
         String draft,
         String prompt,
         PromptType promptType,

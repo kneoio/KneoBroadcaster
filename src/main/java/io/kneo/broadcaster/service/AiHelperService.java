@@ -47,6 +47,7 @@ public class AiHelperService {
     private final SongSupplier songSupplier;
     private final MemoryService memoryService;
     private final ProfileService profileService;
+    private final RefService refService;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
@@ -62,7 +63,8 @@ public class AiHelperService {
             PromptService promptService,
             SongSupplier songSupplier,
             MemoryService memoryService,
-            ProfileService profileService
+            ProfileService profileService,
+            RefService refService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -71,6 +73,7 @@ public class AiHelperService {
         this.songSupplier = songSupplier;
         this.memoryService = memoryService;
         this.profileService = profileService;
+        this.refService = refService;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -199,25 +202,34 @@ public class AiHelperService {
                                         "description", profile.getDescription()
                                 );
                                 
-                                DraftBuilder draftBuilder = new DraftBuilder(
-                                        song.getTitle(),
-                                        song.getArtist(),
-                                        song.getGenres().stream().map(UUID::toString).toList(),
-                                        song.getDescription(),
-                                        agent.getName(),
-                                        station.getLocalizedName().get(agent.getPreferredLang()),
-                                        history,
-                                        List.of(context)
-                                );
+                                Uni<List<String>> genreNamesUni = Uni.join().all(
+                                        song.getGenres().stream()
+                                                .map(genreId -> refService.getById(genreId)
+                                                        .map(genre -> genre.getLocalizedName().get(agent.getPreferredLang())))
+                                                .collect(Collectors.toList())
+                                ).andFailFast();
+                                
+                                return genreNamesUni.flatMap(genreNames -> {
+                                    DraftBuilder draftBuilder = new DraftBuilder(
+                                            song.getTitle(),
+                                            song.getArtist(),
+                                            genreNames,
+                                            song.getDescription(),
+                                            agent.getName(),
+                                            station.getLocalizedName().get(agent.getPreferredLang()),
+                                            history,
+                                            List.of(context)
+                                    );
 
-                                return promptService.getById(promptId, SuperUser.build())
-                                        .map(prompt -> new LivePromptMcpDTO(
-                                                draftBuilder.build(),
-                                                prompt.getPrompt(),
-                                                prompt.getPromptType(),
-                                                agent.getLlmType(),
-                                                agent.getSearchEngineType()
-                                        ));
+                                    return promptService.getById(promptId, SuperUser.build())
+                                            .map(prompt -> new LivePromptMcpDTO(
+                                                    draftBuilder.build(),
+                                                    prompt.getPrompt(),
+                                                    prompt.getPromptType(),
+                                                    agent.getLlmType(),
+                                                    agent.getSearchEngineType()
+                                            ));
+                                });
                             });
                 });
     }
@@ -252,7 +264,7 @@ public class AiHelperService {
                                     profileService.getById(station.getProfileId())
                             )
                             .asTuple()
-                            .map(tuple -> {
+                            .flatMap(tuple -> {
                                 SoundFragment song = tuple.getItem1().get(0);
                                 JsonObject memoryData = tuple.getItem2();
                                 JsonArray historyArray = memoryData.getJsonArray("history");
@@ -268,24 +280,33 @@ public class AiHelperService {
                                         "description", profile.getDescription()
                                 );
 
-                                DraftBuilder draftBuilder = new DraftBuilder(
-                                        song.getTitle(),
-                                        song.getArtist(),
-                                        song.getGenres().stream().map(UUID::toString).toList(),
-                                        song.getDescription(),
-                                        agent.getName(),
-                                        station.getLocalizedName().get(agent.getPreferredLang()),
-                                        history,
-                                        List.of(context)
-                                );
+                                Uni<List<String>> genreNamesUni = Uni.join().all(
+                                        song.getGenres().stream()
+                                                .map(genreId -> refService.getById(genreId)
+                                                        .map(genre -> genre.getLocalizedName().get(agent.getPreferredLang())))
+                                                .collect(Collectors.toList())
+                                ).andFailFast();
 
-                                return new LivePromptMcpDTO(
-                                        draftBuilder.build(),
-                                        prompt.getPrompt(),
-                                        prompt.getPromptType(),
-                                        agent.getLlmType(),
-                                        agent.getSearchEngineType()
-                                );
+                                return genreNamesUni.map(genreNames -> {
+                                    DraftBuilder draftBuilder = new DraftBuilder(
+                                            song.getTitle(),
+                                            song.getArtist(),
+                                            genreNames,
+                                            song.getDescription(),
+                                            agent.getName(),
+                                            station.getLocalizedName().get(agent.getPreferredLang()),
+                                            history,
+                                            List.of(context)
+                                    );
+
+                                    return new LivePromptMcpDTO(
+                                            draftBuilder.build(),
+                                            prompt.getPrompt(),
+                                            prompt.getPromptType(),
+                                            agent.getLlmType(),
+                                            agent.getSearchEngineType()
+                                    );
+                                });
                             });
                 });
     }

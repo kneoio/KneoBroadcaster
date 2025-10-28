@@ -66,27 +66,20 @@ public class DraftBuilder {
         intro.append("\nNow playing: \"").append(title)
                 .append("\" by ").append(artist);
 
-        if (songDescription != null && !songDescription.isBlank()) {
-            intro.append("\nDescription: ").append(songDescription);
-        }
-        if (genres != null && !genres.isEmpty()) {
-            intro.append("\nGenres: ").append(String.join(", ", genres));
-        }
-        if (history != null && !history.isEmpty()) {
-            Map<String, Object> prev = history.get(history.size() - 1);
-            intro.append("\nHistory: Played \"").append(prev.get("title"))
-                    .append("\" by ").append(prev.get("artist")).append(".");
-            Object introSpeech = prev.get("introSpeech");
-            if (introSpeech != null) {
-                intro.append(" Last intro speech was: ").append(introSpeech);
-            }
-        }
-        if (context != null && !context.isEmpty() && chance(atmosphereProbability)) {
+        intro.append("\nDescription: ").append(songDescription);
+        intro.append("\nGenres: ").append(String.join(", ", genres));
+        
+        Map<String, Object> prev = history.get(history.size() - 1);
+        intro.append("\nHistory: Played \"").append(prev.get("title"))
+                .append("\" by ").append(prev.get("artist")).append(".");
+        Object introSpeech = prev.get("introSpeech");
+        intro.append(" Last intro speech was: ").append(introSpeech);
+        
+        if (chance(atmosphereProbability)) {
             Object first = context.get(0);
             String ctxText;
             if (first instanceof Map<?, ?> map) {
                 ctxText = map.entrySet().stream()
-                        .filter(e -> e.getValue() != null)
                         .map(e -> e.getKey() + ": " + e.getValue())
                         .reduce((a, b) -> a + ", " + b).orElse("");
             } else {

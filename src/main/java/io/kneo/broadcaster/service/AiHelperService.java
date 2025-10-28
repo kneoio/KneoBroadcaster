@@ -218,7 +218,8 @@ public class AiHelperService {
                                             agent.getName(),
                                             station.getLocalizedName().get(agent.getPreferredLang()),
                                             history,
-                                            List.of(context)
+                                            List.of(context),
+                                            agent.getPreferredLang()
                                     );
 
                                     return promptService.getById(promptId, SuperUser.build())
@@ -296,7 +297,8 @@ public class AiHelperService {
                                             agent.getName(),
                                             station.getLocalizedName().get(agent.getPreferredLang()),
                                             history,
-                                            List.of(context)
+                                            List.of(context),
+                                            agent.getPreferredLang()
                                     );
 
                                     return new LivePromptMcpDTO(

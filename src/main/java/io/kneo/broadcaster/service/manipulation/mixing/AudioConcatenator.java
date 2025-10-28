@@ -25,14 +25,12 @@ public class AudioConcatenator {
     private static final int SAMPLE_RATE = 44100;
 
     private final FFmpegExecutor executor;
-    private final String tempBaseDir;
     private final FFprobe ffprobe;
     private final String outputDir;
 
     @Inject
     public AudioConcatenator(BroadcasterConfig config, FFmpegProvider ffmpeg) throws AudioMergeException {
         this.outputDir = config.getPathForMerged();
-        this.tempBaseDir = config.getPathUploads() + "/audio-processing";
 
         try {
             this.executor = new FFmpegExecutor(ffmpeg.getFFmpeg());

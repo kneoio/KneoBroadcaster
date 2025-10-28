@@ -1,82 +1,99 @@
-package io.kneo.broadcaster.service.ai;
+package io.kneo.broadcaster.model.ai;
 
-import java.util.*;
+import lombok.Setter;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 public class DraftBuilder {
+    private final String title;
+    private final String artist;
+    private final String aiDjName;
+    private final String brand;
+    private final String songDescription;
+    private final List<String> genres;
+    private final List<Map<String, Object>> history;
+    private final List<Object> context;
 
-    public static String buildAdIntroText(String title, String artist) {
-        return "\nAdvertisement: Break — \"" + title + "\" by " + artist;
+    @Setter
+    private double djProbability = 0.3;
+    @Setter
+    private double brandProbability = 0.4;
+    @Setter
+    private double combinedProbability = 0.5;
+    @Setter
+    private double atmosphereProbability = 0.7;
+
+    private final Random random = new Random();
+
+    public DraftBuilder(String title, String artist, List<String> genres, String songDescription, String aiDjName, String brand,
+                        List<Map<String, Object>> history, List<Object> context) {
+        this.title = title;
+        this.artist = artist;
+        this.aiDjName = aiDjName;
+        this.brand = brand;
+        this.songDescription = songDescription;
+        this.genres = genres;
+        this.history = history;
+        this.context = context;
     }
 
-    public static String buildDraft(
-            String title,
-            String artist,
-            String aiDjName,
-            String brand,
-            String songDescription,
-            List<String> genres,
-            List<Map<String, Object>> history,
-            List<Object> context,
-            double djProbability,
-            double brandProbability,
-            double combinedProbability,
-            double atmosphereProbability
-    ) {
-        Random random = new Random();
-        StringBuilder introText = new StringBuilder();
+    private boolean chance(double probability) {
+        return random.nextDouble() < probability;
+    }
+
+    public String build() {
+        StringBuilder intro = new StringBuilder();
         boolean added = false;
 
-        if (random.nextDouble() < combinedProbability) {
-            introText.append("DJ Persona: ").append(aiDjName)
+        if (chance(combinedProbability)) {
+            intro.append("DJ Persona: ").append(aiDjName)
                     .append("\nStation Brand: ").append(brand);
             added = true;
         } else {
-            if (random.nextDouble() < djProbability) {
-                introText.append("DJ Persona: ").append(aiDjName);
+            if (chance(djProbability)) {
+                intro.append("DJ Persona: ").append(aiDjName);
                 added = true;
             }
-            if (random.nextDouble() < brandProbability) {
-                if (added) introText.append("\n");
-                introText.append("Station Brand: ").append(brand);
+            if (chance(brandProbability)) {
+                if (added) intro.append("\n");
+                intro.append("Station Brand: ").append(brand);
                 added = true;
             }
         }
 
-        introText.append("\nNow playing: \"").append(title).append("\" by ").append(artist);
+        intro.append("\nNow playing: \"").append(title)
+                .append("\" by ").append(artist);
 
-        if (songDescription != null && !songDescription.isEmpty()) {
-            introText.append("\nDescription: ").append(songDescription);
+        if (songDescription != null && !songDescription.isBlank()) {
+            intro.append("\nDescription: ").append(songDescription);
         }
         if (genres != null && !genres.isEmpty()) {
-            introText.append("\nGenres: ").append(String.join(", ", genres));
+            intro.append("\nGenres: ").append(String.join(", ", genres));
         }
         if (history != null && !history.isEmpty()) {
             Map<String, Object> prev = history.get(history.size() - 1);
-            introText.append("\nHistory: Played \"").append(prev.get("title"))
+            intro.append("\nHistory: Played \"").append(prev.get("title"))
                     .append("\" by ").append(prev.get("artist")).append(".");
-            Object intro = prev.get("introSpeech");
-            if (intro != null && !intro.toString().isEmpty()) {
-                introText.append(" Last intro speech was: ").append(intro);
+            Object introSpeech = prev.get("introSpeech");
+            if (introSpeech != null) {
+                intro.append(" Last intro speech was: ").append(introSpeech);
             }
         }
-        if (context != null && !context.isEmpty() && random.nextDouble() < atmosphereProbability) {
-            String ctxText;
+        if (context != null && !context.isEmpty() && chance(atmosphereProbability)) {
             Object first = context.get(0);
-            if (context.size() == 1 && first instanceof Map) {
-                Map<?, ?> ctxMap = (Map<?, ?>) first;
-                List<String> ctxLines = new ArrayList<>();
-                for (Map.Entry<?, ?> entry : ctxMap.entrySet()) {
-                    if (entry.getValue() != null && !entry.getValue().toString().isEmpty()) {
-                        ctxLines.add(entry.getKey() + ": " + entry.getValue());
-                    }
-                }
-                ctxText = String.join(", ", ctxLines);
+            String ctxText;
+            if (first instanceof Map<?, ?> map) {
+                ctxText = map.entrySet().stream()
+                        .filter(e -> e.getValue() != null)
+                        .map(e -> e.getKey() + ": " + e.getValue())
+                        .reduce((a, b) -> a + ", " + b).orElse("");
             } else {
                 ctxText = context.toString();
             }
-            introText.append("\nAtmosphere hint: ").append(ctxText);
+            intro.append("\nAtmosphere hint: ").append(ctxText);
         }
-
-        return introText.toString();
+        return intro.toString();
     }
 }

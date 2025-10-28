@@ -11,6 +11,7 @@ import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.DraftBuilder;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -159,9 +160,20 @@ public class AiHelperService {
 
                     UUID promptId = allPromptIds.get(new Random().nextInt(allPromptIds.size()));
 
+                    DraftBuilder draftBuilder = new DraftBuilder(
+                            "title",
+                            "artist",
+                            List.of(),
+                            "description",
+                            agent.getName(),
+                            station.getLocalizedName().get(agent.getPreferredLang()),
+                            List.of(),
+                            List.of()
+                    );
+
                     return promptService.getById(promptId, SuperUser.build())
                             .map(prompt -> new LivePromptMcpDTO(
-                                    "draft",
+                                    draftBuilder.build(),
                                     prompt.getPrompt(),
                                     prompt.getPromptType(),
                                     agent.getLlmType(),

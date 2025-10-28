@@ -130,7 +130,7 @@ public class AudioSegmentationService {
                         .done();
             }
 
-            long usedMem = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024);
+            long usedMem = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024);  //to stat
             int activeThreads = Thread.activeCount();
             LOGGER.warn("Pre-FFmpeg spawn: usedMem={}MB, activeThreads={}, ffmpegBin={}, file={}",
                     usedMem, activeThreads, ffmpeg.getFFmpeg().getPath(), audioFilePath);
@@ -148,7 +148,7 @@ public class AudioSegmentationService {
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
 
-            long freeMem = Runtime.getRuntime().freeMemory() / (1024 * 1024);
+            long freeMem = Runtime.getRuntime().freeMemory() / (1024 * 1024);  // to stat
             LOGGER.warn("Post-FFmpeg spawn: freeMem={}MB, threadsNow={}", freeMem,
                     java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount());
 

@@ -139,7 +139,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         return Uni.createFrom().item(List.of());
                     }
                     List<Uni<BrandScriptDTO>> unis = list.stream()
-                            .map(brandScript -> mapBrandScriptToDTO(brandScript, user))
+                            .map(brandScript -> mapToDTO(brandScript, user))
                             .collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
@@ -159,7 +159,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 });
     }
 
-    private Uni<BrandScriptDTO> mapBrandScriptToDTO(BrandScript brandScript, IUser user) {
+    private Uni<BrandScriptDTO> mapToDTO(BrandScript brandScript, IUser user) {
         return mapToDTO(brandScript.getScript(), user).map(scriptDTO -> {
             BrandScriptDTO dto = new BrandScriptDTO();
             dto.setId(brandScript.getId());

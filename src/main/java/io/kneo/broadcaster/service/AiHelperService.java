@@ -161,7 +161,7 @@ public class AiHelperService {
 
                     return promptService.getById(promptId, SuperUser.build())
                             .map(prompt -> new LivePromptMcpDTO(
-                                    prompt.getPrompt(),
+                                    "draft",
                                     prompt.getPrompt(),
                                     prompt.getPromptType(),
                                     agent.getLlmType(),
@@ -194,7 +194,7 @@ public class AiHelperService {
                     Prompt prompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
 
                     return new LivePromptMcpDTO(
-                            prompt.getPrompt(),
+                            null,
                             prompt.getPrompt(),
                             prompt.getPromptType(),
                             agent.getLlmType(),

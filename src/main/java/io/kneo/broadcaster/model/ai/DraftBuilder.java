@@ -19,7 +19,6 @@ public class DraftBuilder {
     private final List<String> genres;
     private final List<Map<String, Object>> history;
     private final List<Object> context;
-    private final LanguageCode languageCode;
     private final Map<String, String> messages;
 
     @Setter
@@ -44,7 +43,6 @@ public class DraftBuilder {
         this.genres = genres;
         this.history = history;
         this.context = context;
-        this.languageCode = languageCode;
         this.messages = TRANSLATIONS.get(languageCode.name().toLowerCase());
     }
 
@@ -52,8 +50,7 @@ public class DraftBuilder {
         try {
             ObjectMapper mapper = new ObjectMapper();
             InputStream inputStream = DraftBuilder.class.getClassLoader().getResourceAsStream("draftbuilder_messages.json");
-            return mapper.readValue(inputStream, mapper.getTypeFactory().constructMapType(HashMap.class, String.class, 
-                    mapper.getTypeFactory().constructMapType(HashMap.class, String.class, String.class)));
+            return mapper.readValue(inputStream, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Map<String, String>>>() {});
         } catch (Exception e) {
             throw new RuntimeException("Failed to load translations", e);
         }

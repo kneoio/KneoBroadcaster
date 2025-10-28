@@ -4,11 +4,15 @@ import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LivePromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
 import io.kneo.broadcaster.model.BrandScript;
+import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.DraftBuilder;
@@ -19,6 +23,8 @@ import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -26,6 +32,7 @@ import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -37,6 +44,9 @@ public class AiHelperService {
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
     private final PromptService promptService;
+    private final SongSupplier songSupplier;
+    private final MemoryService memoryService;
+    private final ProfileService profileService;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
@@ -49,12 +59,18 @@ public class AiHelperService {
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
             ScriptService scriptService,
-            PromptService promptService
+            PromptService promptService,
+            SongSupplier songSupplier,
+            MemoryService memoryService,
+            ProfileService profileService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
         this.promptService = promptService;
+        this.songSupplier = songSupplier;
+        this.memoryService = memoryService;
+        this.profileService = profileService;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -160,25 +176,49 @@ public class AiHelperService {
 
                     UUID promptId = allPromptIds.get(new Random().nextInt(allPromptIds.size()));
 
-                    DraftBuilder draftBuilder = new DraftBuilder(
-                            "title",
-                            "artist",
-                            List.of(),
-                            "description",
-                            agent.getName(),
-                            station.getLocalizedName().get(agent.getPreferredLang()),
-                            List.of(),
-                            List.of()
-                    );
+                    return Uni.combine().all()
+                            .unis(
+                                    songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, 1),
+                                    memoryService.getByType(station.getSlugName(), "CONVERSATION_HISTORY"),
+                                    profileService.getById(station.getProfileId())
+                            )
+                            .asTuple()
+                            .flatMap(innerTuple -> {
+                                SoundFragment song = innerTuple.getItem1().get(0);
+                                JsonObject memoryData = innerTuple.getItem2();
+                                JsonArray historyArray = memoryData.getJsonArray("history");
+                                
+                                List<Map<String, Object>> history = new ArrayList<>();
+                                for (int i = 0; i < historyArray.size(); i++) {
+                                    history.add(historyArray.getJsonObject(i).getMap());
+                                }
+                                
+                                Profile profile = innerTuple.getItem3();
+                                Map<String, Object> context = Map.of(
+                                        "name", profile.getName(),
+                                        "description", profile.getDescription()
+                                );
+                                
+                                DraftBuilder draftBuilder = new DraftBuilder(
+                                        song.getTitle(),
+                                        song.getArtist(),
+                                        song.getGenres().stream().map(UUID::toString).toList(),
+                                        song.getDescription(),
+                                        agent.getName(),
+                                        station.getLocalizedName().get(agent.getPreferredLang()),
+                                        history,
+                                        List.of(context)
+                                );
 
-                    return promptService.getById(promptId, SuperUser.build())
-                            .map(prompt -> new LivePromptMcpDTO(
-                                    draftBuilder.build(),
-                                    prompt.getPrompt(),
-                                    prompt.getPromptType(),
-                                    agent.getLlmType(),
-                                    agent.getSearchEngineType()
-                            ));
+                                return promptService.getById(promptId, SuperUser.build())
+                                        .map(prompt -> new LivePromptMcpDTO(
+                                                draftBuilder.build(),
+                                                prompt.getPrompt(),
+                                                prompt.getPromptType(),
+                                                agent.getLlmType(),
+                                                agent.getSearchEngineType()
+                                        ));
+                            });
                 });
     }
 

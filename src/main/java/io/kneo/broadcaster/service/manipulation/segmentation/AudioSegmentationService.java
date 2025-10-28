@@ -22,11 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -36,7 +32,6 @@ public class AudioSegmentationService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH");
     private final FFmpegProvider ffmpeg;
-
     private final String outputDir;
     private final int segmentDuration;
 
@@ -46,14 +41,11 @@ public class AudioSegmentationService {
         this.outputDir = broadcasterConfig.getSegmentationOutputDir();
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
         new File(outputDir).mkdirs();
-
         preallocateDirectories();
     }
 
     public Uni<Map<Long, ConcurrentLinkedQueue<HlsSegment>>> slice(SongMetadata songMetadata, Path filePath, List<Long> bitRates) {
-        return Uni.createFrom().item(() -> {
-                    return segmentAudioFileMultipleBitrates(filePath, songMetadata, bitRates);
-                })
+        return Uni.createFrom().item(() -> segmentAudioFileMultipleBitrates(filePath, songMetadata, bitRates))
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().invoke(e -> LOGGER.error("Failed to slice audio file: {}", filePath, e))
                 .chain(this::createHlsQueueFromMultipleBitrateSegments);
@@ -61,26 +53,16 @@ public class AudioSegmentationService {
 
     private Uni<Map<Long, ConcurrentLinkedQueue<HlsSegment>>> createHlsQueueFromMultipleBitrateSegments(
             Map<Long, List<SegmentInfo>> segmentsByBitrate) {
-
         return Uni.createFrom().item(() -> {
             Map<Long, ConcurrentLinkedQueue<HlsSegment>> resultMap = new ConcurrentHashMap<>();
-
             List<Uni<Void>> tasks = segmentsByBitrate.entrySet().stream()
                     .map(entry -> Uni.createFrom().item(() -> {
                         ConcurrentLinkedQueue<HlsSegment> segments = createHlsQueueFromSegments(entry.getValue());
                         resultMap.put(entry.getKey(), segments);
-                        return (Void) null; // Explicit cast to Void
+                        return (Void) null;
                     }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()))
                     .toList();
-
-            for (Uni<Void> task : tasks) {
-                try {
-                    task.await().indefinitely();
-                } catch (Exception e) {
-                    LOGGER.error("Failed to process segments for a bitrate", e);
-                }
-            }
-
+            Uni.combine().all().unis(tasks).combinedWith(list -> (Void) null).await().indefinitely();
             return resultMap;
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
@@ -89,7 +71,6 @@ public class AudioSegmentationService {
         ConcurrentLinkedQueue<HlsSegment> hlsSegments = new ConcurrentLinkedQueue<>();
         for (SegmentInfo segment : segments) {
             try {
-                //TODO probably HlsSegment is redundant now
                 byte[] data = Files.readAllBytes(Paths.get(segment.path()));
                 HlsSegment hlsSegment = new HlsSegment(
                         0,
@@ -114,20 +95,16 @@ public class AudioSegmentationService {
         String sanitizedSongName = sanitizeFileName(songMetadata.toString());
 
         try {
-            FFmpegBuilder builder = new FFmpegBuilder()
-                    .setInput(audioFilePath.toString());
-
+            FFmpegBuilder builder = new FFmpegBuilder().setInput(audioFilePath.toString());
             Map<Long, BitrateOutputInfo> outputInfoMap = new HashMap<>();
 
             for (Long bitRate : bitRates) {
                 String bitrateDir = sanitizedSongName + "_" + bitRate + "k";
                 Path songDir = Paths.get(outputDir, today, currentHour, bitrateDir);
                 Files.createDirectories(songDir);
-
                 String baseName = UUID.randomUUID().toString();
                 String segmentPattern = songDir + File.separator + baseName + "_%03d.ts";
                 String segmentListFile = songDir + File.separator + baseName + "_segments.txt";
-
                 outputInfoMap.put(bitRate, new BitrateOutputInfo(songDir, segmentListFile, songMetadata));
 
                 builder.addOutput(segmentPattern)
@@ -144,50 +121,46 @@ public class AudioSegmentationService {
                         .addExtraArgs("-map", "0:a")
                         .addExtraArgs("-metadata", "title=" + songMetadata.getTitle())
                         .addExtraArgs("-metadata", "artist=" + songMetadata.getArtist())
-                        // currently using dynamic auto-normalizer + light compressor.
-                        // later maybe, replace with: "-af", "loudnorm,acompressor"
-                        // For no processing, remove this line.
                         .addExtraArgs("-af", "dynaudnorm,acompressor")
-                        //.addExtraArgs("-af", "dynaudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50")
                         .addExtraArgs("-threads", "0")
                         .addExtraArgs("-preset", "ultrafast")
                         .addExtraArgs("-aac_coder", "twoloop")
+                        .addExtraArgs("-nostdin")
+                        .addExtraArgs("-vn")
                         .done();
-
-
             }
 
-            //TODO
-          /*  if (preset != CompressionPreset.NONE) {
-                builder.addExtraArgs("-af", globalNormalizer + "," + preset.getFfmpegArgs());
-            } else {
-                builder.addExtraArgs("-af", globalNormalizer);
-            }*/
+            long usedMem = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024);
+            int activeThreads = Thread.activeCount();
+            LOGGER.warn("Pre-FFmpeg spawn: usedMem={}MB, activeThreads={}, ffmpegBin={}, file={}",
+                    usedMem, activeThreads, ffmpeg.getFFmpeg().getPath(), audioFilePath);
 
+            try {
+                if (!System.getProperty("os.name").toLowerCase().contains("windows")) {
+                    try {
+                        String procs = new String(Runtime.getRuntime().exec("ps -e | wc -l").getInputStream().readAllBytes()).trim();
+                        LOGGER.warn("System processes count before spawn: {}", procs);
+                    } catch (Exception ignore) {}
+                }
+            } catch (Exception ignore) {}
 
             LOGGER.info("FFmpeg multi-bitrate segmentation command: {}", builder.toString());
-
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
-            Map<Long, List<SegmentInfo>> processedSegments = new ConcurrentHashMap<>();
 
+            long freeMem = Runtime.getRuntime().freeMemory() / (1024 * 1024);
+            LOGGER.warn("Post-FFmpeg spawn: freeMem={}MB, threadsNow={}", freeMem,
+                    java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount());
+
+            Map<Long, List<SegmentInfo>> processedSegments = new ConcurrentHashMap<>();
             List<Uni<Void>> segmentTasks = outputInfoMap.entrySet().stream()
                     .map(entry -> Uni.createFrom().item(() -> {
                         List<SegmentInfo> segments = processSegmentList(entry.getKey(), entry.getValue());
                         processedSegments.put(entry.getKey(), segments);
-                        return (Void) null; // Explicit cast to Void
+                        return (Void) null;
                     }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()))
                     .toList();
-
-            // Execute all tasks and wait for completion
-            for (Uni<Void> task : segmentTasks) {
-                try {
-                    task.await().indefinitely();
-                } catch (Exception e) {
-                    LOGGER.error("Failed to process segment list for a bitrate", e);
-                }
-            }
-
+            Uni.combine().all().unis(segmentTasks).combinedWith(list -> (Void) null).await().indefinitely();
             segmentsByBitrate.putAll(processedSegments);
 
         } catch (IOException e) {
@@ -200,22 +173,17 @@ public class AudioSegmentationService {
 
     private List<SegmentInfo> processSegmentList(Long bitRate, BitrateOutputInfo outputInfo) {
         List<SegmentInfo> segments = new ArrayList<>();
-        int segmentsCount = 0;
         try {
             List<String> segmentFiles = Files.readAllLines(Paths.get(outputInfo.segmentListFile));
-
             if (!segmentFiles.isEmpty()) {
                 String firstSegment = segmentFiles.get(0).trim();
                 Path firstSegmentPath = Paths.get(outputInfo.songDir.toString(), firstSegment);
                 LOGGER.info("Debugging first segment for {}k bitrate: {}", bitRate, firstSegmentPath);
             }
-
-            segmentsCount = segmentFiles.size();
-            for (int i = 0; i < segmentsCount; i++) {
+            for (int i = 0; i < segmentFiles.size(); i++) {
                 String segmentFile = segmentFiles.get(i).trim();
                 if (!segmentFile.isEmpty()) {
                     Path segmentPath = Paths.get(outputInfo.songDir.toString(), segmentFile);
-
                     SegmentInfo info = new SegmentInfo(
                             segmentPath.toString(),
                             outputInfo.songMetadata,
@@ -228,15 +196,12 @@ public class AudioSegmentationService {
         } catch (IOException e) {
             LOGGER.error("Error reading segment list file: {}", outputInfo.segmentListFile, e);
         }
-
         return segments;
     }
 
     private void preallocateDirectories() {
-        // Pre-create today's directories to avoid creation overhead
         LocalDateTime now = LocalDateTime.now();
         String today = now.format(DATE_FORMATTER);
-
         for (int hour = 0; hour < 24; hour++) {
             Path hourDir = Paths.get(outputDir, today, String.format("%02d", hour));
             try {
@@ -253,6 +218,6 @@ public class AudioSegmentationService {
                 .trim();
     }
 
-        private record BitrateOutputInfo(Path songDir, String segmentListFile, SongMetadata songMetadata) {
+    private record BitrateOutputInfo(Path songDir, String segmentListFile, SongMetadata songMetadata) {
     }
 }

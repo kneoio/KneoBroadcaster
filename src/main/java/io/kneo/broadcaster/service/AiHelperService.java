@@ -229,10 +229,10 @@ public class AiHelperService {
         }
 
         return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
-                .map(agent -> {
+                .flatMap(agent -> {
                     List<Prompt> prompts = agent.getPrompts();
                     if (prompts.isEmpty()) {
-                        return null;
+                        return Uni.createFrom().item(() -> null);
                     }
 
                     List<Prompt> enabledPrompts = prompts.stream()
@@ -240,18 +240,53 @@ public class AiHelperService {
                             .toList();
 
                     if (enabledPrompts.isEmpty()) {
-                        return null;
+                        return Uni.createFrom().item(() -> null);
                     }
 
                     Prompt prompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
 
-                    return new LivePromptMcpDTO(
-                            null,
-                            prompt.getPrompt(),
-                            prompt.getPromptType(),
-                            agent.getLlmType(),
-                            agent.getSearchEngineType()
-                    );
+                    return Uni.combine().all()
+                            .unis(
+                                    songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, 1),
+                                    memoryService.getByType(station.getSlugName(), "CONVERSATION_HISTORY"),
+                                    profileService.getById(station.getProfileId())
+                            )
+                            .asTuple()
+                            .map(tuple -> {
+                                SoundFragment song = tuple.getItem1().get(0);
+                                JsonObject memoryData = tuple.getItem2();
+                                JsonArray historyArray = memoryData.getJsonArray("history");
+
+                                List<Map<String, Object>> history = new ArrayList<>();
+                                for (int i = 0; i < historyArray.size(); i++) {
+                                    history.add(historyArray.getJsonObject(i).getMap());
+                                }
+
+                                Profile profile = tuple.getItem3();
+                                Map<String, Object> context = Map.of(
+                                        "name", profile.getName(),
+                                        "description", profile.getDescription()
+                                );
+
+                                DraftBuilder draftBuilder = new DraftBuilder(
+                                        song.getTitle(),
+                                        song.getArtist(),
+                                        song.getGenres().stream().map(UUID::toString).toList(),
+                                        song.getDescription(),
+                                        agent.getName(),
+                                        station.getLocalizedName().get(agent.getPreferredLang()),
+                                        history,
+                                        List.of(context)
+                                );
+
+                                return new LivePromptMcpDTO(
+                                        draftBuilder.build(),
+                                        prompt.getPrompt(),
+                                        prompt.getPromptType(),
+                                        agent.getLlmType(),
+                                        agent.getSearchEngineType()
+                                );
+                            });
                 });
     }
 

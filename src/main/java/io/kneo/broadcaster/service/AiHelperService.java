@@ -1,31 +1,27 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
-import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
+import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
 import io.kneo.broadcaster.mcp.SoundFragmentMCPTools;
 import io.kneo.broadcaster.model.BrandScript;
-import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.ai.DraftBuilder;
 import io.kneo.broadcaster.model.ai.Prompt;
-import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -33,11 +29,9 @@ import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
 @ApplicationScoped
 public class AiHelperService {
 
@@ -46,10 +40,8 @@ public class AiHelperService {
     private final ScriptService scriptService;
     private final PromptService promptService;
     private final SongSupplier songSupplier;
-    private final MemoryService memoryService;
-    private final ProfileService profileService;
-    private final RefService refService;
     private final SoundFragmentMCPTools soundFragmentMCPTools;
+    private final DraftFactory draftFactory;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
@@ -64,20 +56,16 @@ public class AiHelperService {
             ScriptService scriptService,
             PromptService promptService,
             SongSupplier songSupplier,
-            MemoryService memoryService,
-            ProfileService profileService,
-            RefService refService,
-            SoundFragmentMCPTools soundFragmentMCPTools
+            SoundFragmentMCPTools soundFragmentMCPTools,
+            DraftFactory draftFactory
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
         this.promptService = promptService;
         this.songSupplier = songSupplier;
-        this.memoryService = memoryService;
-        this.profileService = profileService;
-        this.refService = refService;
         this.soundFragmentMCPTools = soundFragmentMCPTools;
+        this.draftFactory = draftFactory;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -89,10 +77,12 @@ public class AiHelperService {
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
             LiveContainerMcpDTO container = new LiveContainerMcpDTO();
+            
             if (stations.isEmpty()) {
                 container.setRadioStations(List.of());
                 return Uni.createFrom().item(container);
             }
+            
             List<Uni<LiveRadioStationMcpDTO>> stationUnis = stations.stream()
                     .map(this::buildLiveRadioStation)
                     .collect(Collectors.toList());
@@ -113,20 +103,12 @@ public class AiHelperService {
                         : station.getStatus()
         );
 
-        UUID agentId = station.getAiAgentId();
-        
-        return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
                     liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
                     liveRadioStation.setDjName(agent.getName());
-                    Uni<List<SongPromptMcpDTO>> promptsUni;
-                    if (station.getAiAgentMode() == AiAgentMode.SCRIPT_FOLLOWING) {
-                        promptsUni = fetchPromptsForStation(station);
-                    } else {
-                        promptsUni = fetchPromptsFromAgent(station);
-                    }
 
-                    return promptsUni.flatMap(prompts -> {
+                    return fetchSceneForStation(station).flatMap(prompts -> {
                         liveRadioStation.setPrompts(prompts);
 
                         String preferredVoice = agent.getPreferredVoice().get(0).getId();
@@ -147,7 +129,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<List<SongPromptMcpDTO>> fetchPromptsForStation(RadioStation station) {
+    private Uni<List<SongPromptMcpDTO>> fetchSceneForStation(RadioStation station) {
         UUID agentId = station.getAiAgentId();
         if (agentId == null) {
             return Uni.createFrom().item(() -> null);
@@ -186,147 +168,27 @@ public class AiHelperService {
                     return Uni.combine().all()
                             .unis(
                                     songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, songCount),
-                                    memoryService.getByType(station.getSlugName(), "CONVERSATION_HISTORY"),
-                                    profileService.getById(station.getProfileId())
+                                    promptService.getById(promptId, SuperUser.build())
                             )
                             .asTuple()
                             .flatMap(innerTuple -> {
                                 List<SoundFragment> songs = innerTuple.getItem1();
-                                JsonObject memoryData = innerTuple.getItem2();
-                                JsonArray historyArray = memoryData.getJsonArray("history");
-                                
-                                List<Map<String, Object>> history = new ArrayList<>();
-                                for (int i = 0; i < historyArray.size(); i++) {
-                                    history.add(historyArray.getJsonObject(i).getMap());
-                                }
-                                
-                                Profile profile = innerTuple.getItem3();
-                                Map<String, Object> context = Map.of(
-                                        "name", profile.getName(),
-                                        "description", profile.getDescription()
-                                );
-
-                                return promptService.getById(promptId, SuperUser.build())
-                                        .flatMap(prompt -> {
-                                            List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
-                                                    .map(song -> {
-                                                        Uni<List<String>> genreNamesUni = Uni.join().all(
-                                                                song.getGenres().stream()
-                                                                        .map(genreId -> refService.getById(genreId)
-                                                                                .map(genre -> genre.getLocalizedName().get(agent.getPreferredLang())))
-                                                                        .collect(Collectors.toList())
-                                                        ).andFailFast();
-
-                                                        return genreNamesUni.map(genreNames -> {
-                                                            DraftBuilder draftBuilder = new DraftBuilder(
-                                                                    song.getTitle(),
-                                                                    song.getArtist(),
-                                                                    genreNames,
-                                                                    song.getDescription(),
-                                                                    agent.getName(),
-                                                                    station.getLocalizedName().get(agent.getPreferredLang()),
-                                                                    history,
-                                                                    List.of(context),
-                                                                    agent.getPreferredLang()
-                                                            );
-
-                                                            return new SongPromptMcpDTO(
-                                                                    song.getId(),
-                                                                    draftBuilder.build(),
-                                                                    prompt.getPrompt(),
-                                                                    prompt.getPromptType(),
-                                                                    agent.getLlmType(),
-                                                                    agent.getSearchEngineType()
-                                                            );
-                                                        });
-                                                    })
-                                                    .collect(Collectors.toList());
-
-                                            return Uni.join().all(songPromptUnis).andFailFast();
-                                        });
-                            });
-                });
-    }
-
-    private Uni<List<SongPromptMcpDTO>> fetchPromptsFromAgent(RadioStation station) {
-        UUID agentId = station.getAiAgentId();
-        if (agentId == null) {
-            return Uni.createFrom().item(() -> null);
-        }
-
-        return aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
-                .flatMap(agent -> {
-                    List<Prompt> prompts = agent.getPrompts();
-                    if (prompts.isEmpty()) {
-                        return Uni.createFrom().item(() -> null);
-                    }
-
-                    List<Prompt> enabledPrompts = prompts.stream()
-                            .filter(Prompt::isEnabled)
-                            .toList();
-
-                    if (enabledPrompts.isEmpty()) {
-                        return Uni.createFrom().item(() -> null);
-                    }
-
-                    Prompt prompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size()));
-                    int songCount = soundFragmentMCPTools.decideFragmentCount();
-
-                    return Uni.combine().all()
-                            .unis(
-                                    songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, songCount),
-                                    memoryService.getByType(station.getSlugName(), "CONVERSATION_HISTORY"),
-                                    profileService.getById(station.getProfileId())
-                            )
-                            .asTuple()
-                            .flatMap(tuple -> {
-                                List<SoundFragment> songs = tuple.getItem1();
-                                JsonObject memoryData = tuple.getItem2();
-                                JsonArray historyArray = memoryData.getJsonArray("history");
-
-                                List<Map<String, Object>> history = new ArrayList<>();
-                                for (int i = 0; i < historyArray.size(); i++) {
-                                    history.add(historyArray.getJsonObject(i).getMap());
-                                }
-
-                                Profile profile = tuple.getItem3();
-                                Map<String, Object> context = Map.of(
-                                        "name", profile.getName(),
-                                        "description", profile.getDescription()
-                                );
+                                Prompt prompt = innerTuple.getItem2();
 
                                 List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
-                                        .map(song -> {
-                                            Uni<List<String>> genreNamesUni = Uni.join().all(
-                                                    song.getGenres().stream()
-                                                            .map(genreId -> refService.getById(genreId)
-                                                                    .map(genre -> genre.getLocalizedName().get(agent.getPreferredLang())))
-                                                            .collect(Collectors.toList())
-                                            ).andFailFast();
-
-                                            return genreNamesUni.map(genreNames -> {
-                                                DraftBuilder draftBuilder = new DraftBuilder(
-                                                        song.getTitle(),
-                                                        song.getArtist(),
-                                                        genreNames,
-                                                        song.getDescription(),
-                                                        agent.getName(),
-                                                        station.getLocalizedName().get(agent.getPreferredLang()),
-                                                        history,
-                                                        List.of(context),
-                                                        agent.getPreferredLang()
-                                                );
-
-                                                return new SongPromptMcpDTO(
-                                                        song.getId(),
-                                                        draftBuilder.build(),
-                                                        prompt.getPrompt(),
-                                                        prompt.getPromptType(),
-                                                        agent.getLlmType(),
-                                                        agent.getSearchEngineType()
-                                                );
-                                            });
-                                        })
+                                        .map(song -> draftFactory.createDraft(
+                                                prompt.getPromptType(),
+                                                song,
+                                                agent,
+                                                station
+                                        ).map(draft -> new SongPromptMcpDTO(
+                                                song.getId(),
+                                                draft,
+                                                prompt.getPrompt(),
+                                                prompt.getPromptType(),
+                                                agent.getLlmType(),
+                                                agent.getSearchEngineType()
+                                        )))
                                         .collect(Collectors.toList());
 
                                 return Uni.join().all(songPromptUnis).andFailFast();
@@ -335,6 +197,8 @@ public class AiHelperService {
     }
 
 
+
+    @Deprecated
     public Uni<List<BrandInfoDTO>> getByStatus(List<RadioStationStatus> statuses) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()

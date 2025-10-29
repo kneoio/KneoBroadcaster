@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.ai;
+package io.kneo.broadcaster.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.core.localization.LanguageCode;
@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-public class DraftBuilder {
+public class IntroDraft implements IDraft {
     private final String title;
     private final String artist;
     private final String aiDjName;
@@ -32,8 +32,8 @@ public class DraftBuilder {
     private final Random random = new Random();
     private static final Map<String, Map<String, String>> TRANSLATIONS = loadTranslations();
 
-    public DraftBuilder(String title, String artist, List<String> genres, String songDescription, String aiDjName, String brand,
-                        List<Map<String, Object>> history, List<Object> context, LanguageCode languageCode) {
+    public IntroDraft(String title, String artist, List<String> genres, String songDescription, String aiDjName, String brand,
+                      List<Map<String, Object>> history, List<Object> context, LanguageCode languageCode) {
         this.title = title;
         this.artist = artist;
         this.aiDjName = aiDjName;
@@ -48,7 +48,7 @@ public class DraftBuilder {
     private static Map<String, Map<String, String>> loadTranslations() {
         try {
             ObjectMapper mapper = new ObjectMapper();
-            InputStream inputStream = DraftBuilder.class.getClassLoader().getResourceAsStream("draftbuilder_messages.json");
+            InputStream inputStream = IntroDraft.class.getClassLoader().getResourceAsStream("draftbuilder_messages.json");
             return mapper.readValue(inputStream, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Map<String, String>>>() {});
         } catch (Exception e) {
             throw new RuntimeException("Failed to load translations", e);

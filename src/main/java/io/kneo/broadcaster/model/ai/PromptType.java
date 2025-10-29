@@ -1,5 +1,5 @@
 package io.kneo.broadcaster.model.ai;
 
 public enum PromptType {
-    VARIABLES, EMBELLISH
+    BASIC_INTRO,USER_MESSAGE,EVENT,NEWS,WEATHER
 }

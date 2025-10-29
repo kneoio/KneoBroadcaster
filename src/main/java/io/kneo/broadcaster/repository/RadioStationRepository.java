@@ -160,7 +160,13 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                                         .onItem().transformToUni(id ->
                                                 insertRLSPermissions(tx, id, entityData, user)
-                                                        .onItem().transform(ignored -> id)
+                                                        .onItem().transformToUni(ignored -> {
+                                                            if (station.getScriptIds() != null && !station.getScriptIds().isEmpty()) {
+                                                                return insertBrandScripts(tx, id, station.getScriptIds())
+                                                                        .onItem().transform(v -> id);
+                                                            }
+                                                            return Uni.createFrom().item(id);
+                                                        })
                                         )
                         )
                         .onItem().transformToUni(id -> findById(id, user, true));
@@ -209,14 +215,26 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
 
-                            return client.preparedQuery(sql)
-                                    .execute(params)
-                                    .onItem().transformToUni(rowSet -> {
-                                        if (rowSet.rowCount() == 0) {
-                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                        }
-                                        return findById(id, user, true);
-                                    });
+                            return client.withTransaction(tx ->
+                                    tx.preparedQuery(sql)
+                                            .execute(params)
+                                            .onItem().transformToUni(rowSet -> {
+                                                if (rowSet.rowCount() == 0) {
+                                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                                }
+                                                if (station.getScriptIds() != null) {
+                                                    return deleteBrandScripts(tx, id)
+                                                            .onItem().transformToUni(v -> {
+                                                                if (!station.getScriptIds().isEmpty()) {
+                                                                    return insertBrandScripts(tx, id, station.getScriptIds())
+                                                                            .onItem().transform(vv -> id);
+                                                                }
+                                                                return Uni.createFrom().item(id);
+                                                            });
+                                                }
+                                                return Uni.createFrom().item(id);
+                                            })
+                            ).onItem().transformToUni(stationId -> findById(stationId, user, true));
                         });
             } catch (Exception e) {
                 return Uni.createFrom().failure(e);
@@ -377,5 +395,37 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
+    }
+
+    private Uni<Void> insertBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId, List<UUID> scriptIds) {
+        if (scriptIds == null || scriptIds.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        String sql = "INSERT INTO kneobroadcaster__brand_scripts (brand_id, script_id, rank, active) VALUES ($1, $2, $3, $4)";
+        
+        List<Uni<Void>> insertOps = scriptIds.stream()
+                .map(scriptId -> tx.preparedQuery(sql)
+                        .execute(Tuple.of(brandId, scriptId, 10, true))
+                        .replaceWithVoid())
+                .toList();
+
+        return Uni.join().all(insertOps).andFailFast().replaceWithVoid();
+    }
+
+    private Uni<Void> deleteBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId) {
+        String sql = "DELETE FROM kneobroadcaster__brand_scripts WHERE brand_id = $1";
+        return tx.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .replaceWithVoid();
+    }
+
+    public Uni<List<UUID>> getScriptIdsForBrand(UUID brandId) {
+        String sql = "SELECT script_id FROM kneobroadcaster__brand_scripts WHERE brand_id = $1 ORDER BY rank";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("script_id"))
+                .collect().asList();
     }
 }

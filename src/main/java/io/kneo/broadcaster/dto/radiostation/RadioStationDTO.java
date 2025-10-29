@@ -18,6 +18,7 @@ import lombok.Setter;
 
 import java.net.URL;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.UUID;
 
 @Setter
@@ -65,4 +66,5 @@ public class RadioStationDTO extends AbstractDTO {
     private AiOverridingDTO aiOverriding;
     private ProfileOverridingDTO profileOverriding;
     private Integer archived;
+    private List<UUID> scriptIds;
 }

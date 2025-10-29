@@ -54,6 +54,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
     private boolean aiControlAllowed;
     private Long lastAgentContactAt;
+    private List<UUID> scriptIds;
 
     public void setStatus(RadioStationStatus newStatus) {
         if (this.status != newStatus) {

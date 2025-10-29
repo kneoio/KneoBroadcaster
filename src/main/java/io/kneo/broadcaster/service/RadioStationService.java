@@ -167,7 +167,8 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                radiostationPool.getLiveStatus(doc.getSlugName())
+                radiostationPool.getLiveStatus(doc.getSlugName()),
+                repository.getScriptIdsForBrand(doc.getId())
         ).asTuple().map(tuple -> {
             RadioStationDTO dto = new RadioStationDTO();
             dto.setId(doc.getId());
@@ -264,6 +265,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 throw new RuntimeException(e);
             }
             dto.setArchived(doc.getArchived());
+            dto.setScriptIds(tuple.getItem4());
             RadioStationStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
             if (liveStatus == RadioStationStatus.ON_LINE
@@ -362,6 +364,11 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             }
             doc.setScheduler(schedule);
         }
+
+        if (dto.getScriptIds() != null) {
+            doc.setScriptIds(dto.getScriptIds());
+        }
+
         return doc;
     }
 

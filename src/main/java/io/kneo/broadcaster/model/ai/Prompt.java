@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Getter
 @Setter
-public class Prompt  extends SecureDataEntity<UUID> {
+public class Prompt extends SecureDataEntity<UUID> {
     private boolean enabled;
     private String prompt;
     private PromptType promptType;
@@ -19,5 +19,6 @@ public class Prompt  extends SecureDataEntity<UUID> {
     private boolean locked;
     private String title;
     private JsonObject backup;
+    private boolean podcast;
 
 }

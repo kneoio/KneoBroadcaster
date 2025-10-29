@@ -3,7 +3,6 @@ package io.kneo.broadcaster.dto.radiostation;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
-import io.kneo.broadcaster.model.cnst.AiAgentMode;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.core.dto.AbstractDTO;
@@ -59,7 +58,6 @@ public class RadioStationDTO extends AbstractDTO {
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
-    private AiAgentMode aiAgentMode;
     private UUID aiAgentId;
     private UUID profileId;
     private boolean aiOverridingEnabled;

@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.ai;
 
-import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
@@ -11,7 +10,6 @@ import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 

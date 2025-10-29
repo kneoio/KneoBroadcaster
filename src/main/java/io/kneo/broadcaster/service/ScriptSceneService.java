@@ -88,38 +88,46 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
     }
 
     private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, IUser user) {
-        return promptRepository.getPromptsForScene(doc.getId())
-                .chain(promptIds -> {
-                    Uni<List<PromptDTO>> promptsUni;
-                    if (promptIds.isEmpty()) {
-                        promptsUni = Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<PromptDTO>> promptUnis = promptIds.stream()
-                                .map(promptId -> promptService.getDTO(promptId, user, io.kneo.core.localization.LanguageCode.en))
-                                .collect(Collectors.toList());
-                        promptsUni = Uni.join().all(promptUnis).andFailFast();
-                    }
+        return mapToDTO(doc, user, false);
+    }
 
-                    return Uni.combine().all().unis(
-                            userService.getUserName(doc.getAuthor()),
-                            userService.getUserName(doc.getLastModifier()),
-                            promptsUni
-                    ).asTuple().map(tuple -> {
-                        ScriptSceneDTO dto = new ScriptSceneDTO();
-                        dto.setId(doc.getId());
-                        dto.setTitle(doc.getTitle());
-                        dto.setAuthor(tuple.getItem1());
-                        dto.setRegDate(doc.getRegDate());
-                        dto.setLastModifier(tuple.getItem2());
-                        dto.setLastModifiedDate(doc.getLastModifiedDate());
-                        dto.setScriptId(doc.getScriptId());
-                        dto.setType(doc.getType());
-                        dto.setStartTime(doc.getStartTime());
-                        dto.setWeekdays(doc.getWeekdays());
-                        dto.setPrompts(tuple.getItem3());
-                        return dto;
+    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, IUser user, boolean includePrompts) {
+        Uni<List<PromptDTO>> promptsUni;
+        if (includePrompts) {
+            promptsUni = promptRepository.getPromptsForScene(doc.getId())
+                    .chain(promptIds -> {
+                        if (promptIds.isEmpty()) {
+                            return Uni.createFrom().item(List.of());
+                        } else {
+                            List<Uni<PromptDTO>> promptUnis = promptIds.stream()
+                                    .map(promptId -> promptService.getDTO(promptId, user, io.kneo.core.localization.LanguageCode.en))
+                                    .collect(Collectors.toList());
+                            return Uni.join().all(promptUnis).andFailFast();
+                        }
                     });
-                });
+        } else {
+            promptsUni = Uni.createFrom().item(List.of());
+        }
+
+        return Uni.combine().all().unis(
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier()),
+                promptsUni
+        ).asTuple().map(tuple -> {
+            ScriptSceneDTO dto = new ScriptSceneDTO();
+            dto.setId(doc.getId());
+            dto.setTitle(doc.getTitle());
+            dto.setAuthor(tuple.getItem1());
+            dto.setRegDate(doc.getRegDate());
+            dto.setLastModifier(tuple.getItem2());
+            dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setScriptId(doc.getScriptId());
+            dto.setType(doc.getType());
+            dto.setStartTime(doc.getStartTime());
+            dto.setWeekdays(doc.getWeekdays());
+            dto.setPrompts(tuple.getItem3());
+            return dto;
+        });
     }
 
     private ScriptScene buildEntity(ScriptSceneDTO dto) {

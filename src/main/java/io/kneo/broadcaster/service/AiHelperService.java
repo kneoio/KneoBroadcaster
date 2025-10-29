@@ -45,8 +45,8 @@ public class AiHelperService {
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
-            RadioStationStatus.QUEUE_SATURATED,
-            RadioStationStatus.WAITING_FOR_CURATOR
+            RadioStationStatus.WAITING_FOR_CURATOR,
+            RadioStationStatus.IDLE
     );
 
     @Inject

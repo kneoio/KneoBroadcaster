@@ -5,7 +5,6 @@ import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.repository.ScriptRepository;
-import io.kneo.broadcaster.repository.ScriptSceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -23,21 +22,18 @@ import java.util.stream.Collectors;
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
     private final ScriptSceneService scriptSceneService;
-    private final ScriptSceneRepository scriptSceneRepository;
 
     protected ScriptService() {
         super();
         this.repository = null;
         this.scriptSceneService = null;
-        this.scriptSceneRepository = null;
     }
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository, ScriptSceneService scriptSceneService, ScriptSceneRepository scriptSceneRepository) {
+    public ScriptService(UserService userService, ScriptRepository repository, ScriptSceneService scriptSceneService) {
         super(userService);
         this.repository = repository;
         this.scriptSceneService = scriptSceneService;
-        this.scriptSceneRepository = scriptSceneRepository;
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {

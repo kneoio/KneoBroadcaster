@@ -222,17 +222,14 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                                 if (rowSet.rowCount() == 0) {
                                                     return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                                 }
-                                                if (station.getScriptIds() != null) {
-                                                    return deleteBrandScripts(tx, id)
-                                                            .onItem().transformToUni(v -> {
-                                                                if (!station.getScriptIds().isEmpty()) {
-                                                                    return insertBrandScripts(tx, id, station.getScriptIds())
-                                                                            .onItem().transform(vv -> id);
-                                                                }
-                                                                return Uni.createFrom().item(id);
-                                                            });
-                                                }
-                                                return Uni.createFrom().item(id);
+                                                return deleteBrandScripts(tx, id)
+                                                        .onItem().transformToUni(v -> {
+                                                            if (station.getScriptIds() != null && !station.getScriptIds().isEmpty()) {
+                                                                return insertBrandScripts(tx, id, station.getScriptIds())
+                                                                        .onItem().transform(vv -> id);
+                                                            }
+                                                            return Uni.createFrom().item(id);
+                                                        });
                                             })
                             ).onItem().transformToUni(stationId -> findById(stationId, user, true));
                         });

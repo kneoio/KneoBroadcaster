@@ -14,11 +14,11 @@ import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.Prompt;
+import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
@@ -27,6 +27,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -108,7 +110,7 @@ public class AiHelperService {
                     liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
                     liveRadioStation.setDjName(agent.getName());
 
-                    return fetchSceneForStation(station).flatMap(prompts -> {
+                    return fetchPrompt(station).flatMap(prompts -> {
                         liveRadioStation.setPrompts(prompts);
 
                         String preferredVoice = agent.getPreferredVoice().get(0).getId();
@@ -129,7 +131,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<List<SongPromptMcpDTO>> fetchSceneForStation(RadioStation station) {
+    private Uni<List<SongPromptMcpDTO>> fetchPrompt(RadioStation station) {
         UUID agentId = station.getAiAgentId();
         if (agentId == null) {
             return Uni.createFrom().item(() -> null);
@@ -149,10 +151,15 @@ public class AiHelperService {
                         return Uni.createFrom().item(() -> null);
                     }
 
+                    LocalDateTime now = LocalDateTime.now();
+                    LocalTime currentTime = now.toLocalTime();
+                    int currentDayOfWeek = now.getDayOfWeek().getValue();
+
                     List<UUID> allPromptIds = new ArrayList<>();
                     for (BrandScript brandScript : scripts) {
-                        for (ScriptScene scene : brandScript.getScript().getScenes()) {
-                            if (scene.getPrompts() != null) {
+                        List<ScriptScene> scenes = brandScript.getScript().getScenes();
+                        for (ScriptScene scene : scenes) {
+                            if (isSceneActive(scene, scenes, currentTime, currentDayOfWeek)) {
                                 allPromptIds.addAll(scene.getPrompts());
                             }
                         }
@@ -162,36 +169,45 @@ public class AiHelperService {
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    UUID promptId = allPromptIds.get(new Random().nextInt(allPromptIds.size()));
-                    int songCount = soundFragmentMCPTools.decideFragmentCount();
+                    List<Uni<Prompt>> promptUnis = allPromptIds.stream()
+                            .map(id -> promptService.getById(id, SuperUser.build()))
+                            .collect(Collectors.toList());
 
-                    return Uni.combine().all()
-                            .unis(
-                                    songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, songCount),
-                                    promptService.getById(promptId, SuperUser.build())
-                            )
-                            .asTuple()
-                            .flatMap(innerTuple -> {
-                                List<SoundFragment> songs = innerTuple.getItem1();
-                                Prompt prompt = innerTuple.getItem2();
+                    return Uni.join().all(promptUnis).andFailFast()
+                            .flatMap(prompts -> {
+                                LanguageCode djLanguage = agent.getPreferredLang();
+                                List<Prompt> basicIntroPrompts = prompts.stream()
+                                        .filter(p -> p.getPromptType() == PromptType.BASIC_INTRO)
+                                        .filter(p -> p.getLanguageCode() == djLanguage)
+                                        .toList();
 
-                                List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
-                                        .map(song -> draftFactory.createDraft(
-                                                prompt.getPromptType(),
-                                                song,
-                                                agent,
-                                                station
-                                        ).map(draft -> new SongPromptMcpDTO(
-                                                song.getId(),
-                                                draft,
-                                                prompt.getPrompt(),
-                                                prompt.getPromptType(),
-                                                agent.getLlmType(),
-                                                agent.getSearchEngineType()
-                                        )))
-                                        .collect(Collectors.toList());
+                                if (basicIntroPrompts.isEmpty()) {
+                                    return Uni.createFrom().item(() -> null);
+                                }
 
-                                return Uni.join().all(songPromptUnis).andFailFast();
+                                Prompt selectedPrompt = basicIntroPrompts.get(new Random().nextInt(basicIntroPrompts.size()));
+                                int songCount = soundFragmentMCPTools.decideFragmentCount();
+
+                                return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, songCount)
+                                        .flatMap(songs -> {
+                                            List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
+                                                    .map(song -> draftFactory.createDraft(
+                                                            selectedPrompt.getPromptType(),
+                                                            song,
+                                                            agent,
+                                                            station
+                                                    ).map(draft -> new SongPromptMcpDTO(
+                                                            song.getId(),
+                                                            draft,
+                                                            selectedPrompt.getPrompt(),
+                                                            selectedPrompt.getPromptType(),
+                                                            agent.getLlmType(),
+                                                            agent.getSearchEngineType()
+                                                    )))
+                                                    .collect(Collectors.toList());
+
+                                            return Uni.join().all(songPromptUnis).andFailFast();
+                                        });
                             });
                 });
     }
@@ -241,7 +257,7 @@ public class AiHelperService {
                     }
 
                     List<PromptDTO> enabledPrompts = prompts.stream()
-                            .filter(p -> p.isEnabled())
+                            .filter(PromptDTO::isEnabled)
                             .toList();
                     String randomPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size())).getPrompt();
 
@@ -298,5 +314,43 @@ public class AiHelperService {
 
             return Uni.join().all(tasks).andFailFast();
         });
+    }
+
+    private boolean isSceneActive(ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
+        if (!scene.getWeekdays().isEmpty() && !scene.getWeekdays().contains(currentDayOfWeek)) {
+            return false;
+        }
+
+        if (scene.getStartTime() == null) {
+            return true;
+        }
+
+        LocalTime sceneStart = scene.getStartTime();
+        LocalTime nextSceneStart = findNextSceneStartTime(scene, allScenes);
+
+        assert nextSceneStart != null;
+        if (nextSceneStart.isAfter(sceneStart)) {
+            return !currentTime.isBefore(sceneStart) && currentTime.isBefore(nextSceneStart);
+        } else {
+            return !currentTime.isBefore(sceneStart) || currentTime.isBefore(nextSceneStart);
+        }
+    }
+
+    private LocalTime findNextSceneStartTime(ScriptScene currentScene, List<ScriptScene> scenesWithTime) {
+        LocalTime currentStart = currentScene.getStartTime();
+        
+        List<LocalTime> sortedTimes = scenesWithTime.stream()
+                .map(ScriptScene::getStartTime)
+                .sorted()
+                .distinct()
+                .toList();
+
+        for (LocalTime time : sortedTimes) {
+            if (time.isAfter(currentStart)) {
+                return time;
+            }
+        }
+
+        return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
     }
 }

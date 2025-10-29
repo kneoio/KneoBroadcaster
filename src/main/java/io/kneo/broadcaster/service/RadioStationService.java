@@ -365,9 +365,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             doc.setScheduler(schedule);
         }
 
-        if (dto.getScriptIds() != null) {
-            doc.setScriptIds(dto.getScriptIds());
-        }
+        doc.setScriptIds(dto.getScriptIds());
 
         return doc;
     }

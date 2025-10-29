@@ -23,3 +23,4 @@ audio_files_cache*.txt
 /audio_files
 
 *.sql
+/.windsurf/

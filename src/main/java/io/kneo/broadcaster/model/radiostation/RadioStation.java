@@ -46,6 +46,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private List<Label> labelList;
+    private List<UUID> scripts;
 
     //*transient**//
     @Deprecated //???
@@ -54,7 +55,6 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
     private boolean aiControlAllowed;
     private Long lastAgentContactAt;
-    private List<UUID> scriptIds;
 
     public void setStatus(RadioStationStatus newStatus) {
         if (this.status != newStatus) {

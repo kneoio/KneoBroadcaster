@@ -66,5 +66,5 @@ public class RadioStationDTO extends AbstractDTO {
     private AiOverridingDTO aiOverriding;
     private ProfileOverridingDTO profileOverriding;
     private Integer archived;
-    private List<UUID> scriptIds;
+    private List<UUID> scripts;
 }

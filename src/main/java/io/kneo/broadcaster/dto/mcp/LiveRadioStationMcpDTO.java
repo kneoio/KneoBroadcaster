@@ -10,6 +10,7 @@ import java.util.List;
 @Getter
 public class LiveRadioStationMcpDTO {
     private String name;
+    private String slugName;
     private RadioStationStatus radioStationStatus;
     private String djName;
     private TtsMcpDTO tts;

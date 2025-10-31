@@ -26,6 +26,8 @@ import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -36,6 +38,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 @ApplicationScoped
 public class AiHelperService {
+    private static final Logger log = LoggerFactory.getLogger(AiHelperService.class);
 
     private final RadioStationPool radioStationPool;
     private final AiAgentService aiAgentService;
@@ -91,7 +94,16 @@ public class AiHelperService {
 
             return Uni.join().all(stationUnis).andFailFast()
                     .map(liveStations -> {
-                        container.setRadioStations(liveStations);
+                        List<LiveRadioStationMcpDTO> validStations = liveStations.stream()
+                                .filter(station -> {
+                                    if (station.getPrompts() == null || station.getPrompts().isEmpty()) {
+                                        log.warn("Station '{}' filtered out: No valid prompts found", station.getName());
+                                        return false;
+                                    }
+                                    return true;
+                                })
+                                .collect(Collectors.toList());
+                        container.setRadioStations(validStations);
                         return container;
                     });
         });
@@ -107,6 +119,7 @@ public class AiHelperService {
 
         return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
+                    liveRadioStation.setSlugName(station.getSlugName());
                     liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
                     liveRadioStation.setDjName(agent.getName());
 

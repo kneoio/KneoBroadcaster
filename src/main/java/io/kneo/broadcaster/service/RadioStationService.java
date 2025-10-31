@@ -124,7 +124,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {
         assert repository != null;
+        LOGGER.info("Upserting radio station with DTO scripts: {}", dto.getScripts());
         RadioStation entity = buildEntity(dto);
+        LOGGER.info("Built entity with scripts: {}", entity.getScripts());
 
         Uni<RadioStation> saveOperation;
         if (id == null) {
@@ -265,7 +267,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 throw new RuntimeException(e);
             }
             dto.setArchived(doc.getArchived());
-            dto.setScriptIds(tuple.getItem4());
+            dto.setScripts(tuple.getItem4());
             RadioStationStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
             if (liveStatus == RadioStationStatus.ON_LINE
@@ -365,7 +367,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             doc.setScheduler(schedule);
         }
 
-        doc.setScriptIds(dto.getScriptIds());
+        doc.setScripts(dto.getScripts());
 
         return doc;
     }

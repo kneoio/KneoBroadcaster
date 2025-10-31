@@ -161,10 +161,13 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                         .onItem().transformToUni(id ->
                                                 insertRLSPermissions(tx, id, entityData, user)
                                                         .onItem().transformToUni(ignored -> {
-                                                            if (station.getScriptIds() != null && !station.getScriptIds().isEmpty()) {
-                                                                return insertBrandScripts(tx, id, station.getScriptIds())
+                                                            LOGGER.info("Inserting radio station with scripts: {}", station.getScripts());
+                                                            if (station.getScripts() != null && !station.getScripts().isEmpty()) {
+                                                                LOGGER.info("Calling insertBrandScripts with {} scripts", station.getScripts().size());
+                                                                return insertBrandScripts(tx, id, station.getScripts())
                                                                         .onItem().transform(v -> id);
                                                             }
+                                                            LOGGER.warn("No scripts to insert for radio station {}", id);
                                                             return Uni.createFrom().item(id);
                                                         })
                                         )
@@ -222,12 +225,15 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                                 if (rowSet.rowCount() == 0) {
                                                     return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                                 }
+                                                LOGGER.info("Updating radio station {} with scripts: {}", id, station.getScripts());
                                                 return deleteBrandScripts(tx, id)
                                                         .onItem().transformToUni(v -> {
-                                                            if (station.getScriptIds() != null && !station.getScriptIds().isEmpty()) {
-                                                                return insertBrandScripts(tx, id, station.getScriptIds())
+                                                            if (station.getScripts() != null && !station.getScripts().isEmpty()) {
+                                                                LOGGER.info("Calling insertBrandScripts with {} scripts for update", station.getScripts().size());
+                                                                return insertBrandScripts(tx, id, station.getScripts())
                                                                         .onItem().transform(vv -> id);
                                                             }
+                                                            LOGGER.warn("No scripts to insert for radio station {} during update", id);
                                                             return Uni.createFrom().item(id);
                                                         });
                                             })
@@ -396,24 +402,34 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
     private Uni<Void> insertBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId, List<UUID> scriptIds) {
         if (scriptIds == null || scriptIds.isEmpty()) {
+            LOGGER.warn("insertBrandScripts called with null or empty scriptIds for brand {}", brandId);
             return Uni.createFrom().voidItem();
         }
 
+        LOGGER.info("Inserting {} scripts for brand {}: {}", scriptIds.size(), brandId, scriptIds);
         String sql = "INSERT INTO kneobroadcaster__brand_scripts (brand_id, script_id, rank, active) VALUES ($1, $2, $3, $4)";
         
         List<Uni<Void>> insertOps = scriptIds.stream()
-                .map(scriptId -> tx.preparedQuery(sql)
-                        .execute(Tuple.of(brandId, scriptId, 10, true))
-                        .replaceWithVoid())
+                .map(scriptId -> {
+                    LOGGER.debug("Inserting script {} for brand {}", scriptId, brandId);
+                    return tx.preparedQuery(sql)
+                            .execute(Tuple.of(brandId, scriptId, 10, true))
+                            .onItem().invoke(() -> LOGGER.info("Successfully inserted script {} for brand {}", scriptId, brandId))
+                            .onFailure().invoke(t -> LOGGER.error("Failed to insert script {} for brand {}", scriptId, brandId, t))
+                            .replaceWithVoid();
+                })
                 .toList();
 
         return Uni.join().all(insertOps).andFailFast().replaceWithVoid();
     }
 
     private Uni<Void> deleteBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId) {
+        LOGGER.info("Deleting all scripts for brand {}", brandId);
         String sql = "DELETE FROM kneobroadcaster__brand_scripts WHERE brand_id = $1";
         return tx.preparedQuery(sql)
                 .execute(Tuple.of(brandId))
+                .onItem().invoke(rowSet -> LOGGER.info("Deleted {} script entries for brand {}", rowSet.rowCount(), brandId))
+                .onFailure().invoke(t -> LOGGER.error("Failed to delete scripts for brand {}", brandId, t))
                 .replaceWithVoid();
     }
 

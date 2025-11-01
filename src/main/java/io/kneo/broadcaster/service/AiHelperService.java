@@ -51,7 +51,7 @@ public class AiHelperService {
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
             RadioStationStatus.WAITING_FOR_CURATOR,
-            RadioStationStatus.IDLE
+            RadioStationStatus.QUEUE_SATURATED
     );
 
     @Inject

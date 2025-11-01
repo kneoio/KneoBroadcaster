@@ -73,6 +73,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     PromptController promptController;
 
     @Inject
+    DraftController draftController;
+
+    @Inject
     public KneoBroadcasterApplicationInit(PgPool client) {
         super(client);
     }
@@ -98,13 +101,13 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         eventController.setupRoutes(router);
         scriptController.setupRoutes(router);
         promptController.setupRoutes(router);
+        draftController.setupRoutes(router);
 
         super.setupRoutes(router);
         logRegisteredRoutes(router);
 
         if (EnvConst.DEV_MODE) {
             LOGGER.info(EnvConst.APP_ID + "'s dev mode enabled");
-            // checkDatabaseConnection();
         }
     }
 }

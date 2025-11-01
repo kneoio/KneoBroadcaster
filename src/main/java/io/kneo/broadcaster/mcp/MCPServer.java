@@ -286,12 +286,11 @@ public class MCPServer extends AbstractVerticle {
     private ObjectNode createLiveRadioStationsTool() {
         ObjectNode tool = objectMapper.createObjectNode();
         tool.put("name", "get_live_radio_stations");
-        tool.put("description", "Get live radio stations with statuses: ON_LINE, WARMING_UP, QUEUE_SATURATED, WAITING_FOR_CURATOR");
+        tool.put("description", "Get live radio stations with statuses: ON_LINE, WARMING_UP, QUEUE_SATURATED");
 
         ObjectNode schema = objectMapper.createObjectNode();
         schema.put("type", "object");
         ObjectNode props = objectMapper.createObjectNode();
-
         schema.set("properties", props);
         tool.set("inputSchema", schema);
 

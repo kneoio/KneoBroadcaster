@@ -175,7 +175,6 @@ public class RadioService {
                     }
 
                     List<RadioStationDTO> stationsToProcess = stations.stream()
-                            .filter(station -> FEATURED_STATIONS.contains(station.getSlugName()))
                             .toList();
 
                     List<Uni<RadioStationStatusDTO>> statusUnis = stationsToProcess.stream()
@@ -184,16 +183,14 @@ public class RadioService {
                                         if (onlineStation != null &&
                                                 (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
                                                         onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                                                        onlineStation.getStatus() == RadioStationStatus.IDLE ||
-                                                        onlineStation.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
-                                                        onlineStation.getStatus() == RadioStationStatus.WARMING_UP)) {
+                                                        onlineStation.getStatus() == RadioStationStatus.IDLE)) {
                                             return toStatusDTO(onlineStation, false);
                                         }
+
                                         return Uni.createFrom().nullItem();
                                     })
                                     .onFailure().recoverWithItem(() -> null))
                             .collect(Collectors.toList());
-
                     return Uni.join().all(statusUnis).andFailFast()
                             .onItem().transform(results -> results.stream()
                                     .filter(dto -> dto != null)

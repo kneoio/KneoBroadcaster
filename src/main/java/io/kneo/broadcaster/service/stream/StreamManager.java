@@ -63,7 +63,7 @@ public class StreamManager implements IStreamManager {
     private final SliderTimer sliderTimer;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
-    private final int maxVisibleSegments;
+    private final int maxVisibleSegments = 10;
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
     private final BrandSoundFragmentUpdateService updateService;
     private final MemoryService memoryService;
@@ -76,7 +76,6 @@ public class StreamManager implements IStreamManager {
             HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService, SongSupplier songSupplier,
-            int maxVisibleSegments,
             BrandSoundFragmentUpdateService updateService,
             MemoryService memoryService
     ) {
@@ -87,7 +86,6 @@ public class StreamManager implements IStreamManager {
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
         this.songSupplier = songSupplier;
-        this.maxVisibleSegments = maxVisibleSegments;
         this.updateService = updateService;
         this.memoryService = memoryService;
     }
@@ -95,11 +93,7 @@ public class StreamManager implements IStreamManager {
     @Override
     public void initialize() {
         if (this.radioStation != null) {
-            if (this.radioStation.getManagedBy() == ManagedBy.ITSELF || this.radioStation.getManagedBy() == ManagedBy.MIX) {
-                this.radioStation.setStatus(RadioStationStatus.WARMING_UP);
-            } else {
-                this.radioStation.setStatus(RadioStationStatus.WAITING_FOR_CURATOR);
-            }
+           this.radioStation.setStatus(RadioStationStatus.WARMING_UP);
         } else {
             LOGGER.error("StreamManager.initialize: RadioStation object is null. Cannot set initial status or properly initialize.");
             return;

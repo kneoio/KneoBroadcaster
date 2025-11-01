@@ -107,7 +107,6 @@ public class RadioStationPool {
                                             soundFragmentService,
                                             segmentationService,
                                             songSupplier,
-                                            10,
                                             updateService,
                                             memoryService
                                     );

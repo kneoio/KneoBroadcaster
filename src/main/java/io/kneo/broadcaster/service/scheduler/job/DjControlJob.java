@@ -63,7 +63,6 @@ public class DjControlJob implements Job {
                 .filter(station ->
                         station.getStatus() == RadioStationStatus.ON_LINE ||
                                 station.getStatus() == RadioStationStatus.WARMING_UP ||
-                                station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                                 station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
                                 station.getStatus() == RadioStationStatus.IDLE)
                 .filter(station -> station.isAiControlAllowed())
@@ -80,7 +79,6 @@ public class DjControlJob implements Job {
                 .filter(station ->
                         station.getStatus() == RadioStationStatus.ON_LINE ||
                                 station.getStatus() == RadioStationStatus.WARMING_UP ||
-                                station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                                 station.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
                                 station.getStatus() == RadioStationStatus.IDLE)
                 .forEach(station -> {

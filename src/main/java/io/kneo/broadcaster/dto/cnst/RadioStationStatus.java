@@ -5,7 +5,6 @@ public enum RadioStationStatus {
     WARMING_UP, //started, in preparation stage
     ON_LINE, // on-line streaming
     QUEUE_SATURATED,
-    WAITING_FOR_CURATOR, //on-line but waiting to be curated
     IDLE, //on-line, no listeners
     SYSTEM_ERROR //something happened
 }

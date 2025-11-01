@@ -18,20 +18,24 @@ public class BrandSoundFragmentUpdateService {
     PgPool client;
 
     public Uni<Void> updatePlayedCountAsync(UUID brandId, UUID soundFragmentId) {
-        String sql = "INSERT INTO kneobroadcaster__brand_sound_fragments " +
+        String sql = "WITH sf AS (SELECT id FROM kneobroadcaster__sound_fragments WHERE id = $2) " +
+                "INSERT INTO kneobroadcaster__brand_sound_fragments " +
                 "(brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) " +
-                "VALUES " +
-                "($1, $2, 1, NOW()) " +
-                "ON CONFLICT (brand_id, sound_fragment_id) " +
-                "DO UPDATE SET " +
+                "SELECT $1, sf.id, 1, NOW() FROM sf " +
+                "ON CONFLICT (brand_id, sound_fragment_id) DO UPDATE SET " +
                 "played_by_brand_count = kneobroadcaster__brand_sound_fragments.played_by_brand_count + 1, " +
                 "last_time_played_by_brand = NOW()";
 
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId, soundFragmentId))
                 .onItem().invoke(result -> {
-                    LOGGER.info("Query executed - affected rows: {}, fragment: {}",
-                            result.rowCount(), soundFragmentId);
+                    int affected = result.rowCount();
+                    if (affected == 0) {
+                        LOGGER.warn("Skipped played count update: sound fragment not found in kneobroadcaster__sound_fragments. fragmentId={}, brandId={}",
+                                soundFragmentId, brandId);
+                    } else {
+                        LOGGER.info("Played count upserted - affected rows: {}, fragment: {}", affected, soundFragmentId);
+                    }
                 })
                 .onFailure().invoke(error -> LOGGER.error("Failed to update played count for fragment {}: {}",
                         soundFragmentId, error.getMessage(), error))

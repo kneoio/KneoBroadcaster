@@ -56,7 +56,6 @@ public class DashboardService {
             List<StationEntry> stationStats = stations.stream()
                     .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE ||
                             station.getStatus() == RadioStationStatus.WARMING_UP ||
-                            station.getStatus() == RadioStationStatus.WAITING_FOR_CURATOR ||
                             station.getStatus() == RadioStationStatus.IDLE)
                     .map(s -> new StationEntry(s.getSlugName()))
                     .collect(Collectors.toList());

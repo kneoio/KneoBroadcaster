@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
+import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.mcp.SoundFragmentMCPTools;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.ScriptScene;
@@ -22,7 +23,6 @@ import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -154,7 +155,7 @@ public class AiHelperService {
                 .asTuple()
                 .flatMap(tuple -> {
                     List<BrandScript> scripts = tuple.getItem1();
-                    JsonObject memoryData = tuple.getItem2();
+                    MemoryResult memoryData = tuple.getItem2();
 
                     if (scripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
@@ -261,11 +262,11 @@ public class AiHelperService {
         return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
     }
 
-    private PromptType determinePromptType(JsonObject memoryData) {
-        if (!memoryData.getJsonArray(MemoryType.MESSAGE.getValue()).isEmpty()) {
+    private PromptType determinePromptType(MemoryResult memoryData) {
+        if (!memoryData.getMessages().isEmpty()) {
             return PromptType.USER_MESSAGE;
         }
-        if (!memoryData.getJsonArray(MemoryType.EVENT.getValue()).isEmpty()) {
+        if (!memoryData.getEvents().isEmpty()) {
             return PromptType.EVENT;
         }
         return PromptType.BASIC_INTRO;

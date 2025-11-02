@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.ai;
 
+import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ai.AiAgent;
@@ -11,14 +12,10 @@ import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +46,7 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            JsonObject memoryData
+            MemoryResult memoryData
     ) {
         
         return Uni.combine().all()
@@ -88,7 +85,7 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            JsonObject memoryData
+            MemoryResult memoryData
     ) {
         return Uni.combine().all()
                 .unis(
@@ -127,13 +124,13 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            JsonObject memoryData,
+            MemoryResult memoryData,
             Profile profile,
             List<String> genres
     ) {
-        List<Map<String, Object>> history = extractMemoryByType(memoryData, "history");
-        List<Map<String, Object>> messages = extractMemoryByType(memoryData, "messages");
-        List<Map<String, Object>> events = extractMemoryByType(memoryData, "events");
+        var history = memoryData.getConversationHistory();
+        var messages = memoryData.getMessages();
+        var events = memoryData.getEvents();
         
         Map<String, Object> data = new HashMap<>();
         data.put("songTitle", song.getTitle());
@@ -161,15 +158,5 @@ public class DraftFactory {
         return Uni.join().all(genreUnis).andFailFast();
     }
 
-    private List<Map<String, Object>> extractMemoryByType(JsonObject memoryData, String memoryType) {
-        JsonArray memoryArray = memoryData.getJsonArray(memoryType);
-        List<Map<String, Object>> result = new ArrayList<>();
-        if (memoryArray != null) {
-            for (int i = 0; i < memoryArray.size(); i++) {
-                result.add(memoryArray.getJsonObject(i).getMap());
-            }
-        }
-        return result;
-    }
 
 }

@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
 import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
 import io.kneo.broadcaster.dto.memory.ListenerContextDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
+import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
 import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -15,8 +16,6 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -70,14 +69,13 @@ public class MemoryService {
     public Uni<MemoryDTO> getDTO(UUID id, IUser user, LanguageCode code) {
         return flattenMemories().map(allMemories ->
                 allMemories.stream()
-                        .filter(memory -> id.equals(memory.getId()))
                         .findFirst()
                         .orElse(null)
         );
     }
 
-    public Uni<JsonObject> getByType(String brand, String... types) {
-        JsonObject result = new JsonObject();
+    public Uni<MemoryResult> getByType(String brand, String... types) {
+        MemoryResult result = new MemoryResult();
         List<Uni<Void>> uniList = new ArrayList<>();
         ConcurrentMap<String, MemoryDTO> brandMap = memories.computeIfAbsent(brand, k -> new ConcurrentHashMap<>());
 
@@ -305,24 +303,27 @@ public class MemoryService {
 
     private void collectContents(ConcurrentMap<String, MemoryDTO> brandMap,
                                  MemoryType type,
-                                 JsonObject result) {
-        JsonArray array = new JsonArray();
+                                 MemoryResult result) {
+        List<IMemoryContentDTO> list = new ArrayList<>();
         brandMap.values().stream()
                 .filter(dto -> dto.getMemoryType() == type)
                 .sorted((a, b) -> a.getRegDate().compareTo(b.getRegDate()))
                 .forEach(dto -> {
                     if (dto.getContent() != null) {
-                        dto.getContent().forEach(array::add);
+                        list.addAll(dto.getContent());
                     }
                 });
-        result.put(type.getValue(), array);
+        
+        switch (type) {
+            case MESSAGE -> result.setMessages((List) list);
+            case EVENT -> result.setEvents((List) list);
+            case CONVERSATION_HISTORY -> result.setConversationHistory((List) list);
+        }
     }
-
-
 
     private Uni<Void> getAudienceContext(String brand,
                                          ConcurrentMap<String, MemoryDTO> brandMap,
-                                         JsonObject result) {
+                                         MemoryResult result) {
         MemoryDTO cached = brandMap.values().stream()
                 .filter(dto -> dto.getMemoryType() == MemoryType.AUDIENCE_CONTEXT)
                 .findFirst()
@@ -334,7 +335,7 @@ public class MemoryService {
                     .map(radioStation -> {
                         ZoneId zoneId = radioStation.getTimeZone();
                         dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed(zoneId));
-                        result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
+                        result.setAudienceContext(List.of(dto));
                         return null;
                     });
         }
@@ -350,7 +351,7 @@ public class MemoryService {
                                 dto.setCurrentMoment(TimeContextUtil.getCurrentMomentDetailed(zoneId));
 
                                 add(brand, MemoryType.AUDIENCE_CONTEXT, dto).subscribe().asCompletionStage();
-                                result.put(MemoryType.AUDIENCE_CONTEXT.getValue(), new JsonArray().add(dto));
+                                result.setAudienceContext(List.of(dto));
                                 return null;
                             });
                 });
@@ -360,14 +361,14 @@ public class MemoryService {
 
     private Uni<Void> getListenerContext(String brand,
                                          ConcurrentMap<String, MemoryDTO> brandMap,
-                                         JsonObject result) {
+                                         MemoryResult result) {
         MemoryDTO cached = brandMap.values().stream()
                 .filter(dto -> dto.getMemoryType() == MemoryType.LISTENER_CONTEXT)
                 .findFirst()
                 .orElse(null);
 
         if (cached != null && cached.getContent() != null && !cached.getContent().isEmpty()) {
-            result.put(MemoryType.LISTENER_CONTEXT.getValue(), cached.getContent());
+            result.setListenerContext((List) cached.getContent());
             return null;
         }
 
@@ -382,7 +383,7 @@ public class MemoryService {
                                 dto.setLocation(bl.getListener().getCountry().getCountryName());
                                 return dto;
                             })
-                            .collect(Collectors.toList());
+                            .toList();
 
                     if (!listeners.isEmpty()) {
                         UUID id = UUID.randomUUID();
@@ -392,14 +393,14 @@ public class MemoryService {
                         dto.setId(id);
                         dto.setBrand(brand);
                         dto.setMemoryType(MemoryType.LISTENER_CONTEXT);
-                        dto.setContent(new ArrayList<>(listeners));   // ✅ cache the full list
+                        dto.setContent(new ArrayList<>(listeners));
                         dto.setRegDate(now);
                         dto.setLastModifiedDate(now);
 
                         brandMap.put(id.toString(), dto);
                     }
 
-                    result.put(MemoryType.LISTENER_CONTEXT.getValue(), new JsonArray(listeners));
+                    result.setListenerContext(new ArrayList<>(listeners));
                     return null;
                 });
     }

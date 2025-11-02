@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.DraftDTO;
+import io.kneo.broadcaster.dto.ai.DraftTestDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -55,6 +56,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
     public void setupRoutes(Router router) {
         String path = "/api/drafts";
         router.route(path + "*").handler(BodyHandler.create());
+        router.post(path + "/test").handler(this::testDraft);  // Must be before POST /api/drafts
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
@@ -170,5 +172,28 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail
                 );
+    }
+
+    private void testDraft(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            DraftTestDTO dto = rc.body().asJsonObject().mapTo(DraftTestDTO.class);
+
+            if (!validateDTO(rc, dto, validator)) return;
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.testDraft(dto, user))
+                    .subscribe().with(
+                            result -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end(result),
+                            rc::fail
+                    );
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
+        }
     }
 }

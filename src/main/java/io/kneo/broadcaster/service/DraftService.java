@@ -1,13 +1,18 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.DraftDTO;
+import io.kneo.broadcaster.dto.ai.DraftTestDTO;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.DraftRepository;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -22,11 +27,23 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DraftService.class);
 
     private final DraftRepository repository;
+    private final DraftFactory draftFactory;
+    private final SoundFragmentService soundFragmentService;
+    private final AiAgentService aiAgentService;
+    private final RadioStationService radioStationService;
+    private final MemoryService memoryService;
 
     @Inject
-    public DraftService(UserService userService, DraftRepository repository) {
+    public DraftService(UserService userService, DraftRepository repository, DraftFactory draftFactory,
+                       SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
+                       RadioStationService radioStationService, MemoryService memoryService) {
         super(userService);
         this.repository = repository;
+        this.draftFactory = draftFactory;
+        this.soundFragmentService = soundFragmentService;
+        this.aiAgentService = aiAgentService;
+        this.radioStationService = radioStationService;
+        this.memoryService = memoryService;
     }
 
     public Uni<List<Draft>> getAll() {
@@ -117,5 +134,31 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         doc.setLanguageCode(dto.getLanguageCode());
         doc.setArchived(dto.getArchived() != null ? dto.getArchived() : 0);
         return doc;
+    }
+
+    public Uni<String> testDraft(DraftTestDTO dto, IUser user) {
+        return radioStationService.getById(dto.getStationId(), user)
+                .chain(station -> Uni.combine().all().unis(
+                        soundFragmentService.getById(dto.getSongId(), user),
+                        aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en),
+                        memoryService.getByType(
+                                station.getSlugName(),
+                                MemoryType.MESSAGE.name(),
+                                MemoryType.EVENT.name(),
+                                MemoryType.CONVERSATION_HISTORY.name()
+                        )
+                ).asTuple().chain(tuple -> {
+                    var song = tuple.getItem1();
+                    var agent = tuple.getItem2();
+                    JsonObject memoryData = tuple.getItem3();
+
+                    return draftFactory.createDraftFromCode(
+                            dto.getCode(),
+                            song,
+                            agent,
+                            station,
+                            memoryData
+                    );
+                }));
     }
 }

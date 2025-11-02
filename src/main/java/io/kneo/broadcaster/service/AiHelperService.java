@@ -12,6 +12,7 @@ import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.ai.PromptType;
+import io.kneo.broadcaster.model.cnst.DraftType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -201,7 +202,7 @@ public class AiHelperService {
                                         .flatMap(songs -> {
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> draftFactory.createDraft(
-                                                            selectedPrompt.getPromptType(),
+                                                            mapPromptTypeToDraftType(selectedPrompt.getPromptType()),
                                                             song,
                                                             agent,
                                                             station,
@@ -268,5 +269,13 @@ public class AiHelperService {
             return PromptType.EVENT;
         }
         return PromptType.BASIC_INTRO;
+    }
+
+    private DraftType mapPromptTypeToDraftType(PromptType promptType) {
+        return switch (promptType) {
+            case BASIC_INTRO -> DraftType.INTRO_DRAFT;
+            case USER_MESSAGE -> DraftType.MESSAGE_DRAFT;
+            case NEWS, WEATHER, EVENT -> DraftType.NEWS_INTRO_DRAFT;
+        };
     }
 }

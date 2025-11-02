@@ -1,9 +1,6 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.ai.DraftFactory;
-import io.kneo.broadcaster.dto.ai.AiLiveAgentDTO;
-import io.kneo.broadcaster.dto.ai.PromptDTO;
-import io.kneo.broadcaster.dto.aihelper.BrandInfoDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
@@ -16,14 +13,15 @@ import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -47,9 +45,10 @@ public class AiHelperService {
     private final SongSupplier songSupplier;
     private final SoundFragmentMCPTools soundFragmentMCPTools;
     private final DraftFactory draftFactory;
+    private final MemoryService memoryService;
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
-            RadioStationStatus.WARMING_UP,
+            RadioStationStatus.WARMING_UP,  //keep it for now while developing stage
             RadioStationStatus.QUEUE_SATURATED
     );
 
@@ -61,7 +60,8 @@ public class AiHelperService {
             PromptService promptService,
             SongSupplier songSupplier,
             SoundFragmentMCPTools soundFragmentMCPTools,
-            DraftFactory draftFactory
+            DraftFactory draftFactory,
+            MemoryService memoryService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -70,6 +70,7 @@ public class AiHelperService {
         this.songSupplier = songSupplier;
         this.soundFragmentMCPTools = soundFragmentMCPTools;
         this.draftFactory = draftFactory;
+        this.memoryService = memoryService;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -122,7 +123,7 @@ public class AiHelperService {
                     liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
                     liveRadioStation.setDjName(agent.getName());
 
-                    return fetchPrompt(station).flatMap(prompts -> {
+                    return fetchPrompt(station, agent).flatMap(prompts -> {
                         liveRadioStation.setPrompts(prompts);
 
                         String preferredVoice = agent.getPreferredVoice().get(0).getId();
@@ -143,25 +144,22 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<List<SongPromptMcpDTO>> fetchPrompt(RadioStation station) {
-        UUID agentId = station.getAiAgentId();
-        if (agentId == null) {
-            return Uni.createFrom().item(() -> null);
-        }
-
+    private Uni<List<SongPromptMcpDTO>> fetchPrompt(RadioStation station, AiAgent agent) {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
-                        aiAgentService.getById(agentId, SuperUser.build(), LanguageCode.en)
+                        memoryService.getByType(station.getSlugName(), MemoryType.MESSAGE.name(), MemoryType.EVENT.name(), MemoryType.CONVERSATION_HISTORY.name())
                 )
                 .asTuple()
                 .flatMap(tuple -> {
                     List<BrandScript> scripts = tuple.getItem1();
-                    AiAgent agent = tuple.getItem2();
+                    JsonObject memoryData = tuple.getItem2();
 
                     if (scripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
                     }
+
+                    PromptType targetPromptType = determinePromptType(memoryData);
 
                     LocalDateTime now = LocalDateTime.now();
                     LocalTime currentTime = now.toLocalTime();
@@ -188,26 +186,26 @@ public class AiHelperService {
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
                                 LanguageCode djLanguage = agent.getPreferredLang();
-                                List<Prompt> basicIntroPrompts = prompts.stream()
-                                        .filter(p -> p.getPromptType() == PromptType.BASIC_INTRO)
+                                List<Prompt> filteredPrompts = prompts.stream()
+                                        .filter(p -> p.getPromptType() == targetPromptType)
                                         .filter(p -> p.getLanguageCode() == djLanguage)
                                         .toList();
 
-                                if (basicIntroPrompts.isEmpty()) {
+                                if (filteredPrompts.isEmpty()) {
                                     return Uni.createFrom().item(() -> null);
                                 }
 
-                                Prompt selectedPrompt = basicIntroPrompts.get(new Random().nextInt(basicIntroPrompts.size()));
-                                int songCount = soundFragmentMCPTools.decideFragmentCount();
+                                Prompt selectedPrompt = filteredPrompts.get(new Random().nextInt(filteredPrompts.size()));
 
-                                return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, songCount)
+                                return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, soundFragmentMCPTools.decideFragmentCount())
                                         .flatMap(songs -> {
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> draftFactory.createDraft(
                                                             selectedPrompt.getPromptType(),
                                                             song,
                                                             agent,
-                                                            station
+                                                            station,
+                                                            memoryData
                                                     ).map(draft -> new SongPromptMcpDTO(
                                                             song.getId(),
                                                             draft,
@@ -222,110 +220,6 @@ public class AiHelperService {
                                         });
                             });
                 });
-    }
-
-
-
-    @Deprecated
-    public Uni<List<BrandInfoDTO>> getByStatus(List<RadioStationStatus> statuses) {
-        return Uni.createFrom().item(() ->
-                radioStationPool.getOnlineStationsSnapshot().stream()
-                        .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
-                        .filter(station -> statuses.contains(station.getStatus()))
-                        .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
-                        .collect(Collectors.toList())
-        ).chain(stations -> {
-            if (stations.isEmpty()) {
-                return Uni.createFrom().item(List.of());
-            }
-
-            List<Uni<BrandInfoDTO>> tasks = stations.stream().map(station -> {
-                BrandInfoDTO brand = new BrandInfoDTO();
-                brand.setRadioStationName(station.getSlugName());
-
-                if (station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2) {
-                    brand.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
-                } else {
-                    brand.setRadioStationStatus(station.getStatus());
-                }
-
-                UUID agentId = station.getAiAgentId();
-                if (agentId == null) {
-                    return Uni.createFrom().item(brand);
-                }
-
-                return aiAgentService.getDTO(agentId, SuperUser.build(), LanguageCode.en).flatMap(agent -> {
-                    AiLiveAgentDTO dto = new AiLiveAgentDTO();
-                    dto.setName(agent.getName());
-                    dto.setLlmType(io.kneo.broadcaster.model.ai.LlmType.valueOf(agent.getLlmType()));
-                    dto.setPreferredLang(io.kneo.core.localization.LanguageCode.valueOf(agent.getPreferredLang()));
-
-                    List<PromptDTO> prompts = agent.getPrompts();
-                    List<String> msgPrompts = agent.getMessagePrompts();
-                    List<String> podcastPrompts = agent.getMiniPodcastPrompts();
-
-                    if (prompts.isEmpty()) {
-                        return Uni.createFrom().item(brand);
-                    }
-
-                    List<PromptDTO> enabledPrompts = prompts.stream()
-                            .filter(PromptDTO::isEnabled)
-                            .toList();
-                    String randomPrompt = enabledPrompts.get(new Random().nextInt(enabledPrompts.size())).getPrompt();
-
-
-                    String msgPrompt;
-                    if (msgPrompts != null && !msgPrompts.isEmpty()) {
-                        msgPrompt = msgPrompts.get(new Random().nextInt(msgPrompts.size()));
-                    } else {
-                        msgPrompt = randomPrompt;
-                    }
-
-                    String podcastPrompt;
-                    if (podcastPrompts != null && !podcastPrompts.isEmpty()) {
-                        podcastPrompt = podcastPrompts.get(new Random().nextInt(podcastPrompts.size()));
-                    } else {
-                        podcastPrompt = randomPrompt;
-                    }
-
-                    dto.setMessagePrompt(msgPrompt);
-                    dto.setMiniPodcastPrompt(podcastPrompt);
-                    dto.setPodcastMode(agent.getPodcastMode());
-
-                    AiOverriding override = station.getAiOverriding();
-                    if (override != null) {
-                        if (!override.getName().isEmpty()) {
-                            dto.setName(override.getName());
-                        }
-                        dto.setPreferredVoice(override.getPreferredVoice());
-                        dto.setTalkativity(override.getTalkativity());
-                        dto.setPrompt(String.format("%s\n------\n%s", randomPrompt, override.getPrompt()));
-                        brand.setAgent(dto);
-                        return Uni.createFrom().item(brand);
-                    } else {
-                        dto.setPreferredVoice(agent.getPreferredVoice().get(0).getId());
-                        dto.setTalkativity(agent.getTalkativity());
-                        dto.setPrompt(randomPrompt);
-
-                        UUID copilotId = agent.getCopilot();
-                        if (copilotId != null) {
-                            return aiAgentService.getById(copilotId, SuperUser.build(), LanguageCode.en)
-                                    .map(copilot -> {
-                                        dto.setSecondaryVoice(copilot.getPreferredVoice().get(0).getId());
-                                        dto.setSecondaryVoiceName(copilot.getName());
-                                        brand.setAgent(dto);
-                                        return brand;
-                                    });
-                        } else {
-                            brand.setAgent(dto);
-                            return Uni.createFrom().item(brand);
-                        }
-                    }
-                });
-            }).collect(Collectors.toList());
-
-            return Uni.join().all(tasks).andFailFast();
-        });
     }
 
     private boolean isSceneActive(ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
@@ -364,5 +258,15 @@ public class AiHelperService {
         }
 
         return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
+    }
+
+    private PromptType determinePromptType(JsonObject memoryData) {
+        if (!memoryData.getJsonArray(MemoryType.MESSAGE.getValue()).isEmpty()) {
+            return PromptType.USER_MESSAGE;
+        }
+        if (!memoryData.getJsonArray(MemoryType.EVENT.getValue()).isEmpty()) {
+            return PromptType.EVENT;
+        }
+        return PromptType.BASIC_INTRO;
     }
 }

@@ -101,8 +101,8 @@ public class PromptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, prompt_type, language_code, is_master, locked, title, backup, podcast) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, prompt_type, language_code, is_master, locked, title, backup, podcast, draft_id) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -119,7 +119,8 @@ public class PromptRepository extends AsyncRepository {
                         .addBoolean(prompt.isLocked())
                         .addString(prompt.getTitle())
                         .addJsonObject(JsonObject.of("backup", prompt.getBackup()))
-                        .addBoolean(prompt.isPodcast());
+                        .addBoolean(prompt.isPodcast())
+                        .addUUID(prompt.getDraftId());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -147,8 +148,8 @@ public class PromptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET enabled=$1, prompt=$2, prompt_type=$3, language_code=$4, is_master=$5, locked=$6, title=$7, backup=$8, podcast=$9, last_mod_user=$10, last_mod_date=$11 " +
-                                    "WHERE id=$12";
+                                    " SET enabled=$1, prompt=$2, prompt_type=$3, language_code=$4, is_master=$5, locked=$6, title=$7, backup=$8, podcast=$9, draft_id=$10, last_mod_user=$11, last_mod_date=$12 " +
+                                    "WHERE id=$13";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -162,6 +163,7 @@ public class PromptRepository extends AsyncRepository {
                                     .addString(prompt.getTitle())
                                     .addJsonObject(prompt.getBackup())
                                     .addBoolean(prompt.isPodcast())
+                                    .addUUID(prompt.getDraftId())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -193,6 +195,7 @@ public class PromptRepository extends AsyncRepository {
         doc.setTitle(row.getString("title"));
         doc.setBackup(row.getJsonObject("backup"));
         doc.setPodcast(row.getBoolean("podcast"));
+        doc.setDraftId(row.getUUID("draft_id"));
         doc.setArchived(row.getInteger("archived"));
         return doc;
     }

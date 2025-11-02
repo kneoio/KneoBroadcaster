@@ -1,9 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-import io.kneo.broadcaster.service.AiHelperService;
 import io.kneo.broadcaster.service.MemoryService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.Json;
@@ -12,74 +10,28 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AiHelperController {
     private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperController.class);
 
-    private final AiHelperService aiHelperService;
     private final MemoryService memoryService;
 
-    @Inject
-    public AiHelperController(AiHelperService aiHelperService, MemoryService memoryService) {
-        this.aiHelperService = aiHelperService;
+    public AiHelperController(MemoryService memoryService) {
         this.memoryService = memoryService;
     }
 
     public void setupRoutes(Router router) {
         BodyHandler bodyHandler = BodyHandler.create();
-        router.get("/api/ai/brands/status").handler(this::getBrandsByStatus);
         router.get("/api/ai/memory/:brand").handler(this::getMemoriesByType);
         router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
         router.patch("/api/ai/memory/history/brand/:brand").handler(bodyHandler).handler(this::patchHistory);
         router.patch("/api/ai/memory/reset/:brand/:type").handler(bodyHandler).handler(this::resetMemory);
-    }
-
-    private void getBrandsByStatus(RoutingContext rc) {
-        parseStatusParameters(rc)
-                .chain(aiHelperService::getByStatus)
-                .subscribe().with(
-                        brands -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encode(brands)),
-                        throwable -> {
-                            LOGGER.error("Error getting brands by status", throwable);
-                            if (throwable instanceof IllegalArgumentException) {
-                                rc.response()
-                                        .setStatusCode(400)
-                                        .putHeader("Content-Type", "text/plain")
-                                        .end("Invalid status value provided. Valid values: " +
-                                                Arrays.toString(RadioStationStatus.values()));
-                            } else {
-                                rc.response()
-                                        .setStatusCode(500)
-                                        .putHeader("Content-Type", "text/plain")
-                                        .end("An unexpected error occurred retrieving brands.");
-                            }
-                        }
-                );
-    }
-
-    private Uni<List<RadioStationStatus>> parseStatusParameters(RoutingContext rc) {
-        return Uni.createFrom().item(() -> {
-            List<String> statusParams = rc.queryParam("status");
-
-            if (statusParams == null || statusParams.isEmpty()) {
-                throw new IllegalArgumentException("At least one status query parameter is required. Valid values: " +
-                        Arrays.toString(RadioStationStatus.values()));
-            }
-
-            return statusParams.stream()
-                    .map(RadioStationStatus::valueOf)
-                    .collect(Collectors.toList());
-        });
     }
 
     private void getMemoriesByType(RoutingContext rc) {

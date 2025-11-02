@@ -91,6 +91,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
             dto.setTitle(doc.getTitle());
             dto.setBackup(doc.getBackup());
             dto.setPodcast(doc.isPodcast());
+            dto.setDraftId(doc.getDraftId());
             return dto;
         });
     }
@@ -107,6 +108,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         doc.setTitle(dto.getTitle());
         doc.setBackup(dto.getBackup());
         doc.setPodcast(dto.isPodcast());
+        doc.setDraftId(dto.getDraftId());
         return doc;
     }
 

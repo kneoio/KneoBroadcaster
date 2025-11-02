@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.Setter;
 import io.vertx.core.json.JsonObject;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 public class PromptDTO extends AbstractDTO {
@@ -19,4 +21,5 @@ public class PromptDTO extends AbstractDTO {
     private String title;
     private JsonObject backup;
     private boolean podcast;
+    private UUID draftId;
 }

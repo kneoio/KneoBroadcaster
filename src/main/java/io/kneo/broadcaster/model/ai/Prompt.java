@@ -20,5 +20,6 @@ public class Prompt extends SecureDataEntity<UUID> {
     private String title;
     private JsonObject backup;
     private boolean podcast;
+    private UUID draftId;
 
 }

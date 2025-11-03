@@ -70,6 +70,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     ScriptController scriptController;
 
     @Inject
+    SceneController sceneController;
+
+    @Inject
     PromptController promptController;
 
     @Inject
@@ -100,6 +103,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         profileController.setupRoutes(router);
         eventController.setupRoutes(router);
         scriptController.setupRoutes(router);
+        sceneController.setupRoutes(router);
         promptController.setupRoutes(router);
         draftController.setupRoutes(router);
 

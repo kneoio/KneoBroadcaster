@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.core.dto.AbstractDTO;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,7 +16,7 @@ public class ScriptSceneDTO extends AbstractDTO {
     private UUID scriptId;
     private String title;
     private String type;
-    private List<PromptDTO> prompts;
+    private List<UUID> prompts;
     private LocalTime startTime;
     private List<Integer> weekdays;
 }

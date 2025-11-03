@@ -32,10 +32,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
 @ApplicationScoped
 public class AiHelperService {
     private static final Logger log = LoggerFactory.getLogger(AiHelperService.class);
@@ -161,8 +161,6 @@ public class AiHelperService {
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    PromptType targetPromptType = determinePromptType(memoryData);
-
                     LocalDateTime now = LocalDateTime.now();
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
@@ -189,11 +187,11 @@ public class AiHelperService {
                             .flatMap(prompts -> {
                                 LanguageCode djLanguage = agent.getPreferredLang();
                                 List<Prompt> filteredPrompts = prompts.stream()
-                                        .filter(p -> p.getPromptType() == targetPromptType)
                                         .filter(p -> p.getLanguageCode() == djLanguage)
                                         .toList();
 
                                 if (filteredPrompts.isEmpty()) {
+                                    log.warn("Station '{}': No valid prompt for specific language '{}' found", station.getSlugName(), djLanguage);
                                     return Uni.createFrom().item(() -> null);
                                 }
 
@@ -260,16 +258,6 @@ public class AiHelperService {
         }
 
         return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
-    }
-
-    private PromptType determinePromptType(MemoryResult memoryData) {
-        if (!memoryData.getMessages().isEmpty()) {
-            return PromptType.USER_MESSAGE;
-        }
-        if (!memoryData.getEvents().isEmpty()) {
-            return PromptType.EVENT;
-        }
-        return PromptType.BASIC_INTRO;
     }
 
     private DraftType mapPromptTypeToDraftType(PromptType promptType) {

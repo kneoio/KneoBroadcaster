@@ -19,7 +19,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -51,7 +51,20 @@ public class ScriptSceneRepository extends AsyncRepository {
                 .execute(Tuple.of(user.getId(), scriptId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
-                .collect().asList();
+                .collect().asList()
+                .onItem().transformToUni(scenes -> {
+                    if (scenes.isEmpty()) {
+                        return Uni.createFrom().item(scenes);
+                    }
+                    List<Uni<ScriptScene>> sceneUnis = scenes.stream()
+                            .map(scene -> promptRepository.getPromptsForScene(scene.getId())
+                                    .onItem().transform(promptIds -> {
+                                        scene.setPrompts(promptIds);
+                                        return scene;
+                                    }))
+                            .collect(java.util.stream.Collectors.toList());
+                    return Uni.join().all(sceneUnis).andFailFast();
+                });
     }
 
     public Uni<Integer> countByScript(UUID scriptId, boolean includeArchived, IUser user) {
@@ -79,19 +92,26 @@ public class ScriptSceneRepository extends AsyncRepository {
                     } else {
                         throw new DocumentHasNotFoundException(id);
                     }
-                });
+                })
+                .onItem().transformToUni(scene -> 
+                    promptRepository.getPromptsForScene(id)
+                        .onItem().transform(promptIds -> {
+                            scene.setPrompts(promptIds);
+                            return scene;
+                        })
+                );
     }
 
     public Uni<ScriptScene> insert(ScriptScene scene, IUser user) {
-        LocalDateTime nowTime = LocalDateTime.now();
+        OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (author, reg_date, last_mod_user, last_mod_date, script_id, type, title, start_time, weekdays) " +
                 "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
-                .addLocalDateTime(nowTime)
+                .addOffsetDateTime(nowTime)
                 .addLong(user.getId())
-                .addLocalDateTime(nowTime)
+                .addOffsetDateTime(nowTime)
                 .addUUID(scene.getScriptId())
                 .addString(scene.getType())
                 .addString(scene.getTitle())
@@ -115,7 +135,7 @@ public class ScriptSceneRepository extends AsyncRepository {
                     if (!permissions[0]) {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
                     }
-                    LocalDateTime nowTime = LocalDateTime.now();
+                    OffsetDateTime nowTime = OffsetDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
                             " SET type=$1, title=$2, start_time=$3, weekdays=$4, last_mod_user=$5, last_mod_date=$6 WHERE id=$7";
                     Tuple params = Tuple.tuple()
@@ -124,7 +144,7 @@ public class ScriptSceneRepository extends AsyncRepository {
                             .addLocalTime(scene.getStartTime())
                             .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
                             .addLong(user.getId())
-                            .addLocalDateTime(nowTime)
+                            .addOffsetDateTime(nowTime)
                             .addUUID(id);
                     return client.withTransaction(tx ->
                             tx.preparedQuery(sql)

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.dashboard.AiDjStats;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
 import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
@@ -32,13 +33,20 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AiHelperService {
     private static final Logger log = LoggerFactory.getLogger(AiHelperService.class);
+
+    public record DjRequestInfo(LocalDateTime requestTime, String djName) {}
+
+    private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
+    private final Map<String, List<AiDjStats.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
 
     private final RadioStationPool radioStationPool;
     private final AiAgentService aiAgentService;
@@ -83,6 +91,8 @@ public class AiHelperService {
                         .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
+            stations.forEach(station -> clearMessages(station.getSlugName()));
+            
             LiveContainerMcpDTO container = new LiveContainerMcpDTO();
             
             if (stations.isEmpty()) {
@@ -100,6 +110,7 @@ public class AiHelperService {
                                 .filter(station -> {
                                     if (station.getPrompts() == null || station.getPrompts().isEmpty()) {
                                         log.warn("Station '{}' filtered out: No valid prompts found", station.getName());
+                                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING,"No valid prompts found");
                                         return false;
                                     }
                                     return true;
@@ -124,6 +135,9 @@ public class AiHelperService {
                     liveRadioStation.setSlugName(station.getSlugName());
                     liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
                     liveRadioStation.setDjName(agent.getName());
+
+                    aiDjStatsRequestTracker.put(station.getSlugName(), 
+                        new DjRequestInfo(LocalDateTime.now(), agent.getName()));
 
                     return fetchPrompt(station, agent).flatMap(prompts -> {
                         liveRadioStation.setPrompts(prompts);
@@ -192,6 +206,7 @@ public class AiHelperService {
 
                                 if (filteredPrompts.isEmpty()) {
                                     log.warn("Station '{}': No valid prompt for specific language '{}' found", station.getSlugName(), djLanguage);
+                                    addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, String.format("No valid prompt for specific language '%s' found", djLanguage));
                                     return Uni.createFrom().item(() -> null);
                                 }
 
@@ -266,5 +281,82 @@ public class AiHelperService {
             case USER_MESSAGE -> DraftType.MESSAGE_DRAFT;
             case NEWS, WEATHER, EVENT -> DraftType.NEWS_INTRO_DRAFT;
         };
+    }
+
+    public Uni<AiDjStats> getAiDjStats(RadioStation station) {
+        return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
+                .map(scripts -> {
+                    if (scripts.isEmpty()) {
+                        return null;
+                    }
+
+                    LocalDateTime now = LocalDateTime.now();
+                    LocalTime currentTime = now.toLocalTime();
+                    int currentDayOfWeek = now.getDayOfWeek().getValue();
+
+                    for (BrandScript brandScript : scripts) {
+                        List<ScriptScene> scenes = brandScript.getScript().getScenes();
+                        for (ScriptScene scene : scenes) {
+                            if (isSceneActive(scene, scenes, currentTime, currentDayOfWeek)) {
+                                LocalTime sceneStart = scene.getStartTime();
+                                LocalTime sceneEnd = findNextSceneStartTime(scene, scenes);
+                                int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;
+                                
+                                String nextSceneTitle = findNextSceneTitle(scene, scenes);
+                                DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
+
+                                LocalDateTime lastRequestTime = null;
+                                String djName = null;
+                                if (requestInfo != null) {
+                                    lastRequestTime = requestInfo.requestTime();
+                                    djName = requestInfo.djName();
+                                }
+
+                                return new AiDjStats(
+                                        scene.getId(),
+                                        scene.getTitle(),
+                                        sceneStart,
+                                        sceneEnd,
+                                        promptCount,
+                                        nextSceneTitle,
+                                        lastRequestTime,
+                                        djName,
+                                        aiDjMessagesTracker.get(station.getSlugName())
+                                );
+                            }
+                        }
+                    }
+
+                    return null;
+                });
+    }
+
+    private String findNextSceneTitle(ScriptScene currentScene, List<ScriptScene> scenes) {
+        LocalTime currentStart = currentScene.getStartTime();
+        if (currentStart == null) {
+            return null;
+        }
+
+        List<ScriptScene> sortedScenes = scenes.stream()
+                .filter(s -> s.getStartTime() != null)
+                .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
+                .toList();
+
+        for (ScriptScene scene : sortedScenes) {
+            if (scene.getStartTime().isAfter(currentStart)) {
+                return scene.getTitle();
+            }
+        }
+
+        return !sortedScenes.isEmpty() ? sortedScenes.get(0).getTitle() : null;
+    }
+
+    public void addMessage(String brandName, AiDjStats.MessageType type, String message) {
+        aiDjMessagesTracker.computeIfAbsent(brandName, k -> new ArrayList<>())
+                .add(new AiDjStats.StatusMessage(type, message));
+    }
+
+    public void clearMessages(String brandName) {
+        aiDjMessagesTracker.remove(brandName);
     }
 }

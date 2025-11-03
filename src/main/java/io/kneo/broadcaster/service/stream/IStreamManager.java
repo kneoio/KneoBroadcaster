@@ -13,8 +13,6 @@ public interface IStreamManager {
 
     HlsSegment getSegment(String segmentParam);
 
-    long getLatestRequestedSeg();
-
     void shutdown();
 
     RadioStation getRadioStation();

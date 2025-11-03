@@ -25,7 +25,6 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,9 +39,6 @@ public class StreamManager implements IStreamManager {
 
     private final ConcurrentSkipListMap<Long, HlsSegment> liveSegments = new ConcurrentSkipListMap<>();
     private final AtomicLong currentSequence = new AtomicLong(0);
-    private long latestRequestedSegment = 0;
-    private final Queue<Long> segmentRequestTimestamps = new ConcurrentLinkedQueue<>();
-
     private final Queue<HlsSegment> pendingFragmentSegmentsQueue = new LinkedList<>();
     private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
     private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
@@ -242,12 +238,7 @@ public class StreamManager implements IStreamManager {
                 return null;
             }
             long segmentSequence = Long.parseLong(matcher.group(2));
-            latestRequestedSegment = segmentSequence;
             HlsSegment segment = liveSegments.get(segmentSequence);
-
-            if (segment != null) {
-                segmentRequestTimestamps.offer(System.currentTimeMillis());
-            }
 
             if (segment == null) {
                 LOGGER.debug("Segment {} not found in liveSegments", segmentSequence);
@@ -259,29 +250,11 @@ public class StreamManager implements IStreamManager {
         }
     }
 
-    @Override
-    public long getLatestRequestedSeg() {
-        return latestRequestedSegment;
-    }
-
-    private long countAndPruneRecentSegmentRequests() {
-        long fiveMinutesAgoInMillis = System.currentTimeMillis() - (5 * 60 * 1000L);
-        while (true) {
-            Long oldestTimestamp = segmentRequestTimestamps.peek();
-            if (oldestTimestamp == null || oldestTimestamp >= fiveMinutesAgoInMillis) {
-                break;
-            }
-            segmentRequestTimestamps.poll();
-        }
-        return segmentRequestTimestamps.size();
-    }
 
     @Override
     public StreamManagerStats getStats(){
-        long recentRequestsCount = countAndPruneRecentSegmentRequests();
         return new StreamManagerStats(
                 Map.copyOf(liveSegments),
-                recentRequestsCount,
                 getSegmentHeartbeat()
         );
     }
@@ -298,7 +271,6 @@ public class StreamManager implements IStreamManager {
         currentSequence.set(0);
         liveSegments.clear();
         pendingFragmentSegmentsQueue.clear();
-        segmentRequestTimestamps.clear();
         LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", radioStation.getSlugName());
         if (radioStation != null) {
             radioStation.setStatus(RadioStationStatus.OFF_LINE);

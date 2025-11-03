@@ -201,7 +201,32 @@ public class PromptRepository extends AsyncRepository {
     }
 
     public Uni<Integer> archive(UUID id, IUser user) {
-        return archive(id, entityData, user);
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
+                    }
+
+                    // Check if prompt is used in any scenes
+                    String checkUsageSql = "SELECT COUNT(*) FROM mixpla_script_scene_prompts WHERE prompt_id = $1";
+                    return client.preparedQuery(checkUsageSql)
+                            .execute(Tuple.of(id))
+                            .onItem().transformToUni(rows -> {
+                                int usageCount = rows.iterator().next().getInteger(0);
+                                if (usageCount > 0) {
+                                    return Uni.createFrom().failure(
+                                            new IllegalStateException("Cannot archive prompt: it is currently used in " + usageCount + " scene(s)")
+                                    );
+                                }
+
+                                String sql = String.format("UPDATE %s SET archived = 1, last_mod_user = $1, last_mod_date = $2 WHERE id = $3", entityData.getTableName());
+                                OffsetDateTime now = OffsetDateTime.now();
+
+                                return client.preparedQuery(sql)
+                                        .execute(Tuple.of(user.getId(), now, id))
+                                        .onItem().transform(RowSet::rowCount);
+                            });
+                });
     }
 
     public Uni<Integer> delete(UUID id, IUser user) {

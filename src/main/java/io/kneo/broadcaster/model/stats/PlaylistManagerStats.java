@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model.stats;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.live.LiveSoundFragmentDTO;
 import io.kneo.broadcaster.model.cnst.SongSource;
@@ -22,6 +23,7 @@ public class PlaylistManagerStats {
     private int duration;
 
     @Inject
+    @JsonIgnore
     HlsPlaylistConfig hlsPlaylistConfig;
 
     public PlaylistManagerStats(PlaylistManager playlistManager, int duration) {

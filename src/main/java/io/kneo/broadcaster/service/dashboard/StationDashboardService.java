@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service.dashboard;
 
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.service.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -18,11 +19,25 @@ public class StationDashboardService {
     @Inject
     RadioStationPool radioStationPool;
 
+    @Inject
+    AiHelperService aiHelperService;
+
     public Uni<Optional<StationStatsDTO>> getStationStats(String brand) {
-        return Uni.createFrom().item(() ->
-                radioStationPool.getStation(brand)
-                        .map(station -> createStationStats(brand, station))
-        );
+        return Uni.createFrom().item(() -> radioStationPool.getStation(brand))
+                .flatMap(optionalStation -> {
+                    if (optionalStation.isEmpty()) {
+                        return Uni.createFrom().item(Optional.empty());
+                    }
+                    RadioStation station = optionalStation.get();
+                    StationStatsDTO stats = createStationStats(brand, station);
+                    
+                    return aiHelperService.getAiDjStats(station)
+                            .onFailure().recoverWithItem(() -> null)
+                            .map(aiDjStats -> {
+                                stats.setAiDjStats(aiDjStats);
+                                return Optional.of(stats);
+                            });
+                });
     }
 
     private StationStatsDTO createStationStats(String brand, RadioStation station) {
@@ -34,11 +49,9 @@ public class StationDashboardService {
 
         if (station.getStreamManager() != null) {
             IStreamManager streamManager = station.getStreamManager();
-            stationStats.setLatestRequestedSeg(streamManager.getLatestRequestedSeg());
             StreamManagerStats hlsSegmentStats = streamManager.getStats();
-            stationStats.setHeartbeat(hlsSegmentStats.isHeartbeat());
+            stationStats.setHeartbeat(hlsSegmentStats.heartbeat());
             stationStats.setSongStatistics(hlsSegmentStats.getSongStatistics());
-            stationStats.setCurrentListeners(hlsSegmentStats.getListenersCount());
             PlaylistManager playlistManager = streamManager.getPlaylistManager();
             stationStats.setPlaylistManagerStats(playlistManager.getStats());
         }

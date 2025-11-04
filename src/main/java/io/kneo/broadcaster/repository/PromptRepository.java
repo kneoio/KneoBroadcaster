@@ -256,7 +256,7 @@ public class PromptRepository extends AsyncRepository {
     }
 
     public Uni<List<UUID>> getPromptsForScene(UUID sceneId) {
-        String sql = "SELECT prompt_id FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 ORDER BY rank ASC";
+        String sql = "SELECT prompt_id FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(sceneId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -271,13 +271,25 @@ public class PromptRepository extends AsyncRepository {
                     .execute(Tuple.of(sceneId))
                     .replaceWithVoid();
         }
+        
+        // Filter out null prompt IDs
+        List<UUID> validPrompts = prompts.stream()
+                .filter(promptId -> promptId != null)
+                .collect(java.util.stream.Collectors.toList());
+        
+        if (validPrompts.isEmpty()) {
+            return tx.preparedQuery(deleteSql)
+                    .execute(Tuple.of(sceneId))
+                    .replaceWithVoid();
+        }
+        
         String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank) VALUES ($1, $2, $3)";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(sceneId))
                 .chain(() -> {
                     List<Tuple> batches = new java.util.ArrayList<>();
-                    for (int i = 0; i < prompts.size(); i++) {
-                        batches.add(Tuple.of(sceneId, prompts.get(i), i));
+                    for (int i = 0; i < validPrompts.size(); i++) {
+                        batches.add(Tuple.of(sceneId, validPrompts.get(i), i));
                     }
                     return tx.preparedQuery(insertSql).executeBatch(batches);
                 })

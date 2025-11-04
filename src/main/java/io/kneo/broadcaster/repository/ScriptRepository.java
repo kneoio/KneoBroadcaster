@@ -226,21 +226,33 @@ public class ScriptRepository extends AsyncRepository {
                         );
                     }
 
-                    return client.withTransaction(tx -> {
-                        String deleteLabelsSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
-                        String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
-                        String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
+                    String checkScenesSql = "SELECT COUNT(*) FROM mixpla_script_scenes WHERE script_id = $1";
+                    return client.preparedQuery(checkScenesSql)
+                            .execute(Tuple.of(id))
+                            .onItem().transform(rows -> rows.iterator().next().getInteger(0))
+                            .onItem().transformToUni(sceneCount -> {
+                                if (sceneCount != null && sceneCount > 0) {
+                                    return Uni.createFrom().failure(new IllegalStateException(
+                                            "Cannot delete script: it has " + sceneCount + " scene(s)"
+                                    ));
+                                }
 
-                        return tx.preparedQuery(deleteLabelsSql)
-                                .execute(Tuple.of(id))
-                                .onItem().transformToUni(ignored ->
-                                        tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
-                                )
-                                .onItem().transformToUni(ignored ->
-                                        tx.preparedQuery(deleteDocSql).execute(Tuple.of(id))
-                                )
-                                .onItem().transform(RowSet::rowCount);
-                    });
+                                return client.withTransaction(tx -> {
+                                    String deleteLabelsSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
+                                    String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
+                                    String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
+
+                                    return tx.preparedQuery(deleteLabelsSql)
+                                            .execute(Tuple.of(id))
+                                            .onItem().transformToUni(ignored ->
+                                                    tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
+                                            )
+                                            .onItem().transformToUni(ignored ->
+                                                    tx.preparedQuery(deleteDocSql).execute(Tuple.of(id))
+                                            )
+                                            .onItem().transform(RowSet::rowCount);
+                                });
+                            });
                 });
     }
 

@@ -26,6 +26,23 @@ public final class WeatherHelper {
         return formatWeather(getWeatherDataBlocking(city, country));
     }
 
+    public Map<String, Object> get(String city) {
+        return get(defaultCountry, city);
+    }
+
+    public Map<String, Object> get() {
+        String city = defaultCityFor(defaultCountry);
+        if (city == null) {
+            return new HashMap<>();
+        }
+        try {
+            JsonObject data = client.getCurrentWeather(city, defaultCountry).await().indefinitely();
+            return formatWeather(data);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch weather for " + defaultCountry + " (city: " + city + ")", e);
+        }
+    }
+
     public String summary(String city) {
         Map<String, Object> w = get(defaultCountry, city);
         return buildSummary(w);
@@ -33,6 +50,14 @@ public final class WeatherHelper {
 
     public String summary(String country, String city) {
         Map<String, Object> w = get(country, city);
+        return buildSummary(w);
+    }
+
+    public String summary() {
+        Map<String, Object> w = get();
+        if (w == null || w.isEmpty()) {
+            return "";
+        }
         return buildSummary(w);
     }
 
@@ -140,7 +165,7 @@ public final class WeatherHelper {
             }
         }
         
-        if (weather.containsKey("weather") && weather.getJsonArray("weather").size() > 0) {
+        if (weather.containsKey("weather") && !weather.getJsonArray("weather").isEmpty()) {
             JsonObject weatherDesc = weather.getJsonArray("weather").getJsonObject(0);
             result.put("description", weatherDesc.getString("description"));
             result.put("main", weatherDesc.getString("main"));
@@ -162,6 +187,38 @@ public final class WeatherHelper {
                                "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
         int index = (int) Math.round(((degrees % 360) / 22.5));
         return directions[index % 16];
+    }
+
+    private String defaultCityFor(String countryCode) {
+        if (countryCode == null) return null;
+        String cc = countryCode.trim().toUpperCase();
+        return switch (cc) {
+            case "US" -> "Washington";
+            case "GB", "UK" -> "London";
+            case "FR" -> "Paris";
+            case "DE" -> "Berlin";
+            case "ES" -> "Madrid";
+            case "IT" -> "Rome";
+            case "PT" -> "Lisbon";
+            case "BR" -> "Brasilia";
+            case "CA" -> "Ottawa";
+            case "AU" -> "Canberra";
+            case "IN" -> "New Delhi";
+            case "JP" -> "Tokyo";
+            case "CN" -> "Beijing";
+            case "RU" -> "Moscow";
+            case "UA" -> "Kyiv";
+            case "PL" -> "Warsaw";
+            case "NL" -> "Amsterdam";
+            case "BE" -> "Brussels";
+            case "SE" -> "Stockholm";
+            case "NO" -> "Oslo";
+            case "DK" -> "Copenhagen";
+            case "FI" -> "Helsinki";
+            case "IE" -> "Dublin";
+            case "CH" -> "Bern";
+            default -> null;
+        };
     }
 
     private static class CachedWeather {

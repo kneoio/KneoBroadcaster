@@ -15,8 +15,8 @@ import java.util.UUID;
 public class ScriptSceneDTO extends AbstractDTO {
     private UUID scriptId;
     private String title;
-    private String type;
     private List<UUID> prompts;
     private LocalTime startTime;
+    private boolean oneTimeRun;
     private List<Integer> weekdays;
 }

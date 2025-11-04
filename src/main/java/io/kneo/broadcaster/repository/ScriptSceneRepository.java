@@ -105,7 +105,7 @@ public class ScriptSceneRepository extends AsyncRepository {
     public Uni<ScriptScene> insert(ScriptScene scene, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, script_id, type, title, start_time, weekdays) " +
+                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, weekdays) " +
                 "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
@@ -113,9 +113,9 @@ public class ScriptSceneRepository extends AsyncRepository {
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
                 .addUUID(scene.getScriptId())
-                .addString(scene.getType())
                 .addString(scene.getTitle())
                 .addLocalTime(scene.getStartTime())
+                .addBoolean(scene.isOneTimeRun())
                 .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null);
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
@@ -137,11 +137,11 @@ public class ScriptSceneRepository extends AsyncRepository {
                     }
                     OffsetDateTime nowTime = OffsetDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET type=$1, title=$2, start_time=$3, weekdays=$4, last_mod_user=$5, last_mod_date=$6 WHERE id=$7";
+                            " SET title=$1, start_time=$2, one_time_run=$3, weekdays=$4, last_mod_user=$5, last_mod_date=$6 WHERE id=$7";
                     Tuple params = Tuple.tuple()
-                            .addString(scene.getType())
                             .addString(scene.getTitle())
                             .addLocalTime(scene.getStartTime())
+                            .addBoolean(scene.isOneTimeRun())
                             .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
                             .addLong(user.getId())
                             .addOffsetDateTime(nowTime)
@@ -185,10 +185,10 @@ public class ScriptSceneRepository extends AsyncRepository {
         ScriptScene doc = new ScriptScene();
         setDefaultFields(doc, row);
         doc.setScriptId(row.getUUID("script_id"));
-        doc.setType(row.getString("type"));
         doc.setTitle(row.getString("title"));
         doc.setArchived(row.getInteger("archived"));
         doc.setStartTime(row.getLocalTime("start_time"));
+        doc.setOneTimeRun(row.getBoolean("one_time_run"));
         Object[] weekdaysArr = row.getArrayOfIntegers("weekdays");
         if (weekdaysArr != null && weekdaysArr.length > 0) {
             List<Integer> weekdays = new ArrayList<>();

@@ -15,9 +15,9 @@ import java.util.UUID;
 public class ScriptScene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
-    private String type;
     private List<UUID> prompts;
     private LocalTime startTime;
     private Integer archived;
+    private boolean oneTimeRun;
     private List<Integer> weekdays;
 }

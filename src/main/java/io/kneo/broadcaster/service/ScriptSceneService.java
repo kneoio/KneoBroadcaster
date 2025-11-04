@@ -85,8 +85,8 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setScriptId(doc.getScriptId());
-            dto.setType(doc.getType());
             dto.setStartTime(doc.getStartTime());
+            dto.setOneTimeRun(doc.isOneTimeRun());
             dto.setWeekdays(doc.getWeekdays());
             dto.setPrompts(includePrompts ? doc.getPrompts() : null);
             return dto;
@@ -95,9 +95,9 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
 
     private ScriptScene buildEntity(ScriptSceneDTO dto) {
         ScriptScene entity = new ScriptScene();
-        entity.setType(dto.getType());
         entity.setTitle(dto.getTitle());
         entity.setStartTime(dto.getStartTime());
+        entity.setOneTimeRun(dto.isOneTimeRun());
         entity.setWeekdays(dto.getWeekdays());
         entity.setPrompts(dto.getPrompts() != null ? dto.getPrompts() : List.of());
         return entity;

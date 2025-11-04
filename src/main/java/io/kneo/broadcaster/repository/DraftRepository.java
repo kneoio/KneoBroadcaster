@@ -92,8 +92,8 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, draft_type, title, content, language_code) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, title, content, language_code) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -102,7 +102,6 @@ public class DraftRepository extends AsyncRepository {
                         .addOffsetDateTime(now)
                         .addLong(user.getId())
                         .addOffsetDateTime(now)
-                        .addString(draft.getDraftType())
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
                         .addString(draft.getLanguageCode().name());
@@ -121,13 +120,12 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "UPDATE " + entityData.getTableName() +
-                        " SET draft_type = $1, title = $2, content = $3, language_code = $4, last_mod_user = $5, last_mod_date = $6 " +
-                        "WHERE id = $7";
+                        " SET title = $1, content = $2, language_code = $3, last_mod_user = $4, last_mod_date = $5 " +
+                        "WHERE id = $6";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
                 Tuple params = Tuple.tuple()
-                        .addString(draft.getDraftType())
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
                         .addString(draft.getLanguageCode().name())
@@ -157,7 +155,6 @@ public class DraftRepository extends AsyncRepository {
         Draft doc = new Draft();
         setDefaultFields(doc, row);
 
-        doc.setDraftType(row.getString("draft_type"));
         doc.setTitle(row.getString("title"));
         doc.setContent(row.getString("content"));
         doc.setArchived(row.getInteger("archived"));

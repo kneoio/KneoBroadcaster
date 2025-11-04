@@ -12,7 +12,6 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 public class DraftDTO  extends AbstractReferenceDTO {
-    private String draftType;
     private String title;
     private String content;
     private LanguageCode languageCode;

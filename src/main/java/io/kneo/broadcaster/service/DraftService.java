@@ -120,7 +120,6 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
-            dto.setDraftType(doc.getDraftType());
             dto.setTitle(doc.getTitle());
             dto.setContent(doc.getContent());
             dto.setLanguageCode(doc.getLanguageCode());
@@ -131,7 +130,6 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
 
     private Draft buildEntity(DraftDTO dto) {
         Draft doc = new Draft();
-        doc.setDraftType(dto.getDraftType());
         doc.setTitle(dto.getTitle());
         doc.setContent(dto.getContent());
         doc.setLanguageCode(dto.getLanguageCode());

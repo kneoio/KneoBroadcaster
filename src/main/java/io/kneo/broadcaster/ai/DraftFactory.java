@@ -1,21 +1,27 @@
 package io.kneo.broadcaster.ai;
 
+import io.kneo.broadcaster.agent.WeatherApiClient;
+import io.kneo.broadcaster.agent.WorldNewsApiClient;
+import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
+import io.kneo.broadcaster.dto.memory.MessageDTO;
+import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.cnst.DraftType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
+import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,19 +36,23 @@ public class DraftFactory {
     private final RefService refService;
     private final ProfileService profileService;
     private final DraftService draftService;
+    private final WeatherApiClient weatherApiClient;
+    private final WorldNewsApiClient worldNewsApiClient;
     private final Random random = new Random();
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
-    public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService) {
+    public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService, 
+                       WeatherApiClient weatherApiClient, WorldNewsApiClient worldNewsApiClient) {
         this.refService = refService;
         this.profileService = profileService;
         this.draftService = draftService;
+        this.weatherApiClient = weatherApiClient;
+        this.worldNewsApiClient = worldNewsApiClient;
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
     public Uni<String> createDraft(
-            DraftType draftType,
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
@@ -51,11 +61,12 @@ public class DraftFactory {
         
         return Uni.combine().all()
                 .unis(
-                        getDraftTemplate(draftType, agent.getPreferredLang()),
+                        getDraftTemplate(agent.getPreferredLang()),
                         profileService.getById(station.getProfileId()),
                         resolveGenreNames(song.getGenres(), agent)
                 )
                 .asTuple()
+                .emitOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool())
                 .map(tuple -> {
                     Draft template = tuple.getItem1();
                     Profile profile = tuple.getItem2();
@@ -72,8 +83,7 @@ public class DraftFactory {
                                 genres
                         );
                     } else {
-                        String msg = String.format("No draft template found for type=%s, language=%s. Fallbacks are disabled.",
-                                draftType, agent.getPreferredLang());
+                        String msg = String.format("No draft template found for language=%s. Fallbacks are disabled.", agent.getPreferredLang());
                         LOGGER.error(msg);
                         throw new IllegalStateException(msg);
                     }
@@ -93,6 +103,7 @@ public class DraftFactory {
                         resolveGenreNames(song.getGenres(), agent)
                 )
                 .asTuple()
+                .emitOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool())
                 .map(tuple -> {
                     Profile profile = tuple.getItem1();
                     List<String> genres = tuple.getItem2();
@@ -109,11 +120,9 @@ public class DraftFactory {
                 });
     }
 
-    private Uni<Draft> getDraftTemplate(DraftType draftType, io.kneo.core.localization.LanguageCode languageCode) {
+    private Uni<Draft> getDraftTemplate(LanguageCode languageCode) {
         return draftService.getAll()
                 .map(drafts -> drafts.stream()
-                        .filter(d -> draftType.name().equals(d.getDraftType()) && 
-                                    languageCode.equals(d.getLanguageCode()))
                         .findFirst()
                         .orElse(null)
                 );
@@ -128,10 +137,10 @@ public class DraftFactory {
             Profile profile,
             List<String> genres
     ) {
-        var history = memoryData.getConversationHistory();
-        var messages = memoryData.getMessages();
-        var events = memoryData.getEvents();
-        
+        List<SongIntroduction> history = memoryData.getConversationHistory();
+        List<MessageDTO> messages = memoryData.getMessages();
+        List<EventInMemoryDTO> events = memoryData.getEvents();
+        String countryIso = station.getCountry().getIsoCode();
         Map<String, Object> data = new HashMap<>();
         data.put("songTitle", song.getTitle());
         data.put("songArtist", song.getArtist());
@@ -139,12 +148,16 @@ public class DraftFactory {
         data.put("songGenres", genres);
         data.put("agentName", agent.getName());
         data.put("stationBrand", station.getLocalizedName().get(agent.getPreferredLang()));
+        data.put("country", station.getCountry());
+        data.put("language", agent.getPreferredLang());
         data.put("profileName", profile.getName());
         data.put("profileDescription", profile.getDescription());
         data.put("history", history);
         data.put("messages", messages);
         data.put("events", events);
         data.put("random", random); //we will use Java random
+        data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
+        data.put("news", new NewsHelper(worldNewsApiClient, countryIso, agent.getPreferredLang().name()));
 
         return groovyEngine.render(template, data).trim();
     }
@@ -157,6 +170,4 @@ public class DraftFactory {
         
         return Uni.join().all(genreUnis).andFailFast();
     }
-
-
 }

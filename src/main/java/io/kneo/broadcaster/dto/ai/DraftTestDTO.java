@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.dto.ai;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.model.cnst.DraftType;
 import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -13,9 +12,6 @@ import java.util.UUID;
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class DraftTestDTO {
-    @NotNull
-    private DraftType draftType;
-    
     @NotNull
     private UUID songId;
     

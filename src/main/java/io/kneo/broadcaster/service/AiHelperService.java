@@ -216,7 +216,6 @@ public class AiHelperService {
                                         .flatMap(songs -> {
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> draftFactory.createDraft(
-                                                            mapPromptTypeToDraftType(selectedPrompt.getPromptType()),
                                                             song,
                                                             agent,
                                                             station,

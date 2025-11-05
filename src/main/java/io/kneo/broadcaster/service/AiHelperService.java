@@ -29,13 +29,10 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -47,6 +44,8 @@ public class AiHelperService {
 
     private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
     private final Map<String, List<AiDjStats.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
+    private final Map<String, List<UUID>> oneTimeRunTracker = new ConcurrentHashMap<>();
+    private LocalDate lastReset = LocalDate.now();
 
     private final RadioStationPool radioStationPool;
     private final AiAgentService aiAgentService;
@@ -56,9 +55,10 @@ public class AiHelperService {
     private final SoundFragmentMCPTools soundFragmentMCPTools;
     private final DraftFactory draftFactory;
     private final MemoryService memoryService;
+
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
-            RadioStationStatus.WARMING_UP,  //keep it for now while developing stage
+            RadioStationStatus.WARMING_UP,
             RadioStationStatus.QUEUE_SATURATED
     );
 
@@ -92,18 +92,14 @@ public class AiHelperService {
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
             stations.forEach(station -> clearMessages(station.getSlugName()));
-            
             LiveContainerMcpDTO container = new LiveContainerMcpDTO();
-            
             if (stations.isEmpty()) {
                 container.setRadioStations(List.of());
                 return Uni.createFrom().item(container);
             }
-            
             List<Uni<LiveRadioStationMcpDTO>> stationUnis = stations.stream()
                     .map(this::buildLiveRadioStation)
                     .collect(Collectors.toList());
-
             return Uni.join().all(stationUnis).andFailFast()
                     .map(liveStations -> {
                         List<LiveRadioStationMcpDTO> validStations = liveStations.stream()
@@ -136,12 +132,11 @@ public class AiHelperService {
                     liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
                     liveRadioStation.setDjName(agent.getName());
 
-                    aiDjStatsRequestTracker.put(station.getSlugName(), 
-                        new DjRequestInfo(LocalDateTime.now(), agent.getName()));
+                    aiDjStatsRequestTracker.put(station.getSlugName(),
+                            new DjRequestInfo(LocalDateTime.now(), agent.getName()));
 
                     return fetchPrompt(station, agent).flatMap(prompts -> {
                         liveRadioStation.setPrompts(prompts);
-
                         String preferredVoice = agent.getPreferredVoice().get(0).getId();
                         UUID copilotId = agent.getCopilot();
 
@@ -170,11 +165,9 @@ public class AiHelperService {
                 .flatMap(tuple -> {
                     List<BrandScript> scripts = tuple.getItem1();
                     MemoryResult memoryData = tuple.getItem2();
-
                     if (scripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
                     }
-
                     LocalDateTime now = LocalDateTime.now();
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
@@ -183,7 +176,7 @@ public class AiHelperService {
                     for (BrandScript brandScript : scripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
-                            if (isSceneActive(scene, scenes, currentTime, currentDayOfWeek)) {
+                            if (isSceneActive(station.getSlugName(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 allPromptIds.addAll(scene.getPrompts());
                             }
                         }
@@ -236,41 +229,59 @@ public class AiHelperService {
                 });
     }
 
-    private boolean isSceneActive(ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
+    private boolean isSceneActive(String stationSlug, ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
+        if (!LocalDate.now().equals(lastReset)) {
+            oneTimeRunTracker.clear();
+            lastReset = LocalDate.now();
+        }
+
         if (!scene.getWeekdays().isEmpty() && !scene.getWeekdays().contains(currentDayOfWeek)) {
             return false;
         }
 
         if (scene.getStartTime() == null) {
-            return true;
+            return markIfOneTime(stationSlug, scene);
         }
 
         LocalTime sceneStart = scene.getStartTime();
         LocalTime nextSceneStart = findNextSceneStartTime(scene, allScenes);
 
-        assert nextSceneStart != null;
-        if (nextSceneStart.isAfter(sceneStart)) {
-            return !currentTime.isBefore(sceneStart) && currentTime.isBefore(nextSceneStart);
+        boolean active;
+        if (nextSceneStart != null && nextSceneStart.isAfter(sceneStart)) {
+            active = !currentTime.isBefore(sceneStart) && currentTime.isBefore(nextSceneStart);
+        } else if (nextSceneStart != null) {
+            active = !currentTime.isBefore(sceneStart) || currentTime.isBefore(nextSceneStart);
         } else {
-            return !currentTime.isBefore(sceneStart) || currentTime.isBefore(nextSceneStart);
+            active = !currentTime.isBefore(sceneStart);
         }
+
+        return active && markIfOneTime(stationSlug, scene);
+    }
+
+    private boolean markIfOneTime(String stationSlug, ScriptScene scene) {
+        if (scene.isOneTimeRun()) {
+            List<UUID> used = oneTimeRunTracker.computeIfAbsent(stationSlug, k -> new ArrayList<>());
+            if (used.contains(scene.getId())) {
+                return false;
+            }
+            used.add(scene.getId());
+        }
+        return true;
     }
 
     private LocalTime findNextSceneStartTime(ScriptScene currentScene, List<ScriptScene> scenesWithTime) {
         LocalTime currentStart = currentScene.getStartTime();
-        
         List<LocalTime> sortedTimes = scenesWithTime.stream()
                 .map(ScriptScene::getStartTime)
+                .filter(Objects::nonNull)
                 .sorted()
                 .distinct()
                 .toList();
-
         for (LocalTime time : sortedTimes) {
             if (time.isAfter(currentStart)) {
                 return time;
             }
         }
-
         return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
     }
 
@@ -288,7 +299,6 @@ public class AiHelperService {
                     if (scripts.isEmpty()) {
                         return null;
                     }
-
                     LocalDateTime now = LocalDateTime.now();
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
@@ -296,21 +306,18 @@ public class AiHelperService {
                     for (BrandScript brandScript : scripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
-                            if (isSceneActive(scene, scenes, currentTime, currentDayOfWeek)) {
+                            if (isSceneActive(station.getSlugName(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 LocalTime sceneStart = scene.getStartTime();
                                 LocalTime sceneEnd = findNextSceneStartTime(scene, scenes);
                                 int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;
-                                
                                 String nextSceneTitle = findNextSceneTitle(scene, scenes);
                                 DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
-
                                 LocalDateTime lastRequestTime = null;
                                 String djName = null;
                                 if (requestInfo != null) {
                                     lastRequestTime = requestInfo.requestTime();
                                     djName = requestInfo.djName();
                                 }
-
                                 return new AiDjStats(
                                         scene.getId(),
                                         scene.getTitle(),
@@ -325,7 +332,6 @@ public class AiHelperService {
                             }
                         }
                     }
-
                     return null;
                 });
     }
@@ -335,18 +341,15 @@ public class AiHelperService {
         if (currentStart == null) {
             return null;
         }
-
         List<ScriptScene> sortedScenes = scenes.stream()
                 .filter(s -> s.getStartTime() != null)
-                .sorted((a, b) -> a.getStartTime().compareTo(b.getStartTime()))
+                .sorted(Comparator.comparing(ScriptScene::getStartTime))
                 .toList();
-
         for (ScriptScene scene : sortedScenes) {
             if (scene.getStartTime().isAfter(currentStart)) {
                 return scene.getTitle();
             }
         }
-
         return !sortedScenes.isEmpty() ? sortedScenes.get(0).getTitle() : null;
     }
 

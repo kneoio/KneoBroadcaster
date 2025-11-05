@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
+import io.kneo.broadcaster.dto.ai.PromptTestDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -38,6 +40,9 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
     PromptService service;
     private Validator validator;
 
+    @Inject
+    AgentClient agentClient;
+
     public PromptController() {
         super(null);
     }
@@ -53,6 +58,7 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
         String path = "/api/prompts";
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
+        router.post(path + "/test").handler(this::test);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
         router.post(path + "/:id").handler(this::upsert);
@@ -143,6 +149,28 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
             } else {
                 rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
             }
+        }
+    }
+
+    private void test(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            PromptTestDTO dto = rc.body().asJsonObject().mapTo(PromptTestDTO.class);
+            if (!validateDTO(rc, dto, validator)) return;
+
+            getContextUser(rc, false, true)
+                    .chain(user -> agentClient.testPrompt(dto.getPrompt(), dto.getDraft(), dto.getLlmType()))
+                    .subscribe().with(
+                            response -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end(response),
+                            rc::fail
+                    );
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
         }
     }
 

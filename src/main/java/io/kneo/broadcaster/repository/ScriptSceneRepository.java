@@ -43,7 +43,7 @@ public class ScriptSceneRepository extends AsyncRepository {
         if (!includeArchived) {
             sql += " AND t.archived = 0";
         }
-        sql += " ORDER BY t.last_mod_date DESC";
+        sql += " ORDER BY t.start_time ";
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }

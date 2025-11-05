@@ -3,7 +3,6 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.service.ScriptSceneService;
-import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -23,12 +22,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SceneController extends AbstractSecuredController<ScriptScene, ScriptSceneDTO> {
@@ -55,8 +49,8 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
 
         String scenePath = "/api/scenes";
         router.route(scenePath + "*").handler(BodyHandler.create());
-        router.get(scenePath + "/:id").handler(this::getSceneById);
-        router.post(scenePath + "/:id").handler(this::upsertScene);
+        router.get(scenePath + "/:id").handler(this::getById);
+        router.post(scenePath + "/:id").handler(this::upsert);
         router.delete(scenePath + "/:id").handler(this::deleteScene);
         router.get(scenePath + "/:id/access").handler(this::getDocumentAccess);
     }
@@ -90,7 +84,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
         }
     }
 
-    private void getSceneById(RoutingContext rc) {
+    private void getById(RoutingContext rc) {
         String id = rc.pathParam("id");
         LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
         getContextUser(rc, false, true)
@@ -137,7 +131,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
         }
     }
 
-    private void upsertScene(RoutingContext rc) {
+    private void upsert(RoutingContext rc) {
         try {
             if (!validateJsonBody(rc)) return;
             String id = rc.pathParam("id");

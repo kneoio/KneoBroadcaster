@@ -31,7 +31,7 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     }
-                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(scene -> mapToDTO(scene, user)).collect(Collectors.toList());
+                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
     }
@@ -46,16 +46,16 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
 
     @Override
     public Uni<ScriptSceneDTO> getDTO(UUID id, IUser user, io.kneo.core.localization.LanguageCode language) {
-        return repository.findById(id, user, false).chain(scene -> mapToDTO(scene, user));
+        return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
     public Uni<ScriptSceneDTO> upsert(String id, UUID scriptId, ScriptSceneDTO dto, IUser user) {
         ScriptScene entity = buildEntity(dto);
         if (id == null) {
             entity.setScriptId(scriptId);
-            return repository.insert(entity, user).chain(scene -> mapToDTO(scene, user));
+            return repository.insert(entity, user).chain(this::mapToDTO);
         } else {
-            return repository.update(UUID.fromString(id), entity, user).chain(scene -> mapToDTO(scene, user));
+            return repository.update(UUID.fromString(id), entity, user).chain(this::mapToDTO);
         }
     }
 
@@ -68,11 +68,11 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         return repository.delete(UUID.fromString(id), user);
     }
 
-    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, IUser user) {
-        return mapToDTO(doc, user, true);
+    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc) {
+        return mapToDTO(doc, true);
     }
 
-    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, IUser user, boolean includePrompts) {
+    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, boolean includePrompts) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier())

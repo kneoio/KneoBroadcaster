@@ -38,8 +38,8 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
 
     @Inject
     public DraftService(UserService userService, DraftRepository repository, DraftFactory draftFactory,
-                       SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
-                       RadioStationService radioStationService, MemoryService memoryService) {
+                        SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
+                        RadioStationService radioStationService, MemoryService memoryService) {
         super(userService);
         this.repository = repository;
         this.draftFactory = draftFactory;
@@ -50,12 +50,10 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     }
 
     public Uni<List<Draft>> getAll() {
-        assert repository != null;
         return repository.getAll(0, 0, false, null);
     }
 
     public Uni<List<DraftDTO>> getAll(final int limit, final int offset, final IUser user) {
-        assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
@@ -70,7 +68,6 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     }
 
     public Uni<Integer> getAllCount(final IUser user) {
-        assert repository != null;
         return repository.getAllCount(user, false);
     }
 
@@ -80,32 +77,23 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
 
     @Override
     public Uni<Integer> delete(String id, IUser user) {
-        assert repository != null;
         return repository.archive(UUID.fromString(id), user);
     }
 
     @Override
     public Uni<DraftDTO> getDTO(UUID id, IUser user, LanguageCode language) {
-        assert repository != null;
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
     public Uni<DraftDTO> upsert(String id, DraftDTO dto, IUser user, LanguageCode code) {
-        assert repository != null;
         Draft entity = buildEntity(dto);
-
-        Uni<Draft> saveOperation;
-        if (id == null) {
-            saveOperation = repository.insert(entity, user);
-        } else {
-            saveOperation = repository.update(UUID.fromString(id), entity, user);
-        }
-
+        Uni<Draft> saveOperation = (id == null)
+                ? repository.insert(entity, user)
+                : repository.update(UUID.fromString(id), entity, user);
         return saveOperation.chain(this::mapToDTO);
     }
 
     public Uni<Integer> archive(String id, IUser user) {
-        assert repository != null;
         return repository.archive(UUID.fromString(id), user);
     }
 
@@ -124,6 +112,9 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             dto.setContent(doc.getContent());
             dto.setLanguageCode(doc.getLanguageCode());
             dto.setArchived(doc.getArchived());
+            dto.setEnabled(doc.isEnabled());
+            dto.setMaster(doc.isMaster());
+            dto.setLocked(doc.isLocked());
             return dto;
         });
     }
@@ -134,6 +125,9 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         doc.setContent(dto.getContent());
         doc.setLanguageCode(dto.getLanguageCode());
         doc.setArchived(dto.getArchived() != null ? dto.getArchived() : 0);
+        doc.setEnabled(dto.isEnabled());
+        doc.setMaster(dto.isMaster());
+        doc.setLocked(dto.isLocked());
         return doc;
     }
 
@@ -142,36 +136,36 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                 .chain(station -> {
                     String brand = station.getSlugName();
                     return memoryService.addMessage(brand, "John", "Can you play some rock music?")
-                    .chain(id1 -> memoryService.addMessage(brand, "Sarah", "I love this station!"))
-                    .chain(id2 -> memoryService.addEvent(brand, EventType.WEATHER, "2025-11-02T21:00:00Z", "Sunny weather, 25°C"))
-                    .chain(id4 -> {
-                        SongIntroductionDTO historyDto = new SongIntroductionDTO();
-                        historyDto.setRelevantSoundFragmentId(dto.getSongId().toString());
-                        historyDto.setArtist("The Beatles");
-                        historyDto.setTitle("Hey Jude");
-                        String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-                        historyDto.setIntroSpeech("Here's a classic from The Beatles that never gets old! [Played at " + timestamp + "]");
-                        return memoryService.updateHistory(brand, historyDto)
-                                .chain(result -> memoryService.commitHistory(brand, dto.getSongId()));
-                    })
-                    .chain(ignored -> soundFragmentService.getById(dto.getSongId(), user))
-                    .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
-                            .chain(agent -> memoryService.getByType(
-                                    brand,
-                                    MemoryType.MESSAGE.name(),
-                                    MemoryType.EVENT.name(),
-                                    MemoryType.CONVERSATION_HISTORY.name()
-                            )
-                            .chain(memoryData -> 
-                                draftFactory.createDraftFromCode(
-                                        dto.getCode(),
-                                        song,
-                                        agent,
-                                        station,
-                                        memoryData
-                                )
-                            ))
-                    );
+                            .chain(id1 -> memoryService.addMessage(brand, "Sarah", "I love this station!"))
+                            .chain(id2 -> memoryService.addEvent(brand, EventType.WEATHER, "2025-11-02T21:00:00Z", "Sunny weather, 25°C"))
+                            .chain(id4 -> {
+                                SongIntroductionDTO historyDto = new SongIntroductionDTO();
+                                historyDto.setRelevantSoundFragmentId(dto.getSongId().toString());
+                                historyDto.setArtist("The Beatles");
+                                historyDto.setTitle("Hey Jude");
+                                String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+                                historyDto.setIntroSpeech("Here's a classic from The Beatles that never gets old! [Played at " + timestamp + "]");
+                                return memoryService.updateHistory(brand, historyDto)
+                                        .chain(result -> memoryService.commitHistory(brand, dto.getSongId()));
+                            })
+                            .chain(ignored -> soundFragmentService.getById(dto.getSongId(), user))
+                            .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
+                                    .chain(agent -> memoryService.getByType(
+                                                    brand,
+                                                    MemoryType.MESSAGE.name(),
+                                                    MemoryType.EVENT.name(),
+                                                    MemoryType.CONVERSATION_HISTORY.name()
+                                            )
+                                            .chain(memoryData ->
+                                                    draftFactory.createDraftFromCode(
+                                                            dto.getCode(),
+                                                            song,
+                                                            agent,
+                                                            station,
+                                                            memoryData
+                                                    )
+                                            ))
+                            );
                 });
     }
 }

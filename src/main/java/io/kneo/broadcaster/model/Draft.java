@@ -17,4 +17,7 @@ public class Draft extends DataEntity<UUID> {
     private String content;
     private LanguageCode languageCode;
     private Integer archived;
+    private boolean enabled;
+    private boolean isMaster;
+    private boolean locked;
 }

@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.ai.DraftTestDTO;
+import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -42,14 +44,18 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
     private DraftService service;
     private Validator validator;
 
+    private final AgentClient agentClient;
+
     public DraftController() {
         super(null);
+        agentClient = null;
     }
 
     @Inject
-    public DraftController(UserService userService, DraftService service, Validator validator) {
+    public DraftController(UserService userService, DraftService service, AgentClient agentClient, Validator validator) {
         super(userService);
         this.service = service;
+        this.agentClient = agentClient;
         this.validator = validator;
     }
 
@@ -57,6 +63,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         String path = "/api/drafts";
         router.route(path + "*").handler(BodyHandler.create());
         router.post(path + "/test").handler(this::testDraft);  // Must be before POST /api/drafts
+        router.post(path + "/translate").handler(this::translate);
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
@@ -189,6 +196,31 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                                     .setStatusCode(200)
                                     .putHeader("Content-Type", "text/plain")
                                     .end(result),
+                            rc::fail
+                    );
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
+        }
+    }
+
+    private void translate(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            TranslateReqDTO dto = rc.body().asJsonObject().mapTo(TranslateReqDTO.class);
+            if (!validateDTO(rc, dto, validator)) return;
+
+            getContextUser(rc, false, true)
+                    .chain(user -> {
+                        assert agentClient != null;
+                        return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode());
+                    })
+                    .subscribe().with(
+                            response -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end(response),
                             rc::fail
                     );
 

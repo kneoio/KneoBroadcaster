@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.agent;
 
+import io.kneo.broadcaster.dto.cnst.TranslationType;
 import io.kneo.broadcaster.model.ai.LlmType;
+import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
@@ -55,6 +57,27 @@ public class AgentClient {
         payload.put("prompt", prompt);
         payload.put("draft", draft);
         payload.put("llm", llmType.name());
+
+        return webClient
+                .postAbs(endpoint)
+                .putHeader("Content-Type", "application/json")
+                .sendJsonObject(payload)
+                .map(response -> {
+                    if (response.statusCode() == 200) {
+                        return response.bodyAsString();
+                    } else {
+                        throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
+                    }
+                });
+    }
+
+    public Uni<String> translate(String toTranslate, TranslationType translationType, LanguageCode code) {
+        String endpoint = config.getAgentUrl() + "/translate";
+
+        JsonObject payload = new JsonObject();
+        payload.put("toTranslate", toTranslate);
+        payload.put("translationType", translationType);
+        payload.put("language", code.name());
 
         return webClient
                 .postAbs(endpoint)

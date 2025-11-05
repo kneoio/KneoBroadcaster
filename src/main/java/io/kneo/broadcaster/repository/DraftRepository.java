@@ -92,8 +92,8 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, title, content, language_code) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, title, content, language_code, enabled, is_master, locked) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -104,7 +104,10 @@ public class DraftRepository extends AsyncRepository {
                         .addOffsetDateTime(now)
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
-                        .addString(draft.getLanguageCode().name());
+                        .addString(draft.getLanguageCode().name())
+                        .addBoolean(draft.isEnabled())
+                        .addBoolean(draft.isMaster())
+                        .addBoolean(draft.isLocked());
 
                 return client.preparedQuery(sql)
                         .execute(params)
@@ -120,8 +123,8 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "UPDATE " + entityData.getTableName() +
-                        " SET title = $1, content = $2, language_code = $3, last_mod_user = $4, last_mod_date = $5 " +
-                        "WHERE id = $6";
+                        " SET title = $1, content = $2, language_code = $3, enabled = $4, is_master = $5, locked = $6, " +
+                        "last_mod_user = $7, last_mod_date = $8 WHERE id = $9";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -129,6 +132,9 @@ public class DraftRepository extends AsyncRepository {
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
                         .addString(draft.getLanguageCode().name())
+                        .addBoolean(draft.isEnabled())
+                        .addBoolean(draft.isMaster())
+                        .addBoolean(draft.isLocked())
                         .addLong(user.getId())
                         .addOffsetDateTime(now)
                         .addUUID(id);
@@ -158,7 +164,10 @@ public class DraftRepository extends AsyncRepository {
         doc.setTitle(row.getString("title"));
         doc.setContent(row.getString("content"));
         doc.setArchived(row.getInteger("archived"));
-        
+        doc.setEnabled(row.getBoolean("enabled"));
+        doc.setMaster(row.getBoolean("is_master"));
+        doc.setLocked(row.getBoolean("locked"));
+
         String languageCodeStr = row.getString("language_code");
         if (languageCodeStr != null) {
             doc.setLanguageCode(LanguageCode.valueOf(languageCodeStr));

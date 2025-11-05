@@ -16,4 +16,7 @@ public class DraftDTO  extends AbstractReferenceDTO {
     private String content;
     private LanguageCode languageCode;
     private Integer archived;
+    private boolean enabled;
+    private boolean isMaster;
+    private boolean locked;
 }

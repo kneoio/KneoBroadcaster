@@ -13,7 +13,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @NoArgsConstructor
-public class SoundFragmentFilterDTO {
+public class SoundFragmentFilterDTO implements IFilterDTO {
     private boolean activated = false;
 
     @NotEmpty(message = "Genres list cannot be empty when provided")
@@ -25,23 +25,15 @@ public class SoundFragmentFilterDTO {
     @NotEmpty(message = "Types list cannot be empty when provided")
     private List<PlaylistItemType> types;
 
+    @Override
     public boolean isActivated() {
-        if (activated) {
-            return true;
-        }
-        return hasAnyFilter();
+        return activated || hasAnyFilter();
     }
 
-    private boolean hasAnyFilter() {
-        if (genres != null && !genres.isEmpty()) {
-            return true;
-        }
-        if (sources != null && !sources.isEmpty()) {
-            return true;
-        }
-        if (types != null && !types.isEmpty()) {
-            return true;
-        }
-        return false;
+    @Override
+    public boolean hasAnyFilter() {
+        return (genres != null && !genres.isEmpty()) ||
+               (sources != null && !sources.isEmpty()) ||
+               (types != null && !types.isEmpty());
     }
 }

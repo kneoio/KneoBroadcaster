@@ -4,6 +4,7 @@ import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.ai.DraftTestDTO;
 import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
+import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -74,17 +75,21 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        DraftFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllCount(user),
-                        service.getAll(size, (page - 1) * size, user)
+                        service.getAllCount(user, filter),
+                        service.getAll(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<DraftDTO> dtoEntries = new View<>(tuple.getItem2(),
-                            tuple.getItem1(), page,
+                    View<DraftDTO> dtoEntries = new View<>(
+                            tuple.getItem2(),  // items
+                            tuple.getItem1(),  // total count
+                            page,
                             RuntimeUtil.countMaxPage(tuple.getItem1(), size),
-                            size);
+                            size
+                    );
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                     viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                     return viewPage;
@@ -96,6 +101,56 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                             rc.fail(throwable);
                         }
                 );
+    }
+    
+    private DraftFilterDTO parseFilterDTO(RoutingContext rc) {
+        String filterParam = rc.request().getParam("filter");
+        if (filterParam == null || filterParam.isBlank()) {
+            return null;
+        }
+        
+        DraftFilterDTO dto = new DraftFilterDTO();
+        boolean any = false;
+        
+        try {
+            JsonObject json = new JsonObject(filterParam);
+            
+            if (json.containsKey("languageCode")) {
+                dto.setLanguageCode(LanguageCode.valueOf(json.getString("languageCode")));
+                any = true;
+            }
+            
+            if (json.containsKey("archived")) {
+                dto.setArchived(json.getInteger("archived"));
+                any = true;
+            }
+            
+            if (json.containsKey("enabled")) {
+                dto.setEnabled(json.getBoolean("enabled"));
+                any = true;
+            }
+            
+            if (json.containsKey("isMaster")) {
+                dto.setMaster(json.getBoolean("isMaster"));
+                any = true;
+            }
+            
+            if (json.containsKey("locked")) {
+                dto.setLocked(json.getBoolean("locked"));
+                any = true;
+            }
+            
+            if (json.containsKey("activated")) {
+                dto.setActivated(json.getBoolean("activated"));
+                any = true;
+            }
+            
+            return any ? dto : null;
+            
+        } catch (Exception e) {
+            LOGGER.error("Error parsing filter parameters", e);
+            return null;
+        }
     }
 
     private void getById(RoutingContext rc) {
@@ -157,28 +212,32 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                     .chain(user -> service.upsert(id, dto, user, LanguageCode.en))
                     .subscribe().with(
                             doc -> rc.response().setStatusCode(id == null ? 201 : 200).end(JsonObject.mapFrom(doc).encode()),
-                            throwable -> {
-                                LOGGER.error("Failed to upsert draft with id: {}", id, throwable);
-                                rc.fail(throwable);
-                            }
+                            throwable -> handleFailure(rc, throwable)
                     );
         } catch (Exception e) {
-            if (e instanceof IllegalArgumentException) {
-                rc.fail(400, e);
-            } else {
-                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
-            }
+            LOGGER.error("Error in upsert operation", e);
+            handleFailure(rc, e);
         }
     }
 
     private void delete(RoutingContext rc) {
         String id = rc.pathParam("id");
         getContextUser(rc, false, true)
-                .chain(user -> service.archive(id, user))
+                .chain(user -> service.delete(id, user))
                 .subscribe().with(
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
-                        rc::fail
+                        throwable -> handleFailure(rc, throwable)
                 );
+    }
+
+    protected void handleFailure(RoutingContext rc, Throwable throwable) {
+        if (throwable instanceof IllegalStateException
+                || throwable instanceof IllegalArgumentException) {
+            rc.fail(400, throwable);
+        } else {
+            LOGGER.error("Unexpected error in DraftController", throwable);
+            rc.fail(throwable);
+        }
     }
 
     private void testDraft(RoutingContext rc) {

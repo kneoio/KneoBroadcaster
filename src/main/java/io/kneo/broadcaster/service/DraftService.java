@@ -4,6 +4,7 @@ import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.ai.DraftTestDTO;
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
+import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
@@ -11,6 +12,7 @@ import io.kneo.broadcaster.repository.DraftRepository;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -50,11 +52,11 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     }
 
     public Uni<List<Draft>> getAll() {
-        return repository.getAll(0, 0, false, null);
+        return repository.getAll(0, 0, false, SuperUser.build(), null);
     }
 
-    public Uni<List<DraftDTO>> getAll(final int limit, final int offset, final IUser user) {
-        return repository.getAll(limit, offset, false, user)
+    public Uni<List<DraftDTO>> getAll(final int limit, final int offset, final IUser user, final DraftFilterDTO filter) {
+        return repository.getAll(limit, offset, false, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -67,8 +69,8 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                 });
     }
 
-    public Uni<Integer> getAllCount(final IUser user) {
-        return repository.getAllCount(user, false);
+    public Uni<Integer> getAllCount(final IUser user, final DraftFilterDTO filter) {
+        return repository.getAllCount(user, false, filter);
     }
 
     public Uni<Draft> getById(UUID id, IUser user) {

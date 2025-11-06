@@ -1,13 +1,13 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
-import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -31,37 +31,40 @@ public class DraftRepository extends AsyncRepository {
     private static final Logger LOGGER = LoggerFactory.getLogger(DraftRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(DRAFT);
 
+    private final DraftQueryBuilder queryBuilder;
+
     @Inject
-    public DraftRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
-        super(client, mapper, rlsRepository);
+    public DraftRepository(PgPool client, ObjectMapper mapper, DraftQueryBuilder queryBuilder) {
+        super(client, mapper, null);
+        this.queryBuilder = queryBuilder;
     }
 
-    public Uni<List<Draft>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName();
-
-        if (!includeArchived) {
-            sql += " WHERE archived = 0";
-        }
-
-        sql += " ORDER BY last_mod_date DESC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
+    public Uni<List<Draft>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final DraftFilterDTO filter) {
+        String sql = queryBuilder.buildGetAllQuery(
+                entityData.getTableName(),
+                includeArchived,
+                filter,
+                limit,
+                offset
+        );
 
         return client.query(sql)
                 .execute()
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve drafts for user: {}", user.getId(), throwable))
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve drafts", throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " WHERE author = " + user.getId();
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, final DraftFilterDTO filter) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t";
 
         if (!includeArchived) {
-            sql += " AND archived = 0";
+            sql += " WHERE (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += queryBuilder.buildFilterConditions(filter);
         }
 
         return client.query(sql)

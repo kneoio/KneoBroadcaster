@@ -2,7 +2,6 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ai.Prompt;
-import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -101,8 +100,8 @@ public class PromptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, prompt_type, language_code, is_master, locked, title, backup, podcast, draft_id) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, language_code, is_master, locked, title, backup, podcast, draft_id) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -113,7 +112,6 @@ public class PromptRepository extends AsyncRepository {
                         .addOffsetDateTime(now)
                         .addBoolean(prompt.isEnabled())
                         .addString(prompt.getPrompt())
-                        .addString(prompt.getPromptType().name())
                         .addString(prompt.getLanguageCode().name())
                         .addBoolean(prompt.isMaster())
                         .addBoolean(prompt.isLocked())
@@ -148,15 +146,14 @@ public class PromptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET enabled=$1, prompt=$2, prompt_type=$3, language_code=$4, is_master=$5, locked=$6, title=$7, backup=$8, podcast=$9, draft_id=$10, last_mod_user=$11, last_mod_date=$12 " +
-                                    "WHERE id=$13";
+                                    " SET enabled=$1, prompt=$2, language_code=$3, is_master=$4, locked=$5, title=$6, backup=$7, podcast=$8, draft_id=$9, last_mod_user=$10, last_mod_date=$11 " +
+                                    "WHERE id=$12";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
                             Tuple params = Tuple.tuple()
                                     .addBoolean(prompt.isEnabled())
                                     .addString(prompt.getPrompt())
-                                    .addString(prompt.getPromptType().name())
                                     .addString(prompt.getLanguageCode().name())
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
@@ -188,7 +185,6 @@ public class PromptRepository extends AsyncRepository {
         setDefaultFields(doc, row);
         doc.setEnabled(row.getBoolean("enabled"));
         doc.setPrompt(row.getString("prompt"));
-        doc.setPromptType(PromptType.valueOf(row.getString("prompt_type")));
         doc.setLanguageCode(LanguageCode.valueOf(row.getString("language_code")));
         doc.setMaster(row.getBoolean("is_master"));
         doc.setLocked(row.getBoolean("locked"));

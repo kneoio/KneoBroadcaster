@@ -3,7 +3,6 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
-import io.kneo.broadcaster.dto.ai.PromptTestDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -54,7 +53,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
-        router.post(path + "/test").handler(this::testAgent);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
@@ -175,29 +173,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                     );
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
-        }
-    }
-
-    private void testAgent(RoutingContext rc) {
-        try {
-            if (!validateJsonBody(rc)) return;
-
-            PromptTestDTO dto = rc.body().asJsonObject().mapTo(PromptTestDTO.class);
-
-            if (!validateDTO(rc, dto, validator)) return;
-
-            getContextUser(rc, false, true)
-                    .chain(user -> agentClient.callRadioDjAgent(dto.getLlmType().name(), dto.getPrompt(), dto.getVariables()))
-                    .subscribe().with(
-                            response -> rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end(response),
-                            rc::fail
-                    );
-
-        } catch (Exception e) {
-            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
         }
     }
 

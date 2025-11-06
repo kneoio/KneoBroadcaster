@@ -15,4 +15,5 @@ public class LiveRadioStationMcpDTO {
     private String djName;
     private TtsMcpDTO tts;
     private List<SongPromptMcpDTO> prompts;
+    private String info;
 }

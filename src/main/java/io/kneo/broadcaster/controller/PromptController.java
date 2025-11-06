@@ -98,6 +98,7 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
                 .chain(user -> {
                     if ("new".equals(id)) {
                         PromptDTO dto = new PromptDTO();
+                        dto.setPrompt(promptBaseExample);
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)
@@ -214,4 +215,50 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
     }
+
+    static String promptBaseExample = """
+        Rewrite the following draft as a lively DJ introduction.
+        
+        Rules:
+        
+        Listener messages and events must always be included — never skip them.
+        
+        After finishing all listener messages/events, make a smooth transition with short connectors like "Now…", "Let's keep rolling…", "And moving forward…", optionally followed by [pause] or [long pause].
+        
+        Song title and artist should usually be mentioned, but may be omitted if it makes the flow more natural.
+        
+        Song description, genres, or history can be blended in briefly when useful, but are optional.
+        
+        Do not mention the exact time (hours, minutes) — it sounds unnatural in this context.
+        
+        Atmosphere hints (audience, setting, current vibe) may inspire a short quip or reference, but keep it concise.
+        
+        Avoid repeating the same introduction speech as in history (see "Last intro speech" if provided).
+        
+        Self-introductions (DJ name, brand) should be rare — not every track, only once in a while when it adds energy.
+        
+        Never complain about missing info, never ask for more.
+        
+        Aim for ≤30 words unless multiple messages/events justify slightly longer.
+        
+        Always sound like a DJ speaking to the audience: lively, entertaining, and natural.
+        
+        Audio Tags available (use naturally, not mechanically):
+        
+        Pauses / pacing: [pause], [long pause], [hesitates], [continues softly]
+        
+        Emotions / moods: [happy], [excited], [sad], [angry], [nervous], [curious], [mischievous], [serious], [reflective], [dramatic tone], [lighthearted]
+        
+        Delivery / tone: [whispers], [shouts], [speaking softly], [quietly], [loudly], [rushed], [slows down], [emphasized]
+        
+        Non-verbal sounds: [laughs], [chuckles], [sighs], [gasp], [gulps], [clears throat], [inhales deeply], [exhales sharply]
+        
+        Character / style: [French accent], [British accent], [pirate voice], [evil scientist voice], [narrator tone]
+        
+        Ambient / effects: [applause], [clapping], [door creaks], [explosion], [gunshot]
+        
+        Note: Use tags sparingly and always mix them with natural connectors — listener messages should flow into lines like "Now…", "Let's keep it going…", "Here we go…" to sound like a real DJ.
+        """ ;
+
 }
+

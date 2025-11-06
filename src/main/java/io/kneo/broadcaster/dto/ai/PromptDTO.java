@@ -1,11 +1,10 @@
 package io.kneo.broadcaster.dto.ai;
 
-import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.localization.LanguageCode;
+import io.vertx.core.json.JsonObject;
 import lombok.Getter;
 import lombok.Setter;
-import io.vertx.core.json.JsonObject;
 
 import java.util.UUID;
 
@@ -14,7 +13,6 @@ import java.util.UUID;
 public class PromptDTO extends AbstractDTO {
     private boolean enabled;
     private String prompt;
-    private PromptType promptType;
     private LanguageCode languageCode;
     private boolean master;
     private boolean locked;

@@ -24,6 +24,7 @@ import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -135,8 +136,11 @@ public class AiHelperService {
                     aiDjStatsRequestTracker.put(station.getSlugName(),
                             new DjRequestInfo(LocalDateTime.now(), agent.getName()));
 
-                    return fetchPrompt(station, agent).flatMap(prompts -> {
+                    return fetchPrompt(station, agent).flatMap(tuple -> {
+                        var prompts = tuple.getItem1();
                         liveRadioStation.setPrompts(prompts);
+                        liveRadioStation.setInfo(tuple.getItem2());
+
                         String preferredVoice = agent.getPreferredVoice().get(0).getId();
                         UUID copilotId = agent.getCopilot();
 
@@ -155,7 +159,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<List<SongPromptMcpDTO>> fetchPrompt(RadioStation station, AiAgent agent) {
+    private Uni<Tuple2<List<SongPromptMcpDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent) {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
@@ -204,6 +208,12 @@ public class AiHelperService {
                                 }
 
                                 Prompt selectedPrompt = filteredPrompts.get(new Random().nextInt(filteredPrompts.size()));
+                                String sceneInfo = scripts.stream()
+                                        .flatMap(s -> s.getScript().getScenes().stream())
+                                        .map(ScriptScene::getTitle)
+                                        .filter(Objects::nonNull)
+                                        .distinct()
+                                        .collect(Collectors.joining(", "));
 
                                 return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, soundFragmentMCPTools.decideFragmentCount())
                                         .flatMap(songs -> {
@@ -220,10 +230,10 @@ public class AiHelperService {
                                                             selectedPrompt.getPromptType(),
                                                             agent.getLlmType(),
                                                             agent.getSearchEngineType()
-                                                    )))
-                                                    .collect(Collectors.toList());
+                                                    ))).collect(Collectors.toList());
 
-                                            return Uni.join().all(songPromptUnis).andFailFast();
+                                            return Uni.join().all(songPromptUnis).andFailFast()
+                                                    .map(result -> Tuple2.of(result, sceneInfo));
                                         });
                             });
                 });

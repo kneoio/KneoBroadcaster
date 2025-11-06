@@ -61,11 +61,11 @@ public class WorldNewsApiClient {
             public String getBaseUrl() { return "https://api.worldnewsapi.com"; }
         };
         
-        NewsHelper newsHelper = new NewsHelper(apiClient, "us", "en");
+        NewsHelper newsHelper = new NewsHelper(apiClient, "pt", "pt");
         
         try {
             System.out.println("Headlines (3 items):");
-            java.util.List<String> headlines = newsHelper.headlines("technology", 3);
+            java.util.List<String> headlines = newsHelper.summaries("music", 3);
             for (int i = 0; i < headlines.size(); i++) {
                 System.out.println((i + 1) + ". " + headlines.get(i));
             }

@@ -29,6 +29,8 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
+
 @ApplicationScoped
 public class DraftFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(DraftFactory.class);
@@ -66,7 +68,7 @@ public class DraftFactory {
                         resolveGenreNames(song.getGenres(), agent)
                 )
                 .asTuple()
-                .emitOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool())
+                .emitOn(getDefaultWorkerPool())
                 .map(tuple -> {
                     Draft template = tuple.getItem1();
                     Profile profile = tuple.getItem2();
@@ -103,7 +105,7 @@ public class DraftFactory {
                         resolveGenreNames(song.getGenres(), agent)
                 )
                 .asTuple()
-                .emitOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool())
+                .emitOn(getDefaultWorkerPool())
                 .map(tuple -> {
                     Profile profile = tuple.getItem1();
                     List<String> genres = tuple.getItem2();

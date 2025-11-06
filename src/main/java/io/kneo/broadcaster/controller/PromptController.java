@@ -164,8 +164,8 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
                     .subscribe().with(
                             response -> rc.response()
                                     .setStatusCode(200)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end(response),
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(JsonObject.mapFrom(response).encode()),
                             rc::fail
                     );
 

@@ -1,12 +1,13 @@
 package io.kneo.broadcaster.agent;
 
+import io.kneo.broadcaster.dto.ai.PromptTestResponseDTO;
 import io.kneo.broadcaster.dto.cnst.TranslationType;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import io.kneo.broadcaster.config.BroadcasterConfig;
@@ -50,7 +51,7 @@ public class AgentClient {
                 });
     }
 
-    public Uni<String> testPrompt(String prompt, String draft, LlmType llmType) {
+    public Uni<PromptTestResponseDTO> testPrompt(String prompt, String draft, LlmType llmType) {
         String endpoint = config.getAgentUrl() + "/prompt/test";
 
         JsonObject payload = new JsonObject();
@@ -64,7 +65,11 @@ public class AgentClient {
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {
-                        return response.bodyAsString();
+                        JsonObject body = response.bodyAsJsonObject();
+                        if (body == null) {
+                            throw new RuntimeException("Empty response body");
+                        }
+                        return body.mapTo(PromptTestResponseDTO.class);
                     } else {
                         throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
                     }

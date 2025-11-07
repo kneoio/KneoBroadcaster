@@ -184,11 +184,13 @@ public class AiHelperService {
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
                     List<UUID> allPromptIds = new ArrayList<>();
+                    String currentSceneTitle = null;
                     for (BrandScript brandScript : scripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 allPromptIds.addAll(scene.getPrompts());
+                                currentSceneTitle = scene.getTitle();
                             }
                         }
                     }
@@ -201,6 +203,7 @@ public class AiHelperService {
                             .map(id -> promptService.getById(id, SuperUser.build()))
                             .collect(Collectors.toList());
 
+                    String finalCurrentSceneTitle = currentSceneTitle;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
                                 LanguageCode djLanguage = agent.getPreferredLang();
@@ -215,12 +218,6 @@ public class AiHelperService {
                                 }
 
                                 Prompt selectedPrompt = filteredPrompts.get(new Random().nextInt(filteredPrompts.size()));
-                                String sceneInfo = scripts.stream()
-                                        .flatMap(s -> s.getScript().getScenes().stream())
-                                        .map(ScriptScene::getTitle)
-                                        .filter(Objects::nonNull)
-                                        .distinct()
-                                        .collect(Collectors.joining(", "));
 
                                 return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, soundFragmentMCPTools.decideFragmentCount())
                                         .flatMap(songs -> {
@@ -240,7 +237,7 @@ public class AiHelperService {
                                                     ))).collect(Collectors.toList());
 
                                             return Uni.join().all(songPromptUnis).andFailFast()
-                                                    .map(result -> Tuple2.of(result, sceneInfo));
+                                                    .map(result -> Tuple2.of(result, finalCurrentSceneTitle));
                                         });
                             });
                 });

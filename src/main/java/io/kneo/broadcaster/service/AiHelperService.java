@@ -41,7 +41,8 @@ import java.util.stream.Collectors;
 public class AiHelperService {
     private static final Logger log = LoggerFactory.getLogger(AiHelperService.class);
 
-    public record DjRequestInfo(LocalDateTime requestTime, String djName) {}
+    public record DjRequestInfo(LocalDateTime requestTime, String djName) {
+    }
 
     private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
     private final Map<String, List<AiDjStats.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
@@ -107,7 +108,7 @@ public class AiHelperService {
                                 .filter(station -> {
                                     if (station.getPrompts() == null || station.getPrompts().isEmpty()) {
                                         log.warn("Station '{}' filtered out: No valid prompts found", station.getName());
-                                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING,"No valid prompts found");
+                                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No valid prompts found");
                                         return false;
                                     }
                                     return true;
@@ -137,7 +138,13 @@ public class AiHelperService {
                             new DjRequestInfo(LocalDateTime.now(), agent.getName()));
 
                     return fetchPrompt(station, agent).flatMap(tuple -> {
+                        if (tuple == null) {
+                            log.warn("Station '{}' skipped: fetchPrompt() returned no data", station.getSlugName());
+                            addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No prompt data available");
+                            return Uni.createFrom().item(liveRadioStation);
+                        }
                         var prompts = tuple.getItem1();
+
                         liveRadioStation.setPrompts(prompts);
                         liveRadioStation.setInfo(tuple.getItem2());
 

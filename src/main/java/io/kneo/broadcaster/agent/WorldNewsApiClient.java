@@ -2,6 +2,7 @@ package io.kneo.broadcaster.agent;
 
 import io.kneo.broadcaster.ai.NewsHelper;
 import io.kneo.broadcaster.config.WorldNewsApiConfig;
+import io.kneo.broadcaster.model.news.NewsResponse;
 import io.kneo.broadcaster.util.PropertiesUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -61,16 +62,44 @@ public class WorldNewsApiClient {
             public String getBaseUrl() { return "https://api.worldnewsapi.com"; }
         };
         
-        NewsHelper newsHelper = new NewsHelper(apiClient, "pt", "pt");
+        NewsHelper newsHelper = new NewsHelper(apiClient, "kz", "ru");
         
         try {
-            System.out.println("Headlines (3 items):");
-            java.util.List<String> headlines = newsHelper.summaries("music", 3);
-            for (int i = 0; i < headlines.size(); i++) {
-                System.out.println((i + 1) + ". " + headlines.get(i));
+            System.out.println("\n=== Latest Music News (3 items) ===");
+            NewsResponse response = newsHelper.search("world", 3);
+            
+            System.out.printf("Found %d of %d available articles\n\n", 
+                response.getNews().size(), 
+                response.getAvailable());
+                
+            for (int i = 0; i < response.getNews().size(); i++) {
+                var article = response.getNews().get(i);
+                System.out.printf("%d. %s%n", i + 1, article.getTitle());
+                System.out.printf("   Summary: %s%n", 
+                    article.getSummary() != null ? 
+                        (article.getSummary().length() > 150 ? 
+                            article.getSummary().substring(0, 150) + "..." : 
+                            article.getSummary())
+                        : "No summary available");
+                
+                if (article.getPublishDate() != null) {
+                    System.out.printf("   Published: %s%n", 
+                        article.getPublishDate().format(
+                            java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME));
+                }
+                
+                if (article.getAuthor() != null && !article.getAuthor().isEmpty()) {
+                    System.out.printf("   Author: %s%n", article.getAuthor());
+                }
+                
+                if (article.getUrl() != null) {
+                    System.out.printf("   Read more: %s%n", article.getUrl());
+                }
+                
+                System.out.println();
             }
         } catch (Exception e) {
-            System.err.println("Error: " + e.getMessage());
+            System.err.println("Error fetching news: " + e.getMessage());
             e.printStackTrace();
         }
         

@@ -49,14 +49,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
-    private final BroadcasterConfig config;
     private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService(UserService userService, BroadcasterConfig config) {
+    protected SoundFragmentService(UserService userService) {
         super(userService);
         this.localFileCleanupService = null;
-        this.config = config;
         this.repository = null;
         this.radioStationService = null;
     }
@@ -74,7 +72,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.repository = repository;
         this.radioStationService = radioStationService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
-        this.config = config;
     }
 
     public Uni<List<SoundFragmentDTO>> getAllDTO(final int limit, final int offset, final IUser user, final SoundFragmentFilterDTO filterDTO) {
@@ -91,10 +88,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.join().all(unis).andFailFast();
                     }
                 });
-    }
-
-    public Uni<Integer> getAllCount(final IUser user) {
-        return getAllCount(user, null);
     }
 
     public Uni<Integer> getAllCount(final IUser user, final SoundFragmentFilterDTO filterDTO) {

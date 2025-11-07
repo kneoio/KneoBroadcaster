@@ -13,8 +13,6 @@ import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.Prompt;
-import io.kneo.broadcaster.model.ai.PromptType;
-import io.kneo.broadcaster.model.cnst.DraftType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -33,7 +31,15 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.*;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -179,7 +185,9 @@ public class AiHelperService {
                     if (scripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
                     }
-                    LocalDateTime now = LocalDateTime.now();
+
+                    ZoneId zone = station.getTimeZone();
+                    ZonedDateTime now = ZonedDateTime.now(zone);
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
@@ -188,7 +196,7 @@ public class AiHelperService {
                     for (BrandScript brandScript : scripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
-                            if (isSceneActive(station.getSlugName(), scene, scenes, currentTime, currentDayOfWeek)) {
+                            if (isSceneActive(station.getSlugName(), zone, scene, scenes, currentTime, currentDayOfWeek)) {
                                 allPromptIds.addAll(scene.getPrompts());
                                 currentSceneTitle = scene.getTitle();
                             }
@@ -213,7 +221,8 @@ public class AiHelperService {
 
                                 if (filteredPrompts.isEmpty()) {
                                     log.warn("Station '{}': No valid prompt for specific language '{}' found", station.getSlugName(), djLanguage);
-                                    addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, String.format("No valid prompt for specific language '%s' found", djLanguage));
+                                    addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING,
+                                            String.format("No valid prompt for specific language '%s' found", djLanguage));
                                     return Uni.createFrom().item(() -> null);
                                 }
 
@@ -226,7 +235,8 @@ public class AiHelperService {
                                                             song,
                                                             agent,
                                                             station,
-                                                            memoryData
+                                                            memoryData,
+                                                            selectedPrompt.getDraftId()
                                                     ).map(draft -> new SongPromptMcpDTO(
                                                             song.getId(),
                                                             draft,
@@ -243,10 +253,10 @@ public class AiHelperService {
                 });
     }
 
-    private boolean isSceneActive(String stationSlug, ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
-        if (!LocalDate.now().equals(lastReset)) {
+    private boolean isSceneActive(String stationSlug, ZoneId zone, ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
+        if (!LocalDate.now(zone).equals(lastReset)) {
             oneTimeRunTracker.clear();
-            lastReset = LocalDate.now();
+            lastReset = LocalDate.now(zone);
         }
 
         if (!scene.getWeekdays().isEmpty() && !scene.getWeekdays().contains(currentDayOfWeek)) {
@@ -271,6 +281,7 @@ public class AiHelperService {
 
         return active && markIfOneTime(stationSlug, scene);
     }
+
 
     private boolean markIfOneTime(String stationSlug, ScriptScene scene) {
         if (scene.isOneTimeRun()) {
@@ -299,14 +310,6 @@ public class AiHelperService {
         return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
     }
 
-    private DraftType mapPromptTypeToDraftType(PromptType promptType) {
-        return switch (promptType) {
-            case BASIC_INTRO -> DraftType.INTRO_DRAFT;
-            case USER_MESSAGE -> DraftType.MESSAGE_DRAFT;
-            case NEWS, WEATHER, EVENT -> DraftType.NEWS_INTRO_DRAFT;
-        };
-    }
-
     public Uni<AiDjStats> getAiDjStats(RadioStation station) {
         return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
                 .map(scripts -> {
@@ -320,7 +323,7 @@ public class AiHelperService {
                     for (BrandScript brandScript : scripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
-                            if (isSceneActive(station.getSlugName(), scene, scenes, currentTime, currentDayOfWeek)) {
+                            if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 LocalTime sceneStart = scene.getStartTime();
                                 LocalTime sceneEnd = findNextSceneStartTime(scene, scenes);
                                 int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;

@@ -15,7 +15,7 @@ import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
-import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -58,12 +58,14 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            MemoryResult memoryData
+            MemoryResult memoryData,
+            UUID draftId
+
     ) {
         
         return Uni.combine().all()
                 .unis(
-                        getDraftTemplate(agent.getPreferredLang()),
+                        getDraftTemplate(draftId),
                         profileService.getById(station.getProfileId()),
                         resolveGenreNames(song.getGenres(), agent)
                 )
@@ -122,12 +124,8 @@ public class DraftFactory {
                 });
     }
 
-    private Uni<Draft> getDraftTemplate(LanguageCode languageCode) {
-        return draftService.getAll()
-                .map(drafts -> drafts.stream()
-                        .findFirst()
-                        .orElse(null)
-                );
+    private Uni<Draft> getDraftTemplate(UUID id) {
+        return draftService.getById(id, SuperUser.build());
     }
 
     private String buildFromTemplate(

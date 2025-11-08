@@ -19,5 +19,6 @@ public class ScriptScene extends SecureDataEntity<UUID> {
     private LocalTime startTime;
     private Integer archived;
     private boolean oneTimeRun;
+    private double talkativity = 0.5;
     private List<Integer> weekdays;
 }

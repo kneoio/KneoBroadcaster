@@ -105,6 +105,30 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
+    public Uni<List<SoundFragment>> findByType(PlaylistItemType type, int limit, int offset, boolean includeArchived, IUser user) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT t.*, rls.* FROM ")
+                .append(entityData.getTableName()).append(" t JOIN ")
+                .append(entityData.getRlsName()).append(" rls ON t.id = rls.entity_id ")
+                .append("WHERE rls.reader = $1 AND t.type = $2 ");
+        if (!includeArchived) {
+            sql.append("AND t.archived = 0 ");
+        }
+        sql.append("ORDER BY t.reg_date DESC LIMIT $3 OFFSET $4");
+
+        return client.preparedQuery(sql.toString())
+                .execute(Tuple.of(user.getId(), type.name(), limit, offset))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false, false, false))
+                .concatenate()
+                .collect().asList();
+    }
+
+    public Uni<List<SoundFragment>> findByTypeAndBrand(PlaylistItemType type, UUID brandId, int limit, int offset) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.getBrandSongs(brandId, type, limit, offset);
+    }
+
     public Uni<List<SoundFragment>> search(String searchTerm, final int limit, final int offset,
                                            final boolean includeArchived, final IUser user,
                                            final SoundFragmentFilter filter) {

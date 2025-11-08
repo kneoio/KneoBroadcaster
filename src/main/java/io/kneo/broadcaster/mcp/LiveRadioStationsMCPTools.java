@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.mcp;
 
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
-import io.kneo.broadcaster.service.AiHelperService;
+import io.kneo.broadcaster.service.live.AiHelperService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 

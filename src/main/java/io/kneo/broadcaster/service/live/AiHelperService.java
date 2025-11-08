@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
@@ -17,6 +17,10 @@ import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.service.AiAgentService;
+import io.kneo.broadcaster.service.MemoryService;
+import io.kneo.broadcaster.service.PromptService;
+import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
@@ -45,7 +49,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AiHelperService {
-    private static final Logger log = LoggerFactory.getLogger(AiHelperService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperService.class);
 
     public record DjRequestInfo(LocalDateTime requestTime, String djName) {
     }
@@ -63,6 +67,7 @@ public class AiHelperService {
     private final SoundFragmentMCPTools soundFragmentMCPTools;
     private final DraftFactory draftFactory;
     private final MemoryService memoryService;
+    private final JinglePlaybackHandler jinglePlaybackHandler;
 
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
@@ -79,7 +84,8 @@ public class AiHelperService {
             SongSupplier songSupplier,
             SoundFragmentMCPTools soundFragmentMCPTools,
             DraftFactory draftFactory,
-            MemoryService memoryService
+            MemoryService memoryService,
+            JinglePlaybackHandler jinglePlaybackHandler
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -89,6 +95,7 @@ public class AiHelperService {
         this.soundFragmentMCPTools = soundFragmentMCPTools;
         this.draftFactory = draftFactory;
         this.memoryService = memoryService;
+        this.jinglePlaybackHandler = jinglePlaybackHandler;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -113,7 +120,7 @@ public class AiHelperService {
                         List<LiveRadioStationMcpDTO> validStations = liveStations.stream()
                                 .filter(station -> {
                                     if (station.getPrompts() == null || station.getPrompts().isEmpty()) {
-                                        log.warn("Station '{}' filtered out: No valid prompts found", station.getName());
+                                        LOGGER.warn("Station '{}' filtered out: No valid prompts found", station.getName());
                                         addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No valid prompts found");
                                         return false;
                                     }
@@ -128,11 +135,13 @@ public class AiHelperService {
 
     private Uni<LiveRadioStationMcpDTO> buildLiveRadioStation(RadioStation station) {
         LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
-        liveRadioStation.setRadioStationStatus(
-                station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size() > 2
-                        ? RadioStationStatus.QUEUE_SATURATED
-                        : station.getStatus()
-        );
+        int queueSize = station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size();
+        LOGGER.info("Station '{}' has queue size: {}", station.getSlugName(), queueSize);
+        if (queueSize > 2) {
+            liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
+        } else {
+            liveRadioStation.setRadioStationStatus(station.getStatus());
+        }
 
         return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
@@ -145,7 +154,7 @@ public class AiHelperService {
 
                     return fetchPrompt(station, agent).flatMap(tuple -> {
                         if (tuple == null) {
-                            log.warn("Station '{}' skipped: fetchPrompt() returned no data", station.getSlugName());
+                            LOGGER.warn("Station '{}' skipped: fetchPrompt() returned no data", station.getSlugName());
                             addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No prompt data available");
                             return Uni.createFrom().item(liveRadioStation);
                         }
@@ -193,17 +202,27 @@ public class AiHelperService {
 
                     List<UUID> allPromptIds = new ArrayList<>();
                     String currentSceneTitle = null;
+                    ScriptScene activeScene = null;
                     for (BrandScript brandScript : scripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), zone, scene, scenes, currentTime, currentDayOfWeek)) {
                                 allPromptIds.addAll(scene.getPrompts());
                                 currentSceneTitle = scene.getTitle();
+                                activeScene = scene;
                             }
                         }
                     }
 
+                    assert activeScene != null;
+                    if (!activeScene.isOneTimeRun() && shouldPlayJingle(activeScene.getTalkativity())) {
+                        jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
+                        return Uni.createFrom().item(() -> null);
+                    }
+
                     if (allPromptIds.isEmpty()) {
+                        LOGGER.warn("Station '{}' skipped: No valid prompts found", station.getSlugName());
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No valid prompts found");
                         return Uni.createFrom().item(() -> null);
                     }
 
@@ -220,7 +239,7 @@ public class AiHelperService {
                                         .toList();
 
                                 if (filteredPrompts.isEmpty()) {
-                                    log.warn("Station '{}': No valid prompt for specific language '{}' found", station.getSlugName(), djLanguage);
+                                    LOGGER.warn("Station '{}': No valid prompt for specific language '{}' found", station.getSlugName(), djLanguage);
                                     addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING,
                                             String.format("No valid prompt for specific language '%s' found", djLanguage));
                                     return Uni.createFrom().item(() -> null);
@@ -251,6 +270,12 @@ public class AiHelperService {
                                         });
                             });
                 });
+    }
+
+    private boolean shouldPlayJingle(double talkativity) {
+        double jingleProbability = 1.0 - talkativity;
+        double randomValue = new Random().nextDouble();
+        return randomValue < jingleProbability;
     }
 
     private boolean isSceneActive(String stationSlug, ZoneId zone, ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {

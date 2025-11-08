@@ -111,7 +111,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         SoundFragmentFilter filter = toFilter(filterDTO);
         return repository.getAll(limit, offset, false, user, filter);
     }
-
     public Uni<SoundFragment> getById(UUID uuid, IUser user) {
         assert repository != null;
         return repository.findById(uuid, user.getId(), false, true, false);
@@ -120,6 +119,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     public Uni<SoundFragment> getById(UUID uuid) {
         assert repository != null;
         return repository.findById(uuid, SuperUser.ID, false, false, true);
+    }
+
+    public Uni<List<SoundFragment>> getByTypeAndBrand(PlaylistItemType type, UUID brandId) {
+        assert repository != null;
+        return repository.findByTypeAndBrand(type, brandId, 100, 0);
     }
 
     @Override

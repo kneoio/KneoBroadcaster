@@ -15,6 +15,7 @@ import java.util.UUID;
 public class ScriptSceneDTO extends AbstractDTO {
     private UUID scriptId;
     private String title;
+    private double talkativity;
     private List<UUID> prompts;
     private LocalTime startTime;
     private boolean oneTimeRun;

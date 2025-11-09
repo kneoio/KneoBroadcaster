@@ -138,7 +138,12 @@ public class AiHelperService {
         int queueSize = station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size();
         LOGGER.info("Station '{}' has queue size: {}", station.getSlugName(), queueSize);
         if (queueSize > 2) {
-            liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
+            //liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
+            LOGGER.info("Station '{}' is saturated, it will be skip: {}", station.getSlugName(), queueSize);
+            addMessage(station.getSlugName(), AiDjStats.MessageType.INFO,
+                    String.format("The playlist is saturated, it will skip dj interaction session (size %s)", queueSize));
+
+            return Uni.createFrom().item(() -> null);
         } else {
             liveRadioStation.setRadioStationStatus(station.getStatus());
         }

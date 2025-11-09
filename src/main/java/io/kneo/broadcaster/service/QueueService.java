@@ -46,7 +46,7 @@ public class QueueService {
     AudioConcatenator audioConcatenator;
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueMcpDTO toQueueDTO) {
-        if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG || toQueueDTO.getMergingMethod() == MergingType.FILLER_SONG) {  //keeping JIC
+        if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG || toQueueDTO.getMergingMethod() == MergingType.FILLER_JINGLE) {  //keeping JIC
             return getRadioStation(brandName)
                     .chain(radioStation -> {
                         try {

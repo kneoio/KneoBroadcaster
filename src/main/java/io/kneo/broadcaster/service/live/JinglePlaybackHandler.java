@@ -30,13 +30,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-/**
- * Handles jingle playback functionality for radio stations.
- * Manages the selection and concatenation of jingles with songs.
- */
 @ApplicationScoped
 public class JinglePlaybackHandler {
-    private static final Logger log = LoggerFactory.getLogger(JinglePlaybackHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(JinglePlaybackHandler.class);
 
     private final SoundFragmentService soundFragmentService;
     private final SongSupplier songSupplier;
@@ -65,18 +61,20 @@ public class JinglePlaybackHandler {
         this.aiAgentService = aiAgentService;
     }
 
-    /**
-     * Handles jingle playback by concatenating a random jingle with the next song.
-     * This runs asynchronously in a separate thread.
-     *
-     * @param station The radio station
-     * @param scene The active script scene
-     */
     public void handleJinglePlayback(RadioStation station, ScriptScene scene) {
-        log.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
+        LOGGER.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
                 station.getSlugName(), scene.getTalkativity());
 
-        // Start async processing but don't wait for it
+        boolean useJingle = new Random().nextBoolean();
+        
+        if (useJingle) {
+            handleJingleAndSong(station);
+        } else {
+            handleTwoSongs(station);
+        }
+    }
+
+    private void handleJingleAndSong(RadioStation station) {
         Uni.combine().all()
                 .unis(
                         soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, station.getId()),
@@ -90,25 +88,18 @@ public class JinglePlaybackHandler {
                             List<SoundFragment> songs = tuple.getItem2();
 
                             if (jingles.isEmpty()) {
-                                log.warn("Station '{}': No jingles available for playback", station.getSlugName());
+                                LOGGER.warn("Station '{}': No jingles available for playback", station.getSlugName());
                                 return;
                             }
 
-                            if (songs.isEmpty()) {
-                                log.warn("Station '{}': No songs available for playback", station.getSlugName());
-                                return;
-                            }
-
-                            // Select random jingle
                             SoundFragment selectedJingle = jingles.get(new Random().nextInt(jingles.size()));
                             SoundFragment selectedSong = songs.get(0);
 
-                            log.info("Station '{}': Concatenating jingle '{}' with song '{}'",
+                            LOGGER.info("Station '{}': Concatenating jingle '{}' with song '{}'",
                                     station.getSlugName(), selectedJingle.getTitle(), selectedSong.getTitle());
 
-                            // Create DTO for concatenation
                             AddToQueueMcpDTO queueDTO = new AddToQueueMcpDTO();
-                            queueDTO.setMergingMethod(MergingType.FILLER_SONG);
+                            queueDTO.setMergingMethod(MergingType.FILLER_JINGLE);
                             queueDTO.setPriority(1);
 
                             Map<String, UUID> soundFragments = new HashMap<>();
@@ -116,30 +107,62 @@ public class JinglePlaybackHandler {
                             soundFragments.put("song2", selectedSong.getId());
                             queueDTO.setSoundFragments(soundFragments);
 
-                            try {
-                                AudioMixingHandler handler = new AudioMixingHandler(
-                                        broadcasterConfig,
-                                        soundFragmentRepository,
-                                        soundFragmentService,
-                                        audioConcatenator,
-                                        aiAgentService,
-                                        fFmpegProvider
-                                );
-
-                                handler.handleConcatenation(station, queueDTO, ConcatenationType.CROSSFADE)
-                                        .subscribe().with(
-                                                success -> log.info("Station '{}': Successfully queued jingle+song concatenation",
-                                                        station.getSlugName()),
-                                                failure -> log.error("Station '{}': Failed to concatenate jingle+song: {}",
-                                                        station.getSlugName(), failure.getMessage(), failure)
-                                        );
-                            } catch (IOException | AudioMergeException e) {
-                                log.error("Station '{}': Failed to create AudioMixingHandler: {}",
-                                        station.getSlugName(), e.getMessage(), e);
-                            }
+                            concatenate(station, queueDTO, "jingle+song");
                         },
-                        failure -> log.error("Station '{}': Failed to fetch jingles/songs: {}",
+                        failure -> LOGGER.error("Station '{}': Failed to fetch jingles/songs: {}",
                                 station.getSlugName(), failure.getMessage(), failure)
                 );
+    }
+
+    private void handleTwoSongs(RadioStation station) {
+        songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, 2)
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .subscribe().with(
+                        songs -> {
+
+                            SoundFragment firstSong = songs.get(0);
+                            SoundFragment secondSong = songs.get(1);
+
+                            LOGGER.info("Station '{}': Concatenating song '{}' with song '{}'",
+                                    station.getSlugName(), firstSong.getTitle(), secondSong.getTitle());
+
+                            AddToQueueMcpDTO queueDTO = new AddToQueueMcpDTO();
+                            queueDTO.setMergingMethod(MergingType.SONG_CROSSFADE_SONG);
+                            queueDTO.setPriority(1);
+
+                            Map<String, UUID> soundFragments = new HashMap<>();
+                            soundFragments.put("song1", firstSong.getId());
+                            soundFragments.put("song2", secondSong.getId());
+                            queueDTO.setSoundFragments(soundFragments);
+
+                            concatenate(station, queueDTO, "song+song");
+                        },
+                        failure -> LOGGER.error("Station '{}': Failed to fetch songs: {}",
+                                station.getSlugName(), failure.getMessage(), failure)
+                );
+    }
+
+    private void concatenate(RadioStation station, AddToQueueMcpDTO queueDTO, String type) {
+        try {
+            AudioMixingHandler handler = new AudioMixingHandler(
+                    broadcasterConfig,
+                    soundFragmentRepository,
+                    soundFragmentService,
+                    audioConcatenator,
+                    aiAgentService,
+                    fFmpegProvider
+            );
+
+            handler.handleConcatenation(station, queueDTO, ConcatenationType.CROSSFADE)
+                    .subscribe().with(
+                            success -> LOGGER.info("Station '{}': Successfully queued {} concatenation",
+                                    station.getSlugName(), type),
+                            failure -> LOGGER.error("Station '{}': Failed to concatenate {}: {}",
+                                    station.getSlugName(), type, failure.getMessage(), failure)
+                    );
+        } catch (IOException | AudioMergeException e) {
+            LOGGER.error("Station '{}': Failed to create AudioMixingHandler: {}",
+                    station.getSlugName(), e.getMessage(), e);
+        }
     }
 }

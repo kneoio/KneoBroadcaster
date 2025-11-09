@@ -4,7 +4,6 @@ import io.kneo.broadcaster.agent.WorldNewsApiClient;
 import io.kneo.broadcaster.model.news.NewsArticle;
 import io.kneo.broadcaster.model.news.NewsResponse;
 import io.kneo.broadcaster.util.NewsMapper;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 import java.util.ArrayList;

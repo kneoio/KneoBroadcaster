@@ -7,6 +7,7 @@ import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.service.DraftService;
+import io.kneo.broadcaster.service.TranslateService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -19,6 +20,7 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -44,6 +46,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
 
     private DraftService service;
     private Validator validator;
+    private TranslateService translateService;
 
     private final AgentClient agentClient;
 
@@ -53,18 +56,20 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
     }
 
     @Inject
-    public DraftController(UserService userService, DraftService service, AgentClient agentClient, Validator validator) {
+    public DraftController(UserService userService, DraftService service, AgentClient agentClient, Validator validator, TranslateService translateService) {
         super(userService);
         this.service = service;
         this.agentClient = agentClient;
         this.validator = validator;
+        this.translateService = translateService;
     }
 
     public void setupRoutes(Router router) {
         String path = "/api/drafts";
         router.route(path + "*").handler(BodyHandler.create());
         router.post(path + "/test").handler(this::testDraft);  // Must be before POST /api/drafts
-        router.post(path + "/translate").handler(this::translate);
+        router.post(path + "/translate/start").handler(this::translateStart);
+        router.get(path + "/translate/stream").handler(this::translateStream);
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
@@ -263,28 +268,84 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         }
     }
 
-    private void translate(RoutingContext rc) {
-        try {
-            if (!validateJsonBody(rc)) return;
+    
 
-            TranslateReqDTO dto = rc.body().asJsonObject().mapTo(TranslateReqDTO.class);
-            if (!validateDTO(rc, dto, validator)) return;
+    // --- SSE based translation flow ---
+    private void translateStart(RoutingContext rc) {
+        try {
+            String jobId = rc.request().getParam("jobId");
+            if (jobId == null || jobId.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("jobId is required"));
+                return;
+            }
+
+            JsonArray array = rc.body().asJsonArray();
+            if (array == null) {
+                rc.fail(400, new IllegalArgumentException("Invalid request: expected a JSON array"));
+                return;
+            }
+            List<TranslateReqDTO> dtos = new ArrayList<>();
+            for (int i = 0; i < array.size(); i++) {
+                JsonObject obj = array.getJsonObject(i);
+                dtos.add(obj.mapTo(TranslateReqDTO.class));
+            }
+
+            for (TranslateReqDTO dto : dtos) {
+                Set<ConstraintViolation<TranslateReqDTO>> violations = validator.validate(dto);
+                if (violations != null && !violations.isEmpty()) {
+                    Map<String, List<String>> fieldErrors = new HashMap<>();
+                    for (ConstraintViolation<TranslateReqDTO> v : violations) {
+                        String field = v.getPropertyPath().toString();
+                        fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                    }
+                    String detail = fieldErrors.entrySet().stream()
+                            .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                            .collect(Collectors.joining(", "));
+                    ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                    return;
+                }
+            }
 
             getContextUser(rc, false, true)
-                    .chain(user -> {
-                        assert agentClient != null;
-                        return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode());
-                    })
-                    .subscribe().with(
-                            response -> rc.response()
-                                    .setStatusCode(200)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end(response),
-                            rc::fail
-                    );
+                    .subscribe().with(user -> {
+                        translateService.startJob(jobId, dtos, user);
+                        rc.response()
+                                .setStatusCode(202)
+                                .putHeader("Content-Type", "application/json")
+                                .end(new JsonObject().put("jobId", jobId).encode());
+                    }, rc::fail);
 
         } catch (Exception e) {
             rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
         }
+    }
+
+    private void translateStream(RoutingContext rc) {
+        String jobId = rc.request().getParam("jobId");
+        if (jobId == null || jobId.isBlank()) {
+            rc.fail(400, new IllegalArgumentException("jobId is required"));
+            return;
+        }
+
+        var resp = rc.response();
+        resp.setChunked(true);
+        resp.putHeader("Content-Type", "text/event-stream");
+        resp.putHeader("Cache-Control", "no-cache");
+        resp.putHeader("Connection", "keep-alive");
+
+        java.util.function.Consumer<io.kneo.broadcaster.service.TranslateService.SseEvent> consumer = ev -> {
+            try {
+                StringBuilder sb = new StringBuilder();
+                sb.append("event: ").append(ev.type()).append('\n');
+                sb.append("data: ").append(ev.data() != null ? ev.data().encode() : "{}").append('\n').append('\n');
+                resp.write(sb.toString());
+            } catch (Exception ignored) { }
+        };
+
+        translateService.subscribe(jobId, consumer);
+
+        // Unsubscribe when client disconnects
+        resp.exceptionHandler(t -> translateService.unsubscribe(jobId, consumer));
+        resp.endHandler(v -> translateService.unsubscribe(jobId, consumer));
     }
 }

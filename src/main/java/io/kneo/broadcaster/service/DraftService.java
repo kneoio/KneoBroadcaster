@@ -99,6 +99,14 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         return repository.archive(UUID.fromString(id), user);
     }
 
+    public Uni<Draft> findByTitleAndLanguage(String title, LanguageCode languageCode, boolean includeArchived, IUser user) {
+        return repository.findByTitleAndLanguage(title, languageCode, includeArchived, user);
+    }
+
+    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived, IUser user) {
+        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived, user);
+    }
+
     private Uni<DraftDTO> mapToDTO(Draft doc) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
@@ -117,6 +125,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             dto.setEnabled(doc.isEnabled());
             dto.setMaster(doc.isMaster());
             dto.setLocked(doc.isLocked());
+            dto.setMasterId(doc.getMasterId());
             return dto;
         });
     }
@@ -130,6 +139,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         doc.setEnabled(dto.isEnabled());
         doc.setMaster(dto.isMaster());
         doc.setLocked(dto.isLocked());
+        doc.setMasterId(dto.getMasterId());
         return doc;
     }
 

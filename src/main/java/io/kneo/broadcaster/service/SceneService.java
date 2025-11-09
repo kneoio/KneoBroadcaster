@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.model.ScriptScene;
-import io.kneo.broadcaster.repository.ScriptSceneRepository;
+import io.kneo.broadcaster.repository.SceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.AbstractService;
@@ -16,17 +16,17 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class ScriptSceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
-    private final ScriptSceneRepository repository;
+public class SceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
+    private final SceneRepository repository;
 
     @Inject
-    public ScriptSceneService(UserService userService, ScriptSceneRepository repository) {
+    public SceneService(UserService userService, SceneRepository repository) {
         super(userService);
         this.repository = repository;
     }
 
-    public Uni<List<ScriptSceneDTO>> getAll(final UUID scriptId, final int limit, final int offset, final IUser user) {
-        return repository.listByScript(scriptId, limit, offset, false, user)
+    public Uni<List<ScriptSceneDTO>> getAll(final int limit, final int offset, final IUser user) {
+        return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -40,8 +40,24 @@ public class ScriptSceneService extends AbstractService<ScriptScene, ScriptScene
         return repository.listByScript(scriptId, limit, offset, false, user);
     }
 
-    public Uni<Integer> getAllCount(final UUID scriptId, final IUser user) {
+    public Uni<List<ScriptSceneDTO>> getAllByScript(final UUID scriptId, final int limit, final int offset, final IUser user) {
+        return repository.listByScript(scriptId, limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
+                });
+    }
+
+
+    public Uni<Integer> getByScriptCount(final UUID scriptId, final IUser user) {
         return repository.countByScript(scriptId, false, user);
+    }
+
+    public Uni<Integer> getAllCount(final IUser user) {
+        return repository.getAllCount(user, false);
     }
 
     @Override

@@ -15,8 +15,8 @@ import io.kneo.broadcaster.service.ValidationResult;
 import io.kneo.broadcaster.service.ValidationService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
-import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.broadcaster.util.InputStreamReadStream;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -33,6 +33,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -452,13 +453,13 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         boolean any = false;
         try {
             JsonObject json = new JsonObject(filterParam);
-            io.vertx.core.json.JsonArray g = json.getJsonArray("genres");
+            JsonArray g = json.getJsonArray("genres");
             if (g != null && !g.isEmpty()) {
-                List<java.util.UUID> genres = new ArrayList<>();
+                List<UUID> genres = new ArrayList<>();
                 for (Object o : g) {
                     if (o instanceof String s) {
                         try {
-                            genres.add(java.util.UUID.fromString(s));
+                            genres.add(UUID.fromString(s));
                         } catch (IllegalArgumentException ignored) {
                         }
                     }
@@ -468,7 +469,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     any = true;
                 }
             }
-            io.vertx.core.json.JsonArray s = json.getJsonArray("sources");
+            JsonArray s = json.getJsonArray("sources");
             if (s != null && !s.isEmpty()) {
                 List<SourceType> sources = new ArrayList<>();
                 for (Object o : s) {
@@ -484,7 +485,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     any = true;
                 }
             }
-            io.vertx.core.json.JsonArray t = json.getJsonArray("types");
+            JsonArray t = json.getJsonArray("types");
             if (t != null && !t.isEmpty()) {
                 List<PlaylistItemType> types = new ArrayList<>();
                 for (Object o : t) {

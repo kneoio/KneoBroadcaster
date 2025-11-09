@@ -20,4 +20,5 @@ public class Draft extends DataEntity<UUID> {
     private boolean enabled;
     private boolean isMaster;
     private boolean locked;
+    private UUID masterId;
 }

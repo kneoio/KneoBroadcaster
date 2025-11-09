@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PromptTestResponseDTO {
+public class AgentResponseDTO {
     private String result;
     private String reasoning;
 }

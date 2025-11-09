@@ -27,16 +27,45 @@ import java.util.UUID;
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SCRIPT_SCENE;
 
 @ApplicationScoped
-public class ScriptSceneRepository extends AsyncRepository {
+public class SceneRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SCRIPT_SCENE);
     private final PromptRepository promptRepository;
 
     @Inject
-    public ScriptSceneRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, PromptRepository promptRepository) {
+    public SceneRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, PromptRepository promptRepository) {
         super(client, mapper, rlsRepository);
         this.promptRepository = promptRepository;
     }
 
+    public Uni<List<ScriptScene>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = $1";
+        if (!includeArchived) {
+            sql += " AND t.archived = 0";
+        }
+        sql += " ORDER BY t.title ASC, t.start_time ";
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(user.getId()))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
+                "WHERE t.id = rls.entity_id AND rls.reader = $1";
+        if (!includeArchived) {
+            sql += " AND t.archived = 0";
+        }
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(user.getId()))
+                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    // Per-script listing
     public Uni<List<ScriptScene>> listByScript(UUID scriptId, int limit, int offset, boolean includeArchived, IUser user) {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = $1 AND t.script_id = $2";
@@ -93,12 +122,12 @@ public class ScriptSceneRepository extends AsyncRepository {
                         throw new DocumentHasNotFoundException(id);
                     }
                 })
-                .onItem().transformToUni(scene -> 
-                    promptRepository.getPromptsForScene(id)
-                        .onItem().transform(promptIds -> {
-                            scene.setPrompts(promptIds);
-                            return scene;
-                        })
+                .onItem().transformToUni(scene ->
+                        promptRepository.getPromptsForScene(id)
+                                .onItem().transform(promptIds -> {
+                                    scene.setPrompts(promptIds);
+                                    return scene;
+                                })
                 );
     }
 

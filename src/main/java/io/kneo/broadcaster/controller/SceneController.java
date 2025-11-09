@@ -2,7 +2,7 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.ScriptSceneDTO;
 import io.kneo.broadcaster.model.ScriptScene;
-import io.kneo.broadcaster.service.ScriptSceneService;
+import io.kneo.broadcaster.service.SceneService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -27,15 +27,17 @@ import java.util.UUID;
 @ApplicationScoped
 public class SceneController extends AbstractSecuredController<ScriptScene, ScriptSceneDTO> {
     @Inject
-    ScriptSceneService sceneService;
+    SceneService sceneService;
     private Validator validator;
 
     public SceneController() {
         super(null);
     }
 
+
+
     @Inject
-    public SceneController(UserService userService, ScriptSceneService sceneService, Validator validator) {
+    public SceneController(UserService userService, SceneService sceneService, Validator validator) {
         super(userService);
         this.sceneService = sceneService;
         this.validator = validator;
@@ -44,18 +46,43 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
     public void setupRoutes(Router router) {
         String scenesByScriptPath = "/api/scripts/:scriptId/scenes";
         router.route(scenesByScriptPath + "*").handler(BodyHandler.create());
-        router.get(scenesByScriptPath).handler(this::getScenesByScript);
+        router.get(scenesByScriptPath).handler(this::getByScript);
         router.post(scenesByScriptPath).handler(this::upsertSceneForScript);
 
         String scenePath = "/api/scenes";
         router.route(scenePath + "*").handler(BodyHandler.create());
+        router.get(scenePath).handler(this::getAll);
         router.get(scenePath + "/:id").handler(this::getById);
         router.post(scenePath + "/:id").handler(this::upsert);
         router.delete(scenePath + "/:id").handler(this::deleteScene);
         router.get(scenePath + "/:id/access").handler(this::getDocumentAccess);
     }
 
-    private void getScenesByScript(RoutingContext rc) {
+    private void getAll(RoutingContext rc) {
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
+
+        getContextUser(rc, false, true)
+                .chain(user -> Uni.combine().all().unis(
+                        sceneService.getAllCount(user),
+                        sceneService.getAll(size, (page - 1) * size, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<ScriptSceneDTO> dtoEntries = new View<>(tuple.getItem2(),
+                            tuple.getItem1(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                    return viewPage;
+                }))
+                .subscribe().with(
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                        rc::fail
+                );
+    }
+
+    private void getByScript(RoutingContext rc) {
         String scriptId = rc.pathParam("scriptId");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
@@ -63,8 +90,8 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
             UUID uuid = UUID.fromString(scriptId);
             getContextUser(rc, false, true)
                     .chain(user -> Uni.combine().all().unis(
-                            sceneService.getAllCount(uuid, user),
-                            sceneService.getAll(uuid, size, (page - 1) * size, user)
+                            sceneService.getByScriptCount(uuid, user),
+                            sceneService.getAllByScript(uuid, size, (page - 1) * size, user)
                     ).asTuple().map(tuple -> {
                         ViewPage viewPage = new ViewPage();
                         View<ScriptSceneDTO> dtoEntries = new View<>(tuple.getItem2(),

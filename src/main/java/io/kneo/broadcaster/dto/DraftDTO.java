@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
 @Getter
@@ -17,6 +19,7 @@ public class DraftDTO  extends AbstractReferenceDTO {
     private LanguageCode languageCode;
     private Integer archived;
     private boolean enabled;
-    private boolean isMaster;
+    private boolean master;
     private boolean locked;
+    private UUID masterId;
 }

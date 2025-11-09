@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.repository;
 
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
-import io.kneo.core.model.user.IUser;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
@@ -13,7 +12,7 @@ public class DraftQueryBuilder {
                 .append("SELECT * FROM ").append(tableName).append(" t");
 
         if (!includeArchived) {
-            sql.append(" WHERE (t.archived IS NULL OR t.archived = 0)");
+            sql.append(" WHERE t.archived = 0");
         }
 
         if (filter != null && filter.isActivated()) {

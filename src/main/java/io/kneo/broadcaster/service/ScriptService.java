@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
-    private final ScriptSceneService scriptSceneService;
+    private final SceneService scriptSceneService;
 
     protected ScriptService() {
         super();
@@ -30,7 +30,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository, ScriptSceneService scriptSceneService) {
+    public ScriptService(UserService userService, ScriptRepository repository, SceneService scriptSceneService) {
         super(userService);
         this.repository = repository;
         this.scriptSceneService = scriptSceneService;
@@ -87,7 +87,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return Uni.combine().all().unis(
                 userService.getUserName(script.getAuthor()),
                 userService.getUserName(script.getLastModifier()),
-                scriptSceneService.getAll(script.getId(), 100, 0, user)
+                scriptSceneService.getAllByScript(script.getId(), 100, 0, user)
         ).asTuple().map(tuple -> {
             ScriptDTO dto = new ScriptDTO();
             dto.setId(script.getId());

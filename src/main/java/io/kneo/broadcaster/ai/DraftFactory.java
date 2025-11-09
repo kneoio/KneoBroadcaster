@@ -67,7 +67,7 @@ public class DraftFactory {
                 .unis(
                         getDraftTemplate(draftId),
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song.getGenres(), agent)
+                        resolveGenreNames(song, agent)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -104,7 +104,7 @@ public class DraftFactory {
         return Uni.combine().all()
                 .unis(
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song.getGenres(), agent)
+                        resolveGenreNames(song, agent)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -162,7 +162,13 @@ public class DraftFactory {
         return groovyEngine.render(template, data).trim();
     }
 
-    private Uni<List<String>> resolveGenreNames(List<UUID> genreIds, AiAgent agent) {
+    private Uni<List<String>> resolveGenreNames(SoundFragment song, AiAgent agent) {
+        List<UUID> genreIds = song.getGenres();
+        if (genreIds == null || genreIds.isEmpty()) {
+            LOGGER.warn("Song '{}' (ID: {}) has no genres assigned", song.getTitle(), song.getId());
+            return Uni.createFrom().item(List.of());
+        }
+        
         List<Uni<String>> genreUnis = genreIds.stream()
                 .map(genreId -> refService.getById(genreId)
                         .map(genre -> genre.getLocalizedName().get(agent.getPreferredLang())))

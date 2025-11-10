@@ -2,9 +2,11 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
+import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
 import io.kneo.broadcaster.dto.ai.PromptTestDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.service.PromptService;
+import io.kneo.broadcaster.service.TranslateService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -18,6 +20,7 @@ import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.JsonArray;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -42,21 +45,25 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
 
     @Inject
     AgentClient agentClient;
+    private TranslateService translateService;
 
     public PromptController() {
         super(null);
     }
 
     @Inject
-    public PromptController(UserService userService, PromptService service, Validator validator) {
+    public PromptController(UserService userService, PromptService service, Validator validator, TranslateService translateService) {
         super(userService);
         this.service = service;
         this.validator = validator;
+        this.translateService = translateService;
     }
 
     public void setupRoutes(Router router) {
         String path = "/api/prompts";
         router.route(path + "*").handler(BodyHandler.create());
+        router.post(path + "/translate/start").handler(this::translateStart);
+        router.get(path + "/translate/stream").handler(this::translateStream);
         router.get(path).handler(this::getAll);
         router.post(path + "/test").handler(this::test);
         router.get(path + "/:id").handler(this::getById);
@@ -183,6 +190,84 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         rc::fail
                 );
+    }
+
+    private void translateStart(RoutingContext rc) {
+        try {
+            String jobId = rc.request().getParam("jobId");
+            if (jobId == null || jobId.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("jobId is required"));
+                return;
+            }
+
+            JsonArray array = rc.body().asJsonArray();
+            if (array == null) {
+                rc.fail(400, new IllegalArgumentException("Invalid request: expected a JSON array"));
+                return;
+            }
+            java.util.List<TranslateReqDTO> dtos = new java.util.ArrayList<>();
+            for (int i = 0; i < array.size(); i++) {
+                JsonObject obj = array.getJsonObject(i);
+                dtos.add(obj.mapTo(TranslateReqDTO.class));
+            }
+
+            for (TranslateReqDTO dto : dtos) {
+                Set<ConstraintViolation<TranslateReqDTO>> violations = validator.validate(dto);
+                if (violations != null && !violations.isEmpty()) {
+                    Map<String, java.util.List<String>> fieldErrors = new HashMap<>();
+                    for (ConstraintViolation<TranslateReqDTO> v : violations) {
+                        String field = v.getPropertyPath().toString();
+                        fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                    }
+                    String detail = fieldErrors.entrySet().stream()
+                            .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                            .collect(Collectors.joining(", "));
+                    ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                    return;
+                }
+            }
+
+            getContextUser(rc, false, true)
+                    .subscribe().with(user -> {
+                        translateService.startJobForPrompts(jobId, dtos, user);
+                        rc.response()
+                                .setStatusCode(202)
+                                .putHeader("Content-Type", "application/json")
+                                .end(new JsonObject().put("jobId", jobId).encode());
+                    }, rc::fail);
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
+        }
+    }
+
+    private void translateStream(RoutingContext rc) {
+        String jobId = rc.request().getParam("jobId");
+        if (jobId == null || jobId.isBlank()) {
+            rc.fail(400, new IllegalArgumentException("jobId is required"));
+            return;
+        }
+
+        var resp = rc.response();
+        resp.setChunked(true);
+        resp.putHeader("Content-Type", "text/event-stream");
+        resp.putHeader("Cache-Control", "no-cache");
+        resp.putHeader("Connection", "keep-alive");
+
+        java.util.function.Consumer<io.kneo.broadcaster.service.TranslateService.SseEvent> consumer = ev -> {
+            try {
+                StringBuilder sb = new StringBuilder();
+                sb.append("event: ").append(ev.type()).append('\n');
+                sb.append("data: ").append(ev.data() != null ? ev.data().encode() : "{}").append('\n').append('\n');
+                resp.write(sb.toString());
+            } catch (Exception ignored) { }
+        };
+
+        translateService.subscribe(jobId, consumer);
+
+        // Unsubscribe when client disconnects
+        resp.exceptionHandler(t -> translateService.unsubscribe(jobId, consumer));
+        resp.endHandler(v -> translateService.unsubscribe(jobId, consumer));
     }
 
     private void getDocumentAccess(RoutingContext rc) {

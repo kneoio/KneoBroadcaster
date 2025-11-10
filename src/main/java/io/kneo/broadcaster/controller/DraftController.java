@@ -308,7 +308,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
 
             getContextUser(rc, false, true)
                     .subscribe().with(user -> {
-                        translateService.startJob(jobId, dtos, user);
+                        translateService.startJobForDrafts(jobId, dtos, user);
                         rc.response()
                                 .setStatusCode(202)
                                 .putHeader("Content-Type", "application/json")

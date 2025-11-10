@@ -2,7 +2,9 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.DraftDTO;
+import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
+import io.kneo.broadcaster.model.JobState;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -17,30 +19,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 @ApplicationScoped
 public class TranslateService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TranslateService.class);
-    
+
     private final AgentClient agentClient;
     private final DraftService draftService;
+    private final PromptService promptService;
 
     public record SseEvent(String type, JsonObject data) {}
-
-    public static class JobState {
-        public int total;
-        public int done;
-        public boolean finished;
-    }
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<SseEvent>>> subscribers = new ConcurrentHashMap<>();
 
     @Inject
-    public TranslateService(AgentClient agentClient, DraftService draftService) {
+    public TranslateService(AgentClient agentClient, DraftService draftService, PromptService promptService) {
         this.agentClient = agentClient;
         this.draftService = draftService;
+        this.promptService = promptService;
     }
 
     public void subscribe(String jobId, Consumer<SseEvent> consumer) {
@@ -72,8 +71,18 @@ public class TranslateService {
         }
     }
 
-    public void startJob(String jobId, List<TranslateReqDTO> dtos, IUser user) {
+    public void startJobForDrafts(String jobId, List<TranslateReqDTO> dtos, IUser user) {
+        startJob(jobId, dtos, user, this::translateAndUpsertDraft);
+    }
+
+    public void startJobForPrompts(String jobId, List<TranslateReqDTO> dtos, IUser user) {
+        startJob(jobId, dtos, user, this::translateAndUpsertPrompt);
+    }
+
+    private <T> void startJob(String jobId, List<TranslateReqDTO> dtos, IUser user,
+                              BiFunction<TranslateReqDTO, IUser, Uni<T>> translator) {
         if (jobId == null || jobId.isBlank()) throw new IllegalArgumentException("jobId is required");
+
         JobState st = new JobState();
         st.total = dtos != null ? dtos.size() : 0;
         st.done = 0;
@@ -88,8 +97,7 @@ public class TranslateService {
             return;
         }
 
-        assert dtos != null;
-        processSequential(jobId, dtos, 0, user)
+        processSequential(jobId, dtos, 0, user, translator)
                 .subscribe().with(
                         ignored -> {},
                         err -> {
@@ -100,7 +108,10 @@ public class TranslateService {
                 );
     }
 
-    private Uni<Void> processSequential(String jobId, List<TranslateReqDTO> dtos, int idx, IUser user) {
+    private <T> Uni<Void> processSequential(
+            String jobId, List<TranslateReqDTO> dtos, int idx, IUser user,
+            BiFunction<TranslateReqDTO, IUser, Uni<T>> translator) {
+
         if (idx >= dtos.size()) {
             JobState st = jobs.get(jobId);
             if (st != null) {
@@ -113,28 +124,24 @@ public class TranslateService {
         TranslateReqDTO dto = dtos.get(idx);
         LanguageCode lang = dto.getLanguageCode();
 
-        return translateAndUpsertDraft(dto, user)
+        return translator.apply(dto, user)
                 .onItem().invoke(result -> {
                     JobState st = jobs.get(jobId);
-                    if (st != null) {
-                        st.done += 1; // count only finished attempts
-                    }
+                    if (st != null) st.done += 1;
                     JsonObject payload = new JsonObject()
                             .put("language", lang != null ? lang.name() : null)
                             .put("masterId", dto.getMasterId() != null ? dto.getMasterId().toString() : null)
-                            .put("draftId", result != null && result.getId() != null ? result.getId().toString() : null)
                             .put("success", result != null);
                     emit(jobId, "language_done", payload);
                 })
                 .onFailure().invoke(err -> {
-                    JsonObject payload = new JsonObject()
+                    emit(jobId, "language_done", new JsonObject()
                             .put("language", lang != null ? lang.name() : null)
                             .put("masterId", dto.getMasterId() != null ? dto.getMasterId().toString() : null)
                             .put("success", false)
-                            .put("message", err.getMessage());
-                    emit(jobId, "language_done", payload);
+                            .put("message", err.getMessage()));
                 })
-                .onTermination().call(() -> processSequential(jobId, dtos, idx + 1, user))
+                .onTermination().call(() -> processSequential(jobId, dtos, idx + 1, user, translator))
                 .replaceWithVoid();
     }
 
@@ -146,29 +153,57 @@ public class TranslateService {
                     }
 
                     return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode())
-                        .chain(resp -> {
-                            String translatedContent = resp != null ? resp.getResult() : null;
-                            if (translatedContent == null || translatedContent.isBlank()) {
-                                return Uni.createFrom().nullItem();
-                            }
-                            String newTitle = updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode());
+                            .chain(resp -> {
+                                String translatedContent = resp != null ? resp.getResult() : null;
+                                if (translatedContent == null || translatedContent.isBlank()) {
+                                    return Uni.createFrom().nullItem();
+                                }
+                                String newTitle = updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode());
 
-                            return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false, user)
-                                    .chain(existing -> {
-                                        DraftDTO newDto = new DraftDTO();
-                                        newDto.setTitle(newTitle);
-                                        newDto.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                        newDto.setLanguageCode(dto.getLanguageCode());
-                                        newDto.setMasterId(dto.getMasterId());
-                                        newDto.setEnabled(true);
-                                        newDto.setMaster(false);
-                                        newDto.setLocked(true);
-                                        // archived will default to 0 if null in buildEntity
+                                return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false, user)
+                                        .chain(existing -> {
+                                            DraftDTO newDto = new DraftDTO();
+                                            newDto.setTitle(newTitle);
+                                            newDto.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                            newDto.setLanguageCode(dto.getLanguageCode());
+                                            newDto.setMasterId(dto.getMasterId());
+                                            newDto.setEnabled(true);
+                                            newDto.setMaster(false);
+                                            newDto.setLocked(true);
 
-                                        String id = existing != null ? existing.getId().toString() : null;
-                                        return draftService.upsert(id, newDto, user, dto.getLanguageCode());
-                                    });
-                        });
+                                            String id = existing != null ? existing.getId().toString() : null;
+                                            return draftService.upsert(id, newDto, user, dto.getLanguageCode());
+                                        });
+                            });
+                });
+    }
+
+    private Uni<PromptDTO> translateAndUpsertPrompt(TranslateReqDTO dto, IUser user) {
+        return promptService.getById(dto.getMasterId(), user)
+                .chain(sourcePrompt -> {
+                    if (sourcePrompt.getLanguageCode() == dto.getLanguageCode()) {
+                        return Uni.createFrom().nullItem();
+                    }
+
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode())
+                            .chain(resp -> {
+                                String translatedContent = resp != null ? resp.getResult() : null;
+                                if (translatedContent == null || translatedContent.isBlank()) {
+                                    return Uni.createFrom().nullItem();
+                                }
+                                String newTitle = updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode());
+
+                                PromptDTO newDto = new PromptDTO();
+                                newDto.setTitle(newTitle);
+                                newDto.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                newDto.setLanguageCode(dto.getLanguageCode());
+                                newDto.setEnabled(true);
+                                newDto.setMaster(false);
+                                newDto.setLocked(true);
+                                newDto.setDraftId(sourcePrompt.getDraftId());
+
+                                return promptService.upsert(null, newDto, user);
+                            });
                 });
     }
 

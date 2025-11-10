@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.service.BrandScriptUpdateService;
+import io.kneo.broadcaster.service.ScriptDryRunService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -38,6 +39,8 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
     ScriptService service;
     @Inject
     BrandScriptUpdateService brandScriptUpdateService;
+    @Inject
+    ScriptDryRunService dryRunService;
     private Validator validator;
 
     public ScriptController() {
@@ -45,10 +48,12 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
     }
 
     @Inject
-    public ScriptController(UserService userService, ScriptService service, BrandScriptUpdateService brandScriptUpdateService, Validator validator) {
+    public ScriptController(UserService userService, ScriptService service, BrandScriptUpdateService brandScriptUpdateService, 
+                           ScriptDryRunService dryRunService, Validator validator) {
         super(userService);
         this.service = service;
         this.brandScriptUpdateService = brandScriptUpdateService;
+        this.dryRunService = dryRunService;
         this.validator = validator;
     }
 
@@ -61,6 +66,8 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.post(path + "/:id").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
+        router.post(path + "/:id/dry-run").handler(this::startDryRun);
+        router.get(path + "/dry-run/stream").handler(this::dryRunStream);
 
         String brandScriptsPath = "/api/brands/:brandId/scripts";
         router.route(brandScriptsPath + "*").handler(BodyHandler.create());
@@ -221,5 +228,78 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid brand ID format"));
         }
+    }
+
+    private void startDryRun(RoutingContext rc) {
+        String scriptId = rc.pathParam("id");
+        
+        try {
+            if (!validateJsonBody(rc)) return;
+            
+            JsonObject body = rc.body().asJsonObject();
+            String jobId = body.getString("jobId");
+            String stationName = body.getString("stationName");
+            String djName = body.getString("djName");
+            
+            if (jobId == null || jobId.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("jobId is required"));
+                return;
+            }
+            if (stationName == null || stationName.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("stationName is required"));
+                return;
+            }
+            if (djName == null || djName.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("djName is required"));
+                return;
+            }
+            
+            UUID scriptUuid = UUID.fromString(scriptId);
+            
+            getContextUser(rc, false, true)
+                    .subscribe().with(
+                            user -> {
+                                dryRunService.startDryRun(jobId, scriptUuid, stationName, djName, user);
+                                JsonObject response = new JsonObject()
+                                        .put("jobId", jobId)
+                                        .put("message", "Dry-run started");
+                                rc.response().setStatusCode(202).end(response.encode());
+                            },
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid script ID format"));
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
+    }
+
+    private void dryRunStream(RoutingContext rc) {
+        String jobId = rc.request().getParam("jobId");
+        if (jobId == null || jobId.isBlank()) {
+            rc.fail(400, new IllegalArgumentException("jobId is required"));
+            return;
+        }
+
+        var resp = rc.response();
+        resp.setChunked(true);
+        resp.putHeader("Content-Type", "text/event-stream");
+        resp.putHeader("Cache-Control", "no-cache");
+        resp.putHeader("Connection", "keep-alive");
+
+        java.util.function.Consumer<io.kneo.broadcaster.service.ScriptDryRunService.SseEvent> consumer = ev -> {
+            try {
+                StringBuilder sb = new StringBuilder();
+                sb.append("event: ").append(ev.type()).append('\n');
+                sb.append("data: ").append(ev.data() != null ? ev.data().encode() : "{}").append('\n').append('\n');
+                resp.write(sb.toString());
+            } catch (Exception ignored) { }
+        };
+
+        dryRunService.subscribe(jobId, consumer);
+
+        // Unsubscribe when client disconnects
+        resp.exceptionHandler(t -> dryRunService.unsubscribe(jobId, consumer));
+        resp.endHandler(v -> dryRunService.unsubscribe(jobId, consumer));
     }
 }

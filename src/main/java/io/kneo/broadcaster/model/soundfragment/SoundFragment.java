@@ -47,4 +47,8 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     public int hashCode() {
         return Objects.hash(getId());
     }
+
+    public Integer getDuration() {
+        return 5;
+    }
 }

@@ -43,7 +43,7 @@ public class SceneRepository extends AsyncRepository {
         if (!includeArchived) {
             sql += " AND t.archived = 0";
         }
-        sql += " ORDER BY t.title ASC, t.start_time ";
+        sql += " ORDER BY t.script_id ASC, t.start_time ";
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
@@ -134,8 +134,8 @@ public class SceneRepository extends AsyncRepository {
     public Uni<ScriptScene> insert(ScriptScene scene, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, weekdays) " +
-                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, talkativity, podcast_mode, weekdays) " +
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
@@ -145,6 +145,8 @@ public class SceneRepository extends AsyncRepository {
                 .addString(scene.getTitle())
                 .addLocalTime(scene.getStartTime())
                 .addBoolean(scene.isOneTimeRun())
+                .addDouble(scene.getTalkativity())
+                .addDouble(scene.getPodcastMode())
                 .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null);
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
@@ -166,11 +168,13 @@ public class SceneRepository extends AsyncRepository {
                     }
                     OffsetDateTime nowTime = OffsetDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET title=$1, start_time=$2, one_time_run=$3, weekdays=$4, last_mod_user=$5, last_mod_date=$6 WHERE id=$7";
+                            " SET title=$1, start_time=$2, one_time_run=$3, talkativity=$4, podcast_mode=$5, weekdays=$6, last_mod_user=$7, last_mod_date=$8 WHERE id=$9";
                     Tuple params = Tuple.tuple()
                             .addString(scene.getTitle())
                             .addLocalTime(scene.getStartTime())
                             .addBoolean(scene.isOneTimeRun())
+                            .addDouble(scene.getTalkativity())
+                            .addDouble(scene.getPodcastMode())
                             .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
                             .addLong(user.getId())
                             .addOffsetDateTime(nowTime)
@@ -218,6 +222,10 @@ public class SceneRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setStartTime(row.getLocalTime("start_time"));
         doc.setOneTimeRun(row.getBoolean("one_time_run"));
+        Double talk = row.getDouble("talkativity");
+        if (talk != null) doc.setTalkativity(talk);
+        Double pod = row.getDouble("podcast_mode");
+        if (pod != null) doc.setPodcastMode(pod);
         Object[] weekdaysArr = row.getArrayOfIntegers("weekdays");
         if (weekdaysArr != null && weekdaysArr.length > 0) {
             List<Integer> weekdays = new ArrayList<>();

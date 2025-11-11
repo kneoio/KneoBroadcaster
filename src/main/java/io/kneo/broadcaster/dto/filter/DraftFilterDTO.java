@@ -14,7 +14,7 @@ public class DraftFilterDTO implements IFilterDTO {
     private LanguageCode languageCode;
     private Integer archived;
     private boolean enabled;
-    private boolean isMaster;
+    private boolean master;
     private boolean locked;
 
     @Override
@@ -27,7 +27,7 @@ public class DraftFilterDTO implements IFilterDTO {
         return languageCode != null || 
                archived != null || 
                enabled || 
-               isMaster || 
+               master || 
                locked;
     }
 }

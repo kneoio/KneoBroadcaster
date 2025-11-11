@@ -15,8 +15,7 @@ import java.util.UUID;
 public class AiAgentDTO extends AbstractDTO {
     @NotBlank
     private String name;
-    @NotBlank
-    private String preferredLang;
+    private List<LanguagePreferenceDTO> preferredLang;
     @NotBlank
     private String llmType;
     private String searchEngineType;

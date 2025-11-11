@@ -12,6 +12,7 @@ import io.kneo.broadcaster.mcp.SoundFragmentMCPTools;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.ScriptScene;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
@@ -118,11 +119,12 @@ public class AiHelperService {
             return Uni.join().all(stationUnis).andFailFast()
                     .map(liveStations -> {
                         List<LiveRadioStationMcpDTO> validStations = liveStations.stream()
-                                .filter(station -> {
-                                    if (station.getPrompts() == null || station.getPrompts().isEmpty()) {
-                                        LOGGER.warn("Station '{}' filtered out: No valid prompts found", station.getName());
-                                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No valid prompts found");
+                                .filter(liveStation -> {
+                                    if (liveStation == null) {
                                         return false;
+                                    } else if (liveStation.getPrompts() == null || liveStation.getPrompts().isEmpty()) {
+                                            LOGGER.debug("Station '{}' filtered out: No active prompts", liveStation.getSlugName());
+                                            return false;
                                     }
                                     return true;
                                 })
@@ -138,10 +140,10 @@ public class AiHelperService {
         int queueSize = station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size();
         LOGGER.info("Station '{}' has queue size: {}", station.getSlugName(), queueSize);
         if (queueSize > 2) {
-            //liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
+            liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
             LOGGER.info("Station '{}' is saturated, it will be skip: {}", station.getSlugName(), queueSize);
             addMessage(station.getSlugName(), AiDjStats.MessageType.INFO,
-                    String.format("The playlist is saturated, it will skip dj interaction session (size %s)", queueSize));
+                    String.format("The playlist is saturated (size %s)", queueSize));
 
             return Uni.createFrom().item(() -> null);
         } else {
@@ -150,17 +152,23 @@ public class AiHelperService {
 
         return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
+                    LanguageCode broadcastingLanguage = selectLanguageByWeight(agent);
                     liveRadioStation.setSlugName(station.getSlugName());
-                    liveRadioStation.setName(station.getLocalizedName().get(agent.getPreferredLang()));
+                    String stationName = station.getLocalizedName().get(broadcastingLanguage);
+                    if (stationName == null) {  //it might happen if dj speaks language that not represented in the localized names
+                        stationName = station.getLocalizedName().get(LanguageCode.en);
+                        LOGGER.warn("Station '{}': No localized name for language '{}'", station.getSlugName(), broadcastingLanguage);
+                    }
+                    liveRadioStation.setName(stationName);
                     liveRadioStation.setDjName(agent.getName());
 
                     aiDjStatsRequestTracker.put(station.getSlugName(),
                             new DjRequestInfo(LocalDateTime.now(), agent.getName()));
 
-                    return fetchPrompt(station, agent).flatMap(tuple -> {
+                    return fetchPrompt(station, agent, broadcastingLanguage).flatMap(tuple -> {
                         if (tuple == null) {
-                            LOGGER.warn("Station '{}' skipped: fetchPrompt() returned no data", station.getSlugName());
-                            addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No prompt data available");
+                            //LOGGER.warn("Station '{}' skipped: fetchPrompt() returned no data", station.getSlugName());
+                            // addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No prompt data available");
                             return Uni.createFrom().item(liveRadioStation);
                         }
                         var prompts = tuple.getItem1();
@@ -186,7 +194,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<Tuple2<List<SongPromptMcpDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent) {
+    private Uni<Tuple2<List<SongPromptMcpDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage) {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
@@ -194,9 +202,9 @@ public class AiHelperService {
                 )
                 .asTuple()
                 .flatMap(tuple -> {
-                    List<BrandScript> scripts = tuple.getItem1();
+                    List<BrandScript> brandScripts = tuple.getItem1();
                     MemoryResult memoryData = tuple.getItem2();
-                    if (scripts.isEmpty()) {
+                    if (brandScripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
                     }
 
@@ -205,70 +213,107 @@ public class AiHelperService {
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
-                    List<UUID> allPromptIds = new ArrayList<>();
+                    List<UUID> allMasterPromptIds = new ArrayList<>();
                     String currentSceneTitle = null;
                     ScriptScene activeScene = null;
-                    for (BrandScript brandScript : scripts) {
+                    for (BrandScript brandScript : brandScripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), zone, scene, scenes, currentTime, currentDayOfWeek)) {
-                                allPromptIds.addAll(scene.getPrompts());
+                                allMasterPromptIds.addAll(scene.getPrompts());
                                 currentSceneTitle = scene.getTitle();
                                 activeScene = scene;
+                                LOGGER.debug("Station '{}': Active scene '{}' found with {} prompts", 
+                                        station.getSlugName(), scene.getTitle(), scene.getPrompts().size());
                             }
                         }
                     }
 
-                    assert activeScene != null;
+                    if (activeScene == null) {
+                        LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", station.getSlugName(), currentTime, currentDayOfWeek);
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + currentTime + ")");
+                        return Uni.createFrom().item(() -> null);
+                    }
+
                     if (!activeScene.isOneTimeRun() && shouldPlayJingle(activeScene.getTalkativity())) {
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    if (allPromptIds.isEmpty()) {
-                        LOGGER.warn("Station '{}' skipped: No valid prompts found", station.getSlugName());
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No valid prompts found");
+                    if (allMasterPromptIds.isEmpty()) {
+                        LOGGER.warn("Station '{}' skipped: Active scene '{}' has no prompts configured", 
+                                station.getSlugName(), currentSceneTitle);
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, 
+                                String.format("Active scene '%s' has no prompts", currentSceneTitle));
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    List<Uni<Prompt>> promptUnis = allPromptIds.stream()
-                            .map(id -> promptService.getById(id, SuperUser.build()))
+                    LOGGER.debug("Station '{}': Found {} master prompt IDs in active scene, DJ language: {}", 
+                            station.getSlugName(), allMasterPromptIds.size(), broadcastingLanguage);
+                    
+                    List<Uni<Prompt>> promptUnis = allMasterPromptIds.stream()
+                            .map(masterId -> promptService.getById(masterId, SuperUser.build())
+                                    .flatMap(masterPrompt -> {
+                                        LOGGER.debug("Station '{}': Master prompt ID={}, title={}",
+                                                station.getSlugName(), masterId,  masterPrompt.getTitle());
+                                        
+                                        if (masterPrompt.getLanguageCode() == broadcastingLanguage) {
+                                            LOGGER.debug("Station '{}': Using master prompt directly (language matches)", station.getSlugName());
+                                            return Uni.createFrom().item(masterPrompt);
+                                        }
+                                        
+                                        LOGGER.debug("Station '{}': Looking for translation of master ID={} to language={}", 
+                                                station.getSlugName(), masterId, broadcastingLanguage);
+                                        
+                                        return promptService.findByMasterAndLanguage(masterId, broadcastingLanguage, false)
+                                                .map(translatedPrompt -> {
+                                                    if (translatedPrompt != null) {
+                                                        LOGGER.debug("Station '{}': Found translation ID={}, title={}", 
+                                                                station.getSlugName(), translatedPrompt.getId(), translatedPrompt.getTitle());
+                                                        return translatedPrompt;
+                                                    } else {
+                                                        LOGGER.warn("Station '{}': No translation found for master ID={} in language={}, falling back to master (language={})", 
+                                                                station.getSlugName(), masterId, broadcastingLanguage, masterPrompt.getLanguageCode());
+                                                        return masterPrompt;
+                                                    }
+                                                });
+                                    })
+                                    .onFailure().invoke(t -> LOGGER.error("Station '{}': Failed to fetch prompt for master ID={}: {}", 
+                                            station.getSlugName(), masterId, t.getMessage(), t)))
                             .collect(Collectors.toList());
 
                     String finalCurrentSceneTitle = currentSceneTitle;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
-                                LanguageCode djLanguage = agent.getPreferredLang();
-                                List<Prompt> filteredPrompts = prompts.stream()
-                                        .filter(p -> p.getLanguageCode() == djLanguage)
-                                        .toList();
+                                LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", 
+                                        station.getSlugName(), prompts.size());
 
-                                if (filteredPrompts.isEmpty()) {
-                                    LOGGER.warn("Station '{}': No valid prompt for specific language '{}' found", station.getSlugName(), djLanguage);
-                                    addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING,
-                                            String.format("No valid prompt for specific language '%s' found", djLanguage));
-                                    return Uni.createFrom().item(() -> null);
-                                }
-
-                                Prompt selectedPrompt = filteredPrompts.get(new Random().nextInt(filteredPrompts.size()));
-
+                                Random random = new Random();
+                                
                                 return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, soundFragmentMCPTools.decideFragmentCount())
                                         .flatMap(songs -> {
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
-                                                    .map(song -> draftFactory.createDraft(
-                                                            song,
-                                                            agent,
-                                                            station,
-                                                            memoryData,
-                                                            selectedPrompt.getDraftId()
-                                                    ).map(draft -> new SongPromptMcpDTO(
-                                                            song.getId(),
-                                                            draft,
-                                                            selectedPrompt.getPrompt(),
-                                                            selectedPrompt.getPromptType(),
-                                                            agent.getLlmType(),
-                                                            agent.getSearchEngineType()
-                                                    ))).collect(Collectors.toList());
+                                                    .map(song -> {
+                                                        Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                                                        LOGGER.debug("Station '{}': Selected prompt '{}' for song '{}'", 
+                                                                station.getSlugName(), selectedPrompt.getTitle(), song.getTitle());
+                                                        
+                                                        return draftFactory.createDraft(
+                                                                song,
+                                                                agent,
+                                                                station,
+                                                                memoryData,
+                                                                selectedPrompt.getDraftId(),
+                                                                broadcastingLanguage
+                                                        ).map(draft -> new SongPromptMcpDTO(
+                                                                song.getId(),
+                                                                draft,
+                                                                selectedPrompt.getPrompt(),
+                                                                selectedPrompt.getPromptType(),
+                                                                agent.getLlmType(),
+                                                                agent.getSearchEngineType()
+                                                        ));
+                                                    }).collect(Collectors.toList());
 
                                             return Uni.join().all(songPromptUnis).andFailFast()
                                                     .map(result -> Tuple2.of(result, finalCurrentSceneTitle));
@@ -407,5 +452,37 @@ public class AiHelperService {
 
     public void clearMessages(String brandName) {
         aiDjMessagesTracker.remove(brandName);
+    }
+
+    private LanguageCode selectLanguageByWeight(AiAgent agent) {
+        List<LanguagePreference> preferences = agent.getPreferredLang();
+        if (preferences == null || preferences.isEmpty()) {
+            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
+            return LanguageCode.en;
+        }
+
+        if (preferences.size() == 1) {
+            return preferences.get(0).getCode();
+        }
+
+        double totalWeight = preferences.stream()
+                .mapToDouble(LanguagePreference::getWeight)
+                .sum();
+
+        if (totalWeight <= 0) {
+            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
+            return preferences.get(0).getCode();
+        }
+
+        double randomValue = new Random().nextDouble() * totalWeight;
+        double cumulativeWeight = 0;
+        for (LanguagePreference pref : preferences) {
+            cumulativeWeight += pref.getWeight();
+            if (randomValue <= cumulativeWeight) {
+                return pref.getCode();
+            }
+        }
+
+        return preferences.get(0).getCode();
     }
 }

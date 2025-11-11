@@ -1,11 +1,13 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
+import io.kneo.broadcaster.dto.ai.LanguagePreferenceDTO;
 import io.kneo.broadcaster.dto.ai.MergerDTO;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.ai.ToolDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.MergeMethod;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
@@ -99,7 +101,14 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setName(doc.getName());
-            dto.setPreferredLang(doc.getPreferredLang().name());
+            
+            if (doc.getPreferredLang() != null && !doc.getPreferredLang().isEmpty()) {
+                List<LanguagePreferenceDTO> langPrefDTOs = doc.getPreferredLang().stream()
+                        .map(pref -> new LanguagePreferenceDTO(pref.getCode().name(), pref.getWeight()))
+                        .toList();
+                dto.setPreferredLang(langPrefDTOs);
+            }
+            
             dto.setLlmType(doc.getLlmType().name());
             dto.setSearchEngineType(doc.getSearchEngineType().name());
             dto.setPrompts(
@@ -162,7 +171,16 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setId(dto.getId());
         doc.setName(dto.getName());
         doc.setCopilot(dto.getCopilot());
-        doc.setPreferredLang(LanguageCode.valueOf(dto.getPreferredLang()));
+        
+        if (dto.getPreferredLang() != null && !dto.getPreferredLang().isEmpty()) {
+            List<LanguagePreference> langPrefs = dto.getPreferredLang().stream()
+                    .map(prefDto -> new LanguagePreference(
+                            LanguageCode.valueOf(prefDto.getCode()),
+                            prefDto.getWeight()))
+                    .collect(Collectors.toList());
+            doc.setPreferredLang(langPrefs);
+        }
+        
         doc.setPrompts(
                 dto.getPrompts().stream()
                         .map(p -> {

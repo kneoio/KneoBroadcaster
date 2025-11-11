@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.ai.DraftTestDTO;
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.DraftRepository;
@@ -24,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -99,12 +101,8 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         return repository.archive(UUID.fromString(id), user);
     }
 
-    public Uni<Draft> findByTitleAndLanguage(String title, LanguageCode languageCode, boolean includeArchived, IUser user) {
-        return repository.findByTitleAndLanguage(title, languageCode, includeArchived, user);
-    }
-
-    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived, IUser user) {
-        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived, user);
+    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
+        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived);
     }
 
     private Uni<DraftDTO> mapToDTO(Draft doc) {
@@ -162,22 +160,59 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                             })
                             .chain(ignored -> soundFragmentService.getById(dto.getSongId(), user))
                             .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
-                                    .chain(agent -> memoryService.getByType(
-                                                    brand,
-                                                    MemoryType.MESSAGE.name(),
-                                                    MemoryType.EVENT.name(),
-                                                    MemoryType.CONVERSATION_HISTORY.name()
-                                            )
-                                            .chain(memoryData ->
-                                                    draftFactory.createDraftFromCode(
-                                                            dto.getCode(),
-                                                            song,
-                                                            agent,
-                                                            station,
-                                                            memoryData
-                                                    )
-                                            ))
+                                    .chain(agent -> {
+                                        LanguageCode selectedLanguage = selectLanguageByWeight(agent);
+                                        return memoryService.getByType(
+                                                        brand,
+                                                        MemoryType.MESSAGE.name(),
+                                                        MemoryType.EVENT.name(),
+                                                        MemoryType.CONVERSATION_HISTORY.name()
+                                                )
+                                                .chain(memoryData ->
+                                                        draftFactory.createDraftFromCode(
+                                                                dto.getCode(),
+                                                                song,
+                                                                agent,
+                                                                station,
+                                                                memoryData,
+                                                                selectedLanguage
+                                                        )
+                                                );
+                                    })
                             );
                 });
+    }
+
+    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.ai.AiAgent agent) {
+        List<LanguagePreference> preferences = agent.getPreferredLang();
+        if (preferences == null || preferences.isEmpty()) {
+            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
+            return LanguageCode.en;
+        }
+
+        if (preferences.size() == 1) {
+            return preferences.get(0).getCode();
+        }
+
+        double totalWeight = preferences.stream()
+                .mapToDouble(LanguagePreference::getWeight)
+                .sum();
+
+        if (totalWeight <= 0) {
+            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
+            return preferences.get(0).getCode();
+        }
+
+        Random random = new Random();
+        double randomValue = random.nextDouble() * totalWeight;
+        double cumulativeWeight = 0;
+        for (LanguagePreference pref : preferences) {
+            cumulativeWeight += pref.getWeight();
+            if (randomValue <= cumulativeWeight) {
+                return pref.getCode();
+            }
+        }
+
+        return preferences.get(0).getCode();
     }
 }

@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ai.PromptDTO;
+import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.repository.PromptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -26,8 +27,8 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         this.repository = repository;
     }
 
-    public Uni<List<PromptDTO>> getAll(final int limit, final int offset, final IUser user) {
-        return repository.getAll(limit, offset, false, user)
+    public Uni<List<PromptDTO>> getAll(final int limit, final int offset, final IUser user, final PromptFilterDTO filter) {
+        return repository.getAll(limit, offset, false, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -40,8 +41,8 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
                 });
     }
 
-    public Uni<Integer> getAllCount(final IUser user) {
-        return repository.getAllCount(user, false);
+    public Uni<Integer> getAllCount(final IUser user, final PromptFilterDTO filter) {
+        return repository.getAllCount(user, false, filter);
     }
 
     public Uni<Prompt> getById(UUID id, IUser user) {
@@ -71,6 +72,10 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         return repository.delete(UUID.fromString(id), user);
     }
 
+    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
+        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived);
+    }
+
     private Uni<PromptDTO> mapToDTO(Prompt doc) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
@@ -91,6 +96,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
             dto.setBackup(doc.getBackup());
             dto.setPodcast(doc.isPodcast());
             dto.setDraftId(doc.getDraftId());
+            dto.setMasterId(doc.getMasterId());
             return dto;
         });
     }
@@ -107,6 +113,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         doc.setBackup(dto.getBackup());
         doc.setPodcast(dto.isPodcast());
         doc.setDraftId(dto.getDraftId());
+        doc.setMasterId(dto.getMasterId());
         return doc;
     }
 

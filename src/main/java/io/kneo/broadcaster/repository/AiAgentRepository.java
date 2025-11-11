@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
@@ -129,10 +130,11 @@ public class AiAgentRepository extends AsyncRepository {
         String sql = "SELECT theTable.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.preferred_lang = $2 AND theTable.archived = 0";
+                "WHERE rls.reader = $1 AND theTable.preferred_lang @> $2::jsonb AND theTable.archived = 0";
 
+        String langFilter = String.format("[{\"code\":\"%s\"}]", lang.name());
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(user.getId(), lang.name()))
+                .execute(Tuple.of(user.getId(), langFilter))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
@@ -155,13 +157,23 @@ public class AiAgentRepository extends AsyncRepository {
             }
         }
 
+        JsonArray preferredLangJson = new JsonArray();
+        if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
+            for (LanguagePreference pref : agent.getPreferredLang()) {
+                JsonObject prefObj = new JsonObject()
+                        .put("code", pref.getCode().name())
+                        .put("weight", pref.getWeight());
+                preferredLangJson.add(prefObj);
+            }
+        }
+
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
                 .addString(agent.getName())
-                .addString(agent.getPreferredLang().name())
+                .addJsonArray(preferredLangJson)
                 .addString(agent.getLlmType().name())
                 .addString(agent.getSearchEngineType().name())
                 .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
@@ -213,11 +225,21 @@ public class AiAgentRepository extends AsyncRepository {
                                 }
                             }
 
+                            JsonArray preferredLangJson = new JsonArray();
+                            if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
+                                for (LanguagePreference pref : agent.getPreferredLang()) {
+                                    JsonObject prefObj = new JsonObject()
+                                            .put("code", pref.getCode().name())
+                                            .put("weight", pref.getWeight());
+                                    preferredLangJson.add(prefObj);
+                                }
+                            }
+
                             Tuple params = Tuple.tuple()
                                     .addLong(user.getId())
                                     .addOffsetDateTime(nowTime)
                                     .addString(agent.getName())
-                                    .addString(agent.getPreferredLang().name())
+                                    .addJsonArray(preferredLangJson)
                                     .addString(agent.getLlmType().name())
                                     .addString(agent.getSearchEngineType().name())
                                     .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
@@ -279,7 +301,21 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setName(row.getString("name"));
         doc.setCopilot(row.getUUID("copilot"));
-        doc.setPreferredLang(LanguageCode.valueOf(row.getString("preferred_lang")));
+        
+        JsonArray preferredLangJson = row.getJsonArray("preferred_lang");
+        if (preferredLangJson != null && !preferredLangJson.isEmpty()) {
+            List<LanguagePreference> langPrefs = new ArrayList<>();
+            for (int i = 0; i < preferredLangJson.size(); i++) {
+                JsonObject prefObj = preferredLangJson.getJsonObject(i);
+                LanguageCode code = LanguageCode.valueOf(prefObj.getString("code"));
+                double weight = prefObj.getDouble("weight", 1.0);
+                langPrefs.add(new LanguagePreference(code, weight));
+            }
+            doc.setPreferredLang(langPrefs);
+        } else {
+            doc.setPreferredLang(new ArrayList<>());
+        }
+        
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
         doc.setSearchEngineType(SearchEngineType.valueOf(row.getString("search_engine_type")));
         doc.setTalkativity(row.getDouble("talkativity"));

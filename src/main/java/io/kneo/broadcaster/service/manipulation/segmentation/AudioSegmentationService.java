@@ -22,7 +22,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -62,7 +66,7 @@ public class AudioSegmentationService {
                         return (Void) null;
                     }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()))
                     .toList();
-            Uni.combine().all().unis(tasks).combinedWith(list -> (Void) null).await().indefinitely();
+            Uni.combine().all().unis(tasks).with(list -> (Void) null).await().indefinitely();
             return resultMap;
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
@@ -132,8 +136,7 @@ public class AudioSegmentationService {
 
             long usedMem = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024 * 1024);  //to stat
             int activeThreads = Thread.activeCount();
-            LOGGER.warn("Pre-FFmpeg spawn: usedMem={}MB, activeThreads={}, ffmpegBin={}, file={}",
-                    usedMem, activeThreads, ffmpeg.getFFmpeg().getPath(), audioFilePath);
+            //LOGGER.warn("Pre-FFmpeg spawn: usedMem={}MB, activeThreads={}, ffmpegBin={}, file={}",usedMem, activeThreads, ffmpeg.getFFmpeg().getPath(), audioFilePath);
 
             try {
                 if (!System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -144,13 +147,12 @@ public class AudioSegmentationService {
                 }
             } catch (Exception ignore) {}
 
-            LOGGER.info("FFmpeg multi-bitrate segmentation command: {}", builder.toString());
+            //LOGGER.info("FFmpeg multi-bitrate segmentation command: {}", builder.toString());
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
 
             long freeMem = Runtime.getRuntime().freeMemory() / (1024 * 1024);  // to stat
-            LOGGER.warn("Post-FFmpeg spawn: freeMem={}MB, threadsNow={}", freeMem,
-                    java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount());
+            //LOGGER.warn("Post-FFmpeg spawn: freeMem={}MB, threadsNow={}", freeMem, ManagementFactory.getThreadMXBean().getThreadCount());
 
             Map<Long, List<SegmentInfo>> processedSegments = new ConcurrentHashMap<>();
             List<Uni<Void>> segmentTasks = outputInfoMap.entrySet().stream()
@@ -160,7 +162,7 @@ public class AudioSegmentationService {
                         return (Void) null;
                     }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()))
                     .toList();
-            Uni.combine().all().unis(segmentTasks).combinedWith(list -> (Void) null).await().indefinitely();
+            Uni.combine().all().unis(segmentTasks).with(list -> (Void) null).await().indefinitely();
             segmentsByBitrate.putAll(processedSegments);
 
         } catch (IOException e) {
@@ -178,7 +180,7 @@ public class AudioSegmentationService {
             if (!segmentFiles.isEmpty()) {
                 String firstSegment = segmentFiles.get(0).trim();
                 Path firstSegmentPath = Paths.get(outputInfo.songDir.toString(), firstSegment);
-                LOGGER.info("Debugging first segment for {}k bitrate: {}", bitRate, firstSegmentPath);
+               // LOGGER.info("Debugging first segment for {}k bitrate: {}", bitRate, firstSegmentPath);
             }
             for (int i = 0; i < segmentFiles.size(); i++) {
                 String segmentFile = segmentFiles.get(i).trim();

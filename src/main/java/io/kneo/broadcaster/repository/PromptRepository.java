@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -33,25 +34,24 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.P
 public class PromptRepository extends AsyncRepository {
     private static final Logger LOGGER = LoggerFactory.getLogger(PromptRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(PROMPT);
+    private final PromptQueryBuilder queryBuilder;
 
     @Inject
-    public PromptRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public PromptRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository, PromptQueryBuilder queryBuilder) {
         super(client, mapper, rlsRepository);
+        this.queryBuilder = queryBuilder;
     }
 
-    public Uni<List<Prompt>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
-
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
-
-        sql += " ORDER BY t.last_mod_date DESC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
+    public Uni<List<Prompt>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final PromptFilterDTO filter) {
+        String sql = queryBuilder.buildGetAllQuery(
+                entityData.getTableName(),
+                entityData.getRlsName(),
+                user.getId(),
+                includeArchived,
+                filter,
+                limit,
+                offset
+        );
 
         return client.query(sql)
                 .execute()
@@ -61,12 +61,16 @@ public class PromptRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, final PromptFilterDTO filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += queryBuilder.buildFilterConditions(filter);
         }
 
         return client.query(sql)
@@ -96,12 +100,32 @@ public class PromptRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + 
+                " WHERE master_id = $1 AND language_code = $2";
+
+        if (!includeArchived) {
+            sql += " AND archived = 0";
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(masterId, languageCode.name()))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        return Uni.createFrom().item(from(iterator.next()));
+                    } else {
+                        return Uni.createFrom().nullItem();
+                    }
+                });
+    }
+
     public Uni<Prompt> insert(Prompt prompt, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, language_code, is_master, locked, title, backup, podcast, draft_id) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, language_code, is_master, locked, title, backup, podcast, draft_id, master_id) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -118,7 +142,8 @@ public class PromptRepository extends AsyncRepository {
                         .addString(prompt.getTitle())
                         .addJsonObject(JsonObject.of("backup", prompt.getBackup()))
                         .addBoolean(prompt.isPodcast())
-                        .addUUID(prompt.getDraftId());
+                        .addUUID(prompt.getDraftId())
+                        .addUUID(prompt.getMasterId());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -146,8 +171,8 @@ public class PromptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET enabled=$1, prompt=$2, language_code=$3, is_master=$4, locked=$5, title=$6, backup=$7, podcast=$8, draft_id=$9, last_mod_user=$10, last_mod_date=$11 " +
-                                    "WHERE id=$12";
+                                    " SET enabled=$1, prompt=$2, language_code=$3, is_master=$4, locked=$5, title=$6, backup=$7, podcast=$8, draft_id=$9, master_id=$10, last_mod_user=$11, last_mod_date=$12 " +
+                                    "WHERE id=$13";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -161,6 +186,7 @@ public class PromptRepository extends AsyncRepository {
                                     .addJsonObject(prompt.getBackup())
                                     .addBoolean(prompt.isPodcast())
                                     .addUUID(prompt.getDraftId())
+                                    .addUUID(prompt.getMasterId())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -192,6 +218,7 @@ public class PromptRepository extends AsyncRepository {
         doc.setBackup(row.getJsonObject("backup"));
         doc.setPodcast(row.getBoolean("podcast"));
         doc.setDraftId(row.getUUID("draft_id"));
+        doc.setMasterId(row.getUUID("master_id"));
         doc.setArchived(row.getInteger("archived"));
         return doc;
     }

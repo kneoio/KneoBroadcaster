@@ -4,6 +4,7 @@ import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
 import io.kneo.broadcaster.dto.ai.PromptTestDTO;
+import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.TranslateService;
@@ -28,7 +29,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +43,8 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class PromptController extends AbstractSecuredController<Prompt, PromptDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PromptController.class);
+
     @Inject
     PromptService service;
     private Validator validator;
@@ -76,11 +82,12 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        PromptFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllCount(user),
-                        service.getAll(size, (page - 1) * size, user)
+                        service.getAllCount(user, filter),
+                        service.getAll(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<PromptDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -93,8 +100,58 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        rc::fail
+                        throwable -> {
+                            LOGGER.error("Failed to get all prompts", throwable);
+                            rc.fail(throwable);
+                        }
                 );
+    }
+
+    private PromptFilterDTO parseFilterDTO(RoutingContext rc) {
+        String filterParam = rc.request().getParam("filter");
+        if (filterParam == null || filterParam.isBlank()) {
+            return null;
+        }
+
+        PromptFilterDTO dto = new PromptFilterDTO();
+        boolean any = false;
+
+        try {
+            String decodedFilter = URLDecoder.decode(filterParam, java.nio.charset.StandardCharsets.UTF_8);
+            LOGGER.debug("Parsing filter parameter: {} -> decoded: {}", filterParam, decodedFilter);
+            JsonObject json = new JsonObject(decodedFilter);
+
+            if (json.containsKey("languageCode")) {
+                dto.setLanguageCode(LanguageCode.valueOf(json.getString("languageCode")));
+                any = true;
+            }
+
+            if (json.containsKey("enabled")) {
+                dto.setEnabled(json.getBoolean("enabled"));
+                any = true;
+            }
+
+            if (json.containsKey("master")) {
+                dto.setMaster(json.getBoolean("master"));
+                any = true;
+            }
+
+            if (json.containsKey("locked")) {
+                dto.setLocked(json.getBoolean("locked"));
+                any = true;
+            }
+
+            if (json.containsKey("activated")) {
+                dto.setActivated(json.getBoolean("activated"));
+                any = true;
+            }
+
+            return any ? dto : null;
+
+        } catch (Exception e) {
+            LOGGER.error("Error parsing filter parameters: '{}', error: {}", filterParam, e.getMessage(), e);
+            return null;
+        }
     }
 
     private void getById(RoutingContext rc) {

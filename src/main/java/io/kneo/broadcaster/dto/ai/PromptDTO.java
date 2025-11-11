@@ -20,4 +20,5 @@ public class PromptDTO extends AbstractDTO {
     private JsonObject backup;
     private boolean podcast;
     private UUID draftId;
+    private UUID masterId;
 }

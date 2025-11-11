@@ -8,6 +8,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.MessageDTO;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -40,11 +41,13 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class RadioService {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioService.class);
+    private final Random random = new Random();
 
     @Inject
     RadioStationPool radioStationPool;
@@ -410,22 +413,25 @@ public class RadioService {
 
         if (radioStation.getAiAgentId() != null) {
             return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                    .onItem().transform(aiAgent -> new RadioStationStatusDTO(
-                            stationName,
-                            slugName,
-                            managedByType,
-                            aiAgent.getName(),
-                            aiAgent.getPreferredLang().name().toUpperCase(),
-                            agentStatus,
-                            currentStatus,
-                            stationCountryCode,
-                            radioStation.getColor(),
-                            radioStation.getDescription(),
-                            0,
-                            radioStation.getSubmissionPolicy(),
-                            radioStation.getMessagingPolicy(),
-                            includeAnimation ? animationService.generateRandomAnimation() : null
-                    ))
+                    .onItem().transform(aiAgent -> {
+                        LanguageCode selectedLang = selectLanguageByWeight(aiAgent);
+                        return new RadioStationStatusDTO(
+                                stationName,
+                                slugName,
+                                managedByType,
+                                aiAgent.getName(),
+                                selectedLang.name().toUpperCase(),
+                                agentStatus,
+                                currentStatus,
+                                stationCountryCode,
+                                radioStation.getColor(),
+                                radioStation.getDescription(),
+                                0,
+                                radioStation.getSubmissionPolicy(),
+                                radioStation.getMessagingPolicy(),
+                                includeAnimation ? animationService.generateRandomAnimation() : null
+                        );
+                    })
                     .onFailure().recoverWithItem(() -> new RadioStationStatusDTO(
                             stationName,
                             slugName,
@@ -465,5 +471,37 @@ public class RadioService {
     private Uni<List<RadioStation>> getOnlineStations() {
         Collection<RadioStation> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
         return Uni.createFrom().item(new ArrayList<>(onlineStationsSnapshot));
+    }
+
+    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.ai.AiAgent agent) {
+        List<LanguagePreference> preferences = agent.getPreferredLang();
+        if (preferences == null || preferences.isEmpty()) {
+            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
+            return LanguageCode.en;
+        }
+
+        if (preferences.size() == 1) {
+            return preferences.get(0).getCode();
+        }
+
+        double totalWeight = preferences.stream()
+                .mapToDouble(LanguagePreference::getWeight)
+                .sum();
+
+        if (totalWeight <= 0) {
+            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
+            return preferences.get(0).getCode();
+        }
+
+        double randomValue = random.nextDouble() * totalWeight;
+        double cumulativeWeight = 0;
+        for (LanguagePreference pref : preferences) {
+            cumulativeWeight += pref.getWeight();
+            if (randomValue <= cumulativeWeight) {
+                return pref.getCode();
+            }
+        }
+
+        return preferences.get(0).getCode();
     }
 }

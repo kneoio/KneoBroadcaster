@@ -8,7 +8,7 @@ import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -37,7 +37,8 @@ public class ScriptDryRunService {
     private final PromptService promptService;
     private final DraftService draftService;
     private final RadioStationService radioStationService;
-    private final SongSupplier songSupplier;
+    private final SoundFragmentService soundFragmentService;
+    private final AiAgentService aiAgentService;
 
     public record SseEvent(String type, JsonObject data) {}
 
@@ -49,14 +50,15 @@ public class ScriptDryRunService {
     public ScriptDryRunService(AgentClient agentClient, ScriptService scriptService, 
                                SceneService sceneService, PromptService promptService,
                                DraftService draftService, RadioStationService radioStationService,
-                               SongSupplier songSupplier) {
+                               SoundFragmentService soundFragmentService, AiAgentService aiAgentService) {
         this.agentClient = agentClient;
         this.scriptService = scriptService;
         this.sceneService = sceneService;
         this.promptService = promptService;
         this.draftService = draftService;
         this.radioStationService = radioStationService;
-        this.songSupplier = songSupplier;
+        this.soundFragmentService = soundFragmentService;
+        this.aiAgentService = aiAgentService;
     }
 
     public void subscribe(String jobId, Consumer<SseEvent> consumer) {
@@ -107,20 +109,16 @@ public class ScriptDryRunService {
         StringBuilder scenarioBuilder = new StringBuilder();
         scenarioBuilders.put(jobId, scenarioBuilder);
 
-        // Add markdown header
-        scenarioBuilder.append("# Script Dry-Run Simulation\n\n");
-        scenarioBuilder.append("**Station:** ").append(stationName).append("\n\n");
-        scenarioBuilder.append("**DJ:** ").append(djName).append("\n\n");
-        scenarioBuilder.append("**Started:** ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
-        scenarioBuilder.append("---\n\n");
+        scenarioBuilder.append("# Script Dry-Run Simulation\n");
+        scenarioBuilder.append("Station: ").append(stationName).append(" | ");
+        scenarioBuilder.append("DJ: ").append(djName).append(" | ");
+        scenarioBuilder.append("Started: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
 
         emit(jobId, "started", new JsonObject().put("message", "Starting dry-run simulation"));
 
-        // Load script and scenes
         scriptService.getDTO(scriptId, user, io.kneo.core.localization.LanguageCode.en)
                 .chain(scriptDTO -> {
-                    scenarioBuilder.append("## Script: ").append(scriptDTO.getName()).append("\n\n");
-                    scenarioBuilder.append(scriptDTO.getDescription()).append("\n\n");
+                    scenarioBuilder.append("Script: ").append(scriptDTO.getName()).append(" - ").append(scriptDTO.getDescription()).append("\n\n");
                     
                     return sceneService.getAllByScript(scriptId, 100, 0, user)
                             .map(scenes -> {
@@ -130,7 +128,13 @@ public class ScriptDryRunService {
                             });
                 })
                 .chain(scenes -> radioStationService.getBySlugName(stationName)
-                        .map(station -> new ProcessContext(scenes, station, djName, user)))
+                        .chain(station -> {
+                            if (station.getAiAgentId() == null) {
+                                return Uni.createFrom().item(new ProcessContext(scenes, station, djName, user, scenarioBuilder, LlmType.OPENAI));
+                            }
+                            return aiAgentService.getById(station.getAiAgentId(), user, io.kneo.core.localization.LanguageCode.en)
+                                    .map(agent -> new ProcessContext(scenes, station, djName, user, scenarioBuilder, agent.getLlmType()));
+                        }))
                 .chain(context -> processScenes(jobId, context, 0))
                 .subscribe().with(
                         ignored -> {
@@ -150,7 +154,8 @@ public class ScriptDryRunService {
     }
 
     private record ProcessContext(List<io.kneo.broadcaster.dto.ScriptSceneDTO> scenes, 
-                                   RadioStation station, String djName, IUser user) {}
+                                   RadioStation station, String djName, IUser user, 
+                                   StringBuilder scenarioBuilder, LlmType llmType) {}
 
     private Uni<Void> processScenes(String jobId, ProcessContext context, int idx) {
         if (idx >= context.scenes.size()) {
@@ -159,19 +164,14 @@ public class ScriptDryRunService {
 
         var sceneDTO = context.scenes.get(idx);
         JobState st = jobs.get(jobId);
-        StringBuilder scenarioBuilder = scenarioBuilders.get(jobId);
+        StringBuilder scenarioBuilder = context.scenarioBuilder;
 
-        emit(jobId, "scene_started", new JsonObject()
-                .put("sceneIndex", idx)
-                .put("sceneTitle", sceneDTO.getTitle()));
+        scenarioBuilder.append("## Scene ").append(idx + 1).append(": ").append(sceneDTO.getTitle()).append("\n");
+        scenarioBuilder.append("Start Time: ").append(sceneDTO.getStartTime() != null ? sceneDTO.getStartTime().toString() : "N/A").append("\n");
 
-        scenarioBuilder.append("## Scene ").append(idx + 1).append(": ").append(sceneDTO.getTitle()).append("\n\n");
-        scenarioBuilder.append("**Start Time:** ").append(sceneDTO.getStartTime() != null ? sceneDTO.getStartTime().toString() : "N/A").append("\n\n");
-
-        // Simulate time progression
-        return simulateTimeProgression(jobId, scenarioBuilder)
-                .chain(() -> maybeInsertSongIntro(jobId, context.station.getSlugName(), scenarioBuilder))
-                .chain(() -> processScenePrompts(jobId, sceneDTO, context, scenarioBuilder))
+        return simulateTimeProgression(scenarioBuilder)
+                .chain(() -> maybeInsertSongIntro(context.station.getId(), scenarioBuilder))
+                .chain(() -> processScenePrompts(sceneDTO, context, scenarioBuilder))
                 .chain(() -> {
                     if (st != null) st.done += 1;
                     emit(jobId, "scene_done", new JsonObject()
@@ -184,17 +184,17 @@ public class ScriptDryRunService {
                 });
     }
 
-    private Uni<Void> processScenePrompts(String jobId, io.kneo.broadcaster.dto.ScriptSceneDTO sceneDTO, 
+    private Uni<Void> processScenePrompts(io.kneo.broadcaster.dto.ScriptSceneDTO sceneDTO, 
                                            ProcessContext context, StringBuilder scenarioBuilder) {
         if (sceneDTO.getPrompts() == null || sceneDTO.getPrompts().isEmpty()) {
             scenarioBuilder.append("*No prompts configured for this scene.*\n\n");
             return Uni.createFrom().voidItem();
         }
 
-        return processPromptSequentially(jobId, sceneDTO.getPrompts(), 0, context, scenarioBuilder);
+        return processPromptSequentially(sceneDTO.getPrompts(), 0, context, scenarioBuilder);
     }
 
-    private Uni<Void> processPromptSequentially(String jobId, List<UUID> promptIds, int idx, 
+    private Uni<Void> processPromptSequentially(List<UUID> promptIds, int idx, 
                                                  ProcessContext context, StringBuilder scenarioBuilder) {
         if (idx >= promptIds.size()) {
             return Uni.createFrom().voidItem();
@@ -210,68 +210,47 @@ public class ScriptDryRunService {
                     }
                     
                     return draftService.getById(prompt.getDraftId(), context.user)
-                            .chain(draft -> testPromptWithDraft(jobId, prompt, draft, context, scenarioBuilder, idx + 1));
+                            .chain(draft -> testPromptWithDraft(prompt, draft, scenarioBuilder, idx + 1, context.llmType));
                 })
-                .chain(() -> processPromptSequentially(jobId, promptIds, idx + 1, context, scenarioBuilder));
+                .chain(() -> processPromptSequentially(promptIds, idx + 1, context, scenarioBuilder));
     }
 
-    private Uni<Void> testPromptWithDraft(String jobId, Prompt prompt, Draft draft, 
-                                           ProcessContext context, StringBuilder scenarioBuilder, int promptNumber) {
-        emit(jobId, "testing_prompt", new JsonObject()
-                .put("promptTitle", prompt.getTitle())
-                .put("draftTitle", draft.getTitle()));
+    private Uni<Void> testPromptWithDraft(Prompt prompt, Draft draft, 
+                                           StringBuilder scenarioBuilder, int promptNumber, LlmType llmType) {
+        scenarioBuilder.append("Prompt ").append(promptNumber).append(": ").append(prompt.getTitle()).append(" | ");
+        scenarioBuilder.append("Draft: ").append(draft.getTitle()).append("\n");
 
-        scenarioBuilder.append("### Prompt ").append(promptNumber).append(": ").append(prompt.getTitle()).append("\n\n");
-        scenarioBuilder.append("**Draft:** ").append(draft.getTitle()).append("\n\n");
-
-        return agentClient.testPrompt(prompt.getPrompt(), draft.getContent(), LlmType.OPENAI)
+        return agentClient.testPrompt(prompt.getPrompt(), draft.getContent(), llmType)
                 .map(response -> {
                     String result = response != null ? response.getResult() : "No response";
-                    scenarioBuilder.append("**AI Response:**\n\n");
                     scenarioBuilder.append("```\n").append(result).append("\n```\n\n");
-                    
-                    emit(jobId, "prompt_result", new JsonObject()
-                            .put("promptTitle", prompt.getTitle())
-                            .put("result", result));
-                    
                     return null;
                 })
                 .onFailure().recoverWithItem(err -> {
                     String errorMsg = "Error: " + err.getMessage();
-                    scenarioBuilder.append("**Error:** ").append(errorMsg).append("\n\n");
-                    emit(jobId, "prompt_error", new JsonObject()
-                            .put("promptTitle", prompt.getTitle())
-                            .put("error", errorMsg));
+                    scenarioBuilder.append("Error: ").append(errorMsg).append("\n\n");
                     return null;
                 })
                 .replaceWithVoid();
     }
 
-    private Uni<Void> simulateTimeProgression(String jobId, StringBuilder scenarioBuilder) {
+    private Uni<Void> simulateTimeProgression(StringBuilder scenarioBuilder) {
         int minutesElapsed = ThreadLocalRandom.current().nextInt(5, 20);
-        String timeInfo = "⏰ *" + minutesElapsed + " minutes elapsed*\n\n";
-        scenarioBuilder.append(timeInfo);
-        
-        emit(jobId, "time_progress", new JsonObject().put("minutes", minutesElapsed));
-        
+        scenarioBuilder.append(minutesElapsed).append(" minutes elapsed\n");
         return Uni.createFrom().voidItem();
     }
 
-    private Uni<Void> maybeInsertSongIntro(String jobId, String brandName, StringBuilder scenarioBuilder) {
-        // 50% chance to insert a random song
+    private Uni<Void> maybeInsertSongIntro(UUID brandId, StringBuilder scenarioBuilder) {
         if (ThreadLocalRandom.current().nextBoolean()) {
-            return songSupplier.getNextSong(brandName, PlaylistItemType.SONG, 1)
+            return soundFragmentService.getByTypeAndBrand(PlaylistItemType.SONG, brandId)
                     .map(songs -> {
                         if (!songs.isEmpty()) {
-                            SoundFragment song = songs.get(0);
-                            scenarioBuilder.append("🎵 **Random Song Intro**\n\n");
+                            int randomIndex = ThreadLocalRandom.current().nextInt(songs.size());
+                            SoundFragment song = songs.get(randomIndex);
+                            scenarioBuilder.append("**Random Song Intro**\n\n");
                             scenarioBuilder.append("- **Title:** ").append(song.getTitle()).append("\n");
                             scenarioBuilder.append("- **Artist:** ").append(song.getArtist() != null ? song.getArtist() : "Unknown").append("\n");
                             scenarioBuilder.append("- **Duration:** ").append(formatDuration(song.getDuration())).append("\n\n");
-                            
-                            emit(jobId, "song_intro", new JsonObject()
-                                    .put("title", song.getTitle())
-                                    .put("artist", song.getArtist()));
                         }
                         return null;
                     })

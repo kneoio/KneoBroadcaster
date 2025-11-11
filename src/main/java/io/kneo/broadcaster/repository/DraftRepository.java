@@ -39,7 +39,7 @@ public class DraftRepository extends AsyncRepository {
         this.queryBuilder = queryBuilder;
     }
 
-    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived, IUser user) {
+    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE master_id = $1 AND language_code = $2";
         if (!includeArchived) {
             sql += " AND archived = 0 ";

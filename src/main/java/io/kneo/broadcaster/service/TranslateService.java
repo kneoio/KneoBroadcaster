@@ -160,8 +160,13 @@ public class TranslateService {
                                 }
                                 String newTitle = updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode());
 
-                                return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false, user)
+                                return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false)
                                         .chain(existing -> {
+
+                                            if (existing != null && !existing.isLocked()) {
+                                                return Uni.createFrom().nullItem();
+                                            }
+
                                             DraftDTO newDto = new DraftDTO();
                                             newDto.setTitle(newTitle);
                                             newDto.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
@@ -193,16 +198,26 @@ public class TranslateService {
                                 }
                                 String newTitle = updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode());
 
-                                PromptDTO newDto = new PromptDTO();
-                                newDto.setTitle(newTitle);
-                                newDto.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                newDto.setLanguageCode(dto.getLanguageCode());
-                                newDto.setEnabled(true);
-                                newDto.setMaster(false);
-                                newDto.setLocked(true);
-                                newDto.setDraftId(sourcePrompt.getDraftId());
+                                return promptService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false)
+                                        .chain(existing -> {
+                                            // If prompt exists but is not locked, skip it (user intentionally unlocked it)
+                                            if (existing != null && !existing.isLocked()) {
+                                                return Uni.createFrom().nullItem();
+                                            }
 
-                                return promptService.upsert(null, newDto, user);
+                                            PromptDTO newDto = new PromptDTO();
+                                            newDto.setTitle(newTitle);
+                                            newDto.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                            newDto.setLanguageCode(dto.getLanguageCode());
+                                            newDto.setEnabled(true);
+                                            newDto.setMaster(false);
+                                            newDto.setLocked(true);
+                                            newDto.setMasterId(sourcePrompt.getId());
+                                            //newDto.setDraftId(sourcePrompt.getDraftId());
+
+                                            String id = existing != null ? existing.getId().toString() : null;
+                                            return promptService.upsert(id, newDto, user);
+                                        });
                             });
                 });
     }

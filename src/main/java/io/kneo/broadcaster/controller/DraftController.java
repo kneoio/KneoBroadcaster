@@ -32,6 +32,7 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -118,7 +119,9 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         boolean any = false;
         
         try {
-            JsonObject json = new JsonObject(filterParam);
+            String decodedFilter = URLDecoder.decode(filterParam, java.nio.charset.StandardCharsets.UTF_8);
+            LOGGER.debug("Parsing filter parameter: {} -> decoded: {}", filterParam, decodedFilter);
+            JsonObject json = new JsonObject(decodedFilter);
             
             if (json.containsKey("languageCode")) {
                 dto.setLanguageCode(LanguageCode.valueOf(json.getString("languageCode")));
@@ -135,8 +138,8 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                 any = true;
             }
             
-            if (json.containsKey("isMaster")) {
-                dto.setMaster(json.getBoolean("isMaster"));
+            if (json.containsKey("master")) {
+                dto.setMaster(json.getBoolean("master"));
                 any = true;
             }
             
@@ -153,7 +156,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
             return any ? dto : null;
             
         } catch (Exception e) {
-            LOGGER.error("Error parsing filter parameters", e);
+            LOGGER.error("Error parsing filter parameters: '{}', error: {}", filterParam, e.getMessage(), e);
             return null;
         }
     }

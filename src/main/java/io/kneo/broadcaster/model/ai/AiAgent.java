@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.model.ai;
 
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SimpleReferenceEntity;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,7 +13,7 @@ import java.util.UUID;
 @Getter
 public class AiAgent extends SimpleReferenceEntity {
     private String name;
-    private LanguageCode preferredLang;
+    private List<LanguagePreference> preferredLang;
     private ZoneId timeZone;
 
     private LlmType llmType;
@@ -31,6 +30,7 @@ public class AiAgent extends SimpleReferenceEntity {
     private double podcastMode;
 
     public AiAgent() {
+        this.preferredLang = new ArrayList<>();
         this.preferredVoice = new ArrayList<>();
         this.prompts = new ArrayList<>();
         this.eventPrompts = new ArrayList<>();

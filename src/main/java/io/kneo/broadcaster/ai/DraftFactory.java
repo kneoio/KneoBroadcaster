@@ -9,12 +9,14 @@ import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -59,15 +61,15 @@ public class DraftFactory {
             AiAgent agent,
             RadioStation station,
             MemoryResult memoryData,
-            UUID draftId
-
+            UUID draftId,
+            LanguageCode selectedLanguage
     ) {
         
         return Uni.combine().all()
                 .unis(
-                        getDraftTemplate(draftId),
+                        getDraftTemplate(draftId, station.getSlugName(), selectedLanguage),
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song, agent)
+                        resolveGenreNames(song, selectedLanguage)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -84,10 +86,11 @@ public class DraftFactory {
                                 station,
                                 memoryData,
                                 profile,
-                                genres
+                                genres,
+                                selectedLanguage
                         );
                     } else {
-                        String msg = String.format("No draft template found for language=%s. Fallbacks are disabled.", agent.getPreferredLang());
+                        String msg = String.format("No draft template found for language=%s. Fallbacks are disabled.", selectedLanguage);
                         LOGGER.error(msg);
                         throw new IllegalStateException(msg);
                     }
@@ -99,12 +102,13 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            MemoryResult memoryData
+            MemoryResult memoryData,
+            LanguageCode selectedLanguage
     ) {
         return Uni.combine().all()
                 .unis(
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song, agent)
+                        resolveGenreNames(song, selectedLanguage)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -119,13 +123,30 @@ public class DraftFactory {
                             station,
                             memoryData,
                             profile,
-                            genres
+                            genres,
+                            selectedLanguage
                     );
                 });
     }
 
-    private Uni<Draft> getDraftTemplate(UUID id) {
-        return draftService.getById(id, SuperUser.build());
+    private Uni<Draft> getDraftTemplate(UUID id, String stationSlug, LanguageCode language) {
+        if (id == null) {
+            String errorMsg = String.format(
+                "Prompt configuration error: draftId is null for station='%s', language='%s'. Check prompt configuration - all prompts must have an associated draft template.",
+                stationSlug, language
+            );
+            LOGGER.error(errorMsg);
+            return Uni.createFrom().failure(new IllegalStateException(errorMsg));
+        }
+        return draftService.getById(id, SuperUser.build())
+                .onFailure().transform(t -> {
+                    String errorMsg = String.format(
+                        "Draft template not found: draftId='%s', station='%s', language='%s'. Error: %s",
+                        id, stationSlug, language, t.getMessage()
+                    );
+                    LOGGER.error(errorMsg, t);
+                    return new IllegalStateException(errorMsg, t);
+                });
     }
 
     private String buildFromTemplate(
@@ -135,7 +156,8 @@ public class DraftFactory {
             RadioStation station,
             MemoryResult memoryData,
             Profile profile,
-            List<String> genres
+            List<String> genres,
+            LanguageCode selectedLanguage
     ) {
         List<SongIntroduction> history = memoryData.getConversationHistory();
         List<MessageDTO> messages = memoryData.getMessages();
@@ -147,22 +169,22 @@ public class DraftFactory {
         data.put("songDescription", song.getDescription());
         data.put("songGenres", genres);
         data.put("agentName", agent.getName());
-        data.put("stationBrand", station.getLocalizedName().get(agent.getPreferredLang()));
+        data.put("stationBrand", station.getLocalizedName().get(selectedLanguage));
         data.put("country", station.getCountry());
-        data.put("language", agent.getPreferredLang());
+        data.put("language", selectedLanguage);
         data.put("profileName", profile.getName());
         data.put("profileDescription", profile.getDescription());
         data.put("history", history);
         data.put("messages", messages);
         data.put("events", events);
-        data.put("random", random); //we will use Java random
+        data.put("random", random);
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
-        data.put("news", new NewsHelper(worldNewsApiClient, countryIso, agent.getPreferredLang().name()));
+        data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
 
         return groovyEngine.render(template, data).trim();
     }
 
-    private Uni<List<String>> resolveGenreNames(SoundFragment song, AiAgent agent) {
+    private Uni<List<String>> resolveGenreNames(SoundFragment song, LanguageCode selectedLanguage) {
         List<UUID> genreIds = song.getGenres();
         if (genreIds == null || genreIds.isEmpty()) {
             LOGGER.warn("Song '{}' (ID: {}) has no genres assigned", song.getTitle(), song.getId());
@@ -171,9 +193,41 @@ public class DraftFactory {
         
         List<Uni<String>> genreUnis = genreIds.stream()
                 .map(genreId -> refService.getById(genreId)
-                        .map(genre -> genre.getLocalizedName().get(agent.getPreferredLang())))
+                        .map(genre -> genre.getLocalizedName().get(selectedLanguage)))
                 .collect(Collectors.toList());
         
         return Uni.join().all(genreUnis).andFailFast();
+    }
+
+    private LanguageCode selectLanguageByWeight(AiAgent agent) {
+        List<LanguagePreference> preferences = agent.getPreferredLang();
+        if (preferences == null || preferences.isEmpty()) {
+            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
+            return LanguageCode.en;
+        }
+
+        if (preferences.size() == 1) {
+            return preferences.get(0).getCode();
+        }
+
+        double totalWeight = preferences.stream()
+                .mapToDouble(LanguagePreference::getWeight)
+                .sum();
+
+        if (totalWeight <= 0) {
+            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
+            return preferences.get(0).getCode();
+        }
+
+        double randomValue = random.nextDouble() * totalWeight;
+        double cumulativeWeight = 0;
+        for (LanguagePreference pref : preferences) {
+            cumulativeWeight += pref.getWeight();
+            if (randomValue <= cumulativeWeight) {
+                return pref.getCode();
+            }
+        }
+
+        return preferences.get(0).getCode();
     }
 }

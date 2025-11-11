@@ -113,7 +113,11 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         doc.setBackup(dto.getBackup());
         doc.setPodcast(dto.isPodcast());
         doc.setDraftId(dto.getDraftId());
-        doc.setMasterId(dto.getMasterId());
+        if (dto.isMaster()) {
+            doc.setMasterId(null);
+        } else {
+            doc.setMasterId(dto.getMasterId());
+        }
         return doc;
     }
 

@@ -9,9 +9,9 @@ import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
@@ -40,17 +40,20 @@ public class DraftFactory {
     private final RefService refService;
     private final ProfileService profileService;
     private final DraftService draftService;
+    private final AiAgentService aiAgentService;
     private final WeatherApiClient weatherApiClient;
     private final WorldNewsApiClient worldNewsApiClient;
     private final Random random = new Random();
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
-    public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService, 
-                       WeatherApiClient weatherApiClient, WorldNewsApiClient worldNewsApiClient) {
+    public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService,
+                       AiAgentService aiAgentService, WeatherApiClient weatherApiClient, 
+                       WorldNewsApiClient worldNewsApiClient) {
         this.refService = refService;
         this.profileService = profileService;
         this.draftService = draftService;
+        this.aiAgentService = aiAgentService;
         this.weatherApiClient = weatherApiClient;
         this.worldNewsApiClient = worldNewsApiClient;
         this.groovyEngine = new GroovyTemplateEngine();
@@ -64,12 +67,16 @@ public class DraftFactory {
             UUID draftId,
             LanguageCode selectedLanguage
     ) {
+        Uni<AiAgent> copilotUni = agent.getCopilot() != null
+                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
+                : Uni.createFrom().nullItem();
         
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, station.getSlugName(), selectedLanguage),
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song, selectedLanguage)
+                        resolveGenreNames(song, selectedLanguage),
+                        copilotUni
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -77,12 +84,14 @@ public class DraftFactory {
                     Draft template = tuple.getItem1();
                     Profile profile = tuple.getItem2();
                     List<String> genres = tuple.getItem3();
+                    AiAgent copilot = tuple.getItem4();
 
                     if (template != null) {
                         return buildFromTemplate(
                                 template.getContent(),
                                 song,
                                 agent,
+                                copilot,
                                 station,
                                 memoryData,
                                 profile,
@@ -105,21 +114,28 @@ public class DraftFactory {
             MemoryResult memoryData,
             LanguageCode selectedLanguage
     ) {
+        Uni<AiAgent> copilotUni = agent.getCopilot() != null
+                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
+                : Uni.createFrom().nullItem();
+        
         return Uni.combine().all()
                 .unis(
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song, selectedLanguage)
+                        resolveGenreNames(song, selectedLanguage),
+                        copilotUni
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
                 .map(tuple -> {
                     Profile profile = tuple.getItem1();
                     List<String> genres = tuple.getItem2();
+                    AiAgent copilot = tuple.getItem3();
 
                     return buildFromTemplate(
                             code,
                             song,
                             agent,
+                            copilot,
                             station,
                             memoryData,
                             profile,
@@ -153,6 +169,7 @@ public class DraftFactory {
             String template,
             SoundFragment song,
             AiAgent agent,
+            AiAgent copilot,
             RadioStation station,
             MemoryResult memoryData,
             Profile profile,
@@ -168,7 +185,11 @@ public class DraftFactory {
         data.put("songArtist", song.getArtist());
         data.put("songDescription", song.getDescription());
         data.put("songGenres", genres);
-        data.put("agentName", agent.getName());
+        data.put("agentName", agent.getName()); //deprecated
+        data.put("djName", agent.getName());
+        data.put("djVoiceId", agent.getPreferredVoice().stream().findAny().orElseThrow().getId());
+        data.put("coPilotName", copilot.getName());
+        data.put("coPilotVoiceId", copilot.getPreferredVoice().stream().findAny().orElseThrow().getId());
         data.put("stationBrand", station.getLocalizedName().get(selectedLanguage));
         data.put("country", station.getCountry());
         data.put("language", selectedLanguage);
@@ -199,35 +220,4 @@ public class DraftFactory {
         return Uni.join().all(genreUnis).andFailFast();
     }
 
-    private LanguageCode selectLanguageByWeight(AiAgent agent) {
-        List<LanguagePreference> preferences = agent.getPreferredLang();
-        if (preferences == null || preferences.isEmpty()) {
-            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
-            return LanguageCode.en;
-        }
-
-        if (preferences.size() == 1) {
-            return preferences.get(0).getCode();
-        }
-
-        double totalWeight = preferences.stream()
-                .mapToDouble(LanguagePreference::getWeight)
-                .sum();
-
-        if (totalWeight <= 0) {
-            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
-            return preferences.get(0).getCode();
-        }
-
-        double randomValue = random.nextDouble() * totalWeight;
-        double cumulativeWeight = 0;
-        for (LanguagePreference pref : preferences) {
-            cumulativeWeight += pref.getWeight();
-            if (randomValue <= cumulativeWeight) {
-                return pref.getCode();
-            }
-        }
-
-        return preferences.get(0).getCode();
-    }
 }

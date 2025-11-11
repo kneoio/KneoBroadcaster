@@ -11,6 +11,9 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 @ApplicationScoped
@@ -46,6 +49,12 @@ public class StationDashboardService {
         stationStats.setStatus(station.getStatus());
         stationStats.setStatusHistory(station.getStatusHistory());
         stationStats.setManagedBy(station.getManagedBy());
+
+        ZoneId zone = station.getTimeZone();
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        String timePart = now.format(DateTimeFormatter.ofPattern("HH- mm"));
+        String city = zone.getId().substring(zone.getId().lastIndexOf('/') + 1);
+        stationStats.setRealTime(timePart + " " + city);
 
         if (station.getStreamManager() != null) {
             IStreamManager streamManager = station.getStreamManager();

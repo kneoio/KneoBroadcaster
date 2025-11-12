@@ -199,22 +199,19 @@ public class PlaylistManager {
                         boolean isAiDjSubmit = priority <= 10;
 
                         if (isAiDjSubmit) {
-                            // Check if expectedStartTime has passed
                             if (mcpDTO != null && mcpDTO.getExpectedStartTime() != null) {
                                 LocalDateTime expectedTime = mcpDTO.getExpectedStartTime();
                                 LocalDateTime now = LocalDateTime.now();
                                 
                                 if (expectedTime.isBefore(now)) {
-                                    // Expected time has passed, clear the queue and add with priority
-                                    LOGGER.warn("Expected start time {} has passed (current: {}). Clearing prioritized queue for brand {}", 
+                                    LOGGER.warn("Expected start time {} has passed (current: {}). Clearing prioritized queue for brand {}",
                                             expectedTime, now, brand);
                                     prioritizedQueue.clear();
                                     
-                                    // Add dashboard message
                                     aiHelperService.addMessage(
                                         brand,
                                         AiDjStats.MessageType.INFO,
-                                        String.format("Sound fragment '%s' added to priority queue without delay due to passed expected start time (%s)",
+                                        String.format("Sound fragment '%s' added due to expected time (%s)",
                                                 soundFragment.getTitle(), expectedTime)
                                     );
                                 }

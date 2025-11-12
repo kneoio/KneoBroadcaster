@@ -107,7 +107,7 @@ public class AiHelperService {
                         .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
-            stations.forEach(station -> clearMessages(station.getSlugName()));
+            stations.forEach(station -> clearDashboardMessages(station.getSlugName()));
             LiveContainerMcpDTO container = new LiveContainerMcpDTO();
             if (stations.isEmpty()) {
                 container.setRadioStations(List.of());
@@ -139,7 +139,7 @@ public class AiHelperService {
         LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
         int queueSize = station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size();
         LOGGER.info("Station '{}' has queue size: {}", station.getSlugName(), queueSize);
-        if (queueSize > 2) {
+        if (queueSize > 1) {
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
             LOGGER.info("Station '{}' is saturated, it will be skip: {}", station.getSlugName(), queueSize);
             addMessage(station.getSlugName(), AiDjStats.MessageType.INFO,
@@ -283,6 +283,7 @@ public class AiHelperService {
                             .collect(Collectors.toList());
 
                     String finalCurrentSceneTitle = currentSceneTitle;
+                    ScriptScene finalActiveScene = activeScene;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
                                 LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", 
@@ -311,7 +312,9 @@ public class AiHelperService {
                                                                 selectedPrompt.getPrompt(),
                                                                 selectedPrompt.getPromptType(),
                                                                 agent.getLlmType(),
-                                                                agent.getSearchEngineType()
+                                                                agent.getSearchEngineType(),
+                                                                finalActiveScene.getStartTime(),
+                                                                finalActiveScene.isOneTimeRun()
                                                         ));
                                                     }).collect(Collectors.toList());
 
@@ -459,7 +462,7 @@ public class AiHelperService {
                 .add(new AiDjStats.StatusMessage(type, message));
     }
 
-    public void clearMessages(String brandName) {
+    public void clearDashboardMessages(String brandName) {
         aiDjMessagesTracker.remove(brandName);
     }
 

@@ -4,6 +4,7 @@ import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.PromptType;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
 
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record SongPromptMcpDTO(
@@ -12,5 +13,7 @@ public record SongPromptMcpDTO(
         String prompt,
         PromptType promptType,
         LlmType llmType,
-        SearchEngineType searchEngineType
+        SearchEngineType searchEngineType,
+        LocalTime startTime,
+        boolean oneTimeRun
 ) {}

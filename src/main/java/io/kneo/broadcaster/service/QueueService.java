@@ -11,7 +11,6 @@ import io.kneo.broadcaster.service.manipulation.mixing.AudioConcatenator;
 import io.kneo.broadcaster.service.manipulation.mixing.ConcatenationType;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.AudioMixingHandler;
-import io.kneo.broadcaster.service.manipulation.mixing.handler.IntroSongHandler;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
@@ -46,23 +45,7 @@ public class QueueService {
     AudioConcatenator audioConcatenator;
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueMcpDTO toQueueDTO) {
-        if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG || toQueueDTO.getMergingMethod() == MergingType.FILLER_JINGLE) {  //keeping JIC
-            return getRadioStation(brandName)
-                    .chain(radioStation -> {
-                        try {
-                            IntroSongHandler handler = new IntroSongHandler(
-                                    broadcasterConfig,
-                                    soundFragmentRepository,
-                                    soundFragmentService,
-                                    aiAgentService,
-                                    fFmpegProvider
-                            );
-                            return handler.handle(radioStation, toQueueDTO);
-                        } catch (IOException | AudioMergeException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-        } else if (toQueueDTO.getMergingMethod() == MergingType.NOT_MIXED) {
+        if (toQueueDTO.getMergingMethod() == MergingType.NOT_MIXED) {
             return getRadioStation(brandName)
                     .chain(radioStation -> {
                         AudioMixingHandler handler = createAudioMixingHandler();

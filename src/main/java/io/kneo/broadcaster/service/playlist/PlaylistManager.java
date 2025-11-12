@@ -212,18 +212,6 @@ public class PlaylistManager {
         }
     }
 
-   /* @Deprecated
-    public Uni<Boolean> addFragmentToSlice(BrandSoundFragment brandSoundFragment, long bitRate) {
-        try {
-            List<FileMetadata> metadataList = brandSoundFragment.getSoundFragment().getFileMetadataList();
-            FileMetadata metadata = metadataList.get(0);
-            return this.addFragmentToSlice(brandSoundFragment.getSoundFragment(), metadata, bitRate);
-        } catch (Exception e) {
-            LOGGER.warn("Skipping fragment due to metadata error, position 657: {}", e.getMessage());
-            return Uni.createFrom().item(false);
-        }
-    }*/
-
     private Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, FileMetadata materializedMetadata, long maxRate) {
         LiveSoundFragment liveSoundFragment = new LiveSoundFragment();
         SongMetadata songMetadata = new SongMetadata(soundFragment.getTitle(), soundFragment.getArtist());

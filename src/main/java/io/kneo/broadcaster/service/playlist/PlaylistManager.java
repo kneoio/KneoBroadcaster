@@ -3,6 +3,8 @@ package io.kneo.broadcaster.service.playlist;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.dashboard.AiDjStats;
+import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -12,6 +14,7 @@ import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.service.MemoryService;
+import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
@@ -24,6 +27,7 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -70,6 +74,7 @@ public class PlaylistManager {
     private final MemoryService memoryService;
     @Getter
     private final LinkedList<LiveSoundFragment> fragmentsForMp3 = new LinkedList<>();
+    private final AiHelperService aiHelperService;
 
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
@@ -77,13 +82,15 @@ public class PlaylistManager {
                            IStreamManager streamManager,
                            SongSupplier songSupplier,
                            BrandSoundFragmentUpdateService brandSoundFragmentUpdateService,
-                           MemoryService memoryService
+                           MemoryService memoryService,
+                           AiHelperService aiHelperService
     ) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
         this.segmentationService = streamManager.getSegmentationService();
         this.radioStation = streamManager.getRadioStation();
         this.songSupplier = songSupplier;
         this.brandSoundFragmentUpdateService = brandSoundFragmentUpdateService;
+        this.aiHelperService = aiHelperService;
         this.brand = radioStation.getSlugName();
         this.brandId = radioStation.getId();
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
@@ -166,7 +173,7 @@ public class PlaylistManager {
                 );
     }
 
-    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType) {
+    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType, AddToQueueMcpDTO mcpDTO) {
         try {
             List<FileMetadata> metadataList = soundFragment.getFileMetadataList();
             FileMetadata metadata = metadataList.get(0);
@@ -192,6 +199,27 @@ public class PlaylistManager {
                         boolean isAiDjSubmit = priority <= 10;
 
                         if (isAiDjSubmit) {
+                            // Check if expectedStartTime has passed
+                            if (mcpDTO != null && mcpDTO.getExpectedStartTime() != null) {
+                                LocalDateTime expectedTime = mcpDTO.getExpectedStartTime();
+                                LocalDateTime now = LocalDateTime.now();
+                                
+                                if (expectedTime.isBefore(now)) {
+                                    // Expected time has passed, clear the queue and add with priority
+                                    LOGGER.warn("Expected start time {} has passed (current: {}). Clearing prioritized queue for brand {}", 
+                                            expectedTime, now, brand);
+                                    prioritizedQueue.clear();
+                                    
+                                    // Add dashboard message
+                                    aiHelperService.addMessage(
+                                        brand,
+                                        AiDjStats.MessageType.INFO,
+                                        String.format("Sound fragment '%s' added to priority queue without delay due to passed expected start time (%s)",
+                                                soundFragment.getTitle(), expectedTime)
+                                    );
+                                }
+                            }
+                            
                             prioritizedQueue.add(liveSoundFragment);
                             LOGGER.info("Added submit fragment for brand {}: {}", brand, metadata.getFileOriginalName());
                         } else {

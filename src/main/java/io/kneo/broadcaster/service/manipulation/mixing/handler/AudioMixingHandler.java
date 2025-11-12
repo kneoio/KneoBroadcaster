@@ -114,10 +114,10 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                             fragment2.setFileMetadataList(List.of(fileMetadata2));
 
                                                                                             return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
-                                                                                                            radioStation.getBitRate(), toQueueDTO.getMergingMethod())
+                                                                                                            radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                                                                                                     .chain(() ->
                                                                                                             playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
-                                                                                                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod()));
+                                                                                                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
                                                                                         });
                                                                             });
                                                                 });
@@ -179,10 +179,10 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                                 fragment2.setFileMetadataList(List.of(fileMetadata2));
 
                                                                                                 return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
-                                                                                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod())
+                                                                                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                                                                                                         .chain(() ->
                                                                                                                 playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
-                                                                                                                        radioStation.getBitRate(), toQueueDTO.getMergingMethod()));
+                                                                                                                        radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
                                                                                             });
                                                                                 });
                                                                     });
@@ -232,7 +232,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                         crossfadeFragment,
                                                                                         toQueueDTO.getPriority(),
                                                                                         radioStation.getBitRate(),
-                                                                                        toQueueDTO.getMergingMethod()
+                                                                                        toQueueDTO.getMergingMethod(),
+                                                                                        toQueueDTO
                                                                                 ).replaceWith(Boolean.TRUE);
                                                                             });
                                                                 }))))));

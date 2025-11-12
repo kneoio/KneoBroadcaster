@@ -7,6 +7,7 @@ import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.MemoryService;
+import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -64,6 +65,7 @@ public class StreamManager implements IStreamManager {
     private final BrandSoundFragmentUpdateService updateService;
     private final MemoryService memoryService;
     private final Object fragmentRetrievalLock = new Object();
+    private final AiHelperService aiHelperService;
 
     public StreamManager(
             SliderTimer sliderTimer,
@@ -73,7 +75,7 @@ public class StreamManager implements IStreamManager {
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService, SongSupplier songSupplier,
             BrandSoundFragmentUpdateService updateService,
-            MemoryService memoryService
+            MemoryService memoryService, AiHelperService aiHelperService
     ) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
@@ -84,6 +86,7 @@ public class StreamManager implements IStreamManager {
         this.songSupplier = songSupplier;
         this.updateService = updateService;
         this.memoryService = memoryService;
+        this.aiHelperService = aiHelperService;
     }
 
     @Override
@@ -97,7 +100,15 @@ public class StreamManager implements IStreamManager {
 
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
-        playlistManager = new PlaylistManager(config, broadcasterConfig, this, songSupplier, updateService, memoryService);
+        playlistManager = new PlaylistManager(
+                config,
+                broadcasterConfig,
+                this,
+                songSupplier,
+                updateService,
+                memoryService,
+                aiHelperService
+        );
         if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();
         }

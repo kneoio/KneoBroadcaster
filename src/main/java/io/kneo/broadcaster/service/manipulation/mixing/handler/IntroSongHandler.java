@@ -95,7 +95,7 @@ public class IntroSongHandler {
                             .chain(updatedMetadata -> {
                                 updateRadioStationStatus(radioStation);
                                 return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod())
+                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                                         .onItem().invoke(result -> {
                                             if (result) {
                                                 LOGGER.info("Added merged song to queue: {}", soundFragment.getTitle());
@@ -109,7 +109,7 @@ public class IntroSongHandler {
                                               SoundFragment soundFragment, PlaylistManager playlistManager) {
         updateRadioStationStatus(radioStation);
         return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                        radioStation.getBitRate(), toQueueDTO.getMergingMethod())
+                        radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                 .onItem().invoke(result -> {
                     if (result) {
                         LOGGER.info("Added song to queue: {}", soundFragment.getTitle());

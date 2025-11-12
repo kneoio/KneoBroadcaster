@@ -2,16 +2,17 @@ package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.model.stats.BroadcastingStats;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.stats.BroadcastingStats;
+import io.kneo.broadcaster.service.MemoryService;
+import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
-import io.kneo.broadcaster.service.RadioStationService;
-import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -55,6 +56,9 @@ public class RadioStationPool {
 
     @Inject
     MemoryService memoryService;
+
+    @Inject
+    AiHelperService aiHelperService;
 
     @Inject
     private SongSupplier songSupplier;
@@ -108,7 +112,8 @@ public class RadioStationPool {
                                             segmentationService,
                                             songSupplier,
                                             updateService,
-                                            memoryService
+                                            memoryService,
+                                            aiHelperService
                                     );
                                     stationFromDb.setStreamManager(newPlaylist);
                                     newPlaylist.setRadioStation(stationFromDb);

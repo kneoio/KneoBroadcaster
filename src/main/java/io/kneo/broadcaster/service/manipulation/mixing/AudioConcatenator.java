@@ -66,7 +66,7 @@ public class AudioConcatenator {
                                    ConcatenationType mixingType, double gainValue) {
         return Uni.createFrom().item(() -> {
             try {
-                LOGGER.info("Concatenating with mixing type: {}, transition: {}s", mixingType, gainValue);
+                LOGGER.info("Concatenating with mixing type: {}, gain: {}s", mixingType, gainValue);
 
                 return switch (mixingType) {
                     case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, gainValue);

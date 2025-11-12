@@ -8,8 +8,6 @@ import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
-import io.kneo.broadcaster.model.ai.Prompt;
-import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -144,9 +142,8 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, prompts, " +
-                "event_prompts, message_prompts, mini_podcast_prompt, preferred_voice, copilot, enabled_tools, talkativity, merger, podcast_mode) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, preferred_voice, copilot, talkativity, merger, podcast_mode) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
 
         JsonObject mergerJson = null;
         if (agent.getMerger() != null) {
@@ -176,13 +173,8 @@ public class AiAgentRepository extends AsyncRepository {
                 .addJsonArray(preferredLangJson)
                 .addString(agent.getLlmType().name())
                 .addString(agent.getSearchEngineType().name())
-                .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
-                .addJsonArray(agent.getEventPrompts() != null ? JsonArray.of(agent.getEventPrompts().toArray()) : JsonArray.of())
-                .addJsonArray(agent.getMessagePrompts() != null ? JsonArray.of(agent.getMessagePrompts().toArray()) : JsonArray.of())
-                .addJsonArray(agent.getMiniPodcastPrompts() != null ? JsonArray.of(agent.getMiniPodcastPrompts().toArray()) : JsonArray.of())
                 .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
                 .addUUID(agent.getCopilot())
-                .addJsonArray(JsonArray.of(agent.getEnabledTools().toArray()))
                 .addDouble(agent.getTalkativity())
                 .addJsonObject(mergerJson)
                 .addDouble(agent.getPodcastMode());
@@ -213,8 +205,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, search_engine_type=$6, prompts=$7, event_prompts=$8, message_prompts=$9, mini_podcast_prompt=$10, preferred_voice=$11, copilot=$12, enabled_tools=$13, talkativity=$14, merger=$15, podcast_mode=$16 " +
-                                    "WHERE id=$17";
+                                    "llm_type=$5, search_engine_type=$6, preferred_voice=$7, copilot=$8, talkativity=$9, merger=$10, podcast_mode=$11 " +
+                                    "WHERE id=$12";
 
                             JsonObject mergerJson = null;
                             if (agent.getMerger() != null) {
@@ -242,13 +234,8 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addJsonArray(preferredLangJson)
                                     .addString(agent.getLlmType().name())
                                     .addString(agent.getSearchEngineType().name())
-                                    .addJsonArray(agent.getPrompts() != null ? JsonArray.of(agent.getPrompts().toArray()) : JsonArray.of())
-                                    .addJsonArray(agent.getEventPrompts() != null ? JsonArray.of(agent.getEventPrompts().toArray()) : JsonArray.of())
-                                    .addJsonArray(agent.getMessagePrompts() != null ? JsonArray.of(agent.getMessagePrompts().toArray()) : JsonArray.of())
-                                    .addJsonArray(agent.getMiniPodcastPrompts() != null ? JsonArray.of(agent.getMiniPodcastPrompts().toArray()) : JsonArray.of())
                                     .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
                                     .addUUID(agent.getCopilot())
-                                    .addJsonArray(agent.getEnabledTools() != null ? JsonArray.of(agent.getEnabledTools().toArray()) : JsonArray.of())
                                     .addDouble(agent.getTalkativity())
                                     .addJsonObject(mergerJson)
                                     .addDouble(agent.getPodcastMode())
@@ -335,37 +322,11 @@ public class AiAgentRepository extends AsyncRepository {
         }
 
         try {
-            JsonArray promptsJson = row.getJsonArray("prompts");
-            doc.setPrompts(promptsJson != null ? mapper.readValue(promptsJson.encode(), new TypeReference<List<Prompt>>() {}) : new ArrayList<>());
-
-            JsonArray eventPromptsJson = row.getJsonArray("event_prompts");
-            doc.setEventPrompts(eventPromptsJson != null ? mapper.readValue(eventPromptsJson.encode(), new TypeReference<List<String>>() {}) : new ArrayList<>());
-
-            JsonArray messagePromptsJson = row.getJsonArray("message_prompts");
-            doc.setMessagePrompts(messagePromptsJson != null ? mapper.readValue(messagePromptsJson.encode(), new TypeReference<List<String>>() {}) : new ArrayList<>());
-
-            JsonArray miniPodcastPromptJson = row.getJsonArray("mini_podcast_prompt");
-            doc.setMiniPodcastPrompts(miniPodcastPromptJson != null ? mapper.readValue(miniPodcastPromptJson.encode(), new TypeReference<List<String>>() {}) : new ArrayList<>());
-
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Failed to deserialize prompts fields for agent: {}", doc.getName(), e);
-            doc.setPrompts(new ArrayList<>());
-            doc.setEventPrompts(new ArrayList<>());
-            doc.setMessagePrompts(new ArrayList<>());
-            doc.setMiniPodcastPrompts(new ArrayList<>());
-        }
-
-        try {
             JsonArray preferredVoiceJson = row.getJsonArray("preferred_voice");
             doc.setPreferredVoice(preferredVoiceJson != null ? mapper.readValue(preferredVoiceJson.encode(), new TypeReference<List<Voice>>() {}) : new ArrayList<>());
-
-            JsonArray enabledToolsJson = row.getJsonArray("enabled_tools");
-            doc.setEnabledTools(enabledToolsJson != null ? mapper.readValue(enabledToolsJson.encode(), new TypeReference<List<Tool>>() {}) : new ArrayList<>());
-
         } catch (JsonProcessingException e) {
             LOGGER.error("Failed to deserialize AI Agent JSONB fields for agent: {}", doc.getName(), e);
             doc.setPreferredVoice(new ArrayList<>());
-            doc.setEnabledTools(new ArrayList<>());
         }
 
         return doc;

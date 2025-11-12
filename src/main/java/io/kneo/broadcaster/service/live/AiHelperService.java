@@ -39,10 +39,10 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -210,7 +210,7 @@ public class AiHelperService {
 
                     ZoneId zone = station.getTimeZone();
                     ZonedDateTime now = ZonedDateTime.now(zone);
-                    LocalTime currentTime = now.toLocalTime();
+                    LocalTime stationCurrentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
                     List<UUID> allMasterPromptIds = new ArrayList<>();
@@ -219,7 +219,7 @@ public class AiHelperService {
                     for (BrandScript brandScript : brandScripts) {
                         List<ScriptScene> scenes = brandScript.getScript().getScenes();
                         for (ScriptScene scene : scenes) {
-                            if (isSceneActive(station.getSlugName(), zone, scene, scenes, currentTime, currentDayOfWeek)) {
+                            if (isSceneActive(station.getSlugName(), zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
                                 allMasterPromptIds.addAll(scene.getPrompts());
                                 currentSceneTitle = scene.getTitle();
                                 activeScene = scene;
@@ -230,8 +230,8 @@ public class AiHelperService {
                     }
 
                     if (activeScene == null) {
-                        LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", station.getSlugName(), currentTime, currentDayOfWeek);
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + currentTime + ")");
+                        LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", station.getSlugName(), stationCurrentTime, currentDayOfWeek);
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + stationCurrentTime + ")");
                         return Uni.createFrom().item(() -> null);
                     }
 
@@ -343,7 +343,7 @@ public class AiHelperService {
         }
 
         LocalTime sceneStart = scene.getStartTime();
-        LocalTime nextSceneStart = findNextSceneStartTime(scene, allScenes);
+        LocalTime nextSceneStart = findNextSceneStartTime(stationSlug, currentDayOfWeek, scene, allScenes);
 
         boolean active;
         if (nextSceneStart != null && nextSceneStart.isAfter(sceneStart)) {
@@ -369,11 +369,17 @@ public class AiHelperService {
         return true;
     }
 
-    private LocalTime findNextSceneStartTime(ScriptScene currentScene, List<ScriptScene> scenesWithTime) {
+    private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, ScriptScene currentScene, List<ScriptScene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
-        List<LocalTime> sortedTimes = scenesWithTime.stream()
+        if (currentStart == null) {
+            return null;
+        }
+        List<UUID> usedOneTimes = oneTimeRunTracker.getOrDefault(stationSlug, Collections.emptyList());
+        List<LocalTime> sortedTimes = scenes.stream()
+                .filter(s -> s.getStartTime() != null)
+                .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
+                .filter(s -> !s.isOneTimeRun() || !usedOneTimes.contains(s.getId()))
                 .map(ScriptScene::getStartTime)
-                .filter(Objects::nonNull)
                 .sorted()
                 .distinct()
                 .toList();
@@ -391,7 +397,7 @@ public class AiHelperService {
                     if (scripts.isEmpty()) {
                         return null;
                     }
-                    LocalDateTime now = LocalDateTime.now();
+                    ZonedDateTime now = ZonedDateTime.now(station.getTimeZone());
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
@@ -400,9 +406,9 @@ public class AiHelperService {
                         for (ScriptScene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 LocalTime sceneStart = scene.getStartTime();
-                                LocalTime sceneEnd = findNextSceneStartTime(scene, scenes);
+                                LocalTime sceneEnd = findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
                                 int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;
-                                String nextSceneTitle = findNextSceneTitle(scene, scenes);
+                                String nextSceneTitle = findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
                                 DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
                                 LocalDateTime lastRequestTime = null;
                                 String djName = null;
@@ -428,13 +434,16 @@ public class AiHelperService {
                 });
     }
 
-    private String findNextSceneTitle(ScriptScene currentScene, List<ScriptScene> scenes) {
+    private String findNextSceneTitle(String stationSlug, int currentDayOfWeek, ScriptScene currentScene, List<ScriptScene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
         if (currentStart == null) {
             return null;
         }
+        List<UUID> usedOneTimes = oneTimeRunTracker.getOrDefault(stationSlug, Collections.emptyList());
         List<ScriptScene> sortedScenes = scenes.stream()
                 .filter(s -> s.getStartTime() != null)
+                .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
+                .filter(s -> !s.isOneTimeRun() || !usedOneTimes.contains(s.getId()))
                 .sorted(Comparator.comparing(ScriptScene::getStartTime))
                 .toList();
         for (ScriptScene scene : sortedScenes) {

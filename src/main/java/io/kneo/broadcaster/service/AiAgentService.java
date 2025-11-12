@@ -3,8 +3,6 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.ai.LanguagePreferenceDTO;
 import io.kneo.broadcaster.dto.ai.MergerDTO;
-import io.kneo.broadcaster.dto.ai.PromptDTO;
-import io.kneo.broadcaster.dto.ai.ToolDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
@@ -12,8 +10,6 @@ import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.MergeMethod;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
 import io.kneo.broadcaster.model.ai.Merger;
-import io.kneo.broadcaster.model.ai.Prompt;
-import io.kneo.broadcaster.model.ai.Tool;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.AiAgentRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -111,20 +107,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             
             dto.setLlmType(doc.getLlmType().name());
             dto.setSearchEngineType(doc.getSearchEngineType().name());
-            dto.setPrompts(
-                    doc.getPrompts().stream()
-                            .map(p -> {
-                                PromptDTO d = new PromptDTO();
-                                d.setEnabled(p.isEnabled());
-                                d.setPrompt(p.getPrompt());
-                                return d;
-                            })
-                            .toList()
-            );
-
-            dto.setEventPrompts(doc.getEventPrompts());
-            dto.setMessagePrompts(doc.getMessagePrompts());
-            dto.setMiniPodcastPrompts(doc.getMiniPodcastPrompts());
             dto.setTalkativity(doc.getTalkativity());
             dto.setPodcastMode(doc.getPodcastMode());
 
@@ -149,19 +131,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
 
             if (doc.getCopilot() != null) dto.setCopilot(doc.getCopilot());
 
-            if (doc.getEnabledTools() != null && !doc.getEnabledTools().isEmpty()) {
-                List<ToolDTO> toolDTOs = doc.getEnabledTools().stream()
-                        .map(tool -> {
-                            ToolDTO toolDTO = new ToolDTO();
-                            toolDTO.setName(tool.getName());
-                            toolDTO.setVariableName(tool.getVariableName());
-                            toolDTO.setDescription(tool.getDescription());
-                            return toolDTO;
-                        })
-                        .toList();
-                dto.setEnabledTools(toolDTOs);
-            }
-
             return dto;
         });
     }
@@ -181,19 +150,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             doc.setPreferredLang(langPrefs);
         }
         
-        doc.setPrompts(
-                dto.getPrompts().stream()
-                        .map(p -> {
-                            Prompt d = new Prompt();
-                            d.setEnabled(p.isEnabled());
-                            d.setPrompt(p.getPrompt());
-                            return d;
-                        })
-                        .toList()
-        );
-        doc.setEventPrompts(dto.getEventPrompts());
-        doc.setMessagePrompts(dto.getMessagePrompts());
-        doc.setMiniPodcastPrompts(dto.getMiniPodcastPrompts());
         doc.setTalkativity(dto.getTalkativity());
         doc.setPodcastMode(dto.getPodcastMode());
         doc.setLlmType(LlmType.valueOf(dto.getLlmType()));
@@ -219,19 +175,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                     })
                     .collect(Collectors.toList());
             doc.setPreferredVoice(voices);
-        }
-
-        if (dto.getEnabledTools() != null && !dto.getEnabledTools().isEmpty()) {
-            List<Tool> tools = dto.getEnabledTools().stream()
-                    .map(toolDto -> {
-                        Tool tool = new Tool();
-                        tool.setName(toolDto.getName());
-                        tool.setVariableName(toolDto.getVariableName());
-                        tool.setDescription(toolDto.getDescription());
-                        return tool;
-                    })
-                    .collect(Collectors.toList());
-            doc.setEnabledTools(tools);
         }
 
         return doc;

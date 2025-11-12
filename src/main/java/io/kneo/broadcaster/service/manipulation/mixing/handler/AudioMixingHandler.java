@@ -220,8 +220,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                             .chain(finalPath -> {
                                                                                 SoundFragment crossfadeFragment = new SoundFragment();
                                                                                 crossfadeFragment.setId(UUID.randomUUID());
-                                                                                crossfadeFragment.setTitle(sf1.getTitle() + " → " + sf2.getTitle());
-                                                                                crossfadeFragment.setArtist(sf1.getArtist() + " / " + sf2.getArtist());
+                                                                                crossfadeFragment.setTitle(sf2.getTitle());
+                                                                                crossfadeFragment.setArtist(sf2.getArtist());
                                                                                 crossfadeFragment.setSource(SourceType.TEMPORARY_MIX);
 
                                                                                 FileMetadata fileMetadata = new FileMetadata();

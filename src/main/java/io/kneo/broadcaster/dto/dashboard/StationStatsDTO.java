@@ -16,7 +16,7 @@ public class StationStatsDTO {
     @Getter
     private String brandName;
     @Getter
-    private String realTime;
+    private String zoneId; // IANA zone, e.g., "Europe/Riga"
     @Getter
     private RadioStationStatus status;
     @Getter

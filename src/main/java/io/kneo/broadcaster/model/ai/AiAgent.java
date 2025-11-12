@@ -19,23 +19,13 @@ public class AiAgent extends SimpleReferenceEntity {
     private LlmType llmType;
     private SearchEngineType searchEngineType = SearchEngineType.PERPLEXITY;
     private Merger merger;
-    private List<Prompt> prompts;
-    private List<String> eventPrompts;
-    private List<String> messagePrompts;
-    private List<String> miniPodcastPrompts;
     private List<Voice> preferredVoice;
     private UUID copilot;
-    private List<Tool> enabledTools;
     private double talkativity;
     private double podcastMode;
 
     public AiAgent() {
         this.preferredLang = new ArrayList<>();
         this.preferredVoice = new ArrayList<>();
-        this.prompts = new ArrayList<>();
-        this.eventPrompts = new ArrayList<>();
-        this.messagePrompts = new ArrayList<>();
-        this.miniPodcastPrompts = new ArrayList<>();
-        this.enabledTools = new ArrayList<>();
     }
 }

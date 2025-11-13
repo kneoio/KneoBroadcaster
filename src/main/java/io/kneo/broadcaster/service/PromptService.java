@@ -63,6 +63,14 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         }
     }
 
+    public Uni<Prompt> insert(Prompt entity, IUser user) {
+        return repository.insert(entity, user);
+    }
+
+    public Uni<Prompt> update(UUID id, Prompt entity, IUser user) {
+        return repository.update(id, entity, user);
+    }
+
     public Uni<Integer> archive(String id, IUser user) {
         return repository.archive(UUID.fromString(id), user);
     }

@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
-import io.kneo.broadcaster.dto.DraftDTO;
-import io.kneo.broadcaster.dto.ai.PromptDTO;
 import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
+import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
+import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -97,6 +97,7 @@ public class TranslateService {
             return;
         }
 
+        assert dtos != null;
         processSequential(jobId, dtos, 0, user, translator)
                 .subscribe().with(
                         ignored -> {},
@@ -145,7 +146,7 @@ public class TranslateService {
                 .replaceWithVoid();
     }
 
-    private Uni<DraftDTO> translateAndUpsertDraft(TranslateReqDTO dto, IUser user) {
+    private Uni<Draft> translateAndUpsertDraft(TranslateReqDTO dto, IUser user) {
         return draftService.getById(dto.getMasterId(), user)
                 .chain(originalDraft -> {
                     if (originalDraft.getLanguageCode() == dto.getLanguageCode()) {
@@ -158,32 +159,28 @@ public class TranslateService {
                                 if (translatedContent == null || translatedContent.isBlank()) {
                                     return Uni.createFrom().nullItem();
                                 }
-                                String newTitle = updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode());
-
                                 return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false)
                                         .chain(existing -> {
-
-                                            if (existing != null && !existing.isLocked()) {
-                                                return Uni.createFrom().nullItem();
+                                            if (existing != null && existing.isLocked()) {
+                                                existing.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                                return draftService.update(existing.getId(), existing, user);
+                                            } else {
+                                                Draft doc = new Draft();
+                                                doc.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                                doc.setLanguageCode(dto.getLanguageCode());
+                                                doc.setEnabled(true);
+                                                doc.setMaster(false);
+                                                doc.setLocked(true);
+                                                doc.setTitle(updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode()));
+                                                doc.setMasterId(originalDraft.getId());
+                                                return draftService.insert(doc, user);
                                             }
-
-                                            DraftDTO newDto = new DraftDTO();
-                                            newDto.setTitle(newTitle);
-                                            newDto.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                            newDto.setLanguageCode(dto.getLanguageCode());
-                                            newDto.setMasterId(dto.getMasterId());
-                                            newDto.setEnabled(true);
-                                            newDto.setMaster(false);
-                                            newDto.setLocked(true);
-
-                                            String id = existing != null ? existing.getId().toString() : null;
-                                            return draftService.upsert(id, newDto, user, dto.getLanguageCode());
                                         });
                             });
                 });
     }
 
-    private Uni<PromptDTO> translateAndUpsertPrompt(TranslateReqDTO dto, IUser user) {
+    private Uni<Prompt> translateAndUpsertPrompt(TranslateReqDTO dto, IUser user) {
         return promptService.getById(dto.getMasterId(), user)
                 .chain(sourcePrompt -> {
                     if (sourcePrompt.getLanguageCode() == dto.getLanguageCode()) {
@@ -196,27 +193,22 @@ public class TranslateService {
                                 if (translatedContent == null || translatedContent.isBlank()) {
                                     return Uni.createFrom().nullItem();
                                 }
-                                String newTitle = updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode());
-
                                 return promptService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false)
                                         .chain(existing -> {
-                                            // If prompt exists but is not locked, skip it (user intentionally unlocked it)
-                                            if (existing != null && !existing.isLocked()) {
-                                                return Uni.createFrom().nullItem();
+                                            if (existing != null && existing.isLocked()) {
+                                                existing.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                                return promptService.update(existing.getId(), existing, user);
+                                            } else {
+                                                Prompt doc = new Prompt();
+                                                doc.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                                doc.setLanguageCode(dto.getLanguageCode());
+                                                doc.setEnabled(true);
+                                                doc.setMaster(false);
+                                                doc.setLocked(true);
+                                                doc.setTitle(updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode()));
+                                                doc.setMasterId(sourcePrompt.getId());
+                                                return promptService.insert(doc, user);
                                             }
-
-                                            PromptDTO newDto = new PromptDTO();
-                                            newDto.setTitle(newTitle);
-                                            newDto.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                            newDto.setLanguageCode(dto.getLanguageCode());
-                                            newDto.setEnabled(true);
-                                            newDto.setMaster(false);
-                                            newDto.setLocked(true);
-                                            newDto.setMasterId(sourcePrompt.getId());
-                                            //newDto.setDraftId(sourcePrompt.getDraftId());
-
-                                            String id = existing != null ? existing.getId().toString() : null;
-                                            return promptService.upsert(id, newDto, user);
                                         });
                             });
                 });

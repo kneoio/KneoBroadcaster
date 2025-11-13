@@ -52,4 +52,10 @@ public class StatsFlusher {
                         LOGGER.error("Scheduled flush failed", failure)
                 );
     }
+
+    @Scheduled(cron = "0 0 0 * * ?", identity = "country-stats-reset")
+    public void resetCountryStats() {
+        LOGGER.info("Resetting country stats at midnight");
+        statsAccumulator.clearAllCountryStats();
+    }
 }

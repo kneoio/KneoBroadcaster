@@ -7,7 +7,6 @@ import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.service.scheduler.ScheduledTaskType;
 import io.kneo.broadcaster.service.scheduler.job.DjControlJob;
 import io.kneo.broadcaster.service.scheduler.quartz.QuartzUtils;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.quartz.JobDetail;
 import org.quartz.JobKey;
@@ -17,13 +16,13 @@ import org.quartz.Trigger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.DayOfWeek;
-import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,7 +31,7 @@ import static org.quartz.CronScheduleBuilder.cronSchedule;
 import static org.quartz.JobBuilder.newJob;
 import static org.quartz.TriggerBuilder.newTrigger;
 
-@ApplicationScoped
+//@ApplicationScoped
 public class DjControlJobRunner implements JobRunner {
     private static final Logger LOGGER = LoggerFactory.getLogger(DjControlJobRunner.class);
 

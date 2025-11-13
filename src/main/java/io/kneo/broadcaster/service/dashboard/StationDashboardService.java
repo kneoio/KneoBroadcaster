@@ -1,9 +1,11 @@
 package io.kneo.broadcaster.service.dashboard;
 
+import io.kneo.broadcaster.dto.dashboard.CountryStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
+import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.StreamManagerStats;
@@ -12,7 +14,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class StationDashboardService {
@@ -23,6 +27,9 @@ public class StationDashboardService {
     @Inject
     AiHelperService aiHelperService;
 
+    @Inject
+    StatsAccumulator statsAccumulator;
+
     public Uni<Optional<StationStatsDTO>> getStationStats(String brand) {
         return Uni.createFrom().item(() -> radioStationPool.getStation(brand))
                 .flatMap(optionalStation -> {
@@ -31,6 +38,14 @@ public class StationDashboardService {
                     }
                     RadioStation station = optionalStation.get();
                     StationStatsDTO stats = createStationStats(brand, station);
+                    
+                    // Get country stats from in-memory accumulator
+                    List<CountryStatsDTO> countryStats = statsAccumulator.getCountryStats(brand).entrySet().stream()
+                            .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
+                            .limit(10)
+                            .map(entry -> new CountryStatsDTO(entry.getKey(), entry.getValue()))
+                            .collect(Collectors.toList());
+                    stats.setListenersByCountry(countryStats);
                     
                     return aiHelperService.getAiDjStats(station)
                             .onFailure().recoverWithItem(() -> null)
@@ -47,7 +62,7 @@ public class StationDashboardService {
         stationStats.setStatus(station.getStatus());
         stationStats.setStatusHistory(station.getStatusHistory());
         stationStats.setManagedBy(station.getManagedBy());
-
+        stationStats.setCurrentListeners(statsAccumulator.getCurrentListeners(brand));
         ZoneId zone = station.getTimeZone();
         stationStats.setZoneId(zone.getId());
 

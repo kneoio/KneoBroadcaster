@@ -97,6 +97,14 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         return saveOperation.chain(this::mapToDTO);
     }
 
+    public Uni<Draft> insert(Draft entity, IUser user) {
+        return repository.insert(entity, user);
+    }
+
+    public Uni<Draft> update(UUID id, Draft entity, IUser user) {
+        return repository.update(id, entity, user);
+    }
+
     public Uni<Integer> archive(String id, IUser user) {
         return repository.archive(UUID.fromString(id), user);
     }

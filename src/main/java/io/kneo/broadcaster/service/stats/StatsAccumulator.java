@@ -22,16 +22,31 @@ public class StatsAccumulator implements IStatsService {
     private final ConcurrentHashMap<String, String> lastIpAddresses = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> lastCountryCodes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, OffsetDateTime> lastAccessTimes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, AtomicLong>> countryStats = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, OffsetDateTime>> activeListeners = new ConcurrentHashMap<>();
 
     @Inject
     RadioStationRepository radioStationRepository;
 
     public void recordAccess(String stationName, String userAgent, String ipAddress, String countryCode) {
+        OffsetDateTime now = OffsetDateTime.now();
+        
         accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
         lastUserAgents.put(stationName, userAgent);
         lastIpAddresses.put(stationName, ipAddress);
         lastCountryCodes.put(stationName, countryCode);
-        lastAccessTimes.put(stationName, OffsetDateTime.now());
+        lastAccessTimes.put(stationName, now);
+
+        // Track active listeners by IP (for current listener count)
+        activeListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
+                .put(ipAddress, now);
+
+        // Track country stats
+        if (countryCode != null && !"UNKNOWN".equals(countryCode)) {
+            countryStats.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
+                    .computeIfAbsent(countryCode, k -> new AtomicLong(0))
+                    .incrementAndGet();
+        }
 
         LOGGER.debug("Recorded access for station: {} from IP: {} ({}) (total pending: {})",
                 stationName, ipAddress, countryCode, accessCounts.get(stationName).get());
@@ -67,6 +82,7 @@ public class StatsAccumulator implements IStatsService {
             lastCountryCodes.remove(station);
             lastAccessTimes.remove(station);
         });
+        // Note: countryStats is NOT cleared - it accumulates over time for dashboard display
 
         if (countsSnapshot.isEmpty()) {
             return Uni.createFrom().voidItem();
@@ -95,7 +111,6 @@ public class StatsAccumulator implements IStatsService {
     }
 
     private Uni<Void> flushStationStats(String stationName, Long count, String userAgent, String ipAddress, String countryCode, OffsetDateTime lastAccess) {
-        // Convert "UNKNOWN" back to null for database enum compatibility
         String dbCountryCode = "UNKNOWN".equals(countryCode) ? null : countryCode;
 
         return radioStationRepository.upsertStationAccessWithCountAndGeo(
@@ -119,5 +134,41 @@ public class StatsAccumulator implements IStatsService {
         return accessCounts.values().stream()
                 .mapToLong(AtomicLong::get)
                 .sum();
+    }
+
+    public long getCurrentListeners(String stationName) {
+        ConcurrentHashMap<String, OffsetDateTime> listeners = activeListeners.get(stationName);
+        if (listeners == null || listeners.isEmpty()) {
+            return 0;
+        }
+        
+        // Consider a listener active if they accessed within the last 5 minutes
+        OffsetDateTime threshold = OffsetDateTime.now().minusMinutes(5);
+        
+        // Clean up stale listeners and count active ones
+        listeners.entrySet().removeIf(entry -> entry.getValue().isBefore(threshold));
+        
+        return listeners.size();
+    }
+
+    public Map<String, Long> getCountryStats(String stationName) {
+        ConcurrentHashMap<String, AtomicLong> stationCountries = countryStats.get(stationName);
+        if (stationCountries == null || stationCountries.isEmpty()) {
+            return Map.of();
+        }
+        
+        Map<String, Long> result = new HashMap<>();
+        stationCountries.forEach((country, count) -> result.put(country, count.get()));
+        return result;
+    }
+
+    public void clearCountryStats(String stationName) {
+        countryStats.remove(stationName);
+        LOGGER.info("Cleared country stats for station: {}", stationName);
+    }
+
+    public void clearAllCountryStats() {
+        countryStats.clear();
+        LOGGER.info("Cleared all country stats");
     }
 }

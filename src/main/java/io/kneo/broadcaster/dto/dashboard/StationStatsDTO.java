@@ -30,6 +30,8 @@ public class StationStatsDTO {
     @Getter
     private long currentListeners;
     @Getter
+    private List<CountryStatsDTO> listenersByCountry;
+    @Getter
     private List<RadioStation.StatusChangeRecord> statusHistory = new LinkedList<>();
     @Getter
     private AiDjStats aiDjStats;

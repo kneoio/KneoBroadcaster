@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -439,6 +439,20 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .execute(Tuple.of(brandId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> row.getUUID("script_id"))
+                .collect().asList();
+    }
+
+    public Uni<List<Row>> getStationStatsByCountry(String stationName, int limit) {
+        String sql = "SELECT country_code, SUM(access_count) as total_count " +
+                "FROM " + brandStats.getTableName() + " " +
+                "WHERE station_name = $1 AND country_code IS NOT NULL " +
+                "GROUP BY country_code " +
+                "ORDER BY total_count DESC " +
+                "LIMIT $2";
+        
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(stationName, limit))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .collect().asList();
     }
 }

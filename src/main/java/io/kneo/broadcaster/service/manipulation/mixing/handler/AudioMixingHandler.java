@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.manipulation.mixing.handler;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -219,9 +220,15 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                             )
                                                                             .chain(finalPath -> {
                                                                                 SoundFragment crossfadeFragment = new SoundFragment();
-                                                                                crossfadeFragment.setId(sf1.getId());  //at least one gonna be marked as played
-                                                                                crossfadeFragment.setTitle(sf1.getTitle() + " → " + sf2.getTitle());
-                                                                                crossfadeFragment.setArtist(sf1.getArtist() + " / " + sf2.getArtist());
+                                                                                if (sf1.getType() == PlaylistItemType.JINGLE) {
+                                                                                    crossfadeFragment.setId(sf2.getId());
+                                                                                    crossfadeFragment.setTitle(sf2.getTitle());
+                                                                                    crossfadeFragment.setArtist(sf2.getArtist());
+                                                                                } else {
+                                                                                    crossfadeFragment.setId(sf1.getId());  //at least one gonna be marked as played
+                                                                                    crossfadeFragment.setTitle(sf1.getTitle() + " → " + sf2.getTitle());
+                                                                                    crossfadeFragment.setArtist(sf1.getArtist() + " / " + sf2.getArtist());
+                                                                                }
                                                                                 crossfadeFragment.setSource(SourceType.TEMPORARY_MIX);
 
                                                                                 FileMetadata fileMetadata = new FileMetadata();

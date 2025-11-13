@@ -9,6 +9,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -116,7 +117,7 @@ public class ScriptDryRunService {
 
         emit(jobId, "started", new JsonObject().put("message", "Starting dry-run simulation"));
 
-        scriptService.getDTO(scriptId, user, io.kneo.core.localization.LanguageCode.en)
+        scriptService.getDTO(scriptId, user, LanguageCode.en)
                 .chain(scriptDTO -> {
                     scenarioBuilder.append("Script: ").append(scriptDTO.getName()).append(" - ").append(scriptDTO.getDescription()).append("\n\n");
                     
@@ -132,7 +133,7 @@ public class ScriptDryRunService {
                             if (station.getAiAgentId() == null) {
                                 return Uni.createFrom().item(new ProcessContext(scenes, station, djName, user, scenarioBuilder, LlmType.OPENAI));
                             }
-                            return aiAgentService.getById(station.getAiAgentId(), user, io.kneo.core.localization.LanguageCode.en)
+                            return aiAgentService.getById(station.getAiAgentId(), user, LanguageCode.en)
                                     .map(agent -> new ProcessContext(scenes, station, djName, user, scenarioBuilder, agent.getLlmType()));
                         }))
                 .chain(context -> processScenes(jobId, context, 0))

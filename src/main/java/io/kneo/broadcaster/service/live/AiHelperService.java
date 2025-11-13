@@ -236,6 +236,7 @@ public class AiHelperService {
                     }
 
                     if (!activeScene.isOneTimeRun() && shouldPlayJingle(activeScene.getTalkativity())) {
+                        //addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Start mixing");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);
                     }
@@ -296,6 +297,7 @@ public class AiHelperService {
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> {
                                                         Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                                                        //addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, String.format("DJ session started (%s)", song.getMetadata()));
                                                         LOGGER.debug("Station '{}': Selected prompt '{}' for song '{}'", 
                                                                 station.getSlugName(), selectedPrompt.getTitle(), song.getTitle());
                                                         

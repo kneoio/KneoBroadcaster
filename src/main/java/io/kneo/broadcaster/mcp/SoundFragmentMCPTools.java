@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 public class SoundFragmentMCPTools {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentMCPTools.class);
     private static final Random RANDOM = new Random();
+    private boolean lastWasTwo = false;
 
     @Inject
     SongSupplier songSupplier;
@@ -42,7 +43,13 @@ public class SoundFragmentMCPTools {
     }
 
     public int decideFragmentCount() {
-        return RANDOM.nextDouble() < 0.3 ? 2 : 1;  //30% 2 songs
+        if (lastWasTwo) { //Prevents fucking consecutive 2-song selections
+            lastWasTwo = false;
+            return 1;
+        }
+        boolean pickTwo = RANDOM.nextDouble() < 0.3;
+        lastWasTwo = pickTwo;
+        return pickTwo ? 2 : 1;
     }
 
     private Uni<List<SoundFragmentMcpDTO>> mapSoundFragmentsToAiDTO(List<SoundFragment> soundFragments) {

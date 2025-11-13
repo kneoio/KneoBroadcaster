@@ -22,8 +22,8 @@ public class StatsAccumulator implements IStatsService {
     private final ConcurrentHashMap<String, String> lastIpAddresses = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> lastCountryCodes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, OffsetDateTime> lastAccessTimes = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, ConcurrentHashMap<String, AtomicLong>> countryStats = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ConcurrentHashMap<String, OffsetDateTime>> activeListeners = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<String, Boolean>>> countryListeners = new ConcurrentHashMap<>();
 
     @Inject
     RadioStationRepository radioStationRepository;
@@ -37,15 +37,13 @@ public class StatsAccumulator implements IStatsService {
         lastCountryCodes.put(stationName, countryCode);
         lastAccessTimes.put(stationName, now);
 
-        // Track active listeners by IP (for current listener count)
         activeListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
                 .put(ipAddress, now);
 
-        // Track country stats
-        if (countryCode != null && !"UNKNOWN".equals(countryCode)) {
-            countryStats.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
-                    .computeIfAbsent(countryCode, k -> new AtomicLong(0))
-                    .incrementAndGet();
+        if (!"UNKNOWN".equals(countryCode)) {
+            countryListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
+                    .computeIfAbsent(countryCode, k -> new ConcurrentHashMap<>())
+                    .put(ipAddress, Boolean.TRUE);
         }
 
         LOGGER.debug("Recorded access for station: {} from IP: {} ({}) (total pending: {})",
@@ -152,23 +150,18 @@ public class StatsAccumulator implements IStatsService {
     }
 
     public Map<String, Long> getCountryStats(String stationName) {
-        ConcurrentHashMap<String, AtomicLong> stationCountries = countryStats.get(stationName);
+        ConcurrentHashMap<String, ConcurrentHashMap<String, Boolean>> stationCountries = countryListeners.get(stationName);
         if (stationCountries == null || stationCountries.isEmpty()) {
             return Map.of();
         }
         
         Map<String, Long> result = new HashMap<>();
-        stationCountries.forEach((country, count) -> result.put(country, count.get()));
+        stationCountries.forEach((country, ips) -> result.put(country, (long) ips.size()));
         return result;
     }
 
-    public void clearCountryStats(String stationName) {
-        countryStats.remove(stationName);
-        LOGGER.info("Cleared country stats for station: {}", stationName);
-    }
-
     public void clearAllCountryStats() {
-        countryStats.clear();
+        countryListeners.clear();
         LOGGER.info("Cleared all country stats");
     }
 }

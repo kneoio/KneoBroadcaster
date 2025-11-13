@@ -96,7 +96,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                 return songMetadata2.materializeFileStream(tempBaseDir)
                                                                                         .chain(tempPath2 -> {
                                                                                             SoundFragment fragment1 = new SoundFragment();
-                                                                                            fragment1.setId(UUID.randomUUID());
+                                                                                            fragment1.setId(soundFragment1.getId());
                                                                                             fragment1.setTitle(soundFragment1.getTitle());
                                                                                             fragment1.setArtist(soundFragment1.getArtist());
                                                                                             fragment1.setSource(soundFragment1.getSource());
@@ -161,7 +161,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                     return songMetadata2.materializeFileStream(tempBaseDir)
                                                                                             .chain(tempPath2 -> {
                                                                                                 SoundFragment fragment1 = new SoundFragment();
-                                                                                                fragment1.setId(UUID.randomUUID());
+                                                                                                fragment1.setId(soundFragment1.getId());
                                                                                                 fragment1.setTitle(soundFragment1.getTitle());
                                                                                                 fragment1.setArtist(soundFragment1.getArtist());
                                                                                                 fragment1.setSource(soundFragment1.getSource());
@@ -219,9 +219,9 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                             )
                                                                             .chain(finalPath -> {
                                                                                 SoundFragment crossfadeFragment = new SoundFragment();
-                                                                                crossfadeFragment.setId(UUID.randomUUID());
-                                                                                crossfadeFragment.setTitle(sf2.getTitle());
-                                                                                crossfadeFragment.setArtist(sf2.getArtist());
+                                                                                crossfadeFragment.setId(sf1.getId());  //at least one gonna be marked as played
+                                                                                crossfadeFragment.setTitle(sf1.getTitle() + " → " + sf2.getTitle());
+                                                                                crossfadeFragment.setArtist(sf1.getArtist() + " / " + sf2.getArtist());
                                                                                 crossfadeFragment.setSource(SourceType.TEMPORARY_MIX);
 
                                                                                 FileMetadata fileMetadata = new FileMetadata();

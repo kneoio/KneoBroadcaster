@@ -42,7 +42,7 @@ public class SoundFragmentMCPTools {
     }
 
     public int decideFragmentCount() {
-        return RANDOM.nextDouble() < 0.4 ? 2 : 1;
+        return RANDOM.nextDouble() < 0.7 ? 2 : 1;
     }
 
     private Uni<List<SoundFragmentMcpDTO>> mapSoundFragmentsToAiDTO(List<SoundFragment> soundFragments) {

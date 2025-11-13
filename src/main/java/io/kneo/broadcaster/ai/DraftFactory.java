@@ -9,6 +9,7 @@ import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -189,7 +190,7 @@ public class DraftFactory {
         data.put("djName", agent.getName());
         data.put("djVoiceId", agent.getPreferredVoice().stream().findAny().orElseThrow().getId());
         data.put("coPilotName", copilot.getName());
-        data.put("coPilotVoiceId", copilot.getPreferredVoice().stream().findAny().orElseThrow().getId());
+        data.put("coPilotVoiceId", copilot.getPreferredVoice().stream().findAny().orElse(new Voice("Juniper","aMSt68OGf4xUZAnLpTU8")).getId());
         data.put("stationBrand", station.getLocalizedName().get(selectedLanguage));
         data.put("country", station.getCountry());
         data.put("language", selectedLanguage);

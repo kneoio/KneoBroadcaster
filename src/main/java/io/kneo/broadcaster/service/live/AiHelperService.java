@@ -75,6 +75,8 @@ public class AiHelperService {
             RadioStationStatus.WARMING_UP,
             RadioStationStatus.QUEUE_SATURATED
     );
+    
+    private static final int SCENE_START_SHIFT_MINUTES = 5;
 
     @Inject
     public AiHelperService(
@@ -347,7 +349,7 @@ public class AiHelperService {
             return markIfOneTime(stationSlug, scene);
         }
 
-        LocalTime sceneStart = scene.getStartTime();
+        LocalTime sceneStart = scene.getStartTime().minusMinutes(SCENE_START_SHIFT_MINUTES);
         LocalTime nextSceneStart = findNextSceneStartTime(stationSlug, currentDayOfWeek, scene, allScenes);
 
         boolean active;

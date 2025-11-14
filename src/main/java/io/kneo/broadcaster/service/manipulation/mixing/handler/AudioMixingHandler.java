@@ -194,7 +194,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
-    public Uni<Boolean> handleConcatenation(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO, ConcatenationType concatType) {
+    public Uni<Boolean> handleConcatenationAndFeed(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO, ConcatenationType concatType) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID songId1 = toQueueDTO.getSoundFragments().get("song1");
         UUID songId2 = toQueueDTO.getSoundFragments().get("song2");

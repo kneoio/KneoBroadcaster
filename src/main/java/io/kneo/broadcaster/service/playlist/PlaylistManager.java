@@ -42,7 +42,6 @@ public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
     private static final int SELF_MANAGING_INTERVAL_SECONDS = 100;
     private static final int REGULAR_BUFFER_MAX = 2;
-    private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
     private static final int PROCESSED_QUEUE_MAX_SIZE = 2;
     private static final long STARVING_FEED_COOLDOWN_MILLIS = 20_000L;
@@ -56,7 +55,12 @@ public class PlaylistManager {
     private final PriorityQueue<LiveSoundFragment> regularQueue = new PriorityQueue<>(Comparator.comparing(LiveSoundFragment::getQueueNum));
 
     @Getter
-    private final LinkedList<LiveSoundFragment> prioritizedQueue = new LinkedList<>();
+    private final PriorityQueue<LiveSoundFragment> prioritizedQueue =
+            new PriorityQueue<>(
+                    Comparator
+                            .comparing(LiveSoundFragment::getPriority)
+                            .thenComparing(LiveSoundFragment::getQueueNum)
+            );
 
     @Getter
     private final String brand;
@@ -103,9 +107,6 @@ public class PlaylistManager {
             try {
                 if (regularQueue.size() <= TRIGGER_SELF_MANAGING) {
                     feedFragments(2, false);
-                } else {
-                    LOGGER.debug("Skipping fragment addition - ready queue is full ({} items)",
-                            READY_QUEUE_MAX_SIZE);
                 }
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
@@ -182,6 +183,7 @@ public class PlaylistManager {
             liveSoundFragment.setSoundFragmentId(soundFragment.getId());
             liveSoundFragment.setMetadata(songMetadata);
             liveSoundFragment.setSourceFilePath(metadata.getTemporaryFilePath());
+            liveSoundFragment.setPriority(mcpDTO.getPriority());
 
             if (soundFragment.getSource() == SourceType.CONTRIBUTION) {
 
@@ -195,10 +197,10 @@ public class PlaylistManager {
                         }
 
                         liveSoundFragment.setSegments(segments);
-                        boolean isAiDjSubmit = priority <= 10;
+                        boolean curated = priority <= 12;
 
-                        if (isAiDjSubmit) {
-                            if (mcpDTO != null && mcpDTO.getPriority() <= 9) {
+                        if (curated) {
+                            if (mcpDTO.getPriority() != null && mcpDTO.getPriority() <= 9) {
                                 prioritizedQueue.clear();
                                 
                                 if (mcpDTO.getPriority() <= 8) {

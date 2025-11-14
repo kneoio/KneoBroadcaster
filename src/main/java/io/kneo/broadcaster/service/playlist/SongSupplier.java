@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.playlist;
 
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.util.BrandActivityLogger;
@@ -51,19 +51,30 @@ public class SongSupplier {
         this.radioStationService = radioStationService;
     }
 
+    private SupplierSongMemory getMemory(String brandName, PlaylistItemType fragmentType) {
+        return brandPlaylistMemory
+                .computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(fragmentType, k -> new ArrayList<>(List.of(new SupplierSongMemory())))
+                .get(0);
+    }
+
     public Uni<List<SoundFragment>> getBrandSongs(String brandName, PlaylistItemType fragmentType, int quantity) {
         return getUnplayedFragments(brandName, fragmentType)
                 .map(unplayed -> {
-                    List<SoundFragment> selected;
-                    if (quantity >= unplayed.size()) {
-                        selected = unplayed;
-                    } else {
-                        selected = unplayed.subList(0, quantity);
-                    }
+                    if (unplayed.isEmpty()) return List.of();
+
+                    List<SoundFragment> shuffled = new ArrayList<>(unplayed);
+                    Collections.shuffle(shuffled, ThreadLocalRandom.current());
+
+                    List<SoundFragment> selected = shuffled.stream()
+                            .limit(quantity)
+                            .collect(Collectors.toList());
+
                     updateMemory(brandName, fragmentType, selected);
                     return selected;
                 });
     }
+
 
     public Uni<List<SoundFragment>> getNextSong(String brandName, PlaylistItemType fragmentType, int quantity) {
         return getUnplayedFragments(brandName, fragmentType)
@@ -134,13 +145,6 @@ public class SongSupplier {
                                 return fragments;
                             });
                 });
-    }
-
-    private SupplierSongMemory getMemory(String brandName, PlaylistItemType fragmentType) {
-        return brandPlaylistMemory
-                .computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(fragmentType, k -> List.of(new SupplierSongMemory()))
-                .get(0);
     }
 
     private void updateMemory(String brandName, PlaylistItemType fragmentType, List<SoundFragment> selected) {

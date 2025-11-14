@@ -24,6 +24,7 @@ import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
+import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -142,12 +144,17 @@ public class AiHelperService {
         LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
         PlaylistManager playlistManager = station.getStreamManager().getPlaylistManager();
         int queueSize = playlistManager.getPrioritizedQueue().size();
-        LOGGER.info("Station '{}' has queue size: {}", station.getSlugName(), queueSize);
-        if (queueSize > 1) {
+        int queuedDurationSec = playlistManager.getPrioritizedQueue().stream()
+                .flatMap(f -> f.getSegments().values().stream())
+                .flatMap(ConcurrentLinkedQueue::stream)
+                .mapToInt(HlsSegment::getDuration)
+                .sum();
+        LOGGER.info("Station '{}' has queue size: {}, queued duration: {}s", station.getSlugName(), queueSize, queuedDurationSec);
+        if (queueSize > 1 || queuedDurationSec > 300) {
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
-            LOGGER.info("Station '{}' is saturated, it will be skip: {}", station.getSlugName(), queueSize);
+            LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s", station.getSlugName(), queueSize, queuedDurationSec);
             addMessage(station.getSlugName(), AiDjStats.MessageType.INFO,
-                    String.format("The playlist is saturated (size %s)", queueSize));
+                    String.format("The playlist is saturated (size %s, duration %ss)", queueSize, queuedDurationSec));
 
             return Uni.createFrom().item(() -> null);
         } else {
@@ -236,7 +243,7 @@ public class AiHelperService {
                     }
 
                     if (!activeScene.isOneTimeRun() && shouldPlayJingle(activeScene.getTalkativity())) {
-                        //addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Start mixing");
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Start filler mixing");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);
                     }

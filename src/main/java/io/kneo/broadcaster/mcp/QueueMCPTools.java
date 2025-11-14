@@ -8,7 +8,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -27,8 +26,7 @@ public class QueueMCPTools {
             @Parameter("mergingMethod") MergingType mergingMethod,
             @Parameter("songIds") Map<String, UUID> songIds,
             @Parameter("filePaths") Map<String, String> filePaths,
-            @Parameter("priority") Integer priority,
-            @Parameter("expectedStartTime")LocalDateTime expectedStartTime
+            @Parameter("priority") Integer priority
     ) {
         AddToQueueMcpDTO dto = new AddToQueueMcpDTO();
         dto.setMergingMethod(mergingMethod);

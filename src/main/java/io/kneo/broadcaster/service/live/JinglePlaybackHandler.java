@@ -153,7 +153,7 @@ public class JinglePlaybackHandler {
                     fFmpegProvider
             );
 
-            handler.handleConcatenation(station, queueDTO, ConcatenationType.CROSSFADE)
+            handler.handleConcatenationAndFeed(station, queueDTO, ConcatenationType.CROSSFADE)
                     .subscribe().with(
                             success -> LOGGER.info("Station '{}': Successfully queued {} concatenation",
                                     station.getSlugName(), type),

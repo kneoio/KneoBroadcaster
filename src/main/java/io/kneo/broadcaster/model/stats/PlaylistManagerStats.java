@@ -11,6 +11,7 @@ import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Collection;
 import java.util.List;
 
 @Getter
@@ -33,7 +34,7 @@ public class PlaylistManagerStats {
         this.duration = duration;
     }
 
-    private List<LiveSoundFragmentDTO> mapList(List<LiveSoundFragment> list, SongSource type) {
+    private List<LiveSoundFragmentDTO> mapList(Collection<LiveSoundFragment> list, SongSource type) {
         return list.stream().map(live -> {
             SongMetadata m = live.getMetadata();
             LiveSoundFragmentDTO dto = new LiveSoundFragmentDTO();

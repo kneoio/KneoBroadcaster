@@ -14,4 +14,12 @@ public class AddToQueueMcpDTO {
     private Map<String, String> filePaths;
     private Map<String, UUID> soundFragments;
     private Integer priority = 100;
+
+    @Override
+    public String toString() {
+        return "mergingMethod=" + mergingMethod +
+                ", filePaths=" + filePaths +
+                ", priority=" + priority;
+    }
+
 }

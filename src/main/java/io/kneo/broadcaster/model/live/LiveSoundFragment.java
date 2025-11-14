@@ -18,5 +18,6 @@ public class LiveSoundFragment {
     private SongMetadata metadata;
     private boolean played;
     private Path sourceFilePath;
+    private Integer priority = 100;
 
 }

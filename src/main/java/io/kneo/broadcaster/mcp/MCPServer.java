@@ -14,7 +14,6 @@ import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -415,12 +414,7 @@ public class MCPServer extends AbstractVerticle {
             priority = arguments.get("priority").asInt();
         }
 
-        LocalDateTime expectedStartTime = null;
-        if (arguments.has("expectedStartTime")) {
-            expectedStartTime = LocalDateTime.parse(arguments.get("expectedStartTime").asText());
-        }
-
-        return queueMCPTools.addToQueue(brand, mergingMethod, songIds, filePaths, priority, expectedStartTime)
+        return queueMCPTools.addToQueue(brand, mergingMethod, songIds, filePaths, priority)
                 .thenApply(result -> (Object) result);
     }
 

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
+
 import java.util.UUID;
 
 @Getter
@@ -23,4 +24,5 @@ public class TranslateReqDTO {
     @NotNull
     private LanguageCode languageCode;
     private CountryCode countryCode;
+    private double version;
 }

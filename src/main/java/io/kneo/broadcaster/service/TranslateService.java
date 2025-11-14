@@ -163,6 +163,7 @@ public class TranslateService {
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                                existing.setVersion(dto.getVersion());
                                                 return draftService.update(existing.getId(), existing, user);
                                             } else {
                                                 Draft doc = new Draft();
@@ -173,6 +174,7 @@ public class TranslateService {
                                                 doc.setLocked(true);
                                                 doc.setTitle(updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode()));
                                                 doc.setMasterId(originalDraft.getId());
+                                                doc.setVersion(dto.getVersion());
                                                 return draftService.insert(doc, user);
                                             }
                                         });
@@ -197,6 +199,7 @@ public class TranslateService {
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
+                                                existing.setVersion(dto.getVersion());
                                                 return promptService.update(existing.getId(), existing, user);
                                             } else {
                                                 Prompt doc = new Prompt();
@@ -207,6 +210,7 @@ public class TranslateService {
                                                 doc.setLocked(true);
                                                 doc.setTitle(updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode()));
                                                 doc.setMasterId(sourcePrompt.getId());
+                                                doc.setVersion(dto.getVersion());
                                                 return promptService.insert(doc, user);
                                             }
                                         });

@@ -107,8 +107,8 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, title, content, language_code, enabled, is_master, locked, master_id) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, title, content, language_code, enabled, is_master, locked, master_id, version) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -123,7 +123,8 @@ public class DraftRepository extends AsyncRepository {
                         .addBoolean(draft.isEnabled())
                         .addBoolean(draft.isMaster())
                         .addBoolean(draft.isLocked())
-                        .addUUID(draft.getMasterId());
+                        .addUUID(draft.getMasterId())
+                        .addDouble(draft.getVersion());
 
                 return client.preparedQuery(sql)
                         .execute(params)
@@ -140,7 +141,7 @@ public class DraftRepository extends AsyncRepository {
             try {
                 String sql = "UPDATE " + entityData.getTableName() +
                         " SET title = $1, content = $2, language_code = $3, enabled = $4, is_master = $5, locked = $6, master_id = $7, " +
-                        "last_mod_user = $8, last_mod_date = $9 WHERE id = $10";
+                        "version = $8, last_mod_user = $9, last_mod_date = $10 WHERE id = $11";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -152,6 +153,7 @@ public class DraftRepository extends AsyncRepository {
                         .addBoolean(draft.isMaster())
                         .addBoolean(draft.isLocked())
                         .addUUID(draft.getMasterId())
+                        .addDouble(draft.getVersion())
                         .addLong(user.getId())
                         .addOffsetDateTime(now)
                         .addUUID(id);
@@ -210,6 +212,8 @@ public class DraftRepository extends AsyncRepository {
         if (languageCodeStr != null) {
             doc.setLanguageCode(LanguageCode.valueOf(languageCodeStr));
         }
+
+        doc.setVersion(row.getDouble("version"));
 
         return doc;
     }

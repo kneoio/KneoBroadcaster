@@ -22,4 +22,5 @@ public class DraftDTO  extends AbstractReferenceDTO {
     private boolean master;
     private boolean locked;
     private UUID masterId;
+    private double version;
 }

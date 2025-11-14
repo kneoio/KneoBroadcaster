@@ -132,6 +132,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             dto.setMaster(doc.isMaster());
             dto.setLocked(doc.isLocked());
             dto.setMasterId(doc.getMasterId());
+            dto.setVersion(doc.getVersion());
             return dto;
         });
     }
@@ -146,6 +147,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         doc.setMaster(dto.isMaster());
         doc.setLocked(dto.isLocked());
         doc.setMasterId(dto.getMasterId());
+        doc.setVersion(dto.getVersion());
         return doc;
     }
 

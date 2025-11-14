@@ -21,4 +21,5 @@ public class PromptDTO extends AbstractDTO {
     private boolean podcast;
     private UUID draftId;
     private UUID masterId;
+    private double version;
 }

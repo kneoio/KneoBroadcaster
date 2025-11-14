@@ -22,5 +22,6 @@ public class Prompt extends SecureDataEntity<UUID> {
     private boolean podcast;
     private UUID draftId;
     private UUID masterId;
+    private double version;
 
 }

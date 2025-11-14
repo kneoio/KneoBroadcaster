@@ -105,6 +105,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
             dto.setPodcast(doc.isPodcast());
             dto.setDraftId(doc.getDraftId());
             dto.setMasterId(doc.getMasterId());
+            dto.setVersion(doc.getVersion());
             return dto;
         });
     }
@@ -126,6 +127,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         } else {
             doc.setMasterId(dto.getMasterId());
         }
+        doc.setVersion(dto.getVersion());
         return doc;
     }
 

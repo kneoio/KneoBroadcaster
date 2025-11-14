@@ -10,6 +10,7 @@ import io.kneo.core.dto.validation.ValidCountry;
 import io.kneo.core.dto.validation.ValidLocalizedName;
 import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
@@ -66,5 +67,8 @@ public class RadioStationDTO extends AbstractDTO {
     private AiOverridingDTO aiOverriding;
     private ProfileOverridingDTO profileOverriding;
     private Integer archived;
+    @NotNull
+    @NotEmpty
     private List<UUID> scripts;
+
 }

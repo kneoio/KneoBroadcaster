@@ -232,34 +232,30 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
 
     private void startDryRun(RoutingContext rc) {
         String scriptId = rc.pathParam("id");
-        
+
         try {
             if (!validateJsonBody(rc)) return;
-            
+
             JsonObject body = rc.body().asJsonObject();
             String jobId = body.getString("jobId");
-            String stationName = body.getString("stationName");
-            String djName = body.getString("djName");
-            
+            String stationId = body.getString("stationId");
+
             if (jobId == null || jobId.isBlank()) {
                 rc.fail(400, new IllegalArgumentException("jobId is required"));
                 return;
             }
-            if (stationName == null || stationName.isBlank()) {
-                rc.fail(400, new IllegalArgumentException("stationName is required"));
+            if (stationId == null || stationId.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("stationId is required"));
                 return;
             }
-            if (djName == null || djName.isBlank()) {
-                rc.fail(400, new IllegalArgumentException("djName is required"));
-                return;
-            }
-            
+
             UUID scriptUuid = UUID.fromString(scriptId);
-            
+            UUID stationUuid = UUID.fromString(stationId);
+
             getContextUser(rc, false, true)
                     .subscribe().with(
                             user -> {
-                                dryRunService.startDryRun(jobId, scriptUuid, stationName, djName, user);
+                                dryRunService.startDryRun(jobId, scriptUuid, stationUuid, user);
                                 JsonObject response = new JsonObject()
                                         .put("jobId", jobId)
                                         .put("message", "Dry-run started");
@@ -268,7 +264,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                             rc::fail
                     );
         } catch (IllegalArgumentException e) {
-            rc.fail(400, new IllegalArgumentException("Invalid script ID format"));
+            rc.fail(400, new IllegalArgumentException("Invalid ID format"));
         } catch (Exception e) {
             rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
         }

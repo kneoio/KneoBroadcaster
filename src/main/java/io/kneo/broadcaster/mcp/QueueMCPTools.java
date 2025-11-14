@@ -35,7 +35,6 @@ public class QueueMCPTools {
         dto.setPriority(priority);
         dto.setSoundFragments(songIds);
         dto.setFilePaths(filePaths);
-        dto.setExpectedStartTime(expectedStartTime);
 
         return service.addToQueue(brand, dto)
                 .replaceWith(true)

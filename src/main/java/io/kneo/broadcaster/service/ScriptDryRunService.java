@@ -1,8 +1,12 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
+import io.kneo.broadcaster.ai.DraftFactory;
+import io.kneo.broadcaster.dto.ScriptSceneDTO;
+import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
+import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -11,6 +15,7 @@ import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -40,18 +45,23 @@ public class ScriptDryRunService {
     private final RadioStationService radioStationService;
     private final SoundFragmentService soundFragmentService;
     private final AiAgentService aiAgentService;
+    private final DraftFactory draftFactory;
 
     public record SseEvent(String type, JsonObject data) {}
+    private record ProcessContext(List<ScriptSceneDTO> scenes,
+                                  RadioStation station, AiAgent agent, IUser user,
+                                  StringBuilder scenarioBuilder, LlmType llmType,
+                                  String agentName) {}
 
     private final Map<String, JobState> jobs = new ConcurrentHashMap<>();
     private final Map<String, List<Consumer<SseEvent>>> subscribers = new ConcurrentHashMap<>();
-    private final Map<String, StringBuilder> scenarioBuilders = new ConcurrentHashMap<>();
 
     @Inject
     public ScriptDryRunService(AgentClient agentClient, ScriptService scriptService, 
                                SceneService sceneService, PromptService promptService,
                                DraftService draftService, RadioStationService radioStationService,
-                               SoundFragmentService soundFragmentService, AiAgentService aiAgentService) {
+                               SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
+                               DraftFactory draftFactory) {
         this.agentClient = agentClient;
         this.scriptService = scriptService;
         this.sceneService = sceneService;
@@ -60,6 +70,7 @@ public class ScriptDryRunService {
         this.radioStationService = radioStationService;
         this.soundFragmentService = soundFragmentService;
         this.aiAgentService = aiAgentService;
+        this.draftFactory = draftFactory;
     }
 
     public void subscribe(String jobId, Consumer<SseEvent> consumer) {
@@ -79,7 +90,6 @@ public class ScriptDryRunService {
             list.remove(consumer);
             if (list.isEmpty()) {
                 subscribers.remove(jobId);
-                scenarioBuilders.remove(jobId);
             }
         }
     }
@@ -96,7 +106,7 @@ public class ScriptDryRunService {
         }
     }
 
-    public void startDryRun(String jobId, UUID scriptId, String stationName, String djName, IUser user) {
+    public void startDryRun(String jobId, UUID scriptId, UUID stationId, IUser user) {
         if (jobId == null || jobId.isBlank()) {
             throw new IllegalArgumentException("jobId is required");
         }
@@ -108,12 +118,8 @@ public class ScriptDryRunService {
         jobs.put(jobId, st);
 
         StringBuilder scenarioBuilder = new StringBuilder();
-        scenarioBuilders.put(jobId, scenarioBuilder);
 
         scenarioBuilder.append("# Script Dry-Run Simulation\n");
-        scenarioBuilder.append("Station: ").append(stationName).append(" | ");
-        scenarioBuilder.append("DJ: ").append(djName).append(" | ");
-        scenarioBuilder.append("Started: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
 
         emit(jobId, "started", new JsonObject().put("message", "Starting dry-run simulation"));
 
@@ -128,15 +134,29 @@ public class ScriptDryRunService {
                                 return scenes;
                             });
                 })
-                .chain(scenes -> radioStationService.getBySlugName(stationName)
+                .chain(scenes -> radioStationService.getById(stationId, SuperUser.build())
                         .chain(station -> {
                             if (station.getAiAgentId() == null) {
-                                return Uni.createFrom().item(new ProcessContext(scenes, station, djName, user, scenarioBuilder, LlmType.OPENAI));
+                                return Uni.createFrom().item(new ProcessContext(scenes, station, null, user, scenarioBuilder, LlmType.OPENAI, "Default"));
                             }
                             return aiAgentService.getById(station.getAiAgentId(), user, LanguageCode.en)
-                                    .map(agent -> new ProcessContext(scenes, station, djName, user, scenarioBuilder, agent.getLlmType()));
+                                    .map(agent -> new ProcessContext(scenes, station, agent, user, scenarioBuilder, agent.getLlmType(), agent.getName()));
                         }))
-                .chain(context -> processScenes(jobId, context, 0))
+                .chain(context -> {
+                    String stationName = null;
+                    if (context.station.getLocalizedName() != null) {
+                        stationName = context.station.getLocalizedName().get(LanguageCode.en);
+                    }
+                    if (stationName == null || stationName.isBlank()) {
+                        stationName = context.station.getSlugName() != null ? context.station.getSlugName() : String.valueOf(context.station.getId());
+                    }
+                    context.scenarioBuilder.append("Station: ").append(stationName).append(" | ");
+                    context.scenarioBuilder.append("Started: ")
+                            .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                            .append("\n\n");
+                    context.scenarioBuilder.append("DJ: ").append(context.agentName).append("\n\n");
+                    return processScenes(jobId, context, 0);
+                })
                 .subscribe().with(
                         ignored -> {
                             st.finished = true;
@@ -154,9 +174,7 @@ public class ScriptDryRunService {
                 );
     }
 
-    private record ProcessContext(List<io.kneo.broadcaster.dto.ScriptSceneDTO> scenes, 
-                                   RadioStation station, String djName, IUser user, 
-                                   StringBuilder scenarioBuilder, LlmType llmType) {}
+
 
     private Uni<Void> processScenes(String jobId, ProcessContext context, int idx) {
         if (idx >= context.scenes.size()) {
@@ -172,7 +190,7 @@ public class ScriptDryRunService {
 
         return simulateTimeProgression(scenarioBuilder)
                 .chain(() -> maybeInsertSongIntro(context.station.getId(), scenarioBuilder))
-                .chain(() -> processScenePrompts(sceneDTO, context, scenarioBuilder))
+                .chain(() -> processScenePrompts(jobId, sceneDTO, context, scenarioBuilder))
                 .chain(() -> {
                     if (st != null) st.done += 1;
                     emit(jobId, "scene_done", new JsonObject()
@@ -185,17 +203,17 @@ public class ScriptDryRunService {
                 });
     }
 
-    private Uni<Void> processScenePrompts(io.kneo.broadcaster.dto.ScriptSceneDTO sceneDTO, 
+    private Uni<Void> processScenePrompts(String jobId, io.kneo.broadcaster.dto.ScriptSceneDTO sceneDTO, 
                                            ProcessContext context, StringBuilder scenarioBuilder) {
         if (sceneDTO.getPrompts() == null || sceneDTO.getPrompts().isEmpty()) {
             scenarioBuilder.append("*No prompts configured for this scene.*\n\n");
             return Uni.createFrom().voidItem();
         }
 
-        return processPromptSequentially(sceneDTO.getPrompts(), 0, context, scenarioBuilder);
+        return processPromptSequentially(jobId, sceneDTO.getPrompts(), 0, context, scenarioBuilder);
     }
 
-    private Uni<Void> processPromptSequentially(List<UUID> promptIds, int idx, 
+    private Uni<Void> processPromptSequentially(String jobId, List<UUID> promptIds, int idx, 
                                                  ProcessContext context, StringBuilder scenarioBuilder) {
         if (idx >= promptIds.size()) {
             return Uni.createFrom().voidItem();
@@ -211,28 +229,72 @@ public class ScriptDryRunService {
                     }
                     
                     return draftService.getById(prompt.getDraftId(), context.user)
-                            .chain(draft -> testPromptWithDraft(prompt, draft, scenarioBuilder, idx + 1, context.llmType));
+                            .chain(draft -> testPromptWithDraft(jobId, prompt, draft, context, scenarioBuilder, idx + 1));
                 })
-                .chain(() -> processPromptSequentially(promptIds, idx + 1, context, scenarioBuilder));
+                .chain(() -> processPromptSequentially(jobId, promptIds, idx + 1, context, scenarioBuilder));
     }
 
-    private Uni<Void> testPromptWithDraft(Prompt prompt, Draft draft, 
-                                           StringBuilder scenarioBuilder, int promptNumber, LlmType llmType) {
+    private Uni<Void> testPromptWithDraft(String jobId, Prompt prompt, Draft draft, 
+                                           ProcessContext context, StringBuilder scenarioBuilder, int promptNumber) {
         scenarioBuilder.append("Prompt ").append(promptNumber).append(": ").append(prompt.getTitle()).append(" | ");
         scenarioBuilder.append("Draft: ").append(draft.getTitle()).append("\n");
 
-        return agentClient.testPrompt(prompt.getPrompt(), draft.getContent(), llmType)
-                .map(response -> {
-                    String result = response != null ? response.getResult() : "No response";
-                    scenarioBuilder.append("```\n").append(result).append("\n```\n\n");
-                    return null;
-                })
-                .onFailure().recoverWithItem(err -> {
-                    String errorMsg = "Error: " + err.getMessage();
-                    scenarioBuilder.append("Error: ").append(errorMsg).append("\n\n");
-                    return null;
-                })
-                .replaceWithVoid();
+        return soundFragmentService.getByTypeAndBrand(PlaylistItemType.SONG, context.station.getId())
+                .onItem().transform(songs -> songs != null && !songs.isEmpty() ? songs.get(ThreadLocalRandom.current().nextInt(songs.size())) : null)
+                .chain(song -> {
+                    if (song == null) {
+                        String warnMsg = String.format("No songs available for station '%s' (ID: %s). Draft template may have unresolved placeholders.",
+                                context.station.getSlugName(), context.station.getId());
+                        LOGGER.warn(warnMsg);
+                        emit(jobId, "warning", new JsonObject()
+                                .put("message", warnMsg)
+                                .put("promptTitle", prompt.getTitle())
+                                .put("draftTitle", draft.getTitle()));
+                    }
+
+                    MemoryResult emptyMemory = new MemoryResult();
+                    emptyMemory.setConversationHistory(List.of());
+                    emptyMemory.setMessages(List.of());
+                    emptyMemory.setEvents(List.of());
+                    
+                    return draftFactory.createDraftFromCode(draft.getContent(), song, context.agent, context.station, emptyMemory, LanguageCode.en)
+                            .onFailure().invoke(err -> {
+                                assert song != null;
+                                String errorDetail = String.format("Failed to render draft template. Prompt: '%s', Draft: '%s', Station: '%s', Song: %s, Agent: %s. Error: %s",
+                                        prompt.getTitle(),
+                                        draft.getTitle(),
+                                        context.station.getSlugName(),
+                                        song.getTitle(),
+                                        context.agent.getName(),
+                                        err.getMessage());
+                                LOGGER.error(errorDetail, err);
+                                emit(jobId, "prompt_error", new JsonObject()
+                                        .put("message", "Draft rendering failed: " + err.getMessage())
+                                        .put("promptTitle", prompt.getTitle())
+                                        .put("draftTitle", draft.getTitle())
+                                        .put("details", errorDetail));
+                            })
+                            .chain(renderedDraft -> agentClient.testPrompt(prompt.getPrompt(), renderedDraft, context.llmType)
+                                    .onFailure().invoke(err -> {
+                                        String errorDetail = String.format("LLM call failed. Prompt: '%s', LLM: %s. Error: %s",
+                                                prompt.getTitle(), context.llmType, err.getMessage());
+                                        LOGGER.error(errorDetail, err);
+                                        emit(jobId, "prompt_error", new JsonObject()
+                                                .put("message", "LLM call failed: " + err.getMessage())
+                                                .put("promptTitle", prompt.getTitle())
+                                                .put("llmType", context.llmType.toString()));
+                                    })
+                                    .map(response -> {
+                                        scenarioBuilder.append("```\n").append(response.getResult()).append("\n```\n\n");
+                                        return null;
+                                    })
+                                    .onFailure().recoverWithItem(err -> {
+                                        String errorMsg = "Error: " + err.getMessage();
+                                        scenarioBuilder.append("Error: ").append(errorMsg).append("\n\n");
+                                        return null;
+                                    })
+                                    .replaceWithVoid());
+                });
     }
 
     private Uni<Void> simulateTimeProgression(StringBuilder scenarioBuilder) {

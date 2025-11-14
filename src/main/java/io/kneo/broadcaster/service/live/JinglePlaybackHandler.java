@@ -100,14 +100,14 @@ public class JinglePlaybackHandler {
 
                             AddToQueueMcpDTO queueDTO = new AddToQueueMcpDTO();
                             queueDTO.setMergingMethod(MergingType.FILLER_JINGLE);
-                            queueDTO.setPriority(1);
+                            queueDTO.setPriority(11); // less than dj agent(10)
 
                             Map<String, UUID> soundFragments = new HashMap<>();
                             soundFragments.put("song1", selectedJingle.getId());
                             soundFragments.put("song2", selectedSong.getId());
                             queueDTO.setSoundFragments(soundFragments);
 
-                            concatenate(station, queueDTO, "jingle+song");
+                            concatenate(station, queueDTO, "jingle + song");
                         },
                         failure -> LOGGER.error("Station '{}': Failed to fetch jingles/songs: {}",
                                 station.getSlugName(), failure.getMessage(), failure)
@@ -128,14 +128,14 @@ public class JinglePlaybackHandler {
 
                             AddToQueueMcpDTO queueDTO = new AddToQueueMcpDTO();
                             queueDTO.setMergingMethod(MergingType.SONG_CROSSFADE_SONG);
-                            queueDTO.setPriority(1);
+                            queueDTO.setPriority(12);
 
                             Map<String, UUID> soundFragments = new HashMap<>();
                             soundFragments.put("song1", firstSong.getId());
                             soundFragments.put("song2", secondSong.getId());
                             queueDTO.setSoundFragments(soundFragments);
 
-                            concatenate(station, queueDTO, "song+song");
+                            concatenate(station, queueDTO, "song + crossfade + song");
                         },
                         failure -> LOGGER.error("Station '{}': Failed to fetch songs: {}",
                                 station.getSlugName(), failure.getMessage(), failure)

@@ -4,7 +4,6 @@ import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -14,6 +13,5 @@ public class AddToQueueMcpDTO {
     private MergingType mergingMethod;
     private Map<String, String> filePaths;
     private Map<String, UUID> soundFragments;
-    private Integer priority = 10;
-    private LocalDateTime expectedStartTime;
+    private Integer priority = 100;
 }

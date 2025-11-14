@@ -27,7 +27,6 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -45,7 +44,7 @@ public class PlaylistManager {
     private static final int REGULAR_BUFFER_MAX = 2;
     private static final int READY_QUEUE_MAX_SIZE = 2;
     private static final int TRIGGER_SELF_MANAGING = 2;
-    private static final int PROCESSED_QUEUE_MAX_SIZE = 3;
+    private static final int PROCESSED_QUEUE_MAX_SIZE = 2;
     private static final long STARVING_FEED_COOLDOWN_MILLIS = 20_000L;
 
     private final ReadWriteLock slicedFragmentsLock = new ReentrantReadWriteLock();
@@ -184,7 +183,7 @@ public class PlaylistManager {
             liveSoundFragment.setMetadata(songMetadata);
             liveSoundFragment.setSourceFilePath(metadata.getTemporaryFilePath());
 
-            if (soundFragment.getSource() == SourceType.CONTRIBUTION){
+            if (soundFragment.getSource() == SourceType.CONTRIBUTION) {
 
             }
 
@@ -199,22 +198,26 @@ public class PlaylistManager {
                         boolean isAiDjSubmit = priority <= 10;
 
                         if (isAiDjSubmit) {
-                            if (mcpDTO != null && mcpDTO.getExpectedStartTime() != null) {
-                                LocalDateTime expectedTime = mcpDTO.getExpectedStartTime();
-                                LocalDateTime now = LocalDateTime.now();
+                            if (mcpDTO != null && mcpDTO.getPriority() <= 9) {
+                                prioritizedQueue.clear();
                                 
-                                if (expectedTime.isBefore(now)) {
-                                    LOGGER.warn("Expected start time {} has passed (current: {}). Clearing prioritized queue for brand {}",
-                                            expectedTime, now, brand);
-                                    prioritizedQueue.clear();
-                                    
-                                    aiHelperService.addMessage(
-                                        brand,
-                                        AiDjStats.MessageType.INFO,
-                                        String.format("Sound fragment '%s' added due to expected time (%s)",
-                                                soundFragment.getTitle(), expectedTime)
-                                    );
+                                if (mcpDTO.getPriority() <= 8) {
+                                    slicedFragmentsLock.writeLock().lock();
+                                    try {
+                                        obtainedByHlsPlaylist.clear();
+                                        LOGGER.warn("Priority {} triggered immediate interruption. Cleared active playlist for brand {}",
+                                                mcpDTO.getPriority(), brand);
+                                    } finally {
+                                        slicedFragmentsLock.writeLock().unlock();
+                                    }
                                 }
+                                
+                                aiHelperService.addMessage(
+                                    brand,
+                                    AiDjStats.MessageType.INFO,
+                                    String.format("Sound fragment '%s' with higher priority (%s)",
+                                            soundFragment.getTitle(), mcpDTO.getPriority())
+                                );
                             }
                             
                             prioritizedQueue.add(liveSoundFragment);
@@ -291,23 +294,24 @@ public class PlaylistManager {
         return new PlaylistManagerStats(this, segmentDuration);
     }
 
-    private void moveFragmentToProcessedList(LiveSoundFragment fragmentToMove) {
-        if (fragmentToMove != null) {
+    private void moveFragmentToProcessedList(LiveSoundFragment fragmentToPlay) {
+        if (fragmentToPlay != null) {
             slicedFragmentsLock.writeLock().lock();
             try {
-                obtainedByHlsPlaylist.add(fragmentToMove);
-                brandSoundFragmentUpdateService.updatePlayedCountAsync(brandId, fragmentToMove.getSoundFragmentId())
+                obtainedByHlsPlaylist.add(fragmentToPlay);
+                brandSoundFragmentUpdateService.updatePlayedCountAsync(brandId, fragmentToPlay.getSoundFragmentId())
                         .subscribe().with(
-                                unused -> {},
+                                unused -> {
+                                },
                                 error -> LOGGER.error("Failed to update played count: {}", error.getMessage(), error)
                         );
-                LOGGER.info(">>> moveFragmentToProcessedList START for brand {} fragment {}", brand, fragmentToMove.getMetadata());
-                fragmentsForMp3.add(fragmentToMove);
+                LOGGER.info(">>> moveFragmentToProcessedList START for brand {} fragment {}", brand, fragmentToPlay.getMetadata());
+                fragmentsForMp3.add(fragmentToPlay);
                 while (fragmentsForMp3.size() > 2) {
                     fragmentsForMp3.removeFirst();
                 }
 
-                LOGGER.info("Queued fragment for brand={} id={}", brand, fragmentToMove.getSoundFragmentId());
+                LOGGER.info("Queued fragment for brand={} id={}", brand, fragmentToPlay.getSoundFragmentId());
                 if (obtainedByHlsPlaylist.size() > PROCESSED_QUEUE_MAX_SIZE) {
                     LiveSoundFragment removed = obtainedByHlsPlaylist.poll();
                     LOGGER.debug("Removed oldest fragment from processed queue: {}",

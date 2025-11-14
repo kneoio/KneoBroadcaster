@@ -22,6 +22,7 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.ScriptService;
+import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
@@ -139,7 +140,8 @@ public class AiHelperService {
 
     private Uni<LiveRadioStationMcpDTO> buildLiveRadioStation(RadioStation station) {
         LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
-        int queueSize = station.getStreamManager().getPlaylistManager().getPrioritizedQueue().size();
+        PlaylistManager playlistManager = station.getStreamManager().getPlaylistManager();
+        int queueSize = playlistManager.getPrioritizedQueue().size();
         LOGGER.info("Station '{}' has queue size: {}", station.getSlugName(), queueSize);
         if (queueSize > 1) {
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
@@ -206,10 +208,6 @@ public class AiHelperService {
                 .flatMap(tuple -> {
                     List<BrandScript> brandScripts = tuple.getItem1();
                     MemoryResult memoryData = tuple.getItem2();
-                    if (brandScripts.isEmpty()) {
-                        return Uni.createFrom().item(() -> null);
-                    }
-
                     ZoneId zone = station.getTimeZone();
                     ZonedDateTime now = ZonedDateTime.now(zone);
                     LocalTime stationCurrentTime = now.toLocalTime();

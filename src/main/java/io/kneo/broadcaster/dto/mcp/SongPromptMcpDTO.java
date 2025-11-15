@@ -15,5 +15,6 @@ public record SongPromptMcpDTO(
         LlmType llmType,
         SearchEngineType searchEngineType,
         LocalTime startTime,
-        boolean oneTimeRun
+        boolean oneTimeRun,
+        boolean dialogue
 ) {}

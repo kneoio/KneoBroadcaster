@@ -199,7 +199,8 @@ public class TranslateService {
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                                existing.setVersion(dto.getVersion());
+                                                existing.setVersion(sourcePrompt.getVersion());
+                                                existing.setPodcast(sourcePrompt.isPodcast());
                                                 return promptService.update(existing.getId(), existing, user);
                                             } else {
                                                 Prompt doc = new Prompt();
@@ -210,7 +211,8 @@ public class TranslateService {
                                                 doc.setLocked(true);
                                                 doc.setTitle(updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode()));
                                                 doc.setMasterId(sourcePrompt.getId());
-                                                doc.setVersion(dto.getVersion());
+                                                doc.setVersion(sourcePrompt.getVersion());
+                                                doc.setPodcast(sourcePrompt.isPodcast());
                                                 return promptService.insert(doc, user);
                                             }
                                         });

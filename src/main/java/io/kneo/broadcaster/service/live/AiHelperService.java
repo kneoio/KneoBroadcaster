@@ -149,12 +149,13 @@ public class AiHelperService {
                 .flatMap(ConcurrentLinkedQueue::stream)
                 .mapToInt(HlsSegment::getDuration)
                 .sum();
-        LOGGER.info("Station '{}' has queue size: {}, queued duration: {}s", station.getSlugName(), queueSize, queuedDurationSec);
         if (queueSize > 1 || queuedDurationSec > 300) {
+            double queuedDurationInMinutes = queuedDurationSec / 60.0;
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
-            LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s", station.getSlugName(), queueSize, queuedDurationSec);
+            LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s ({} min)", 
+                station.getSlugName(), queueSize, queuedDurationSec, String.format("%.1f", queuedDurationInMinutes));
             addMessage(station.getSlugName(), AiDjStats.MessageType.INFO,
-                    String.format("The playlist is saturated (size %s, duration %ss)", queueSize, queuedDurationSec));
+                    String.format("The playlist is saturated (size %s, duration %.1f min)", queueSize, queuedDurationInMinutes));
 
             return Uni.createFrom().item(() -> null);
         } else {
@@ -323,7 +324,8 @@ public class AiHelperService {
                                                                 agent.getLlmType(),
                                                                 agent.getSearchEngineType(),
                                                                 finalActiveScene.getStartTime(),
-                                                                finalActiveScene.isOneTimeRun()
+                                                                finalActiveScene.isOneTimeRun(),
+                                                                selectedPrompt.isPodcast()
                                                         ));
                                                     }).collect(Collectors.toList());
 

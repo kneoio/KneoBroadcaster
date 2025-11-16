@@ -5,8 +5,6 @@ import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.UUID;
@@ -14,7 +12,6 @@ import java.util.concurrent.CompletableFuture;
 
 @ApplicationScoped
 public class QueueMCPTools {
-    private static final Logger LOGGER = LoggerFactory.getLogger(QueueMCPTools.class);
 
     @Inject
     QueueService service;

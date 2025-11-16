@@ -35,7 +35,13 @@ public class PlaylistManagerStats {
     }
 
     private List<LiveSoundFragmentDTO> mapList(Collection<LiveSoundFragment> list, SongSource type) {
-        return list.stream().map(live -> {
+        List<LiveSoundFragment> ordered = List.copyOf(list);
+        if (type == SongSource.PRIORITIZED) {
+            ordered = new java.util.ArrayList<>(ordered);
+            java.util.Collections.reverse(ordered);
+        }
+
+        return ordered.stream().map(live -> {
             SongMetadata m = live.getMetadata();
             LiveSoundFragmentDTO dto = new LiveSoundFragmentDTO();
             dto.setTitle(m.getTitle());
@@ -46,4 +52,6 @@ public class PlaylistManagerStats {
             return dto;
         }).toList();
     }
+
+
 }

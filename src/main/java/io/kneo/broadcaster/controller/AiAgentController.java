@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
@@ -31,9 +30,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
 
     @Inject
     AiAgentService service;
-
-    @Inject
-    AgentClient agentClient;
 
     private Validator validator;
 

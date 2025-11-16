@@ -12,16 +12,11 @@ import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
 @ApplicationScoped
 public class DashboardController {
 
     private final DashboardService dashboardService;
     private final StationDashboardService stationDashboardService;
-    private final Map<String, ServerWebSocket> connectedClients = new ConcurrentHashMap<>();
 
     @Inject
     public DashboardController(DashboardService dashboardService,
@@ -64,11 +59,8 @@ public class DashboardController {
     }
 
     private void handleDashboardWebSocket(ServerWebSocket webSocket) {
-        String clientId = UUID.randomUUID().toString();
         webSocket.accept();
-        connectedClients.put(clientId, webSocket);
         sendDashboardData(webSocket);
-        webSocket.closeHandler(v -> connectedClients.remove(clientId));
 
         webSocket.textMessageHandler(message -> {
             JsonObject msgJson = new JsonObject(message);
@@ -79,11 +71,8 @@ public class DashboardController {
     }
 
     private void handleStation(ServerWebSocket webSocket, String brand) {
-        String clientId = UUID.randomUUID().toString();
         webSocket.accept();
-        connectedClients.put(clientId, webSocket);
         sendStationData(webSocket, brand);
-        webSocket.closeHandler(v -> connectedClients.remove(clientId));
 
         webSocket.textMessageHandler(message -> {
             JsonObject msgJson = new JsonObject(message);

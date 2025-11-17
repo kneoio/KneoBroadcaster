@@ -63,15 +63,15 @@ public class AudioConcatenator {
     }
 
     public Uni<String> concatenate(String firstPath, String secondPath, String outputPath,
-                                   ConcatenationType mixingType, double gainValue) {
+                                   ConcatenationType mixingType, double mixParam) {
         return Uni.createFrom().item(() -> {
             try {
-                LOGGER.info("Concatenating with mixing type: {}, gain: {}s", mixingType, gainValue);
+                LOGGER.info("Concatenating with mixing type: {}, param: {}", mixingType, mixParam);
 
                 return switch (mixingType) {
-                    case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, gainValue);
-                    case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, 0);
-                    case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, gainValue);
+                    case DIRECT_CONCAT -> directConcatenation(firstPath, secondPath, outputPath, mixParam);
+                    case CROSSFADE -> createCrossfadeMix(firstPath, secondPath, outputPath, mixParam);
+                    case VOLUME_CONCAT -> volumeConcatenation(firstPath, secondPath, outputPath, mixParam);
                 };
             } catch (Exception e) {
                 LOGGER.error("Error in concatenateWithMixing: {}", e.getMessage(), e);
@@ -80,7 +80,7 @@ public class AudioConcatenator {
         }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
 
-    private String directConcatenation(String firstPath, String secondPath, String outputPath, double gainValue) {
+    private String directConcatenation(String firstPath, String secondPath, String outputPath, double mixParam) {
         FFmpegBuilder builder = new FFmpegBuilder()
                 .setInput(firstPath)
                 .addInput(secondPath)
@@ -88,7 +88,7 @@ public class AudioConcatenator {
                         "[0]volume=%.2f,aresample=async=1,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[first];" +
                                 "[1]aresample=async=1,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[second];" +
                                 "[first][second]concat=n=2:v=0:a=1",
-                        gainValue))
+                        mixParam))
                 .addOutput(outputPath)
                 .setAudioCodec("pcm_s16le")
                 .setAudioSampleRate(SAMPLE_RATE)
@@ -100,20 +100,20 @@ public class AudioConcatenator {
     }
 
     private String createCrossfadeMix(String firstPath, String secondPath, String outputPath,
-                                      double crossfadeDuration) throws Exception {
+                                      double mixParam) throws Exception {
         double firstDuration = getAudioDuration(firstPath);
-        double crossfadeStart = Math.max(0, firstDuration - crossfadeDuration);
+        double crossfadeStart = Math.max(0, firstDuration - mixParam);
 
         String filterComplex = String.format(
-                "[0:a]silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=-1:stop_threshold=-40dB:detection=peak," +
-                        "atrim=start=0:end=%.2f,aresample=async=1,asetpts=N/SR/TB,afade=t=out:st=%.2f:d=%.2f[a1];" +
-                        "[1:a]silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=-1:stop_threshold=-40dB:detection=peak," +
-                        "aresample=async=1,atrim=start=0,asetpts=N/SR/TB,afade=t=in:st=0:d=%.2f,adelay=%.0f|%.0f[a2];" +
-                        "[a1][a2]amix=inputs=2:duration=longest:dropout_transition=0",
-                crossfadeStart + 0.15,  // small safety margin before fade-out
-                crossfadeStart, crossfadeDuration,
-                crossfadeDuration,
-                crossfadeStart * 1000, crossfadeStart * 1000
+                // First: remove trailing silence by reversing, trimming leading, then reverse back
+                "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,areverse," +
+                        "silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=0:detection=rms,areverse,asetpts=PTS-STARTPTS[a0];" +
+                        // Second: remove leading silence
+                        "[1:a]silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=0:detection=rms," +
+                        "aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,asetpts=PTS-STARTPTS[a1];" +
+                        // Crossfade
+                        "[a0][a1]acrossfade=d=%.3f:c1=tri:c2=tri",
+                mixParam
         );
 
         FFmpegBuilder builder = new FFmpegBuilder()
@@ -134,7 +134,7 @@ public class AudioConcatenator {
     }
 
     private String volumeConcatenation(String firstPath, String secondPath, String outputPath,
-                                       double gainValue){
+                                       double mixParam){
         FFmpegBuilder builder = new FFmpegBuilder()
                 .setInput(firstPath)
                 .addInput(secondPath)
@@ -142,7 +142,7 @@ public class AudioConcatenator {
                         "[0]volume=%.2f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[speech];" +
                                 "[1]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[song];" +
                                 "[speech][song]concat=n=2:v=0:a=1",
-                        gainValue))
+                        mixParam))
                 .addOutput(outputPath)
                 .setAudioCodec("libmp3lame")
                 .setAudioSampleRate(SAMPLE_RATE)

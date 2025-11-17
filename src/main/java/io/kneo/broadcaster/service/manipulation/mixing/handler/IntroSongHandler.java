@@ -71,7 +71,7 @@ public class IntroSongHandler {
                                            PlaylistManager playlistManager) {
         return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
-                    double gainValue = aiAgent.getMerger().getGainIntro();
+                    double gainValue = 0;
 
                     return songMetadata.materializeFileStream(tempBaseDir)
                             .chain(songTempFile -> {

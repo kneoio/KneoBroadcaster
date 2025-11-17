@@ -10,6 +10,7 @@ import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +47,11 @@ public class MCPServer extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise) {
         try {
-            server = vertx.createHttpServer();
+            HttpServerOptions options = new HttpServerOptions()
+                    .setIdleTimeout(mcpConfig.getIdleTimeoutSeconds())
+                    .setIdleTimeoutUnit(java.util.concurrent.TimeUnit.SECONDS);
+            
+            server = vertx.createHttpServer(options);
             server.requestHandler(request -> {
                         if (request.headers().contains("Upgrade", "websocket", true)) {
                             return;

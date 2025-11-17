@@ -26,6 +26,7 @@ import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
@@ -72,11 +73,13 @@ public class AiHelperService {
     private final DraftFactory draftFactory;
     private final MemoryService memoryService;
     private final JinglePlaybackHandler jinglePlaybackHandler;
+    private final Randomizator randomizator;
 
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
-            RadioStationStatus.QUEUE_SATURATED
+            RadioStationStatus.QUEUE_SATURATED,
+            RadioStationStatus.IDLE
     );
     
     private static final int SCENE_START_SHIFT_MINUTES = 5;
@@ -91,7 +94,7 @@ public class AiHelperService {
             SoundFragmentMCPTools soundFragmentMCPTools,
             DraftFactory draftFactory,
             MemoryService memoryService,
-            JinglePlaybackHandler jinglePlaybackHandler
+            JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -102,6 +105,7 @@ public class AiHelperService {
         this.draftFactory = draftFactory;
         this.memoryService = memoryService;
         this.jinglePlaybackHandler = jinglePlaybackHandler;
+        this.randomizator = randomizator;
     }
 
     public Uni<LiveContainerMcpDTO> getOnline() {
@@ -300,7 +304,7 @@ public class AiHelperService {
 
                                 Random random = new Random();
                                 
-                                return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, soundFragmentMCPTools.decideFragmentCount())
+                                return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, randomizator.decideFragmentCount(station.getSlugName()))
                                         .flatMap(songs -> {
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> {

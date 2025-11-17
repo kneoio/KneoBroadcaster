@@ -29,4 +29,8 @@ public interface MCPConfig {
     @WithName("server.version")
     @WithDefault("1.0.0")
     String getServerVersion();
+
+    @WithName("server.idle.timeout")
+    @WithDefault("300")
+    int getIdleTimeoutSeconds();
 }

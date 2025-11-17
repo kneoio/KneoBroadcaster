@@ -50,7 +50,7 @@ public class QueueService {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueService.class);
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueMcpDTO toQueueDTO) {
-        LOGGER.info(" >>>>> request to add to queue from Mixplatron {}", toQueueDTO.toString());
+        LOGGER.info(" >>>>> request to add to queue from Introcaster {}", toQueueDTO.toString());
         if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {  //keeping JIC
             return getRadioStation(brandName)
                     .chain(radioStation -> {

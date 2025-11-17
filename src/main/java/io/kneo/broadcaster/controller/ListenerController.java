@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.service.ListenerService;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -32,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import io.kneo.broadcaster.util.ProblemDetailsUtil;
 
 @ApplicationScoped
 public class ListenerController extends AbstractSecuredController<Listener, ListenerDTO> {

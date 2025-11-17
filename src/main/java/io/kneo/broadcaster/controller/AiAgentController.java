@@ -87,7 +87,6 @@ public class AiAgentController extends AbstractSecuredController<AiAgent, AiAgen
                 .chain(user -> {
                     if ("new".equals(id)) {
                         AiAgentDTO dto = new AiAgentDTO();
-                        dto.setTalkativity(0.3);
                       //  dto.setPrompts(List.of(PROMPT_BASIC));
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }

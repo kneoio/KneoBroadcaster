@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.LlmType;
-import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -142,17 +141,9 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, preferred_voice, copilot, talkativity, merger, podcast_mode) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, preferred_voice, copilot) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
-        JsonObject mergerJson = null;
-        if (agent.getMerger() != null) {
-            try {
-                mergerJson = new JsonObject().put("merger", JsonObject.mapFrom(agent.getMerger()));
-            } catch (Exception e) {
-                LOGGER.error("Failed to serialize merger for agent: {}", agent.getName(), e);
-            }
-        }
 
         JsonArray preferredLangJson = new JsonArray();
         if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
@@ -174,10 +165,7 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getLlmType().name())
                 .addString(agent.getSearchEngineType().name())
                 .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
-                .addUUID(agent.getCopilot())
-                .addDouble(agent.getTalkativity())
-                .addJsonObject(mergerJson)
-                .addDouble(agent.getPodcastMode());
+                .addUUID(agent.getCopilot());
 
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
@@ -205,17 +193,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, search_engine_type=$6, preferred_voice=$7, copilot=$8, talkativity=$9, merger=$10, podcast_mode=$11 " +
-                                    "WHERE id=$12";
-
-                            JsonObject mergerJson = null;
-                            if (agent.getMerger() != null) {
-                                try {
-                                    mergerJson = new JsonObject().put("merger", JsonObject.mapFrom(agent.getMerger()));
-                                } catch (Exception e) {
-                                    LOGGER.error("Failed to serialize merger for agent: {}", agent.getName(), e);
-                                }
-                            }
+                                    "llm_type=$5, search_engine_type=$6, preferred_voice=$7, copilot=$8 " +
+                                    "WHERE id=$9";
 
                             JsonArray preferredLangJson = new JsonArray();
                             if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
@@ -236,9 +215,6 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getSearchEngineType().name())
                                     .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
                                     .addUUID(agent.getCopilot())
-                                    .addDouble(agent.getTalkativity())
-                                    .addJsonObject(mergerJson)
-                                    .addDouble(agent.getPodcastMode())
                                     .addUUID(id);
 
                             return client.preparedQuery(sql)
@@ -305,21 +281,6 @@ public class AiAgentRepository extends AsyncRepository {
         
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
         doc.setSearchEngineType(SearchEngineType.valueOf(row.getString("search_engine_type")));
-        doc.setTalkativity(row.getDouble("talkativity"));
-        doc.setPodcastMode(row.getDouble("podcast_mode"));
-
-        JsonObject mergerJson = row.getJsonObject("merger");
-        if (mergerJson != null) {
-            try {
-                JsonObject mergerData = mergerJson.getJsonObject("merger");
-                if (mergerData != null) {
-                    Merger merger = mapper.treeToValue(mapper.valueToTree(mergerData.getMap()), Merger.class);
-                    doc.setMerger(merger);
-                }
-            } catch (Exception e) {
-                LOGGER.error("Failed to parse merger JSON for radio station: {}", row.getUUID("id"), e);
-            }
-        }
 
         try {
             JsonArray preferredVoiceJson = row.getJsonArray("preferred_voice");

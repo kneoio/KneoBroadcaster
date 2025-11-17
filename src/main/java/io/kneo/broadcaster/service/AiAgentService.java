@@ -2,14 +2,11 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ai.AiAgentDTO;
 import io.kneo.broadcaster.dto.ai.LanguagePreferenceDTO;
-import io.kneo.broadcaster.dto.ai.MergerDTO;
 import io.kneo.broadcaster.dto.ai.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.LlmType;
-import io.kneo.broadcaster.model.ai.MergeMethod;
 import io.kneo.broadcaster.model.ai.SearchEngineType;
-import io.kneo.broadcaster.model.ai.Merger;
 import io.kneo.broadcaster.model.ai.Voice;
 import io.kneo.broadcaster.repository.AiAgentRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -107,15 +104,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             
             dto.setLlmType(doc.getLlmType().name());
             dto.setSearchEngineType(doc.getSearchEngineType().name());
-            dto.setTalkativity(doc.getTalkativity());
-            dto.setPodcastMode(doc.getPodcastMode());
-
-            if (doc.getMerger() != null) {
-                MergerDTO mergerDTO = new MergerDTO();
-                mergerDTO.setMethod(doc.getMerger().getMethod().name());
-                mergerDTO.setGainIntro(doc.getMerger().getGainIntro());
-                dto.setMerger(mergerDTO);
-            }
 
             if (doc.getPreferredVoice() != null && !doc.getPreferredVoice().isEmpty()) {
                 List<VoiceDTO> voiceDTOs = doc.getPreferredVoice().stream()
@@ -150,19 +138,10 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             doc.setPreferredLang(langPrefs);
         }
         
-        doc.setTalkativity(dto.getTalkativity());
-        doc.setPodcastMode(dto.getPodcastMode());
         doc.setLlmType(LlmType.valueOf(dto.getLlmType()));
         
         if (dto.getSearchEngineType() != null) {
             doc.setSearchEngineType(SearchEngineType.valueOf(dto.getSearchEngineType()));
-        }
-
-        if (dto.getMerger() != null) {
-            Merger merger = new Merger();
-            merger.setMethod(MergeMethod.valueOf(dto.getMerger().getMethod()));
-            merger.setGainIntro(dto.getMerger().getGainIntro());
-            doc.setMerger(merger);
         }
 
         if (dto.getPreferredVoice() != null && !dto.getPreferredVoice().isEmpty()) {

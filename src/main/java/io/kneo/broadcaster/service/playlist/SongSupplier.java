@@ -138,7 +138,7 @@ public class SongSupplier {
                     UUID brandId = radioStation.getId();
                     BrandActivityLogger.logActivity(brandName, "fetching_fragments", "Fetching fragments for brand ID: %s", brandId);
 
-                    return repository.getBrandSongs(brandId, fragmentType)
+                    return repository.getBrandSongsRandomPage(brandId, fragmentType)
                             .map(fragments -> {
                                 Collections.shuffle(fragments);
                                 brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));

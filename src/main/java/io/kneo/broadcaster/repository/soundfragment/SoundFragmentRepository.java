@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.file.HetznerStorage;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -39,6 +39,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SOUND_FRAGMENT;
@@ -192,6 +193,17 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     }
                 });
     }
+
+    public Uni<List<SoundFragment>> getBrandSongsRandomPage(UUID brandId, PlaylistItemType type) {
+        int limit = 200;
+        int offset = ThreadLocalRandom.current().nextInt(0, 20) * limit;
+
+        SoundFragmentBrandRepository brandRepository =
+                new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+
+        return brandRepository.getBrandSongs(brandId, type, limit, offset);
+    }
+
 
     public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();

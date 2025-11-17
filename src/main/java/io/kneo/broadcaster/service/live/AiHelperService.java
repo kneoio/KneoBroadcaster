@@ -306,6 +306,12 @@ public class AiHelperService {
                                 
                                 return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, randomizator.decideFragmentCount(station.getSlugName()))
                                         .flatMap(songs -> {
+                                            if (songs == null || songs.isEmpty()) {
+                                                LOGGER.error("Station '{}': No songs available for prompt generation",
+                                                        station.getSlugName());
+                                                return Uni.createFrom().item(Tuple2.of(List.<SongPromptMcpDTO>of(), finalCurrentSceneTitle));
+                                            }
+
                                             List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> {
                                                         Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));

@@ -139,11 +139,18 @@ public class SongSupplier {
                     BrandActivityLogger.logActivity(brandName, "fetching_fragments", "Fetching fragments for brand ID: %s", brandId);
 
                     return repository.getBrandSongsRandomPage(brandId, fragmentType)
+                            .flatMap(fragments -> {
+                                if (fragments.isEmpty()) {
+                                    return repository.getBrandSongs(brandId, fragmentType);
+                                }
+                                return Uni.createFrom().item(fragments);
+                            })
                             .map(fragments -> {
                                 Collections.shuffle(fragments);
                                 brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));
                                 return fragments;
                             });
+
                 });
     }
 

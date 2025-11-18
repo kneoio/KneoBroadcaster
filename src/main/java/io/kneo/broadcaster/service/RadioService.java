@@ -1,18 +1,18 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
-import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.MessageDTO;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
+import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
@@ -186,6 +186,7 @@ public class RadioService {
                                         if (onlineStation != null &&
                                                 (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
                                                         onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
+                                                        onlineStation.getStatus() == RadioStationStatus.WARMING_UP ||
                                                         onlineStation.getStatus() == RadioStationStatus.IDLE)) {
                                             return toStatusDTO(onlineStation, false);
                                         }

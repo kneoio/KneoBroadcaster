@@ -78,8 +78,7 @@ public class AiHelperService {
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
             RadioStationStatus.ON_LINE,
             RadioStationStatus.WARMING_UP,
-            RadioStationStatus.QUEUE_SATURATED,
-            RadioStationStatus.IDLE
+            RadioStationStatus.QUEUE_SATURATED
     );
     
     private static final int SCENE_START_SHIFT_MINUTES = 5;

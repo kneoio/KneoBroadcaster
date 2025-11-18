@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.mcp;
+package io.kneo.broadcaster.tools;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

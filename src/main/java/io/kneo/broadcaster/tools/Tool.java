@@ -1,12 +1,12 @@
-package io.kneo.broadcaster.mcp;
+package io.kneo.broadcaster.tools;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target(ElementType.PARAMETER)
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Parameter {
+public @interface Tool {
     String value();
 }

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.mcp;
+package io.kneo.broadcaster.tools;
 
 import io.kneo.broadcaster.config.MCPConfig;
 import io.quarkus.runtime.ShutdownEvent;

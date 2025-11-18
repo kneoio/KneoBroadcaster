@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.mcp;
+package io.kneo.broadcaster.tools;
 
 import io.kneo.broadcaster.dto.mcp.MemoryMcpDTO;
 import io.kneo.broadcaster.service.MemoryService;

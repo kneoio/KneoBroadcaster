@@ -10,9 +10,14 @@ import io.smallrye.mutiny.Uni;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFprobe;
 
-import java.io.*;
-import java.nio.file.*;
-import java.util.*;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class FFmpegAudioMixingTestRunner {
@@ -142,6 +147,11 @@ public class FFmpegAudioMixingTestRunner {
             @Override
             public List<String> getStationWhitelist() {
                 return List.of();
+            }
+
+            @Override
+            public String getAgentApiKey() {
+                return "test";
             }
         };
     }

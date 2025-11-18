@@ -7,10 +7,17 @@ import io.kneo.broadcaster.service.manipulation.mixing.ConcatenationType;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFprobe;
 
-import java.io.*;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.lang.reflect.Field;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class AudioConcatenatorManualTest {
@@ -97,6 +104,11 @@ public class AudioConcatenatorManualTest {
             public String getAudioOutputFormat() { return "wav"; }
             public int getMaxSilenceDuration() { return 3600; }
             public List<String> getStationWhitelist() { return List.of(); }
+
+            @Override
+            public String getAgentApiKey() {
+                return "test";
+            }
         };
     }
 

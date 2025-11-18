@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -78,6 +79,7 @@ public class PlaylistManager {
     @Getter
     private final LinkedList<LiveSoundFragment> fragmentsForMp3 = new LinkedList<>();
     private final AiHelperService aiHelperService;
+    private static final Random RANDOM = new Random();
 
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
@@ -106,7 +108,11 @@ public class PlaylistManager {
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 if (regularQueue.size() <= TRIGGER_SELF_MANAGING) {
-                    feedFragments(2, false);
+                    if (RANDOM.nextDouble() < 0.5) {
+                        feedFragments(1, false);
+                    } else {
+                        feedFragments(2, false);
+                    }
                 }
             } catch (Exception e) {
                 LOGGER.error("Error during maintenance: {}", e.getMessage(), e);
@@ -232,8 +238,7 @@ public class PlaylistManager {
                             regularQueue.add(liveSoundFragment);
                             LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, metadata.getFileOriginalName());
                         }
-                        memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId())
-                                .subscribe().asCompletionStage();
+                        //memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId()).subscribe().asCompletionStage();
                         return Uni.createFrom().item(true);
                     });
         } catch (Exception e) {
@@ -269,8 +274,7 @@ public class PlaylistManager {
                         regularQueue.add(liveSoundFragment);
                         LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, materializedMetadata.getFileOriginalName());
                     }
-                    memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId())
-                            .subscribe().asCompletionStage();
+                    //memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId()).subscribe().asCompletionStage();
                     return Uni.createFrom().item(true);
                 });
     }

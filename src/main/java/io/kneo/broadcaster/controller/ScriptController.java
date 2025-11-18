@@ -14,6 +14,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -61,6 +62,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         String path = "/api/scripts";
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
+        router.get(path + "/shared").handler(this::getAllShared);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
         router.post(path + "/:id").handler(this::upsert);
@@ -92,6 +94,30 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                     viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                     return viewPage;
                 }))
+                .subscribe().with(
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                        rc::fail
+                );
+    }
+
+    private void getAllShared(RoutingContext rc) {
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
+
+        SuperUser su = SuperUser.build();
+        Uni.combine().all().unis(
+                        service.getAllCount(su),
+                        service.getAll(size, (page - 1) * size, su)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<ScriptDTO> dtoEntries = new View<>(tuple.getItem2(),
+                            tuple.getItem1(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                    return viewPage;
+                })
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
@@ -285,10 +311,9 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
 
         java.util.function.Consumer<io.kneo.broadcaster.service.ScriptDryRunService.SseEvent> consumer = ev -> {
             try {
-                StringBuilder sb = new StringBuilder();
-                sb.append("event: ").append(ev.type()).append('\n');
-                sb.append("data: ").append(ev.data() != null ? ev.data().encode() : "{}").append('\n').append('\n');
-                resp.write(sb.toString());
+                String sb = "event: " + ev.type() + '\n' +
+                        "data: " + (ev.data() != null ? ev.data().encode() : "{}") + '\n' + '\n';
+                resp.write(sb);
             } catch (Exception ignored) { }
         };
 

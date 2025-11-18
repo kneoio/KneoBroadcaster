@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.agent;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ai.AgentResponseDTO;
 import io.kneo.broadcaster.dto.cnst.TranslationType;
 import io.kneo.broadcaster.model.ai.LlmType;
@@ -8,12 +9,12 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import io.kneo.broadcaster.config.BroadcasterConfig;
-import jakarta.annotation.PostConstruct;
-import java.util.Map;
+
 import java.util.HashMap;
+import java.util.Map;
 
 @ApplicationScoped
 public class AgentClient {
@@ -41,6 +42,7 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
+                .putHeader("X-API-Key", "Gf!G%vD7siwSMP")
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {
@@ -62,6 +64,7 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
+                .putHeader("X-API-Key", "Gf!G%vD7siwSMP") //hardcoded
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {
@@ -87,6 +90,7 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
+                .putHeader("X-API-Key", "Gf!G%vD7siwSMP")
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {

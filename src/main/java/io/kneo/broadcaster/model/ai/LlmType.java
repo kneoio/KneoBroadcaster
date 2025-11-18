@@ -6,7 +6,11 @@ import lombok.Getter;
 public enum LlmType {
     CLAUDE("claude"),
     OPENAI("openai"),
-    GROQ("groq");
+    GROQ("groq"),
+    GROK("grok"),
+    OPENROUTER("openrouter"),
+    MOONSHOT("moonshot"),
+    DEEPSEEK("deepseek");
 
     private final String value;
 

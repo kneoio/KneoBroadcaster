@@ -42,7 +42,7 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
-                .putHeader("X-API-Key", "Gf!G%vD7siwSMP")
+                .putHeader("X-API-Key", config.getAgentApiKey())
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {
@@ -64,7 +64,7 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
-                .putHeader("X-API-Key", "Gf!G%vD7siwSMP") //hardcoded
+                .putHeader("X-API-Key", config.getAgentApiKey())
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {
@@ -90,7 +90,7 @@ public class AgentClient {
         return webClient
                 .postAbs(endpoint)
                 .putHeader("Content-Type", "application/json")
-                .putHeader("X-API-Key", "Gf!G%vD7siwSMP")
+                .putHeader("X-API-Key", config.getAgentApiKey())
                 .sendJsonObject(payload)
                 .map(response -> {
                     if (response.statusCode() == 200) {

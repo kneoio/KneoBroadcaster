@@ -63,4 +63,7 @@ public interface BroadcasterConfig {
     @WithName("station.whitelist")
     @WithDefault("aye-ayes-ear,lumisonic,v-o-i-d")
     List<String> getStationWhitelist();
+
+    @WithName("agent.api-key")
+    String getAgentApiKey();
 }

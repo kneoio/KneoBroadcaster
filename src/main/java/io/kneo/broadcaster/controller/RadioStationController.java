@@ -1,10 +1,11 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -17,7 +18,6 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -106,6 +106,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                         dto.getLocalizedName().put(LanguageCode.en, "");
                         dto.setManagedBy(ManagedBy.MIX);
                         dto.setColor(WebHelper.generateRandomBrightColor());
+                        dto.setBitRate(128000);
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
                     return service.getDTO(UUID.fromString(id), user, languageCode)

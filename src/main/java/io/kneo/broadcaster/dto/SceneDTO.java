@@ -12,7 +12,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ScriptSceneDTO extends AbstractDTO {
+public class SceneDTO extends AbstractDTO {
     private UUID scriptId;
     private String title;
     private double talkativity;

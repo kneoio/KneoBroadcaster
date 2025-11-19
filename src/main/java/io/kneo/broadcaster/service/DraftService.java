@@ -9,7 +9,7 @@ import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
-import io.kneo.broadcaster.repository.DraftRepository;
+import io.kneo.broadcaster.repository.draft.DraftRepository;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;

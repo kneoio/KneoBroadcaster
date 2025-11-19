@@ -162,24 +162,24 @@ public class RadioStationPool {
                 });
     }
 
-    private void updatePersistentFields(RadioStation current, RadioStation updated) {
-        current.setLocalizedName(updated.getLocalizedName());
-        current.setSlugName(updated.getSlugName());
-        current.setTimeZone(updated.getTimeZone());
-        current.setArchived(updated.getArchived());
-        current.setCountry(updated.getCountry());
-        current.setBitRate(updated.getBitRate());
-        current.setManagedBy(updated.getManagedBy());
-        current.setColor(updated.getColor());
-        current.setDescription(updated.getDescription());
-        current.setScheduler(updated.getScheduler());
-        current.setAiAgentId(updated.getAiAgentId());
-        current.setProfileId(updated.getProfileId());
-        current.setLabelList(updated.getLabelList());
-        current.setAuthor(updated.getAuthor());
-        current.setLastModifier(updated.getLastModifier());
-        current.setRegDate(updated.getRegDate());
-        current.setLastModifiedDate(updated.getLastModifiedDate());
+    private void updatePersistentFields(RadioStation doc, RadioStation updated) {
+        doc.setLocalizedName(updated.getLocalizedName());
+        doc.setSlugName(updated.getSlugName());
+        doc.setTimeZone(updated.getTimeZone());
+        doc.setArchived(updated.getArchived());
+        doc.setCountry(updated.getCountry());
+        doc.setBitRate(updated.getBitRate());
+        doc.setManagedBy(updated.getManagedBy());
+        doc.setColor(updated.getColor());
+        doc.setDescription(updated.getDescription());
+        doc.setScheduler(updated.getScheduler());
+        doc.setAiAgentId(updated.getAiAgentId());
+        doc.setProfileId(updated.getProfileId());
+        doc.setLabelList(updated.getLabelList());
+        doc.setAuthor(updated.getAuthor());
+        doc.setLastModifier(updated.getLastModifier());
+        doc.setRegDate(updated.getRegDate());
+        doc.setLastModifiedDate(updated.getLastModifiedDate());
     }
 
     public Uni<RadioStation> get(String brandName) {

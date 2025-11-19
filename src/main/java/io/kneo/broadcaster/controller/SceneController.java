@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.ScriptSceneDTO;
-import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.dto.SceneDTO;
+import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -25,7 +25,7 @@ import jakarta.validation.Validator;
 import java.util.UUID;
 
 @ApplicationScoped
-public class SceneController extends AbstractSecuredController<ScriptScene, ScriptSceneDTO> {
+public class SceneController extends AbstractSecuredController<Scene, SceneDTO> {
     @Inject
     SceneService sceneService;
     private Validator validator;
@@ -68,7 +68,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
                         sceneService.getAll(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<ScriptSceneDTO> dtoEntries = new View<>(tuple.getItem2(),
+                    View<SceneDTO> dtoEntries = new View<>(tuple.getItem2(),
                             tuple.getItem1(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                             size);
@@ -94,7 +94,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
                             sceneService.getAllByScript(uuid, size, (page - 1) * size, user)
                     ).asTuple().map(tuple -> {
                         ViewPage viewPage = new ViewPage();
-                        View<ScriptSceneDTO> dtoEntries = new View<>(tuple.getItem2(),
+                        View<SceneDTO> dtoEntries = new View<>(tuple.getItem2(),
                                 tuple.getItem1(), page,
                                 RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                                 size);
@@ -117,7 +117,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
         getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
-                        ScriptSceneDTO dto = new ScriptSceneDTO();
+                        SceneDTO dto = new SceneDTO();
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     } else {
                         return sceneService.getDTO(UUID.fromString(id), user, languageCode)
@@ -126,7 +126,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
                 })
                 .subscribe().with(
                         tuple -> {
-                            ScriptSceneDTO doc = tuple.getItem1();
+                            SceneDTO doc = tuple.getItem1();
                             FormPage page = new FormPage();
                             page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
@@ -140,7 +140,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
         try {
             if (!validateJsonBody(rc)) return;
             String scriptId = rc.pathParam("scriptId");
-            ScriptSceneDTO dto = rc.body().asJsonObject().mapTo(ScriptSceneDTO.class);
+            SceneDTO dto = rc.body().asJsonObject().mapTo(SceneDTO.class);
             if (!validateDTO(rc, dto, validator)) return;
             UUID uuid = UUID.fromString(scriptId);
             getContextUser(rc, false, true)
@@ -162,7 +162,7 @@ public class SceneController extends AbstractSecuredController<ScriptScene, Scri
         try {
             if (!validateJsonBody(rc)) return;
             String id = rc.pathParam("id");
-            ScriptSceneDTO dto = rc.body().asJsonObject().mapTo(ScriptSceneDTO.class);
+            SceneDTO dto = rc.body().asJsonObject().mapTo(SceneDTO.class);
             if (!validateDTO(rc, dto, validator)) return;
             getContextUser(rc, false, true)
                     .chain(user -> sceneService.upsert(id, null, dto, user))

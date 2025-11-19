@@ -1,7 +1,8 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -37,7 +38,7 @@ public class SceneRepository extends AsyncRepository {
         this.promptRepository = promptRepository;
     }
 
-    public Uni<List<ScriptScene>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
+    public Uni<List<Scene>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = $1";
         if (!includeArchived) {
@@ -66,7 +67,7 @@ public class SceneRepository extends AsyncRepository {
     }
 
     // Per-script listing
-    public Uni<List<ScriptScene>> listByScript(UUID scriptId, int limit, int offset, boolean includeArchived, IUser user) {
+    public Uni<List<Scene>> listByScript(UUID scriptId, int limit, int offset, boolean includeArchived, IUser user) {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = $1 AND t.script_id = $2";
         if (!includeArchived) {
@@ -85,7 +86,7 @@ public class SceneRepository extends AsyncRepository {
                     if (scenes.isEmpty()) {
                         return Uni.createFrom().item(scenes);
                     }
-                    List<Uni<ScriptScene>> sceneUnis = scenes.stream()
+                    List<Uni<Scene>> sceneUnis = scenes.stream()
                             .map(scene -> promptRepository.getPromptsForScene(scene.getId())
                                     .onItem().transform(promptIds -> {
                                         scene.setPrompts(promptIds);
@@ -107,7 +108,7 @@ public class SceneRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<ScriptScene> findById(UUID id, IUser user, boolean includeArchived) {
+    public Uni<Scene> findById(UUID id, IUser user, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* FROM %s theTable JOIN %s rls ON theTable.id = rls.entity_id WHERE rls.reader = $1 AND theTable.id = $2";
         if (!includeArchived) {
             sql += " AND theTable.archived = 0";
@@ -131,7 +132,7 @@ public class SceneRepository extends AsyncRepository {
                 );
     }
 
-    public Uni<ScriptScene> insert(ScriptScene scene, IUser user) {
+    public Uni<Scene> insert(Scene scene, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, talkativity, podcast_mode, weekdays) " +
@@ -160,7 +161,7 @@ public class SceneRepository extends AsyncRepository {
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
-    public Uni<ScriptScene> update(UUID id, ScriptScene scene, IUser user) {
+    public Uni<Scene> update(UUID id, Scene scene, IUser user) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[0]) {
@@ -214,8 +215,8 @@ public class SceneRepository extends AsyncRepository {
                 });
     }
 
-    private ScriptScene from(Row row) {
-        ScriptScene doc = new ScriptScene();
+    private Scene from(Row row) {
+        Scene doc = new Scene();
         setDefaultFields(doc, row);
         doc.setScriptId(row.getUUID("script_id"));
         doc.setTitle(row.getString("title"));

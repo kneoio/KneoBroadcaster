@@ -12,7 +12,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @NoArgsConstructor
-public class ScriptScene extends SecureDataEntity<UUID> {
+public class Scene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
     private List<UUID> prompts;

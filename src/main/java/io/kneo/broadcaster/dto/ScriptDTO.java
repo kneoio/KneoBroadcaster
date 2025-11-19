@@ -19,5 +19,5 @@ public class ScriptDTO extends AbstractDTO {
     private String description;
     private List<UUID> labels;
     private List<UUID> brands;
-    private List<ScriptSceneDTO> scenes;
+    private List<SceneDTO> scenes;
 }

@@ -3,6 +3,7 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
+import io.kneo.broadcaster.service.live.AiHelperService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -21,9 +22,11 @@ public class AiHelperController {
     private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperController.class);
 
     private final MemoryService memoryService;
+    private final AiHelperService aiHelperService;
 
-    public AiHelperController(MemoryService memoryService) {
+    public AiHelperController(MemoryService memoryService, AiHelperService aiHelperService) {
         this.memoryService = memoryService;
+        this.aiHelperService = aiHelperService;
     }
 
     public void setupRoutes(Router router) {
@@ -32,6 +35,7 @@ public class AiHelperController {
         router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
         router.patch("/api/ai/memory/history/brand/:brand").handler(bodyHandler).handler(this::patchHistory);
         router.patch("/api/ai/memory/reset/:brand/:type").handler(bodyHandler).handler(this::resetMemory);
+        router.get("/api/ai/live/stations").handler(this::getLiveRadioStations);
     }
 
     private void getMemoriesByType(RoutingContext rc) {
@@ -210,5 +214,22 @@ public class AiHelperController {
                     .putHeader("Content-Type", "text/plain")
                     .end("Invalid memory type. Valid values: " + Arrays.toString(MemoryType.values()));
         }
+    }
+
+    private void getLiveRadioStations(RoutingContext rc) {
+        aiHelperService.getOnline()
+                .subscribe().with(
+                        liveContainer -> rc.response()
+                                .setStatusCode(200)
+                                .putHeader("Content-Type", "application/json")
+                                .end(JsonObject.mapFrom(liveContainer).encode()),
+                        throwable -> {
+                            LOGGER.error("Error getting live radio stations", throwable);
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", "text/plain")
+                                    .end("An error occurred while retrieving live radio stations");
+                        }
+                );
     }
 }

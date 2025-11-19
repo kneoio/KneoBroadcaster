@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.repository;
+package io.kneo.broadcaster.repository.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;

@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.ScriptSceneDTO;
-import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.dto.SceneDTO;
+import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.repository.SceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.model.user.IUser;
@@ -16,7 +16,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class SceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
+public class SceneService extends AbstractService<Scene, SceneDTO> {
     private final SceneRepository repository;
 
     @Inject
@@ -25,28 +25,28 @@ public class SceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
         this.repository = repository;
     }
 
-    public Uni<List<ScriptSceneDTO>> getAll(final int limit, final int offset, final IUser user) {
+    public Uni<List<SceneDTO>> getAll(final int limit, final int offset, final IUser user) {
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     }
-                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
+                    List<Uni<SceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
     }
 
-    public Uni<List<ScriptScene>> getAllWithPromptIds(final UUID scriptId, final int limit, final int offset, final IUser user) {
+    public Uni<List<Scene>> getAllWithPromptIds(final UUID scriptId, final int limit, final int offset, final IUser user) {
         return repository.listByScript(scriptId, limit, offset, false, user);
     }
 
-    public Uni<List<ScriptSceneDTO>> getAllByScript(final UUID scriptId, final int limit, final int offset, final IUser user) {
+    public Uni<List<SceneDTO>> getAllByScript(final UUID scriptId, final int limit, final int offset, final IUser user) {
         return repository.listByScript(scriptId, limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     }
-                    List<Uni<ScriptSceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
+                    List<Uni<SceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
     }
@@ -61,12 +61,12 @@ public class SceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
     }
 
     @Override
-    public Uni<ScriptSceneDTO> getDTO(UUID id, IUser user, io.kneo.core.localization.LanguageCode language) {
+    public Uni<SceneDTO> getDTO(UUID id, IUser user, io.kneo.core.localization.LanguageCode language) {
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
-    public Uni<ScriptSceneDTO> upsert(String id, UUID scriptId, ScriptSceneDTO dto, IUser user) {
-        ScriptScene entity = buildEntity(dto);
+    public Uni<SceneDTO> upsert(String id, UUID scriptId, SceneDTO dto, IUser user) {
+        Scene entity = buildEntity(dto);
         if (id == null) {
             entity.setScriptId(scriptId);
             return repository.insert(entity, user).chain(this::mapToDTO);
@@ -84,16 +84,16 @@ public class SceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
         return repository.delete(UUID.fromString(id), user);
     }
 
-    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc) {
+    private Uni<SceneDTO> mapToDTO(Scene doc) {
         return mapToDTO(doc, true);
     }
 
-    private Uni<ScriptSceneDTO> mapToDTO(ScriptScene doc, boolean includePrompts) {
+    private Uni<SceneDTO> mapToDTO(Scene doc, boolean includePrompts) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier())
         ).asTuple().map(tuple -> {
-            ScriptSceneDTO dto = new ScriptSceneDTO();
+            SceneDTO dto = new SceneDTO();
             dto.setId(doc.getId());
             dto.setTitle(doc.getTitle());
             dto.setAuthor(tuple.getItem1());
@@ -111,8 +111,8 @@ public class SceneService extends AbstractService<ScriptScene, ScriptSceneDTO> {
         });
     }
 
-    private ScriptScene buildEntity(ScriptSceneDTO dto) {
-        ScriptScene entity = new ScriptScene();
+    private Scene buildEntity(SceneDTO dto) {
+        Scene entity = new Scene();
         entity.setTitle(dto.getTitle());
         entity.setStartTime(dto.getStartTime());
         entity.setOneTimeRun(dto.isOneTimeRun());

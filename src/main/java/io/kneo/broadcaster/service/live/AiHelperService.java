@@ -9,7 +9,7 @@ import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.BrandScript;
-import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.Prompt;
@@ -25,7 +25,6 @@ import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.tools.SoundFragmentMCPTools;
 import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -69,15 +68,14 @@ public class AiHelperService {
     private final ScriptService scriptService;
     private final PromptService promptService;
     private final SongSupplier songSupplier;
-    private final SoundFragmentMCPTools soundFragmentMCPTools;
     private final DraftFactory draftFactory;
     private final MemoryService memoryService;
     private final JinglePlaybackHandler jinglePlaybackHandler;
     private final Randomizator randomizator;
 
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
-            RadioStationStatus.ON_LINE
-            //RadioStationStatus.WARMING_UP,
+            RadioStationStatus.ON_LINE,
+            RadioStationStatus.WARMING_UP
             //RadioStationStatus.QUEUE_SATURATED  // be careful
     );
     
@@ -90,7 +88,6 @@ public class AiHelperService {
             ScriptService scriptService,
             PromptService promptService,
             SongSupplier songSupplier,
-            SoundFragmentMCPTools soundFragmentMCPTools,
             DraftFactory draftFactory,
             MemoryService memoryService,
             JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator
@@ -100,7 +97,6 @@ public class AiHelperService {
         this.scriptService = scriptService;
         this.promptService = promptService;
         this.songSupplier = songSupplier;
-        this.soundFragmentMCPTools = soundFragmentMCPTools;
         this.draftFactory = draftFactory;
         this.memoryService = memoryService;
         this.jinglePlaybackHandler = jinglePlaybackHandler;
@@ -226,10 +222,10 @@ public class AiHelperService {
 
                     List<UUID> allMasterPromptIds = new ArrayList<>();
                     String currentSceneTitle = null;
-                    ScriptScene activeScene = null;
+                    Scene activeScene = null;
                     for (BrandScript brandScript : brandScripts) {
-                        List<ScriptScene> scenes = brandScript.getScript().getScenes();
-                        for (ScriptScene scene : scenes) {
+                        List<Scene> scenes = brandScript.getScript().getScenes();
+                        for (Scene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
                                 allMasterPromptIds.addAll(scene.getPrompts());
                                 currentSceneTitle = scene.getTitle();
@@ -295,7 +291,7 @@ public class AiHelperService {
                             .collect(Collectors.toList());
 
                     String finalCurrentSceneTitle = currentSceneTitle;
-                    ScriptScene finalActiveScene = activeScene;
+                    Scene finalActiveScene = activeScene;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
                                 LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", 
@@ -351,7 +347,7 @@ public class AiHelperService {
         return randomValue < jingleProbability;
     }
 
-    private boolean isSceneActive(String stationSlug, ZoneId zone, ScriptScene scene, List<ScriptScene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
+    private boolean isSceneActive(String stationSlug, ZoneId zone, Scene scene, List<Scene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
         if (!LocalDate.now(zone).equals(lastReset)) {
             oneTimeRunTracker.clear();
             lastReset = LocalDate.now(zone);
@@ -381,7 +377,7 @@ public class AiHelperService {
     }
 
 
-    private boolean markIfOneTime(String stationSlug, ScriptScene scene) {
+    private boolean markIfOneTime(String stationSlug, Scene scene) {
         if (scene.isOneTimeRun()) {
             List<UUID> used = oneTimeRunTracker.computeIfAbsent(stationSlug, k -> new ArrayList<>());
             if (used.contains(scene.getId())) {
@@ -392,7 +388,7 @@ public class AiHelperService {
         return true;
     }
 
-    private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, ScriptScene currentScene, List<ScriptScene> scenes) {
+    private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, List<Scene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
         if (currentStart == null) {
             return null;
@@ -402,7 +398,7 @@ public class AiHelperService {
                 .filter(s -> s.getStartTime() != null)
                 .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
                 .filter(s -> !s.isOneTimeRun() || !usedOneTimes.contains(s.getId()))
-                .map(ScriptScene::getStartTime)
+                .map(Scene::getStartTime)
                 .sorted()
                 .distinct()
                 .toList();
@@ -425,8 +421,8 @@ public class AiHelperService {
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
                     for (BrandScript brandScript : scripts) {
-                        List<ScriptScene> scenes = brandScript.getScript().getScenes();
-                        for (ScriptScene scene : scenes) {
+                        List<Scene> scenes = brandScript.getScript().getScenes();
+                        for (Scene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 LocalTime sceneStart = scene.getStartTime();
                                 LocalTime sceneEnd = findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
@@ -457,19 +453,19 @@ public class AiHelperService {
                 });
     }
 
-    private String findNextSceneTitle(String stationSlug, int currentDayOfWeek, ScriptScene currentScene, List<ScriptScene> scenes) {
+    private String findNextSceneTitle(String stationSlug, int currentDayOfWeek, Scene currentScene, List<Scene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
         if (currentStart == null) {
             return null;
         }
         List<UUID> usedOneTimes = oneTimeRunTracker.getOrDefault(stationSlug, Collections.emptyList());
-        List<ScriptScene> sortedScenes = scenes.stream()
+        List<Scene> sortedScenes = scenes.stream()
                 .filter(s -> s.getStartTime() != null)
                 .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
                 .filter(s -> !s.isOneTimeRun() || !usedOneTimes.contains(s.getId()))
-                .sorted(Comparator.comparing(ScriptScene::getStartTime))
+                .sorted(Comparator.comparing(Scene::getStartTime))
                 .toList();
-        for (ScriptScene scene : sortedScenes) {
+        for (Scene scene : sortedScenes) {
             if (scene.getStartTime().isAfter(currentStart)) {
                 return scene.getTitle();
             }

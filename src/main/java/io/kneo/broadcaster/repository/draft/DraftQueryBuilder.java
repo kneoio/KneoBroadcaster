@@ -1,19 +1,18 @@
-package io.kneo.broadcaster.repository;
+package io.kneo.broadcaster.repository.draft;
 
-import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
+import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
-public class PromptQueryBuilder {
+public class DraftQueryBuilder {
 
-    public String buildGetAllQuery(String tableName, String rlsName, long userId, boolean includeArchived,
-                                   PromptFilterDTO filter, int limit, int offset) {
+    public String buildGetAllQuery(String tableName, boolean includeArchived, 
+                                 DraftFilterDTO filter, int limit, int offset) {
         StringBuilder sql = new StringBuilder()
-                .append("SELECT * FROM ").append(tableName).append(" t, ").append(rlsName).append(" rls ")
-                .append("WHERE t.id = rls.entity_id AND rls.reader = ").append(userId);
+                .append("SELECT * FROM ").append(tableName).append(" t");
 
         if (!includeArchived) {
-            sql.append(" AND t.archived = 0");
+            sql.append(" WHERE t.archived = 0");
         }
 
         if (filter != null && filter.isActivated()) {
@@ -29,13 +28,18 @@ public class PromptQueryBuilder {
         return sql.toString();
     }
 
-    String buildFilterConditions(PromptFilterDTO filter) {
+    String buildFilterConditions(DraftFilterDTO filter) {
         StringBuilder conditions = new StringBuilder();
 
         if (filter.getLanguageCode() != null) {
             conditions.append(" AND t.language_code = '")
                     .append(filter.getLanguageCode().name())
                     .append("'");
+        }
+
+        if (filter.getArchived() != null) {
+            conditions.append(" AND t.archived = ")
+                    .append(filter.getArchived());
         }
 
         if (filter.isEnabled()) {

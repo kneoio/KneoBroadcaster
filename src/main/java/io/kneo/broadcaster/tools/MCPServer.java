@@ -15,10 +15,8 @@ import io.vertx.core.http.ServerWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -26,21 +24,15 @@ import java.util.concurrent.CompletableFuture;
 public class MCPServer extends AbstractVerticle {
     private static final Logger LOGGER = LoggerFactory.getLogger(MCPServer.class);
 
-    private final SoundFragmentMCPTools soundFragmentMCPTools;
-    private final MemoryMCPTools memoryMCPTools;
     private final QueueMCPTools queueMCPTools;
-    private final LiveRadioStationsMCPTools liveRadioStationsMCPTools;
     private final MCPConfig mcpConfig;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
     private HttpServer server;
 
-    public MCPServer(SoundFragmentMCPTools soundFragmentMCPTools, MemoryMCPTools memoryMCPTools, QueueMCPTools queueMCPTools, LiveRadioStationsMCPTools liveRadioStationsMCPTools, MCPConfig mcpConfig) {
-        this.soundFragmentMCPTools = soundFragmentMCPTools;
-        this.memoryMCPTools = memoryMCPTools;
+    public MCPServer(QueueMCPTools queueMCPTools, MCPConfig mcpConfig) {
         this.queueMCPTools = queueMCPTools;
-        this.liveRadioStationsMCPTools = liveRadioStationsMCPTools;
         this.mcpConfig = mcpConfig;
     }
 
@@ -177,10 +169,7 @@ public class MCPServer extends AbstractVerticle {
         response.put("id", id);
 
         ArrayNode tools = objectMapper.createArrayNode();
-        tools.add(createBrandSoundFragmentsTool());
-        tools.add(createMemoryTool());
         tools.add(createAddToQueueTool());
-        tools.add(createLiveRadioStationsTool());
 
         ObjectNode result = objectMapper.createObjectNode();
         result.set("tools", tools);
@@ -189,64 +178,7 @@ public class MCPServer extends AbstractVerticle {
         webSocket.writeTextMessage(response.toString());
     }
 
-    private ObjectNode createBrandSoundFragmentsTool() {
-        ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_brand_sound_fragment");
-        tool.put("description", "Get 2 songs for a specific brand filtered by playlist item type");
-
-        ObjectNode schema = objectMapper.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = objectMapper.createObjectNode();
-
-        addStringProperty(props, "brand", "Brand name to get songs for");
-        addStringProperty(props, "fragment_type", "Playlist item type (must be valid PlaylistItemType enum value)");
-
-        schema.set("properties", props);
-        ArrayNode required = objectMapper.createArrayNode();
-        required.add("brand");
-        required.add("fragment_type");
-        schema.set("required", required);
-        tool.set("inputSchema", schema);
-
-        return tool;
-    }
-
-    private CompletableFuture<Object> handleBrandSoundFragmentsCall(JsonNode arguments) {
-        String brand = arguments.get("brand").asText();
-        String fragmentType = arguments.get("fragment_type").asText();
-
-        return soundFragmentMCPTools.getBrandSoundFragments(brand, fragmentType)
-                .thenApply(result -> (Object) result);
-    }
-
-    private ObjectNode createMemoryTool() {
-        ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_memory_by_type");
-        tool.put("description", "Get memory data by type for a specific brand");
-
-        ObjectNode schema = objectMapper.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = objectMapper.createObjectNode();
-
-        addStringProperty(props, "brand", "Brand name to filter memory by");
-
-        ObjectNode typesProp = objectMapper.createObjectNode();
-        typesProp.put("type", "array");
-        ObjectNode itemsProp = objectMapper.createObjectNode();
-        itemsProp.put("type", "string");
-        typesProp.set("items", itemsProp);
-        typesProp.put("description", "Memory types to retrieve (CONVERSATION_HISTORY, LISTENER_CONTEXT, AUDIENCE_CONTEXT, INSTANT_MESSAGE, EVENT)");
-        props.set("types", typesProp);
-
-        schema.set("properties", props);
-        ArrayNode required = objectMapper.createArrayNode();
-        required.add("brand");
-        required.add("types");
-        schema.set("required", required);
-        tool.set("inputSchema", schema);
-
-        return tool;
-    }
+    
 
     private ObjectNode createAddToQueueTool() {
         ObjectNode tool = objectMapper.createObjectNode();
@@ -288,20 +220,6 @@ public class MCPServer extends AbstractVerticle {
         return tool;
     }
 
-    private ObjectNode createLiveRadioStationsTool() {
-        ObjectNode tool = objectMapper.createObjectNode();
-        tool.put("name", "get_live_radio_stations");
-        tool.put("description", "Get live radio stations with statuses: ON_LINE, WARMING_UP, QUEUE_SATURATED");
-
-        ObjectNode schema = objectMapper.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = objectMapper.createObjectNode();
-        schema.set("properties", props);
-        tool.set("inputSchema", schema);
-
-        return tool;
-    }
-
     private void addStringProperty(ObjectNode props, String name, String description) {
         ObjectNode prop = objectMapper.createObjectNode();
         prop.put("type", "string");
@@ -327,17 +245,8 @@ public class MCPServer extends AbstractVerticle {
             CompletableFuture<Object> future;
 
             switch (toolName) {
-                case "get_brand_sound_fragment":
-                    future = handleBrandSoundFragmentsCall(arguments);
-                    break;
-                case "get_memory_by_type":
-                    future = handleMemoryCall(arguments);
-                    break;
                 case "add_to_queue":
                     future = handleAddToQueueCall(arguments);
-                    break;
-                case "get_live_radio_stations":
-                    future = handleLiveRadioStationsCall(arguments);
                     break;
 
                 default:
@@ -360,20 +269,7 @@ public class MCPServer extends AbstractVerticle {
         }
     }
 
-    private CompletableFuture<Object> handleMemoryCall(JsonNode arguments) {
-        String brand = arguments.get("brand").asText();
-        JsonNode typesNode = arguments.get("types");
-        List<String> typesList = new ArrayList<>();
-        if (typesNode.isArray()) {
-            for (JsonNode typeNode : typesNode) {
-                typesList.add(typeNode.asText());
-            }
-        }
-        String[] types = typesList.toArray(new String[0]);
-
-        return memoryMCPTools.getMemoryByType(brand, types)
-                .thenApply(result -> (Object) result);
-    }
+    
 
     private CompletableFuture<Object> handleAddToQueueCall(JsonNode arguments) {
         String brand = null;
@@ -420,11 +316,6 @@ public class MCPServer extends AbstractVerticle {
         }
 
         return queueMCPTools.addToQueue(brand, mergingMethod, songIds, filePaths, priority)
-                .thenApply(result -> (Object) result);
-    }
-
-    private CompletableFuture<Object> handleLiveRadioStationsCall(JsonNode arguments) {
-        return liveRadioStationsMCPTools.getLiveRadioStations()
                 .thenApply(result -> (Object) result);
     }
 

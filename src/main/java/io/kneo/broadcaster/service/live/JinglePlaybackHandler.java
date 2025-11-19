@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
-import io.kneo.broadcaster.model.ScriptScene;
+import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -61,7 +61,7 @@ public class JinglePlaybackHandler {
         this.aiAgentService = aiAgentService;
     }
 
-    public void handleJinglePlayback(RadioStation station, ScriptScene scene) {
+    public void handleJinglePlayback(RadioStation station, Scene scene) {
         LOGGER.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
                 station.getSlugName(), scene.getTalkativity());
 

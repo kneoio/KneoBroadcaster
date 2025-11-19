@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.ai.DraftFactory;
-import io.kneo.broadcaster.dto.ScriptSceneDTO;
+import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
@@ -48,7 +48,7 @@ public class ScriptDryRunService {
     private final DraftFactory draftFactory;
 
     public record SseEvent(String type, JsonObject data) {}
-    private record ProcessContext(List<ScriptSceneDTO> scenes,
+    private record ProcessContext(List<SceneDTO> scenes,
                                   RadioStation station, AiAgent agent, IUser user,
                                   StringBuilder scenarioBuilder, LlmType llmType,
                                   String agentName) {}
@@ -203,7 +203,7 @@ public class ScriptDryRunService {
                 });
     }
 
-    private Uni<Void> processScenePrompts(String jobId, io.kneo.broadcaster.dto.ScriptSceneDTO sceneDTO, 
+    private Uni<Void> processScenePrompts(String jobId, SceneDTO sceneDTO,
                                            ProcessContext context, StringBuilder scenarioBuilder) {
         if (sceneDTO.getPrompts() == null || sceneDTO.getPrompts().isEmpty()) {
             scenarioBuilder.append("*No prompts configured for this scene.*\n\n");

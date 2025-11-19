@@ -228,6 +228,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
+            dto.setTelegramId(doc.getTelegramId());
             dto.setCountry(doc.getCountry().name());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());

@@ -49,8 +49,10 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<Listener>> getAll(int limit, int offset, boolean includeArchived, IUser user, ListenerFilter filter) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+        String sql = "SELECT t.*, rls.*, u.telegram_name FROM " + entityData.getTableName() + " t " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "LEFT JOIN _users u ON t.user_id = u.id " +
+                "WHERE rls.reader = " + user.getId();
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
@@ -96,9 +98,10 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> findById(UUID uuid, IUser user, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.* " +
+        String sql = "SELECT theTable.*, rls.*, u.telegram_name " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
+                "LEFT JOIN _users u ON theTable.user_id = u.id " +
                 "WHERE rls.reader = $1 AND theTable.id = $2";
 
         if (!includeArchived) {
@@ -123,11 +126,12 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived, ListenerFilter filter) {
-        String sql = "SELECT l.* " +
+        String sql = "SELECT l.*, u.telegram_name " +
                 "FROM " + entityData.getTableName() + " l " +
                 "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
                 "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
                 "JOIN " + entityData.getRlsName() + " rls ON l.id = rls.entity_id " +
+                "LEFT JOIN _users u ON l.user_id = u.id " +
                 "WHERE b.slug_name = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
@@ -369,6 +373,7 @@ public class ListenersRepository extends AsyncRepository {
         Listener doc = new Listener();
         setDefaultFields(doc, row);
         doc.setUserId(row.getLong("user_id"));
+        doc.setTelegramId(row.getString("telegram_name"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
         doc.setSlugName(row.getString("slug_name"));
 

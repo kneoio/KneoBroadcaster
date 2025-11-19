@@ -229,7 +229,7 @@ public class PlaylistManager {
                             }
                             
                             prioritizedQueue.add(liveSoundFragment);
-                            LOGGER.info("Added submit fragment for brand {}: {}", brand, metadata.getFileOriginalName());
+                            LOGGER.info("Added submit fragment for brand {}: {}", brand, metadata.getTemporaryFilePath());
                         } else {
                             if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
                                 LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);

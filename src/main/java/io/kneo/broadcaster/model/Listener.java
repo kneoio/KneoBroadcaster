@@ -15,7 +15,8 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 public class Listener extends SecureDataEntity<UUID> {
-    private Long userId;
+    private long userId;
+    private String telegramId;
     private CountryCode country;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);

@@ -22,7 +22,7 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ListenerDTO extends AbstractReferenceDTO {
     long userId;
-
+    String telegramId;
     @NotNull(message = "Country is required")
     @NotBlank(message = "Country cannot be empty")
     @ValidCountry(message = "Country is not supported")

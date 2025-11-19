@@ -74,8 +74,8 @@ public class AiHelperService {
     private final Randomizator randomizator;
 
     private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
-            RadioStationStatus.ON_LINE,
-            RadioStationStatus.WARMING_UP
+            RadioStationStatus.ON_LINE
+            //RadioStationStatus.WARMING_UP
             //RadioStationStatus.QUEUE_SATURATED  // be careful
     );
     

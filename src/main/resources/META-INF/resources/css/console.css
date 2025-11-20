@@ -5,12 +5,12 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 200px;
-    background-color: #1e1e1e;
-    z-index: 900;
+    width: 100%;
     margin: 0;
     padding: 0 10px;
+    z-index: 1000;
     border-top: 1px solid #ccc;
+    background-color: #1e1e1e;
     color: #cccccc;
     font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', 'Lucida Console', monospace;
     font-size: 0.9em;
@@ -54,7 +54,7 @@
 
 .console-output {
     padding: 10px;
-    height: 150px;
+    max-height: 200px;
     overflow-y: auto;
     word-wrap: break-word;
     white-space: pre-wrap;

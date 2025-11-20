@@ -16,19 +16,10 @@
 
 body {
     font-family: sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
     margin: 0;
-    padding: 20px;
-    padding-top: 60px;
-    box-sizing: border-box;
-
+    padding: 0;
     background-color: var(--bg-color-light);
     color: var(--text-color-light);
-    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body.dark-theme {
@@ -58,10 +49,10 @@ body.dark-theme {
     max-width: 500px;
     text-align: center;
     box-sizing: border-box;
-
     background-color: var(--container-bg-light);
-     transition: background-color 0.3s ease;
+    transition: background-color 0.3s ease;
 }
+
 
 body.dark-theme .player-container {
     background-color: var(--container-bg-dark);
@@ -71,11 +62,11 @@ h1 {
     color: var(--text-color-light);
     margin-top: 0;
     font-size: 1.5em;
-     transition: color 0.3s ease;
+    transition: color 0.3s ease;
 }
 
 body.dark-theme h1 {
-     color: var(--text-color-dark);
+    color: var(--text-color-dark);
 }
 
 
@@ -98,7 +89,7 @@ body.dark-theme h1 {
     word-break: break-all;
     text-align: center;
     display: none;
-     transition: color 0.3s ease, background-color 0.3s ease;
+    transition: color 0.3s ease, background-color 0.3s ease;
 }
 
 .message.error {
@@ -172,7 +163,7 @@ body.dark-theme .control-button {
 }
 
 body.dark-theme .control-button:hover {
-     background-color: var(--button-hover-bg-dark);
+    background-color: var(--button-hover-bg-dark);
 }
 
 
@@ -195,8 +186,8 @@ body.dark-theme #theme-toggle::before { content: '🌙'; }
 .time-display {
     font-size: 0.9em;
     flex-shrink: 0;
-     color: var(--time-display-color-light);
-      transition: color 0.3s ease;
+    color: var(--time-display-color-light);
+    transition: color 0.3s ease;
 }
 
 body.dark-theme .time-display {
@@ -235,7 +226,7 @@ body.dark-theme .volume-bar {
     border-radius: 50%;
     cursor: pointer;
     background: var(--slider-thumb-light);
-     transition: background 0.3s ease;
+    transition: background 0.3s ease;
 }
 .progress-bar::-moz-range-thumb, .volume-bar::-moz-range-thumb {
     width: 15px;
@@ -243,7 +234,7 @@ body.dark-theme .volume-bar {
     border-radius: 50%;
     cursor: pointer;
     background: var(--slider-thumb-light);
-     transition: background 0.3s ease;
+    transition: background 0.3s ease;
 }
 
 body.dark-theme .progress-bar::-webkit-slider-thumb,
@@ -275,16 +266,16 @@ body.dark-theme .volume-bar::-moz-range-thumb {
         gap: 15px;
     }
 
-     .control-button {
+    .control-button {
         width: 50px;
         height: 50px;
         font-size: 1.5em;
-     }
+    }
 
     #theme-toggle {
-         width: 45px;
-         height: 45px;
-         font-size: 1.4em;
+        width: 45px;
+        height: 45px;
+        font-size: 1.4em;
     }
 
 
@@ -315,13 +306,6 @@ body.dark-theme .song-title {
 .player-container h1 {
     margin-bottom: 5px;
 }
-
-.player-container {
-    border: 1px solid transparent;
-    transition: border-color 0.3s ease-in-out;
-}
-
-/* Add this to your existing css/player.css */
 
 .player-container {
     border: 1px solid transparent;

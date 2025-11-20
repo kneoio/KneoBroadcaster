@@ -5,16 +5,12 @@
     bottom: 0;
     left: 0;
     right: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0 10px; /* Horizontal padding only for the main container */
-    z-index: 1000;
-    border-top: 1px solid #ccc;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    border-radius: 0;
+    height: 200px;
     background-color: #1e1e1e;
+    z-index: 900;
+    margin: 0;
+    padding: 0 10px;
+    border-top: 1px solid #ccc;
     color: #cccccc;
     font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', 'Lucida Console', monospace;
     font-size: 0.9em;
@@ -57,11 +53,15 @@
 
 
 .console-output {
-    padding: 10px; /* Padding for output content */
-    max-height: 200px;
+    padding: 10px;
+    height: 150px;
     overflow-y: auto;
     word-wrap: break-word;
     white-space: pre-wrap;
+}
+
+.player-container {
+    margin-bottom: 220px; /* Space for console */
 }
 
 /* Adjust body padding if the console height changes or if it's collapsible in the future */
@@ -70,7 +70,7 @@
 body {
     /* Ensure this value is enough to show content above the fixed console */
     /* You might need to adjust this if your player or other elements are tall */
-    padding-bottom: calc(200px + 30px + 20px); /* max-height + header-approx-height + some-buffer */
+    padding-bottom: 300px; /* max-height + header-approx-height + some-buffer */
 }
 
 

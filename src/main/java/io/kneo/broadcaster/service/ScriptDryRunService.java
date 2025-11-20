@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
-import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.Draft;
@@ -12,6 +11,7 @@ import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;

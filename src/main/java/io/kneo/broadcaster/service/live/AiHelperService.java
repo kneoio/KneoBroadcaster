@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service.live;
 
-import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
 import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
@@ -103,11 +102,12 @@ public class AiHelperService {
         this.randomizator = randomizator;
     }
 
-    public Uni<LiveContainerMcpDTO> getOnline() {
+    public Uni<LiveContainerMcpDTO> getOnline(List<RadioStationStatus> statuses) {
+        List<RadioStationStatus> effectiveStatuses = (statuses == null || statuses.isEmpty()) ? ACTIVE_STATUSES : statuses;
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
-                        .filter(station -> ACTIVE_STATUSES.contains(station.getStatus()))
+                        .filter(station -> effectiveStatuses.contains(station.getStatus()))
                         .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).flatMap(stations -> {

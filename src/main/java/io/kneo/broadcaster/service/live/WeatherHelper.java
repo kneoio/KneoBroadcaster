@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.ai;
+package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.agent.WeatherApiClient;
 import io.vertx.core.json.JsonObject;

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.ai;
+package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.agent.WeatherApiClient;
 import io.kneo.broadcaster.agent.WorldNewsApiClient;
@@ -186,12 +186,15 @@ public class DraftFactory {
         data.put("songArtist", song.getArtist());
         data.put("songDescription", song.getDescription());
         data.put("songGenres", genres);
-        data.put("agentName", agent.getName()); //deprecated
         data.put("djName", agent.getName());
         data.put("djVoiceId", agent.getPreferredVoice().stream().findAny().orElseThrow().getId());
         data.put("coPilotName", copilot.getName());
-        data.put("coPilotVoiceId", copilot.getPreferredVoice().stream().findAny().orElse(new Voice("Juniper","aMSt68OGf4xUZAnLpTU8")).getId());
-        data.put("stationBrand", station.getLocalizedName().get(selectedLanguage));
+        data.put("coPilotVoiceId", copilot.getPreferredVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
+        String brand = station.getLocalizedName().get(selectedLanguage);
+        if (brand == null) {
+            brand = station.getLocalizedName().values().iterator().next();
+        }
+        data.put("stationBrand", brand);
         data.put("country", station.getCountry());
         data.put("language", selectedLanguage);
         data.put("profileName", profile.getName());

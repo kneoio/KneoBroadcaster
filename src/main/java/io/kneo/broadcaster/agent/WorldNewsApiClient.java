@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.agent;
 
-import io.kneo.broadcaster.ai.NewsHelper;
 import io.kneo.broadcaster.config.WorldNewsApiConfig;
 import io.kneo.broadcaster.model.news.NewsResponse;
+import io.kneo.broadcaster.service.live.NewsHelper;
 import io.kneo.broadcaster.util.PropertiesUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;

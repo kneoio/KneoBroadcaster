@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class AiHelperController {
@@ -217,19 +219,41 @@ public class AiHelperController {
     }
 
     private void getLiveRadioStations(RoutingContext rc) {
-        aiHelperService.getOnline()
-                .subscribe().with(
-                        liveContainer -> rc.response()
-                                .setStatusCode(200)
-                                .putHeader("Content-Type", "application/json")
-                                .end(JsonObject.mapFrom(liveContainer).encode()),
-                        throwable -> {
-                            LOGGER.error("Error getting live radio stations", throwable);
-                            rc.response()
-                                    .setStatusCode(500)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end("An error occurred while retrieving live radio stations");
-                        }
-                );
+        String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").get(0);
+        if (statusesParam == null || statusesParam.trim().isEmpty()) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Query parameter 'statuses' is required. Valid values: " + Arrays.toString(RadioStationStatus.values()));
+            return;
+        }
+
+        try {
+            List<RadioStationStatus> statuses = Arrays.stream(statusesParam.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(s -> RadioStationStatus.valueOf(s.toUpperCase()))
+                    .collect(Collectors.toList());
+
+            aiHelperService.getOnline(statuses)
+                    .subscribe().with(
+                            liveContainer -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(JsonObject.mapFrom(liveContainer).encode()),
+                            throwable -> {
+                                LOGGER.error("Error getting live radio stations", throwable);
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", "text/plain")
+                                        .end("An error occurred while retrieving live radio stations");
+                            }
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Invalid statuses. Valid values: " + Arrays.toString(RadioStationStatus.values()));
+        }
     }
 }

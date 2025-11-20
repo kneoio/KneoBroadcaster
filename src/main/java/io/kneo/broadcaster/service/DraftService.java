@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.ai.DraftFactory;
 import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.ai.DraftTestDTO;
 import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
@@ -10,6 +9,7 @@ import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
+import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;

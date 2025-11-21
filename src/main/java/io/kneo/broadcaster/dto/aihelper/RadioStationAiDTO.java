@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.net.URL;
 import java.util.EnumMap;
+import java.util.List;
 
 @Setter
 @Getter
@@ -24,5 +25,5 @@ public class RadioStationAiDTO {
     private long bitRate;
     private RadioStationStatus radioStationStatus;
     private String djName;
-    private LanguageCode aiAgentLang;
+    private List<LanguageCode> aiAgentLang;
 }

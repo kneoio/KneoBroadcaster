@@ -22,13 +22,13 @@ import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.repository.RadioStationRepository;
 import io.kneo.broadcaster.service.scheduler.quartz.QuartzSchedulerService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.util.WebHelper;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
+import io.kneo.core.util.WebHelper;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -73,6 +73,21 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     public Uni<List<RadioStationDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    } else {
+                        List<Uni<RadioStationDTO>> unis = list.stream()
+                                .map(this::mapToDTO)
+                                .collect(Collectors.toList());
+                        return Uni.join().all(unis).andFailFast();
+                    }
+                });
+    }
+
+    public Uni<List<RadioStationDTO>> getAllDTOFiltered(final int limit, final int offset, final IUser user, final String country, final String query) {
+        assert repository != null;
+        return repository.getAllFiltered(limit, offset, false, user, country, query)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());

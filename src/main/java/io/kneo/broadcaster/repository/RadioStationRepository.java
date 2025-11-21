@@ -72,6 +72,47 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .collect().asList();
     }
 
+    public Uni<List<RadioStation>> getAllFiltered(int limit, int offset, boolean includeArchived, final IUser user, String country, String query) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT * FROM ").append(entityData.getTableName()).append(" t, ")
+           .append(entityData.getRlsName()).append(" rls ")
+           .append("WHERE t.id = rls.entity_id AND rls.reader = $1");
+
+        int paramIndex = 2;
+        if (!includeArchived) {
+            sql.append(" AND t.archived = 0");
+        }
+        if (country != null && !country.isBlank()) {
+            sql.append(" AND t.country = $").append(paramIndex++);
+        }
+        if (query != null && !query.isBlank()) {
+            sql.append(" AND (t.search_name LIKE $").append(paramIndex)
+               .append(" OR LOWER(t.description) LIKE $").append(paramIndex + 1).append(")");
+            paramIndex += 2;
+        }
+        sql.append(" ORDER BY t.last_mod_date DESC");
+        if (limit > 0) {
+            sql.append(" LIMIT ").append(limit).append(" OFFSET ").append(offset);
+        }
+
+        io.vertx.mutiny.sqlclient.Tuple params = io.vertx.mutiny.sqlclient.Tuple.tuple().addLong(user.getId());
+        if (country != null && !country.isBlank()) {
+            params.addString(country.toUpperCase());
+        }
+        if (query != null && !query.isBlank()) {
+            String q = "%" + query.toLowerCase() + "%";
+            params.addString(q);
+            params.addString(q);
+        }
+
+        return client.preparedQuery(sql.toString())
+                .execute(params)
+                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve filtered radio stations for user: {}", user.getId(), throwable))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();

@@ -25,6 +25,10 @@ public class SongMetadata {
         this.artist = artist;
     }
 
+    public String getInfo() {
+        return String.format("Artist:%s,Title:%s", title, artist);
+    }
+
     public String toString() {
         return String.format("%s|%s", title, artist);
     }

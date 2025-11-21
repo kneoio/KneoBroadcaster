@@ -1,8 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.DraftDTO;
-import io.kneo.broadcaster.dto.ai.DraftTestDTO;
-import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
+import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
@@ -22,8 +21,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -151,23 +148,13 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         return doc;
     }
 
-    public Uni<String> testDraft(DraftTestDTO dto, IUser user) {
+    public Uni<String> testDraft(DraftTestReqDTO dto, IUser user) {
         return radioStationService.getById(dto.getStationId(), user)
                 .chain(station -> {
                     String brand = station.getSlugName();
                     return memoryService.addMessage(brand, "John", "Can you play some rock music?")
                             .chain(id1 -> memoryService.addMessage(brand, "Sarah", "I love this station!"))
                             .chain(id2 -> memoryService.addEvent(brand, EventType.WEATHER, "2025-11-02T21:00:00Z", "Sunny weather, 25°C"))
-                            .chain(id4 -> {
-                                SongIntroductionDTO historyDto = new SongIntroductionDTO();
-                                historyDto.setRelevantSoundFragmentId(dto.getSongId().toString());
-                                historyDto.setArtist("The Beatles");
-                                historyDto.setTitle("Hey Jude");
-                                String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-                                historyDto.setIntroSpeech("Here's a classic from The Beatles that never gets old! [Played at " + timestamp + "]");
-                                return memoryService.updateHistory(brand, historyDto)
-                                        .chain(result -> memoryService.commitHistory(brand, dto.getSongId()));
-                            })
                             .chain(ignored -> soundFragmentService.getById(dto.getSongId(), user))
                             .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
                                     .chain(agent -> {

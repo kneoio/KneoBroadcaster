@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.GenreDTO;
-import io.kneo.broadcaster.dto.ai.VoiceDTO;
+import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.repository.GenreRepository;
 import io.kneo.core.localization.LanguageCode;

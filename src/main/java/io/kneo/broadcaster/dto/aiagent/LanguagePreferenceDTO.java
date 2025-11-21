@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.ai;
+package io.kneo.broadcaster.dto.aiagent;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;

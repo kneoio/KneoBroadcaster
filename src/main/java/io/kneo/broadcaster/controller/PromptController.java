@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.agent.AgentClient;
-import io.kneo.broadcaster.dto.ai.PromptDTO;
-import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
-import io.kneo.broadcaster.dto.ai.PromptTestDTO;
+import io.kneo.broadcaster.dto.PromptDTO;
+import io.kneo.broadcaster.dto.agentrest.PromptTestReqDTO;
+import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.service.PromptService;
@@ -20,8 +20,8 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -221,7 +221,7 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
         try {
             if (!validateJsonBody(rc)) return;
 
-            PromptTestDTO dto = rc.body().asJsonObject().mapTo(PromptTestDTO.class);
+            PromptTestReqDTO dto = rc.body().asJsonObject().mapTo(PromptTestReqDTO.class);
             if (!validateDTO(rc, dto, validator)) return;
 
             getContextUser(rc, false, true)

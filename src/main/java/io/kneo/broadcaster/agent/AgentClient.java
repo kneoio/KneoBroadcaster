@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.agent;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.ai.AgentResponseDTO;
+import io.kneo.broadcaster.dto.agentrest.AgentRespDTO;
 import io.kneo.broadcaster.dto.cnst.TranslationType;
 import io.kneo.broadcaster.model.ai.LlmType;
 import io.kneo.core.localization.LanguageCode;
@@ -53,7 +53,7 @@ public class AgentClient {
                 });
     }
 
-    public Uni<AgentResponseDTO> testPrompt(String prompt, String draft, LlmType llmType) {
+    public Uni<AgentRespDTO> testPrompt(String prompt, String draft, LlmType llmType) {
         String endpoint = config.getAgentUrl() + "/prompt/test";
 
         JsonObject payload = new JsonObject();
@@ -72,14 +72,14 @@ public class AgentClient {
                         if (body == null) {
                             throw new RuntimeException("Empty response body");
                         }
-                        return body.mapTo(AgentResponseDTO.class);
+                        return body.mapTo(AgentRespDTO.class);
                     } else {
                         throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
                     }
                 });
     }
 
-    public Uni<AgentResponseDTO> translate(String toTranslate, TranslationType translationType, LanguageCode code) {
+    public Uni<AgentRespDTO> translate(String toTranslate, TranslationType translationType, LanguageCode code) {
         String endpoint = config.getAgentUrl() + "/translate";
 
         JsonObject payload = new JsonObject();
@@ -98,7 +98,7 @@ public class AgentClient {
                         if (body == null) {
                             throw new RuntimeException("Empty response body");
                         }
-                        return body.mapTo(AgentResponseDTO.class);
+                        return body.mapTo(AgentRespDTO.class);
                     } else {
                         throw new RuntimeException("HTTP " + response.statusCode() + ": " + response.bodyAsString());
                     }

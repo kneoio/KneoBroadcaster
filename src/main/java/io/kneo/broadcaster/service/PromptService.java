@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.ai.PromptDTO;
+import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;

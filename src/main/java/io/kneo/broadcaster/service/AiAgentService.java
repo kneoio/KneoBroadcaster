@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.ai.AiAgentDTO;
-import io.kneo.broadcaster.dto.ai.LanguagePreferenceDTO;
-import io.kneo.broadcaster.dto.ai.VoiceDTO;
+import io.kneo.broadcaster.dto.aiagent.AiAgentDTO;
+import io.kneo.broadcaster.dto.aiagent.LanguagePreferenceDTO;
+import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.ai.AiAgent;
 import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.LlmType;

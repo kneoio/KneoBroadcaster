@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.ai;
+package io.kneo.broadcaster.dto.agentrest;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.ai.LlmType;
@@ -10,7 +10,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class PromptTestDTO {
+public class PromptTestReqDTO {
     @NotBlank
     private String prompt;
     @NotBlank

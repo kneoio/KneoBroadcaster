@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.ai;
+package io.kneo.broadcaster.dto.agentrest;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class AgentResponseDTO {
+public class AgentRespDTO {
     private String result;
     private String reasoning;
 }

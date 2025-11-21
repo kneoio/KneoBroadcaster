@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
-import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
+import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
 import io.kneo.broadcaster.model.ai.Prompt;

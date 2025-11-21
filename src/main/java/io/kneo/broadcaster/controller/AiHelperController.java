@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
+import io.kneo.broadcaster.dto.aihelper.AvailableStationsAiDTO;
+import io.kneo.broadcaster.dto.aihelper.ListenerAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -35,9 +35,10 @@ public class AiHelperController {
         BodyHandler bodyHandler = BodyHandler.create();
         router.get("/api/ai/memory/:brand").handler(this::getMemoriesByType);
         router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
-        router.patch("/api/ai/memory/history/brand/:brand").handler(bodyHandler).handler(this::patchHistory);
         router.patch("/api/ai/memory/reset/:brand/:type").handler(bodyHandler).handler(this::resetMemory);
         router.get("/api/ai/live/stations").handler(this::getLiveRadioStations);
+        router.get("/api/ai/listener/by-telegram-name/:name").handler(this::getListenerByTelegramName);
+        router.get("/api/ai/stations").handler(this::getAllStations);
     }
 
     private void getMemoriesByType(RoutingContext rc) {
@@ -81,48 +82,6 @@ public class AiHelperController {
                             }
                         }
                 );
-    }
-
-    private void patchHistory(RoutingContext rc) {
-        parsePatchParameters(rc)
-                .chain(params -> memoryService.updateHistory(params.brand, params.dto))
-                .subscribe().with(
-                        doc -> rc.response().setStatusCode(200).end(),
-                        throwable -> {
-                            LOGGER.error("Error patching memory", throwable);
-                            if (throwable instanceof IllegalArgumentException) {
-                                rc.response()
-                                        .setStatusCode(400)
-                                        .putHeader("Content-Type", "text/plain")
-                                        .end(throwable.getMessage());
-                            } else {
-                                rc.response()
-                                        .setStatusCode(500)
-                                        .putHeader("Content-Type", "text/plain")
-                                        .end("An unexpected error occurred updating memory.");
-                            }
-                        }
-                );
-    }
-
-    private Uni<PatchParams> parsePatchParameters(RoutingContext rc) {
-        return Uni.createFrom().item(() -> {
-            String brand = rc.pathParam("brand");
-            if (brand == null || brand.trim().isEmpty()) {
-                throw new IllegalArgumentException("Brand parameter is required");
-            }
-
-            JsonObject jsonObject = rc.body().asJsonObject();
-            if (jsonObject == null) {
-                throw new IllegalArgumentException("Request body must be a valid JSON object");
-            }
-
-            SongIntroductionDTO dto = jsonObject.mapTo(SongIntroductionDTO.class);
-            return new PatchParams(brand, dto);
-        });
-    }
-
-    private record PatchParams(String brand, SongIntroductionDTO dto) {
     }
 
     private void consumeInstantMessages(RoutingContext rc) {
@@ -232,7 +191,7 @@ public class AiHelperController {
             List<RadioStationStatus> statuses = Arrays.stream(statusesParam.split(","))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
-                    .map(s -> RadioStationStatus.valueOf(s.toUpperCase()))
+                    .map(RadioStationStatus::valueOf)
                     .collect(Collectors.toList());
 
             aiHelperService.getOnline(statuses)
@@ -256,4 +215,38 @@ public class AiHelperController {
                     .end("Invalid statuses. Valid values: " + Arrays.toString(RadioStationStatus.values()));
         }
     }
+
+    private void getListenerByTelegramName(RoutingContext rc) {
+        String name = rc.pathParam("name");
+        if (name == null || name.trim().isEmpty()) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Telegram name parameter is required");
+            return;
+        }
+
+        aiHelperService.getListenerByTelegramName(name.trim())
+                .subscribe().with((ListenerAiDTO dto) -> {
+                    if (dto == null) {
+                        rc.response().setStatusCode(404).end();
+                        return;
+                    }
+                    rc.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(Json.encode(dto));
+                }, throwable -> {
+                    LOGGER.error("Error getting listener by telegram name", throwable);
+                    rc.response()
+                            .setStatusCode(500)
+                            .putHeader("Content-Type", "text/plain")
+                            .end("An error occurred while retrieving listener by telegram name");
+                });
+    }
+
+    private void getAllStations(RoutingContext rc) {
+        AvailableStationsAiDTO s = aiHelperService.getAllStations(RadioStationStatus radioStationStatus, String country, LanguageCode djlanguage);
+    }
+
 }

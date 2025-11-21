@@ -9,10 +9,7 @@ public class AnimationDTO {
     private boolean enabled;
     private String type;
     private double speed;
-    
-    public AnimationDTO() {
-    }
-    
+
     public AnimationDTO(boolean enabled, String type, double speed) {
         this.enabled = enabled;
         this.type = type;

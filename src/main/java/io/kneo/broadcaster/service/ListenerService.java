@@ -3,6 +3,8 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.ListenerFilterDTO;
+import io.kneo.broadcaster.dto.aihelper.ListenerAiDTO;
+import io.kneo.broadcaster.dto.aihelper.RadioStationAiDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
@@ -13,6 +15,7 @@ import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.dto.document.UserDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.model.user.UndefinedUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.AbstractService;
@@ -23,8 +26,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Set;
@@ -33,7 +34,6 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerService.class);
     private final ListenersRepository repository;
     private final Validator validator;
     private RadioStationService radioStationService;
@@ -91,8 +91,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     ListenerDTO dto = new ListenerDTO();
                     dto.setAuthor(user.getUserName());
                     dto.setLastModifier(user.getUserName());
-                    //dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
-                    //dto.getNickName(new EnumMap<>(LanguageCode.class));
                     dto.getLocalizedName().put(LanguageCode.en, "");
                     dto.getNickName().put(LanguageCode.en, "");
 
@@ -122,10 +120,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.findForBrand(brandName, limit, offset, user, false, filter);
     }
 
-    public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user) {
-        return getBrandListeners(brandName, limit, offset, user, null);
-    }
-
     public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user, ListenerFilterDTO filterDTO) {
         assert repository != null;
         assert radioStationService != null;
@@ -145,14 +139,21 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 });
     }
 
-    public Uni<Integer> getCountBrandListeners(final String brand, final IUser user) {
-        return getCountBrandListeners(brand, user, null);
-    }
-
     public Uni<Integer> getCountBrandListeners(final String brand, final IUser user, final ListenerFilterDTO filterDTO) {
         assert repository != null;
         ListenerFilter filter = toFilter(filterDTO);
         return repository.findForBrandCount(brand, user, false, filter);
+    }
+
+    public Uni<ListenerDTO> getByTelegramName(String telegramName) {
+        assert repository != null;
+        return repository.findByTelegramName(telegramName)
+                .onItem().transformToUni(doc -> {
+                    if (doc == null) {
+                        return Uni.createFrom().nullItem();
+                    }
+                    return mapToDTO(doc);
+                });
     }
 
     public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, IUser user) {
@@ -191,12 +192,8 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         entity.setUserId(userId);
                         return repository.insert(entity, dto.getListenerOf(), user);
                     })
-                    .chain(this::mapToDTO)
-                    .onFailure().invoke(throwable -> {
-                        LOGGER.error("Failed to create listener with slugName: {}", slugName, throwable);
-                    });
+                    .chain(this::mapToDTO);
         } else {
-            //TODO if slugName change it is not handle
             Listener entity = buildEntity(dto);
             return repository.update(UUID.fromString(id), entity, dto.getListenerOf(), user)
                     .chain(this::mapToDTO);
@@ -228,7 +225,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
-            dto.setTelegramId(doc.getTelegramId());
+            dto.setTelegramName(doc.getTelegramName());
             dto.setCountry(doc.getCountry().name());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
@@ -246,6 +243,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setNickName(dto.getNickName());
         doc.setSlugName(dto.getSlugName());
+        doc.setTelegramName(dto.getTelegramName());
         return doc;
     }
 
@@ -267,6 +265,63 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                 .map(this::mapToDocumentAccessDTO)
                                 .collect(Collectors.toList())
                 );
+    }
+
+    public Uni<ListenerAiDTO> getAiBrandListenerByTelegramName(String telegramName) {
+        assert repository != null;
+        assert radioStationService != null;
+        return repository.findByTelegramName(telegramName)
+                .onItem().transformToUni(listener -> {
+                    if (listener == null) {
+                        return Uni.createFrom().nullItem();
+                    }
+                    return repository.getBrandsForListener(listener.getId(), listener.getAuthor())
+                            .chain(brandIds -> {
+                                if (brandIds == null || brandIds.isEmpty()) {
+                                    ListenerAiDTO aiDto = new ListenerAiDTO();
+                                    aiDto.setTelegramName(listener.getTelegramName());
+                                    aiDto.setCountry(listener.getCountry().name());
+                                    aiDto.setLocalizedName(listener.getLocalizedName());
+                                    aiDto.setNickName(listener.getNickName());
+                                    aiDto.setSlugName(listener.getSlugName());
+                                    aiDto.setListenerOf(List.of());
+                                    return Uni.createFrom().item(aiDto);
+                                }
+
+                                List<Uni<RadioStationAiDTO>> brandUnis = brandIds.stream()
+                                        .map(brandId -> radioStationService.getDTO(brandId, SuperUser.build(), LanguageCode.en)
+                                                .onItem().transform(rsDto -> {
+                                                    if (rsDto == null) {
+                                                        return null;
+                                                    }
+                                                    RadioStationAiDTO b = new RadioStationAiDTO();
+                                                    b.setLocalizedName(rsDto.getLocalizedName());
+                                                    b.setSlugName(rsDto.getSlugName());
+                                                    b.setCountry(rsDto.getCountry());
+                                                    b.setHlsUrl(rsDto.getHlsUrl());
+                                                    b.setMp3Url(rsDto.getMp3Url());
+                                                    b.setMixplaUrl(rsDto.getMixplaUrl());
+                                                    b.setTimeZone(rsDto.getTimeZone());
+                                                    b.setDescription(rsDto.getDescription());
+                                                    b.setBitRate(rsDto.getBitRate());
+                                                    return b;
+                                                }))
+                                        .collect(Collectors.toList());
+
+                                return Uni.join().all(brandUnis).andFailFast()
+                                        .onItem().transform(list -> list.stream().filter(b -> b != null).collect(Collectors.toList()))
+                                        .onItem().transform(brands -> {
+                                            ListenerAiDTO aiDto = new ListenerAiDTO();
+                                            aiDto.setTelegramName(listener.getTelegramName());
+                                            aiDto.setCountry(listener.getCountry().name());
+                                            aiDto.setLocalizedName(listener.getLocalizedName());
+                                            aiDto.setNickName(listener.getNickName());
+                                            aiDto.setSlugName(listener.getSlugName());
+                                            aiDto.setListenerOf(brands);
+                                            return aiDto;
+                                        });
+                            });
+                });
     }
 
     /**

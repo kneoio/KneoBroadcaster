@@ -2,8 +2,8 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.DraftDTO;
-import io.kneo.broadcaster.dto.ai.DraftTestDTO;
-import io.kneo.broadcaster.dto.ai.TranslateReqDTO;
+import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
+import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.service.DraftService;
@@ -252,7 +252,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         try {
             if (!validateJsonBody(rc)) return;
 
-            DraftTestDTO dto = rc.body().asJsonObject().mapTo(DraftTestDTO.class);
+            DraftTestReqDTO dto = rc.body().asJsonObject().mapTo(DraftTestReqDTO.class);
 
             if (!validateDTO(rc, dto, validator)) return;
 

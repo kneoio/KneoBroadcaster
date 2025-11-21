@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.ai;
+package io.kneo.broadcaster.dto.agentrest;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.TranslationType;

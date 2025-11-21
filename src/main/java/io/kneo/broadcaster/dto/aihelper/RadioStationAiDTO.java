@@ -1,0 +1,28 @@
+package io.kneo.broadcaster.dto.aihelper;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.core.localization.LanguageCode;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.net.URL;
+import java.util.EnumMap;
+
+@Setter
+@Getter
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class RadioStationAiDTO {
+    private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+    private String slugName;
+    private String country;
+    private URL hlsUrl;
+    private URL mp3Url;
+    private URL mixplaUrl;
+    private String timeZone;
+    private String description;
+    private long bitRate;
+    private RadioStationStatus radioStationStatus;
+    private String djName;
+    private LanguageCode aiAgentLang;
+}

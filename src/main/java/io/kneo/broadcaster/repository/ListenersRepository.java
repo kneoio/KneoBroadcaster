@@ -49,9 +49,8 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<Listener>> getAll(int limit, int offset, boolean includeArchived, IUser user, ListenerFilter filter) {
-        String sql = "SELECT t.*, rls.*, u.telegram_name FROM " + entityData.getTableName() + " t " +
+        String sql = "SELECT t.*, rls.* FROM " + entityData.getTableName() + " t " +
                 "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "LEFT JOIN _users u ON t.user_id = u.id " +
                 "WHERE rls.reader = " + user.getId();
 
         if (!includeArchived) {
@@ -98,10 +97,9 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> findById(UUID uuid, IUser user, boolean includeArchived) {
-        String sql = "SELECT theTable.*, rls.*, u.telegram_name " +
+        String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "LEFT JOIN _users u ON theTable.user_id = u.id " +
                 "WHERE rls.reader = $1 AND theTable.id = $2";
 
         if (!includeArchived) {
@@ -126,12 +124,11 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived, ListenerFilter filter) {
-        String sql = "SELECT l.*, u.telegram_name " +
+        String sql = "SELECT l.* " +
                 "FROM " + entityData.getTableName() + " l " +
                 "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
                 "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
                 "JOIN " + entityData.getRlsName() + " rls ON l.id = rls.entity_id " +
-                "LEFT JOIN _users u ON l.user_id = u.id " +
                 "WHERE b.slug_name = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
@@ -206,8 +203,8 @@ public class ListenersRepository extends AsyncRepository {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, telegram_name, archived) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
         JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
         JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
 
@@ -221,6 +218,7 @@ public class ListenersRepository extends AsyncRepository {
                 .addJsonObject(localizedNameJson)
                 .addJsonObject(localizedNickNameJson)
                 .addString(listener.getSlugName())
+                .addString(listener.getTelegramName())
                 .addInteger(0);
 
         return client.withTransaction(tx ->
@@ -267,14 +265,15 @@ public class ListenersRepository extends AsyncRepository {
 
                             return client.withTransaction(tx -> {
                                 String sql = "UPDATE " + entityData.getTableName() +
-                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, last_mod_user=$5, last_mod_date=$6 " +
-                                        "WHERE id=$7";
+                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, telegram_name=$5, last_mod_user=$6, last_mod_date=$7 " +
+                                        "WHERE id=$8";
 
                                 Tuple params = Tuple.tuple()
                                         .addString(listener.getCountry().name())
                                         .addJsonObject(localizedNameJson)
                                         .addJsonObject(localizedNickNameJson)
                                         .addString(listener.getSlugName())
+                                        .addString(listener.getTelegramName())
                                         .addLong(user.getId())
                                         .addLocalDateTime(nowTime)
                                         .addUUID(id);
@@ -373,7 +372,7 @@ public class ListenersRepository extends AsyncRepository {
         Listener doc = new Listener();
         setDefaultFields(doc, row);
         doc.setUserId(row.getLong("user_id"));
-        doc.setTelegramId(row.getString("telegram_name"));
+        doc.setTelegramName(row.getString("telegram_name"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
         doc.setSlugName(row.getString("slug_name"));
 
@@ -400,6 +399,21 @@ public class ListenersRepository extends AsyncRepository {
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
+    }
+
+    public Uni<Listener> findByTelegramName(String telegramName) {
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t WHERE t.telegram_name = $1 LIMIT 1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(telegramName))
+                .onItem().transformToUni(rows -> {
+                    var it = rows.iterator();
+                    if (it.hasNext()) {
+                        return from(it.next());
+                    } else {
+                        return Uni.createFrom().nullItem();
+                    }
+                });
     }
 
     private String buildFilterConditions(ListenerFilter filter) {

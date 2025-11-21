@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.service;
 
-import io.kneo.broadcaster.dto.aihelper.SongIntroductionDTO;
 import io.kneo.broadcaster.dto.memory.AudienceContextDTO;
 import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
 import io.kneo.broadcaster.dto.memory.IMemoryContentDTO;
@@ -8,7 +7,6 @@ import io.kneo.broadcaster.dto.memory.ListenerContextDTO;
 import io.kneo.broadcaster.dto.memory.MemoryDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.dto.memory.MessageDTO;
-import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.util.TimeContextUtil;
@@ -18,8 +16,6 @@ import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -34,7 +30,6 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class MemoryService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MemoryService.class);
     private static final int MAX_CONVERSATION_HISTORY = 3;
     private static final int MAX_EVENTS = 20;
     private static final int MAX_MESSAGES = 20;
@@ -49,7 +44,6 @@ public class MemoryService {
     RadioStationService radioStationService;
 
     private final ConcurrentMap<String, ConcurrentMap<String, MemoryDTO>> memories = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, List<SongIntroduction>> initiatedHistories = new ConcurrentHashMap<>();
 
     public Uni<List<MemoryDTO>> getAll(final int limit, final int offset, final IUser user) {
         return flattenMemories().map(allMemories ->
@@ -85,11 +79,15 @@ public class MemoryService {
             switch (memoryType) {
                 case AUDIENCE_CONTEXT -> {
                     Uni<Void> audienceUni = getAudienceContext(brand, brandMap, result);
-                    if (audienceUni != null) uniList.add(audienceUni);
+                    if (audienceUni != null) {
+                        uniList.add(audienceUni);
+                    }
                 }
                 case LISTENER_CONTEXT -> {
                     Uni<Void> listenerUni = getListenerContext(brand, brandMap, result);
-                    if (listenerUni != null) uniList.add(listenerUni);
+                    if (listenerUni != null) {
+                        uniList.add(listenerUni);
+                    }
                 }
                 case MESSAGE, EVENT, CONVERSATION_HISTORY -> collectContents(brandMap, memoryType, result);
             }
@@ -100,7 +98,6 @@ public class MemoryService {
         }
         return Uni.combine().all().unis(uniList).with(r -> result);
     }
-
 
 
     public Uni<String> addEvent(String brand, EventType type, String timestamp, String description) {
@@ -165,48 +162,6 @@ public class MemoryService {
                     dto.setId(UUID.fromString(resultId));
                     return dto;
                 });
-    }
-
-    public Uni<Integer> updateHistory(String brand, SongIntroductionDTO dto) {
-        return Uni.createFrom().item(() -> {
-            SongIntroduction history = new SongIntroduction();
-            history.setId(UUID.randomUUID());
-            history.setRelevantSoundFragmentId(UUID.fromString(dto.getRelevantSoundFragmentId()));
-            history.setArtist(dto.getArtist());
-            history.setTitle(dto.getTitle());
-            history.setIntroSpeech(dto.getIntroSpeech());
-            initiatedHistories.computeIfAbsent(brand, k -> new ArrayList<>()).add(history);
-            return 1;
-        });
-    }
-
-    public Uni<Integer> commitHistory(String brand, UUID id) {
-        return Uni.createFrom().item(() -> {
-            List<SongIntroduction> list = initiatedHistories.get(brand);
-            if (list == null) return 0;
-            SongIntroduction found = list.stream()
-                    .filter(h -> h.getRelevantSoundFragmentId().equals(id))
-                    .findFirst()
-                    .orElse(null);
-            if (found != null) {
-                add(brand, MemoryType.CONVERSATION_HISTORY, found).subscribe().asCompletionStage();
-                list.remove(found);
-                cleanupInitiatedHistories();
-                return 1;
-            }
-            return 0;
-        });
-    }
-
-    public void cleanupInitiatedHistories() {
-        initiatedHistories.forEach((brand, list) -> {
-            int limit = 10;
-            if (list.size() > limit) {
-                int toRemove = list.size() - limit;
-                list.subList(0, toRemove).clear();
-                LOGGER.info("Cleaned {} old initiated histories for brand {}", toRemove, brand);
-            }
-        });
     }
 
 
@@ -313,7 +268,7 @@ public class MemoryService {
                         list.addAll(dto.getContent());
                     }
                 });
-        
+
         switch (type) {
             case MESSAGE -> result.setMessages((List) list);
             case EVENT -> result.setEvents((List) list);
@@ -358,7 +313,6 @@ public class MemoryService {
     }
 
 
-
     private Uni<Void> getListenerContext(String brand,
                                          ConcurrentMap<String, MemoryDTO> brandMap,
                                          MemoryResult result) {
@@ -379,7 +333,9 @@ public class MemoryService {
                                 ListenerContextDTO dto = new ListenerContextDTO();
                                 dto.setName(bl.getListener().getLocalizedName().get(LanguageCode.en));
                                 String nickname = bl.getListener().getNickName().get(LanguageCode.en);
-                                if (nickname != null) dto.setNickname(nickname);
+                                if (nickname != null) {
+                                    dto.setNickname(nickname);
+                                }
                                 dto.setLocation(bl.getListener().getCountry().getCountryName());
                                 return dto;
                             })

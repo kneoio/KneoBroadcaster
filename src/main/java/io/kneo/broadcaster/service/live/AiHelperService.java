@@ -1,16 +1,16 @@
 package io.kneo.broadcaster.service.live;
 
+import io.kneo.broadcaster.dto.aihelper.ListenerAiDTO;
+import io.kneo.broadcaster.dto.aihelper.LiveContainerAiDTO;
+import io.kneo.broadcaster.dto.aihelper.LiveRadioStationAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
-import io.kneo.broadcaster.dto.mcp.LiveContainerMcpDTO;
-import io.kneo.broadcaster.dto.mcp.LiveRadioStationMcpDTO;
 import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
 import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.ai.LanguagePreference;
 import io.kneo.broadcaster.model.ai.Prompt;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
@@ -24,6 +24,7 @@ import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.util.AiHelperUtils;
 import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -63,6 +64,8 @@ public class AiHelperService {
     private LocalDate lastReset = LocalDate.now();
 
     private final RadioStationPool radioStationPool;
+    private final io.kneo.broadcaster.service.RadioStationService radioStationService;
+    private final io.kneo.broadcaster.service.ListenerService listenerService;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
     private final PromptService promptService;
@@ -72,12 +75,6 @@ public class AiHelperService {
     private final JinglePlaybackHandler jinglePlaybackHandler;
     private final Randomizator randomizator;
 
-    private static final List<RadioStationStatus> ACTIVE_STATUSES = List.of(
-            RadioStationStatus.ON_LINE
-            //RadioStationStatus.WARMING_UP
-            //RadioStationStatus.QUEUE_SATURATED  // be careful
-    );
-    
     private static final int SCENE_START_SHIFT_MINUTES = 5;
 
     @Inject
@@ -89,7 +86,9 @@ public class AiHelperService {
             SongSupplier songSupplier,
             DraftFactory draftFactory,
             MemoryService memoryService,
-            JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator
+            JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator,
+            io.kneo.broadcaster.service.RadioStationService radioStationService,
+            io.kneo.broadcaster.service.ListenerService listenerService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -100,29 +99,30 @@ public class AiHelperService {
         this.memoryService = memoryService;
         this.jinglePlaybackHandler = jinglePlaybackHandler;
         this.randomizator = randomizator;
+        this.radioStationService = radioStationService;
+        this.listenerService = listenerService;
     }
 
-    public Uni<LiveContainerMcpDTO> getOnline(List<RadioStationStatus> statuses) {
-        List<RadioStationStatus> effectiveStatuses = (statuses == null || statuses.isEmpty()) ? ACTIVE_STATUSES : statuses;
+    public Uni<LiveContainerAiDTO> getOnline(List<RadioStationStatus> statuses) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
-                        .filter(station -> effectiveStatuses.contains(station.getStatus()))
+                        .filter(station -> statuses.contains(station.getStatus()))
                         .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
             stations.forEach(station -> clearDashboardMessages(station.getSlugName()));
-            LiveContainerMcpDTO container = new LiveContainerMcpDTO();
+            LiveContainerAiDTO container = new LiveContainerAiDTO();
             if (stations.isEmpty()) {
                 container.setRadioStations(List.of());
                 return Uni.createFrom().item(container);
             }
-            List<Uni<LiveRadioStationMcpDTO>> stationUnis = stations.stream()
+            List<Uni<LiveRadioStationAiDTO>> stationUnis = stations.stream()
                     .map(this::buildLiveRadioStation)
                     .collect(Collectors.toList());
             return Uni.join().all(stationUnis).andFailFast()
                     .map(liveStations -> {
-                        List<LiveRadioStationMcpDTO> validStations = liveStations.stream()
+                        List<LiveRadioStationAiDTO> validStations = liveStations.stream()
                                 .filter(liveStation -> {
                                     if (liveStation == null) {
                                         return false;
@@ -139,8 +139,12 @@ public class AiHelperService {
         });
     }
 
-    private Uni<LiveRadioStationMcpDTO> buildLiveRadioStation(RadioStation station) {
-        LiveRadioStationMcpDTO liveRadioStation = new LiveRadioStationMcpDTO();
+    public Uni<ListenerAiDTO> getListenerByTelegramName(String telegramName) {
+        return listenerService.getAiBrandListenerByTelegramName(telegramName);
+    }
+
+    private Uni<LiveRadioStationAiDTO> buildLiveRadioStation(RadioStation station) {
+        LiveRadioStationAiDTO liveRadioStation = new LiveRadioStationAiDTO();
         PlaylistManager playlistManager = station.getStreamManager().getPlaylistManager();
         int queueSize = playlistManager.getPrioritizedQueue().size();
         int queuedDurationSec = playlistManager.getPrioritizedQueue().stream()
@@ -163,7 +167,7 @@ public class AiHelperService {
 
         return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
-                    LanguageCode broadcastingLanguage = selectLanguageByWeight(agent);
+                    LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                     liveRadioStation.setSlugName(station.getSlugName());
                     String stationName = station.getLocalizedName().get(broadcastingLanguage);
                     if (stationName == null) {  //it might happen if dj speaks language that not represented in the localized names
@@ -242,7 +246,7 @@ public class AiHelperService {
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    if (!activeScene.isOneTimeRun() && shouldPlayJingle(activeScene.getTalkativity())) {
+                    if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(activeScene.getTalkativity())) {
                         addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Start filler mixing");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);
@@ -339,12 +343,6 @@ public class AiHelperService {
                                         });
                             });
                 });
-    }
-
-    private boolean shouldPlayJingle(double talkativity) {
-        double jingleProbability = 1.0 - talkativity;
-        double randomValue = new Random().nextDouble();
-        return randomValue < jingleProbability;
     }
 
     private boolean isSceneActive(String stationSlug, ZoneId zone, Scene scene, List<Scene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
@@ -480,37 +478,5 @@ public class AiHelperService {
 
     public void clearDashboardMessages(String brandName) {
         aiDjMessagesTracker.remove(brandName);
-    }
-
-    private LanguageCode selectLanguageByWeight(AiAgent agent) {
-        List<LanguagePreference> preferences = agent.getPreferredLang();
-        if (preferences == null || preferences.isEmpty()) {
-            LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
-            return LanguageCode.en;
-        }
-
-        if (preferences.size() == 1) {
-            return preferences.get(0).getCode();
-        }
-
-        double totalWeight = preferences.stream()
-                .mapToDouble(LanguagePreference::getWeight)
-                .sum();
-
-        if (totalWeight <= 0) {
-            LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
-            return preferences.get(0).getCode();
-        }
-
-        double randomValue = new Random().nextDouble() * totalWeight;
-        double cumulativeWeight = 0;
-        for (LanguagePreference pref : preferences) {
-            cumulativeWeight += pref.getWeight();
-            if (randomValue <= cumulativeWeight) {
-                return pref.getCode();
-            }
-        }
-
-        return preferences.get(0).getCode();
     }
 }

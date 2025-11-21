@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.ai;
+package io.kneo.broadcaster.dto;
 
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.localization.LanguageCode;

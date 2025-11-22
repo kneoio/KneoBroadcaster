@@ -45,7 +45,6 @@ public class QueueController {
     private void addToQueue(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
         String processId = rc.request().getParam("processId");
-        String startTime = rc.request().getParam("startTime");
 
         JsonObject body = rc.body().asJsonObject();
         if (body == null) {
@@ -69,14 +68,6 @@ public class QueueController {
             return;
         }
 
-        if (dto.getSoundFragments().isEmpty()) {
-            ProblemDetailsUtil.respondValidationError(
-                    rc,
-                    "Validation failed",
-                    Map.of("soundFragments", List.of("At least one sound fragment is required"))
-            );
-            return;
-        }
         if (dto.getMergingMethod() == null) {
             ProblemDetailsUtil.respondValidationError(
                     rc,
@@ -86,7 +77,6 @@ public class QueueController {
             return;
         }
 
-        // Initialize progress tracking if uploadId is provided
         if (processId != null) {
             queueService.initializeProgress(processId, "Queue request");
         }
@@ -95,7 +85,7 @@ public class QueueController {
             queueService.addToQueue(brand, dto, processId)
                     .subscribe().with(
                             ok -> {
-                                LOGGER.info("Queue add completed for brand {}, uploadId: {}", brand, processId);
+                                LOGGER.info("Queue add completed for brand {}, processId: {}", brand, processId);
                             },
                             err -> {
                                 LOGGER.error("Queue add failed for brand {}: {}", brand, err.getMessage());
@@ -119,7 +109,7 @@ public class QueueController {
         JsonObject resp = new JsonObject();
         resp.put("status", "accepted");
         if (processId != null) {
-            resp.put("uploadId", processId);
+            resp.put("processId", processId);
         }
         rc.response()
                 .setStatusCode(202)
@@ -178,7 +168,7 @@ public class QueueController {
     }
 
     private void streamProgress(RoutingContext rc) {
-        String uploadId = rc.pathParam("uploadId");
+        String processId = rc.pathParam("processId");
 
         rc.response()
                 .putHeader("Content-Type", "text/event-stream")
@@ -187,10 +177,16 @@ public class QueueController {
                 .setChunked(true);
 
         long timerId = vertx.setPeriodic(500, id -> {
-            SSEProgressDTO progress = queueService.getQueuingProgress(uploadId);
+            SSEProgressDTO progress = queueService.getQueuingProgress(processId);
             if (progress != null) {
                 rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
 
+                if (progress.getStatus() == SSEProgressStatus.DONE ||
+                    progress.getStatus() == SSEProgressStatus.ERROR) {
+                    vertx.cancelTimer(id);
+                    rc.response().end();
+                    vertx.setTimer(5000, tid -> queueService.queuingProgressMap.remove(processId));
+                }
             }
         });
 

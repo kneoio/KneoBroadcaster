@@ -56,10 +56,8 @@ public class QueueService {
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO, String uploadId) {
         LOGGER.info(" >>>>> request to add to queue from Introcaster {}", toQueueDTO.toString());
-        
-        if (uploadId != null) {
-            updateProgress(uploadId, "processing", null, null);
-        }
+
+        updateProgress(uploadId, SSEProgressStatus.PROCESSING, null);
         if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {  //keeping JIC
             return getRadioStation(brandName)
                     .chain(radioStation -> {
@@ -77,14 +75,10 @@ public class QueueService {
                         }
                     })
                     .onItem().invoke(result -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, "error", null, err.getMessage());
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.NOT_MIXED) {
             return getRadioStation(brandName)
@@ -93,40 +87,28 @@ public class QueueService {
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, ConcatenationType.DIRECT_CONCAT);
                     })
                     .onItem().invoke(result -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, "error", null, err.getMessage());
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_INTRO_SONG) {
             return getRadioStation(brandName)
                     .chain(radioStation -> createAudioMixingHandler().handleSongIntroSong(radioStation, toQueueDTO))
                     .onItem().invoke(result -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, "error", null, err.getMessage());
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG_INTRO_SONG) {
             return getRadioStation(brandName)
                     .chain(radioStation -> createAudioMixingHandler().handleIntroSongIntroSong(radioStation, toQueueDTO))
                     .onItem().invoke(result -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, "error", null, err.getMessage());
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_CROSSFADE_SONG) {
             return getRadioStation(brandName)
@@ -139,20 +121,15 @@ public class QueueService {
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, concatType);
                     })
                     .onItem().invoke(result -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
-                        if (uploadId != null) {
-                            updateProgress(uploadId, "error", null, err.getMessage());
-                        }
+                        updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else {
             return Uni.createFrom().item(Boolean.FALSE);
         }
     }
-
 
     private AudioMixingHandler createAudioMixingHandler() {
         try {
@@ -192,16 +169,17 @@ public class QueueService {
         queuingProgressMap.put(uploadId, dto);
     }
 
-    private void updateProgress(String uploadId, String status, String name, String errorMessage) {
+    private void updateProgress(String uploadId, SSEProgressStatus status, String errorMessage) {
+        if (uploadId == null) {
+            return;
+        }
+
         SSEProgressDTO dto = queuingProgressMap.get(uploadId);
         if (dto == null) {
             dto = new SSEProgressDTO();
             dto.setId(uploadId);
         }
-        if (name != null) {
-            dto.setName(name);
-        }
-        dto.setStatus(SSEProgressStatus.PROCESSING);
+        dto.setStatus(status);
         dto.setErrorMessage(errorMessage);
         queuingProgressMap.put(uploadId, dto);
     }

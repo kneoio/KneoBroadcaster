@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.manipulation.mixing.handler;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -48,7 +48,7 @@ public class IntroSongHandler {
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
     }
 
-    public Uni<Boolean> handle(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+    public Uni<Boolean> handle(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
         String ttsFilePath = toQueueDTO.getFilePaths().get("audio1");
@@ -66,7 +66,7 @@ public class IntroSongHandler {
                 });
     }
 
-    private Uni<Boolean> handleWithTtsFile(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO,
+    private Uni<Boolean> handleWithTtsFile(RadioStation radioStation, AddToQueueDTO toQueueDTO,
                                            SoundFragment soundFragment, FileMetadata songMetadata, String ttsFilePath,
                                            PlaylistManager playlistManager) {
         return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
@@ -105,7 +105,7 @@ public class IntroSongHandler {
                 });
     }
 
-    private Uni<Boolean> handleWithoutTtsFile(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO,
+    private Uni<Boolean> handleWithoutTtsFile(RadioStation radioStation, AddToQueueDTO toQueueDTO,
                                               SoundFragment soundFragment, PlaylistManager playlistManager) {
         updateRadioStationStatus(radioStation);
         return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),

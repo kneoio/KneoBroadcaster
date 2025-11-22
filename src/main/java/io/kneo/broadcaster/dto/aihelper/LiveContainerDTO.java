@@ -7,6 +7,6 @@ import java.util.List;
 
 @Setter
 @Getter
-public class AvailableStationsAiDTO {
-    private List<RadioStationAiDTO> radioStations;
+public class LiveContainerDTO {
+    private List<LiveRadioStationDTO> radioStations;
 }

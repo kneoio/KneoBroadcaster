@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.ai;
+package io.kneo.broadcaster.model.aiagent;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -8,6 +8,7 @@ import lombok.Setter;
 public class Voice {
     private String id;
     private String name;
+    private TTSEngineType engineType;
 
     public Voice() {}
 

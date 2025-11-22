@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.ai;
+package io.kneo.broadcaster.model.aiagent;
 
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;

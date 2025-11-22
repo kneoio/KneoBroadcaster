@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.util;
 
-import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.ai.LanguagePreference;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.core.localization.LanguageCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

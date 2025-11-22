@@ -4,7 +4,7 @@ import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
-import io.kneo.broadcaster.model.ai.LanguagePreference;
+import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
@@ -180,7 +180,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                 });
     }
 
-    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.ai.AiAgent agent) {
+    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.aiagent.AiAgent agent) {
         List<LanguagePreference> preferences = agent.getPreferredLang();
         if (preferences == null || preferences.isEmpty()) {
             LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());

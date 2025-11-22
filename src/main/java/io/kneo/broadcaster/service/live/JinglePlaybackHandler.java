@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
@@ -98,7 +98,7 @@ public class JinglePlaybackHandler {
                             LOGGER.info("Station '{}': Concatenating jingle '{}' with song '{}'",
                                     station.getSlugName(), selectedJingle.getTitle(), selectedSong.getTitle());
 
-                            AddToQueueMcpDTO queueDTO = new AddToQueueMcpDTO();
+                            AddToQueueDTO queueDTO = new AddToQueueDTO();
                             queueDTO.setMergingMethod(MergingType.FILLER_JINGLE);
                             queueDTO.setPriority(11); // less than dj agent(10)
 
@@ -126,7 +126,7 @@ public class JinglePlaybackHandler {
                             LOGGER.info("Station '{}': Concatenating song '{}' with song '{}'",
                                     station.getSlugName(), firstSong.getTitle(), secondSong.getTitle());
 
-                            AddToQueueMcpDTO queueDTO = new AddToQueueMcpDTO();
+                            AddToQueueDTO queueDTO = new AddToQueueDTO();
                             queueDTO.setMergingMethod(MergingType.SONG_CROSSFADE_SONG);
                             queueDTO.setPriority(12);
 
@@ -142,7 +142,7 @@ public class JinglePlaybackHandler {
                 );
     }
 
-    private void concatenate(RadioStation station, AddToQueueMcpDTO queueDTO, String type) {
+    private void concatenate(RadioStation station, AddToQueueDTO queueDTO, String type) {
         try {
             AudioMixingHandler handler = new AudioMixingHandler(
                     broadcasterConfig,

@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.agentrest;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.model.ai.LlmType;
+import io.kneo.broadcaster.model.aiagent.LlmType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;

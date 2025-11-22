@@ -8,7 +8,7 @@ import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.ai.LanguagePreference;
+import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
@@ -474,7 +474,7 @@ public class RadioService {
         return Uni.createFrom().item(new ArrayList<>(onlineStationsSnapshot));
     }
 
-    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.ai.AiAgent agent) {
+    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.aiagent.AiAgent agent) {
         List<LanguagePreference> preferences = agent.getPreferredLang();
         if (preferences == null || preferences.isEmpty()) {
             LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());

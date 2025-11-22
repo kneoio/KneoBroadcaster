@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.ai;
+package io.kneo.broadcaster.model.aiagent;
 
 import lombok.Getter;
 import lombok.Setter;

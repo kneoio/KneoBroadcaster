@@ -2,7 +2,7 @@ package io.kneo.broadcaster.repository.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
-import io.kneo.broadcaster.model.ai.Prompt;
+import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;

@@ -4,7 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
-import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -179,7 +179,7 @@ public class PlaylistManager {
                 );
     }
 
-    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType, AddToQueueMcpDTO mcpDTO) {
+    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType, AddToQueueDTO queueDTO) {
         try {
             List<FileMetadata> metadataList = soundFragment.getFileMetadataList();
             FileMetadata metadata = metadataList.get(0);
@@ -189,7 +189,7 @@ public class PlaylistManager {
             liveSoundFragment.setSoundFragmentId(soundFragment.getId());
             liveSoundFragment.setMetadata(songMetadata);
             liveSoundFragment.setSourceFilePath(metadata.getTemporaryFilePath());
-            liveSoundFragment.setPriority(mcpDTO.getPriority());
+            liveSoundFragment.setPriority(queueDTO.getPriority());
 
             if (soundFragment.getSource() == SourceType.CONTRIBUTION) {
 
@@ -206,15 +206,15 @@ public class PlaylistManager {
                         boolean curated = priority <= 12;
 
                         if (curated) {
-                            if (mcpDTO.getPriority() != null && mcpDTO.getPriority() <= 9) {
+                            if (queueDTO.getPriority() != null && queueDTO.getPriority() <= 9) {
                                 prioritizedQueue.clear();
                                 
-                                if (mcpDTO.getPriority() <= 8) {
+                                if (queueDTO.getPriority() <= 8) {
                                     slicedFragmentsLock.writeLock().lock();
                                     try {
                                         obtainedByHlsPlaylist.clear();
                                         LOGGER.warn("Priority {} triggered immediate interruption. Cleared active playlist for brand {}",
-                                                mcpDTO.getPriority(), brand);
+                                                queueDTO.getPriority(), brand);
                                     } finally {
                                         slicedFragmentsLock.writeLock().unlock();
                                     }
@@ -224,7 +224,7 @@ public class PlaylistManager {
                                     brand,
                                     AiDjStats.MessageType.INFO,
                                     String.format("Sound fragment '%s' with higher priority (%s)",
-                                            soundFragment.getTitle(), mcpDTO.getPriority())
+                                            soundFragment.getTitle(), queueDTO.getPriority())
                                 );
                             }
                             

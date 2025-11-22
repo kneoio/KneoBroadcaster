@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.manipulation.mixing.handler;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -62,7 +62,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
     }
 
-    public Uni<Boolean> handleSongIntroSong(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+    public Uni<Boolean> handleSongIntroSong(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID soundFragmentId1 = toQueueDTO.getSoundFragments().get("song1");
         String introSongPath = toQueueDTO.getFilePaths().get("audio1");
@@ -128,7 +128,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
-    public Uni<Boolean> handleIntroSongIntroSong(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO) {
+    public Uni<Boolean> handleIntroSongIntroSong(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         String part1 = toQueueDTO.getFilePaths().get("audio1");           // intro1
         UUID part2 = toQueueDTO.getSoundFragments().get("song1");         // song
@@ -194,7 +194,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
-    public Uni<Boolean> handleConcatenationAndFeed(RadioStation radioStation, AddToQueueMcpDTO toQueueDTO, ConcatenationType concatType) {
+    public Uni<Boolean> handleConcatenationAndFeed(RadioStation radioStation, AddToQueueDTO toQueueDTO, ConcatenationType concatType) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID songId1 = toQueueDTO.getSoundFragments().get("song1");
         UUID songId2 = toQueueDTO.getSoundFragments().get("song2");

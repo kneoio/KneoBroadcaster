@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.mcp;
+package io.kneo.broadcaster.dto.queue;
 
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import lombok.Getter;
@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Setter
 @Getter
-public class AddToQueueMcpDTO {
+public class AddToQueueDTO {
     private MergingType mergingMethod;
     private Map<String, String> filePaths;
     private Map<String, UUID> soundFragments;

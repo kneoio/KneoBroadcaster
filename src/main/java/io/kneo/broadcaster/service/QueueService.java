@@ -1,7 +1,8 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.mcp.AddToQueueMcpDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.dto.queue.QueuingSSEDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class QueueService {
@@ -49,8 +51,14 @@ public class QueueService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueService.class);
 
-    public Uni<Boolean> addToQueue(String brandName, AddToQueueMcpDTO toQueueDTO) {
+    public final ConcurrentHashMap<String, QueuingSSEDTO> queuingProgressMap = new ConcurrentHashMap<>();
+
+    public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO, String uploadId) {
         LOGGER.info(" >>>>> request to add to queue from Introcaster {}", toQueueDTO.toString());
+        
+        if (uploadId != null) {
+            updateProgress(uploadId, "processing", null, null);
+        }
         if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {  //keeping JIC
             return getRadioStation(brandName)
                     .chain(radioStation -> {
@@ -66,19 +74,59 @@ public class QueueService {
                         } catch (IOException | AudioMergeException e) {
                             throw new RuntimeException(e);
                         }
+                    })
+                    .onItem().invoke(result -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
+                        }
+                    })
+                    .onFailure().invoke(err -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, "error", null, err.getMessage());
+                        }
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.NOT_MIXED) {
             return getRadioStation(brandName)
                     .chain(radioStation -> {
                         AudioMixingHandler handler = createAudioMixingHandler();
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, ConcatenationType.DIRECT_CONCAT);
+                    })
+                    .onItem().invoke(result -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
+                        }
+                    })
+                    .onFailure().invoke(err -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, "error", null, err.getMessage());
+                        }
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_INTRO_SONG) {
             return getRadioStation(brandName)
-                    .chain(radioStation -> createAudioMixingHandler().handleSongIntroSong(radioStation, toQueueDTO));
+                    .chain(radioStation -> createAudioMixingHandler().handleSongIntroSong(radioStation, toQueueDTO))
+                    .onItem().invoke(result -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
+                        }
+                    })
+                    .onFailure().invoke(err -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, "error", null, err.getMessage());
+                        }
+                    });
         } else if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG_INTRO_SONG) {
             return getRadioStation(brandName)
-                    .chain(radioStation -> createAudioMixingHandler().handleIntroSongIntroSong(radioStation, toQueueDTO));
+                    .chain(radioStation -> createAudioMixingHandler().handleIntroSongIntroSong(radioStation, toQueueDTO))
+                    .onItem().invoke(result -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
+                        }
+                    })
+                    .onFailure().invoke(err -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, "error", null, err.getMessage());
+                        }
+                    });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_CROSSFADE_SONG) {
             return getRadioStation(brandName)
                     .chain(radioStation -> {
@@ -88,6 +136,16 @@ public class QueueService {
                                 .findFirst()
                                 .orElse(ConcatenationType.CROSSFADE);
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, concatType);
+                    })
+                    .onItem().invoke(result -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, result ? "queued" : "error", null, result ? null : "Failed to queue");
+                        }
+                    })
+                    .onFailure().invoke(err -> {
+                        if (uploadId != null) {
+                            updateProgress(uploadId, "error", null, err.getMessage());
+                        }
                     });
         } else {
             return Uni.createFrom().item(Boolean.FALSE);
@@ -119,5 +177,38 @@ public class QueueService {
                     }
                     return v;
                 });
+    }
+
+    public QueuingSSEDTO getQueuingProgress(String uploadId) {
+        return queuingProgressMap.get(uploadId);
+    }
+
+    public void initializeProgress(String uploadId, String name) {
+        QueuingSSEDTO dto = QueuingSSEDTO.builder()
+                .id(uploadId)
+                .name(name)
+                .status("pending")
+                .build();
+        queuingProgressMap.put(uploadId, dto);
+    }
+
+    private void updateProgress(String uploadId, String status, String name, String errorMessage) {
+        QueuingSSEDTO dto = queuingProgressMap.get(uploadId);
+        if (dto == null) {
+            dto = QueuingSSEDTO.builder()
+                    .id(uploadId)
+                    .status(status)
+                    .name(name)
+                    .errorMessage(errorMessage)
+                    .build();
+        } else {
+            dto = QueuingSSEDTO.builder()
+                    .id(dto.getId())
+                    .name(name != null ? name : dto.getName())
+                    .status(status)
+                    .errorMessage(errorMessage)
+                    .build();
+        }
+        queuingProgressMap.put(uploadId, dto);
     }
 }

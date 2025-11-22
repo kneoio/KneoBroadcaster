@@ -1,22 +1,22 @@
 package io.kneo.broadcaster.service.live;
 
-import io.kneo.broadcaster.dto.aihelper.AvailableStationsAiDTO;
-import io.kneo.broadcaster.dto.aihelper.ListenerAiDTO;
-import io.kneo.broadcaster.dto.aihelper.LiveContainerAiDTO;
-import io.kneo.broadcaster.dto.aihelper.LiveRadioStationAiDTO;
-import io.kneo.broadcaster.dto.aihelper.LiveRadioStationStatAiDTO;
-import io.kneo.broadcaster.dto.aihelper.RadioStationAiDTO;
+import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
+import io.kneo.broadcaster.dto.aihelper.LiveRadioStationDTO;
+import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
+import io.kneo.broadcaster.dto.aihelper.TtsDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
-import io.kneo.broadcaster.dto.mcp.SongPromptMcpDTO;
-import io.kneo.broadcaster.dto.mcp.TtsMcpDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.ai.AiAgent;
-import io.kneo.broadcaster.model.ai.LanguagePreference;
-import io.kneo.broadcaster.model.ai.Prompt;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -114,7 +114,7 @@ public class AiHelperService {
         this.listenerService = listenerService;
     }
 
-    public Uni<LiveContainerAiDTO> getOnline(List<RadioStationStatus> statuses) {
+    public Uni<LiveContainerDTO> getOnline(List<RadioStationStatus> statuses) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
@@ -123,17 +123,17 @@ public class AiHelperService {
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
             stations.forEach(station -> clearDashboardMessages(station.getSlugName()));
-            LiveContainerAiDTO container = new LiveContainerAiDTO();
+            LiveContainerDTO container = new LiveContainerDTO();
             if (stations.isEmpty()) {
                 container.setRadioStations(List.of());
                 return Uni.createFrom().item(container);
             }
-            List<Uni<LiveRadioStationAiDTO>> stationUnis = stations.stream()
+            List<Uni<LiveRadioStationDTO>> stationUnis = stations.stream()
                     .map(this::buildLiveRadioStation)
                     .collect(Collectors.toList());
             return Uni.join().all(stationUnis).andFailFast()
                     .map(liveStations -> {
-                        List<LiveRadioStationAiDTO> validStations = liveStations.stream()
+                        List<LiveRadioStationDTO> validStations = liveStations.stream()
                                 .filter(liveStation -> {
                                     if (liveStation == null) {
                                         return false;
@@ -259,8 +259,8 @@ public class AiHelperService {
         return b;
     }
 
-    private Uni<LiveRadioStationAiDTO> buildLiveRadioStation(RadioStation station) {
-        LiveRadioStationAiDTO liveRadioStation = new LiveRadioStationAiDTO();
+    private Uni<LiveRadioStationDTO> buildLiveRadioStation(RadioStation station) {
+        LiveRadioStationDTO liveRadioStation = new LiveRadioStationDTO();
         PlaylistManager playlistManager = station.getStreamManager().getPlaylistManager();
         int queueSize = playlistManager.getPrioritizedQueue().size();
         int queuedDurationSec = playlistManager.getPrioritizedQueue().stream()
@@ -314,7 +314,7 @@ public class AiHelperService {
                                 .map(copilot -> {
                                     String secondaryVoice = copilot.getPreferredVoice().get(0).getId();
                                     String secondaryVoiceName = copilot.getName();
-                                    liveRadioStation.setTts(new TtsMcpDTO(
+                                    liveRadioStation.setTts(new TtsDTO(
                                             preferredVoice,
                                             secondaryVoice,
                                             secondaryVoiceName
@@ -325,7 +325,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<Tuple2<List<SongPromptMcpDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage) {
+    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage) {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
@@ -424,10 +424,10 @@ public class AiHelperService {
                                             if (songs == null || songs.isEmpty()) {
                                                 LOGGER.error("Station '{}': No songs available for prompt generation",
                                                         station.getSlugName());
-                                                return Uni.createFrom().item(Tuple2.of(List.<SongPromptMcpDTO>of(), finalCurrentSceneTitle));
+                                                return Uni.createFrom().item(Tuple2.of(List.<SongPromptDTO>of(), finalCurrentSceneTitle));
                                             }
 
-                                            List<Uni<SongPromptMcpDTO>> songPromptUnis = songs.stream()
+                                            List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
                                                     .map(song -> {
                                                         Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
                                                         //addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, String.format("DJ session started (%s)", song.getMetadata()));
@@ -441,7 +441,7 @@ public class AiHelperService {
                                                                 memoryData,
                                                                 selectedPrompt.getDraftId(),
                                                                 broadcastingLanguage
-                                                        ).map(draft -> new SongPromptMcpDTO(
+                                                        ).map(draft -> new SongPromptDTO(
                                                                 song.getId(),
                                                                 draft,
                                                                 selectedPrompt.getPrompt(),
@@ -467,7 +467,8 @@ public class AiHelperService {
             lastReset = LocalDate.now(zone);
         }
 
-        if (!scene.getWeekdays().isEmpty() && !scene.getWeekdays().contains(currentDayOfWeek)) {
+        List<Integer> weekdays = scene.getWeekdays();
+        if (weekdays != null && !weekdays.isEmpty() && !weekdays.contains(currentDayOfWeek)) {
             return false;
         }
 
@@ -521,7 +522,8 @@ public class AiHelperService {
                 return time;
             }
         }
-        return sortedTimes.isEmpty() ? null : sortedTimes.get(0);
+        // No distinct later start time today; signal end-of-day by returning null.
+        return null;
     }
 
     public Uni<AiDjStats> getAiDjStats(RadioStation station) {

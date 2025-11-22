@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.dto.aihelper;
+package io.kneo.broadcaster.dto.aihelper.llmtool;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;

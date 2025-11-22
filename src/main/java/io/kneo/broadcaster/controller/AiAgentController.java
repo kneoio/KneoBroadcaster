@@ -2,7 +2,7 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.aiagent.AiAgentDTO;
-import io.kneo.broadcaster.model.ai.AiAgent;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;

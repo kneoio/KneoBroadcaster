@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.aihelper.AvailableStationsAiDTO;
-import io.kneo.broadcaster.dto.aihelper.ListenerAiDTO;
-import io.kneo.broadcaster.dto.aihelper.LiveRadioStationStatAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;

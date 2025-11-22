@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
-import io.kneo.broadcaster.model.ai.Prompt;
+import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;

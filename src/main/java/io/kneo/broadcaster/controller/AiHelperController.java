@@ -42,6 +42,7 @@ public class AiHelperController {
         router.get("/api/ai/station/:slug/live").handler(this::getStationLiveStat);
         router.get("/api/ai/listener/by-telegram-name/:name").handler(this::getListenerByTelegramName);
         router.get("/api/ai/stations").handler(this::getAllStations);
+        router.get("/api/ai/brand/:brand/soundfragments").handler(this::getBrandSoundFragments);
     }
 
     private void getMemoriesByType(RoutingContext rc) {
@@ -325,6 +326,66 @@ public class AiHelperController {
                             }
                     );
         } catch (IllegalArgumentException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Invalid query parameters");
+        }
+    }
+
+    private void getBrandSoundFragments(RoutingContext rc) {
+        String brand = rc.pathParam("brand");
+        if (brand == null || brand.trim().isEmpty()) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Brand parameter is required");
+            return;
+        }
+
+        String keyword = rc.queryParam("keyword").isEmpty() ? null : rc.queryParam("keyword").get(0);
+        if (keyword == null || keyword.trim().isEmpty()) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Keyword parameter is required");
+            return;
+        }
+
+        try {
+            Integer limit = null;
+            String limitParam = rc.queryParam("limit").isEmpty() ? null : rc.queryParam("limit").get(0);
+            if (limitParam != null && !limitParam.trim().isEmpty()) {
+                limit = Integer.parseInt(limitParam.trim());
+            }
+
+            Integer offset = null;
+            String offsetParam = rc.queryParam("offset").isEmpty() ? null : rc.queryParam("offset").get(0);
+            if (offsetParam != null && !offsetParam.trim().isEmpty()) {
+                offset = Integer.parseInt(offsetParam.trim());
+            }
+
+            aiHelperService.searchBrandSoundFragmentsForAi(brand.trim(), keyword.trim(), limit, offset)
+                    .subscribe().with(
+                            fragments -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(Json.encode(fragments)),
+                            throwable -> {
+                                LOGGER.error("Error searching brand sound fragments for brand: {}", brand, throwable);
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .putHeader("Content-Type", "text/plain")
+                                        .end("An error occurred while searching brand sound fragments");
+                            }
+                    );
+        } catch (NumberFormatException e) {
+            rc.response()
+                    .setStatusCode(400)
+                    .putHeader("Content-Type", "text/plain")
+                    .end("Invalid limit or offset parameter");
+        } catch (Exception e) {
+            LOGGER.error("Error processing brand sound fragments search request", e);
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", "text/plain")

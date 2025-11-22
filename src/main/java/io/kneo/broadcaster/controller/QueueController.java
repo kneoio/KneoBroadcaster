@@ -1,7 +1,8 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.cnst.SSEProgressStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
-import io.kneo.broadcaster.dto.queue.QueuingSSEDTO;
+import io.kneo.broadcaster.dto.queue.SSEProgressDTO;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -38,12 +39,12 @@ public class QueueController {
         String path = "/api/:brand/queue";
         router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.POST, path + "/add").handler(this::addToQueue);
-        router.route(HttpMethod.GET, path + "/progress/:uploadId/stream").handler(this::streamProgress);
+        router.route(HttpMethod.GET, path + "/progress/:processId/stream").handler(this::streamProgress);
     }
 
     private void addToQueue(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
-        String uploadId = rc.request().getParam("uploadId");
+        String processId = rc.request().getParam("processId");
         String startTime = rc.request().getParam("startTime");
 
         JsonObject body = rc.body().asJsonObject();
@@ -86,28 +87,27 @@ public class QueueController {
         }
 
         // Initialize progress tracking if uploadId is provided
-        if (uploadId != null) {
-            queueService.initializeProgress(uploadId, "Queue request");
+        if (processId != null) {
+            queueService.initializeProgress(processId, "Queue request");
         }
 
         try {
-            queueService.addToQueue(brand, dto, uploadId)
+            queueService.addToQueue(brand, dto, processId)
                     .subscribe().with(
                             ok -> {
-                                LOGGER.info("Queue add completed for brand {}, uploadId: {}", brand, uploadId);
+                                LOGGER.info("Queue add completed for brand {}, uploadId: {}", brand, processId);
                             },
                             err -> {
                                 LOGGER.error("Queue add failed for brand {}: {}", brand, err.getMessage());
                             }
                     );
         } catch (Exception e) {
-            if (uploadId != null) {
-                QueuingSSEDTO errorDto = QueuingSSEDTO.builder()
-                        .id(uploadId)
-                        .status("error")
-                        .errorMessage(e.getMessage())
-                        .build();
-                queueService.queuingProgressMap.put(uploadId, errorDto);
+            if (processId != null) {
+                SSEProgressDTO errorDto = new SSEProgressDTO();
+                errorDto.setId(processId);
+                errorDto.setErrorMessage(e.getMessage());
+                errorDto.setStatus(SSEProgressStatus.ERROR);
+                queueService.queuingProgressMap.put(processId, errorDto);
             }
             rc.response()
                     .setStatusCode(500)
@@ -118,8 +118,8 @@ public class QueueController {
 
         JsonObject resp = new JsonObject();
         resp.put("status", "accepted");
-        if (uploadId != null) {
-            resp.put("uploadId", uploadId);
+        if (processId != null) {
+            resp.put("uploadId", processId);
         }
         rc.response()
                 .setStatusCode(202)
@@ -187,14 +187,10 @@ public class QueueController {
                 .setChunked(true);
 
         long timerId = vertx.setPeriodic(500, id -> {
-            QueuingSSEDTO progress = queueService.getQueuingProgress(uploadId);
+            SSEProgressDTO progress = queueService.getQueuingProgress(uploadId);
             if (progress != null) {
                 rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
 
-                if ("queued".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
-                    vertx.cancelTimer(id);
-                    rc.response().end();
-                }
             }
         });
 

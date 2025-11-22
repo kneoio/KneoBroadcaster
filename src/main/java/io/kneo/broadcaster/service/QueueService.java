@@ -1,8 +1,9 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.cnst.SSEProgressStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
-import io.kneo.broadcaster.dto.queue.QueuingSSEDTO;
+import io.kneo.broadcaster.dto.queue.SSEProgressDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -51,7 +52,7 @@ public class QueueService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueService.class);
 
-    public final ConcurrentHashMap<String, QueuingSSEDTO> queuingProgressMap = new ConcurrentHashMap<>();
+    public final ConcurrentHashMap<String, SSEProgressDTO> queuingProgressMap = new ConcurrentHashMap<>();
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO, String uploadId) {
         LOGGER.info(" >>>>> request to add to queue from Introcaster {}", toQueueDTO.toString());
@@ -179,36 +180,29 @@ public class QueueService {
                 });
     }
 
-    public QueuingSSEDTO getQueuingProgress(String uploadId) {
+    public SSEProgressDTO getQueuingProgress(String uploadId) {
         return queuingProgressMap.get(uploadId);
     }
 
     public void initializeProgress(String uploadId, String name) {
-        QueuingSSEDTO dto = QueuingSSEDTO.builder()
-                .id(uploadId)
-                .name(name)
-                .status("pending")
-                .build();
+        SSEProgressDTO dto = new SSEProgressDTO();
+        dto.setId(uploadId);
+        dto.setName(name);
+        dto.setStatus(SSEProgressStatus.PROCESSING);
         queuingProgressMap.put(uploadId, dto);
     }
 
     private void updateProgress(String uploadId, String status, String name, String errorMessage) {
-        QueuingSSEDTO dto = queuingProgressMap.get(uploadId);
+        SSEProgressDTO dto = queuingProgressMap.get(uploadId);
         if (dto == null) {
-            dto = QueuingSSEDTO.builder()
-                    .id(uploadId)
-                    .status(status)
-                    .name(name)
-                    .errorMessage(errorMessage)
-                    .build();
-        } else {
-            dto = QueuingSSEDTO.builder()
-                    .id(dto.getId())
-                    .name(name != null ? name : dto.getName())
-                    .status(status)
-                    .errorMessage(errorMessage)
-                    .build();
+            dto = new SSEProgressDTO();
+            dto.setId(uploadId);
         }
+        if (name != null) {
+            dto.setName(name);
+        }
+        dto.setStatus(SSEProgressStatus.PROCESSING);
+        dto.setErrorMessage(errorMessage);
         queuingProgressMap.put(uploadId, dto);
     }
 }

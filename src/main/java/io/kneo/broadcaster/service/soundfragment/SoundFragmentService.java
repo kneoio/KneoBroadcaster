@@ -59,6 +59,35 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.radioStationService = null;
     }
 
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
+        assert repository != null;
+        assert radioStationService != null;
+
+        return radioStationService.getBySlugName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.getForBrandBySimilarity(brandId, keyword, limit, offset, false, SuperUser.build())
+                            .chain(fragments -> {
+                                if (fragments.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
+                                }
+
+                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
+                                        .map(this::mapToBrandSoundFragmentDTO)
+                                        .collect(Collectors.toList());
+
+                                return Uni.join().all(unis).andFailFast();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to similarity-search fragments for brand: {}", brandName, failure);
+                    return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
+                });
+    }
+
     @Inject
     public SoundFragmentService(UserService userService,
                                 RadioStationService radioStationService,

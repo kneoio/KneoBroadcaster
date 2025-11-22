@@ -105,8 +105,8 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             dto.setLlmType(doc.getLlmType().name());
             dto.setSearchEngineType(doc.getSearchEngineType().name());
 
-            if (doc.getPreferredVoice() != null && !doc.getPreferredVoice().isEmpty()) {
-                List<VoiceDTO> voiceDTOs = doc.getPreferredVoice().stream()
+            if (doc.getPrimaryVoice() != null && !doc.getPrimaryVoice().isEmpty()) {
+                List<VoiceDTO> voiceDTOs = doc.getPrimaryVoice().stream()
                         .map(voice -> {
                             VoiceDTO voiceDTO = new VoiceDTO();
                             voiceDTO.setId(voice.getId());
@@ -114,7 +114,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                             return voiceDTO;
                         })
                         .toList();
-                dto.setPreferredVoice(voiceDTOs);
+                dto.setPrimaryVoice(voiceDTOs);
             }
 
             if (doc.getCopilot() != null) dto.setCopilot(doc.getCopilot());
@@ -144,8 +144,8 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             doc.setSearchEngineType(SearchEngineType.valueOf(dto.getSearchEngineType()));
         }
 
-        if (dto.getPreferredVoice() != null && !dto.getPreferredVoice().isEmpty()) {
-            List<Voice> voices = dto.getPreferredVoice().stream()
+        if (dto.getPrimaryVoice() != null && !dto.getPrimaryVoice().isEmpty()) {
+            List<Voice> voices = dto.getPrimaryVoice().stream()
                     .map(voiceDto -> {
                         Voice voice = new Voice();
                         voice.setId(voiceDto.getId());
@@ -153,7 +153,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                         return voice;
                     })
                     .collect(Collectors.toList());
-            doc.setPreferredVoice(voices);
+            doc.setPrimaryVoice(voices);
         }
 
         return doc;

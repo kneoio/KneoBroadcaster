@@ -164,7 +164,7 @@ public class AiAgentRepository extends AsyncRepository {
                 .addJsonArray(preferredLangJson)
                 .addString(agent.getLlmType().name())
                 .addString(agent.getSearchEngineType().name())
-                .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
+                .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
                 .addUUID(agent.getCopilot());
 
         return client.withTransaction(tx ->
@@ -213,7 +213,7 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addJsonArray(preferredLangJson)
                                     .addString(agent.getLlmType().name())
                                     .addString(agent.getSearchEngineType().name())
-                                    .addJsonArray(JsonArray.of(agent.getPreferredVoice().toArray()))
+                                    .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
                                     .addUUID(agent.getCopilot())
                                     .addUUID(id);
 
@@ -283,11 +283,11 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setSearchEngineType(SearchEngineType.valueOf(row.getString("search_engine_type")));
 
         try {
-            JsonArray preferredVoiceJson = row.getJsonArray("preferred_voice");
-            doc.setPreferredVoice(preferredVoiceJson != null ? mapper.readValue(preferredVoiceJson.encode(), new TypeReference<List<Voice>>() {}) : new ArrayList<>());
+            JsonArray primaryVoiceJson = row.getJsonArray("preferred_voice");
+            doc.setPrimaryVoice(primaryVoiceJson != null ? mapper.readValue(primaryVoiceJson.encode(), new TypeReference<List<Voice>>() {}) : new ArrayList<>());
         } catch (JsonProcessingException e) {
             LOGGER.error("Failed to deserialize AI Agent JSONB fields for agent: {}", doc.getName(), e);
-            doc.setPreferredVoice(new ArrayList<>());
+            doc.setPrimaryVoice(new ArrayList<>());
         }
 
         return doc;

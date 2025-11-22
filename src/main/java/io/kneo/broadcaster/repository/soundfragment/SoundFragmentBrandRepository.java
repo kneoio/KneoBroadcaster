@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
-import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.rls.RLSRepository;
 import io.smallrye.mutiny.Multi;
@@ -20,6 +20,41 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     public SoundFragmentBrandRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
+    }
+
+    public Uni<List<BrandSoundFragment>> findForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset,
+                                                                  boolean includeArchived, IUser user) {
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand, " +
+                "similarity(t.search_name, $3) AS sim " +
+                "FROM " + entityData.getTableName() + " t " +
+                "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
+                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                "WHERE bsf.brand_id = $1 AND rls.reader = $2";
+
+        if (!includeArchived) {
+            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+        }
+
+        sql += " AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)";
+        sql += " ORDER BY sim DESC";
+
+        if (limit > 0) {
+            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, user.getId(), keyword))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> {
+                    Uni<SoundFragment> soundFragmentUni = from(row, true, false, true);
+                    return soundFragmentUni.onItem().transform(soundFragment -> {
+                        BrandSoundFragment brandSoundFragment = createBrandSoundFragment(row, brandId);
+                        brandSoundFragment.setSoundFragment(soundFragment);
+                        return brandSoundFragment;
+                    });
+                })
+                .concatenate()
+                .collect().asList();
     }
 
     public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,

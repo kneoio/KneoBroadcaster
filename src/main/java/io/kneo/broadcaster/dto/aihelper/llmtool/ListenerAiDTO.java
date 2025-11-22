@@ -22,6 +22,6 @@ public class ListenerAiDTO extends AbstractReferenceDTO {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
-    private List<RadioStationAiDTO> listenerOf;
+    private List<List<String>> listenerOf;
 
 }

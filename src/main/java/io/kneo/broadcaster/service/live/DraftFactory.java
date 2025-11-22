@@ -187,9 +187,9 @@ public class DraftFactory {
         data.put("songDescription", song.getDescription());
         data.put("songGenres", genres);
         data.put("djName", agent.getName());
-        data.put("djVoiceId", agent.getPreferredVoice().stream().findAny().orElseThrow().getId());
+        data.put("djVoiceId", agent.getPrimaryVoice().stream().findAny().orElseThrow().getId());
         data.put("coPilotName", copilot.getName());
-        data.put("coPilotVoiceId", copilot.getPreferredVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
+        data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
         String brand = station.getLocalizedName().get(selectedLanguage);
         if (brand == null) {
             brand = station.getLocalizedName().values().iterator().next();

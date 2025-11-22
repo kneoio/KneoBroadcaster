@@ -1,10 +1,12 @@
 package io.kneo.broadcaster.service.live;
 
+import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
 import io.kneo.broadcaster.dto.aihelper.LiveRadioStationDTO;
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.aihelper.TtsDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
+import io.kneo.broadcaster.dto.aihelper.llmtool.BrandSoundFragmentAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
@@ -82,6 +84,8 @@ public class AiHelperService {
     private final MemoryService memoryService;
     private final JinglePlaybackHandler jinglePlaybackHandler;
     private final Randomizator randomizator;
+    private final io.kneo.broadcaster.service.soundfragment.SoundFragmentService soundFragmentService;
+    private final io.kneo.broadcaster.service.RefService refService;
 
     @Inject
     StatsAccumulator statsAccumulator;
@@ -99,7 +103,9 @@ public class AiHelperService {
             MemoryService memoryService,
             JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator,
             io.kneo.broadcaster.service.RadioStationService radioStationService,
-            io.kneo.broadcaster.service.ListenerService listenerService
+            io.kneo.broadcaster.service.ListenerService listenerService,
+            io.kneo.broadcaster.service.soundfragment.SoundFragmentService soundFragmentService,
+            io.kneo.broadcaster.service.RefService refService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -112,6 +118,8 @@ public class AiHelperService {
         this.randomizator = randomizator;
         this.radioStationService = radioStationService;
         this.listenerService = listenerService;
+        this.soundFragmentService = soundFragmentService;
+        this.refService = refService;
     }
 
     public Uni<LiveContainerDTO> getOnline(List<RadioStationStatus> statuses) {
@@ -206,6 +214,29 @@ public class AiHelperService {
                                 container.setRadioStations(stationsList);
                                 return container;
                             });
+                });
+    }
+
+    public Uni<List<BrandSoundFragmentAiDTO>> searchBrandSoundFragmentsForAi(
+            String brandName,
+            String keyword,
+            Integer limit,
+            Integer offset
+    ) {
+        int actualLimit = (limit != null && limit > 0) ? limit : 50;
+        int actualOffset = (offset != null && offset >= 0) ? offset : 0;
+
+        return soundFragmentService.getBrandSoundFragmentsBySimilarity(brandName, keyword, actualLimit, actualOffset)
+                .chain(brandFragments -> {
+                    if (brandFragments == null || brandFragments.isEmpty()) {
+                        return Uni.createFrom().item(Collections.<BrandSoundFragmentAiDTO>emptyList());
+                    }
+
+                    List<Uni<BrandSoundFragmentAiDTO>> aiDtoUnis = brandFragments.stream()
+                            .map(this::mapToBrandSoundFragmentAiDTO)
+                            .collect(Collectors.toList());
+
+                    return Uni.join().all(aiDtoUnis).andFailFast();
                 });
     }
 
@@ -307,15 +338,15 @@ public class AiHelperService {
                         liveRadioStation.setPrompts(prompts);
                         liveRadioStation.setInfo(tuple.getItem2());
 
-                        String preferredVoice = agent.getPreferredVoice().get(0).getId();
+                        String primaryVoice = agent.getPrimaryVoice().get(0).getId();
                         UUID copilotId = agent.getCopilot();
 
                         return aiAgentService.getDTO(copilotId, SuperUser.build(), LanguageCode.en)
                                 .map(copilot -> {
-                                    String secondaryVoice = copilot.getPreferredVoice().get(0).getId();
+                                    String secondaryVoice = copilot.getPrimaryVoice().get(0).getId();
                                     String secondaryVoiceName = copilot.getName();
                                     liveRadioStation.setTts(new TtsDTO(
-                                            preferredVoice,
+                                            primaryVoice,
                                             secondaryVoice,
                                             secondaryVoiceName
                                     ));
@@ -596,5 +627,43 @@ public class AiHelperService {
 
     public void clearDashboardMessages(String brandName) {
         aiDjMessagesTracker.remove(brandName);
+    }
+
+
+    private Uni<BrandSoundFragmentAiDTO> mapToBrandSoundFragmentAiDTO(BrandSoundFragmentDTO brandFragment) {
+        BrandSoundFragmentAiDTO aiDto = new BrandSoundFragmentAiDTO();
+        aiDto.setId(brandFragment.getSoundFragmentDTO().getId());
+        aiDto.setTitle(brandFragment.getSoundFragmentDTO().getTitle());
+        aiDto.setArtist(brandFragment.getSoundFragmentDTO().getArtist());
+        aiDto.setAlbum(brandFragment.getSoundFragmentDTO().getAlbum());
+        aiDto.setDescription(brandFragment.getSoundFragmentDTO().getDescription());
+        aiDto.setPlayedByBrandCount(brandFragment.getPlayedByBrandCount());
+        aiDto.setLastTimePlayedByBrand(brandFragment.getLastTimePlayedByBrand());
+
+        List<UUID> genreIds = brandFragment.getSoundFragmentDTO().getGenres();
+        List<UUID> labelIds = brandFragment.getSoundFragmentDTO().getLabels();
+
+        Uni<List<String>> genresUni = (genreIds != null && !genreIds.isEmpty())
+                ? Uni.join().all(genreIds.stream()
+                        .map(genreId -> refService.getById(genreId)
+                                .map(genre -> genre.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                                .onFailure().recoverWithItem("Unknown"))
+                        .collect(Collectors.toList())).andFailFast()
+                : Uni.createFrom().item(Collections.<String>emptyList());
+
+        Uni<List<String>> labelsUni = (labelIds != null && !labelIds.isEmpty())
+                ? Uni.join().all(labelIds.stream()
+                        .map(labelId -> refService.getById(labelId)
+                                .map(label -> label.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                                .onFailure().recoverWithItem("Unknown"))
+                        .collect(Collectors.toList())).andFailFast()
+                : Uni.createFrom().item(Collections.<String>emptyList());
+
+        return Uni.combine().all().unis(genresUni, labelsUni).asTuple()
+                .map(tuple -> {
+                    aiDto.setGenres(tuple.getItem1());
+                    aiDto.setLabels(tuple.getItem2());
+                    return aiDto;
+                });
     }
 }

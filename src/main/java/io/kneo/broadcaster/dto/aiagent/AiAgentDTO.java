@@ -19,6 +19,6 @@ public class AiAgentDTO extends AbstractDTO {
     @NotBlank
     private String llmType;
     private String searchEngineType;
-    private List<VoiceDTO> preferredVoice;
+    private List<VoiceDTO> primaryVoice;
     private UUID copilot;
 }

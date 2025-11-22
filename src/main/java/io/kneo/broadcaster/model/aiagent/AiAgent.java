@@ -18,11 +18,11 @@ public class AiAgent extends SimpleReferenceEntity {
 
     private LlmType llmType;
     private SearchEngineType searchEngineType = SearchEngineType.PERPLEXITY;
-    private List<Voice> preferredVoice;
+    private List<Voice> primaryVoice;
     private UUID copilot;
 
     public AiAgent() {
         this.preferredLang = new ArrayList<>();
-        this.preferredVoice = new ArrayList<>();
+        this.primaryVoice = new ArrayList<>();
     }
 }

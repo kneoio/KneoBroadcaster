@@ -211,7 +211,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 aiDto.setName(doc.getAiOverriding().getName());
                 aiDto.setPrompt(doc.getAiOverriding().getPrompt());
                 aiDto.setTalkativity(doc.getAiOverriding().getTalkativity());
-                aiDto.setPreferredVoice(doc.getAiOverriding().getPreferredVoice());
+                aiDto.setPrimaryVoice(doc.getAiOverriding().getPrimaryVoice());
                 dto.setAiOverriding(aiDto);
                 dto.setAiOverridingEnabled(true);
             } else {
@@ -322,7 +322,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             ai.setName(dto.getAiOverriding().getName());
             ai.setPrompt(dto.getAiOverriding().getPrompt());
             ai.setTalkativity(dto.getAiOverriding().getTalkativity());
-            ai.setPreferredVoice(dto.getAiOverriding().getPreferredVoice());
+            ai.setPrimaryVoice(dto.getAiOverriding().getPrimaryVoice());
             doc.setAiOverriding(ai);
         }
 

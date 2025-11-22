@@ -36,7 +36,7 @@ public class SoundFragmentDTO extends AbstractDTO {
     private String album;
     private String slugName;
     private String description;
-    private List<String> brands;
+    private List<String> brands;  //?
     private List<String> newlyUploaded;
     private List<UploadFileDTO> uploadedFiles;
     private List<UUID> representedInBrands;

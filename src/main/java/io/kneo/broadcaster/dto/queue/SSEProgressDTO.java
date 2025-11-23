@@ -9,6 +9,6 @@ import lombok.Setter;
 public class SSEProgressDTO {
     private String id;
     private String name;
-    private SSEProgressStatus status; // "processing"|"done"|"error"
+    private SSEProgressStatus status;
     private String errorMessage;
 }

@@ -1,12 +1,9 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.cnst.SSEProgressStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
-import io.kneo.broadcaster.dto.queue.SSEProgressDTO;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
-import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -26,25 +23,21 @@ public class QueueController {
 
     private final RadioService radioService;
     private final QueueService queueService;
-    private final Vertx vertx;
 
     @Inject
-    public QueueController(RadioService radioService, QueueService queueService, Vertx vertx) {
+    public QueueController(RadioService radioService, QueueService queueService) {
         this.radioService = radioService;
         this.queueService = queueService;
-        this.vertx = vertx;
     }
 
     public void setupRoutes(Router router) {
         String path = "/api/:brand/queue";
         router.route(HttpMethod.PUT, path + "/action").handler(this::action);
         router.route(HttpMethod.POST, path + "/add").handler(this::addToQueue);
-        router.route(HttpMethod.GET, path + "/progress/:processId/stream").handler(this::streamProgress);
     }
 
     private void addToQueue(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
-        String processId = rc.request().getParam("processId");
 
         JsonObject body = rc.body().asJsonObject();
         if (body == null) {
@@ -77,44 +70,25 @@ public class QueueController {
             return;
         }
 
-        if (processId != null) {
-            queueService.initializeProgress(processId, "Queue request");
-        }
-
-        try {
-            queueService.addToQueue(brand, dto, processId)
-                    .subscribe().with(
-                            ok -> {
-                                LOGGER.info("Queue add completed for brand {}, processId: {}", brand, processId);
-                            },
-                            err -> {
-                                LOGGER.error("Queue add failed for brand {}: {}", brand, err.getMessage());
-                            }
-                    );
-        } catch (Exception e) {
-            if (processId != null) {
-                SSEProgressDTO errorDto = new SSEProgressDTO();
-                errorDto.setId(processId);
-                errorDto.setErrorMessage(e.getMessage());
-                errorDto.setStatus(SSEProgressStatus.ERROR);
-                queueService.queuingProgressMap.put(processId, errorDto);
-            }
-            rc.response()
-                    .setStatusCode(500)
-                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
-                    .end("Failed to enqueue request: " + e.getMessage());
-            return;
-        }
-
-        JsonObject resp = new JsonObject();
-        resp.put("status", "accepted");
-        if (processId != null) {
-            resp.put("processId", processId);
-        }
-        rc.response()
-                .setStatusCode(202)
-                .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                .end(resp.encode());
+        queueService.addToQueue(brand, dto, null)
+                .subscribe().with(
+                        ok -> {
+                            LOGGER.info("Queue add completed for brand {}", brand);
+                            JsonObject resp = new JsonObject();
+                            resp.put("status", "ok");
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .end(resp.encode());
+                        },
+                        err -> {
+                            LOGGER.error("Queue add failed for brand {}: {}", brand, err.getMessage());
+                            rc.response()
+                                    .setStatusCode(500)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to enqueue request: " + err.getMessage());
+                        }
+                );
     }
 
 
@@ -131,7 +105,7 @@ public class QueueController {
                                 rc.response()
                                         .putHeader("Content-Type", MediaType.APPLICATION_JSON)
                                         .setStatusCode(200)
-                                        .end("{\"status\":\"" + station.getStatus() + "}");
+                                        .end("{\"status\":\"" + station.getStatus() + "\"}");
                             },
                             throwable -> {
                                 LOGGER.error("Error starting radio station: {}", throwable.getMessage());
@@ -165,33 +139,5 @@ public class QueueController {
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
                     .end("Invalid action. Supported actions: 'start', 'stop'");
         }
-    }
-
-    private void streamProgress(RoutingContext rc) {
-        String processId = rc.pathParam("processId");
-
-        rc.response()
-                .putHeader("Content-Type", "text/event-stream")
-                .putHeader("Cache-Control", "no-cache")
-                .putHeader("Connection", "keep-alive")
-                .setChunked(true);
-
-        long timerId = vertx.setPeriodic(500, id -> {
-            SSEProgressDTO progress = queueService.getQueuingProgress(processId);
-            if (progress != null) {
-                rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
-
-                if (progress.getStatus() == SSEProgressStatus.DONE ||
-                    progress.getStatus() == SSEProgressStatus.ERROR) {
-                    vertx.cancelTimer(id);
-                    rc.response().end();
-                    vertx.setTimer(5000, tid -> queueService.queuingProgressMap.remove(processId));
-                }
-            }
-        });
-
-        rc.request().connection().closeHandler(v -> {
-            vertx.cancelTimer(timerId);
-        });
     }
 }

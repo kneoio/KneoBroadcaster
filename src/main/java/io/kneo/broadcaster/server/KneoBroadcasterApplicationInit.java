@@ -17,6 +17,7 @@ import io.kneo.broadcaster.controller.RadioStationController;
 import io.kneo.broadcaster.controller.RefController;
 import io.kneo.broadcaster.controller.SceneController;
 import io.kneo.broadcaster.controller.ScriptController;
+import io.kneo.broadcaster.controller.SoundFragmentBulkUploadController;
 import io.kneo.broadcaster.controller.SoundFragmentController;
 import io.kneo.core.server.AbstractApplicationInit;
 import io.quarkus.runtime.StartupEvent;
@@ -44,6 +45,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
 
     @Inject
     SoundFragmentController soundFragmentController;
+
+    @Inject
+    SoundFragmentBulkUploadController soundFragmentBulkUploadController;
 
     @Inject
     RadioController radioController;
@@ -103,6 +107,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
 
     public void onStart(@Observes StartupEvent ev) {
         soundFragmentController.setupRoutes(router);
+        soundFragmentBulkUploadController.setupRoutes(router);
         messagingController.setupRoutes(router);
         aiHelperController.setupRoutes(router);
         dashboardController.setupRoutes(router);

@@ -133,6 +133,103 @@ public class FileUploadService {
         return processDirectStream(rc, uploadId, controllerKey, "temp", user, true);
     }
 
+    public Uni<UploadFileDTO> processDirectStreamAsync(RoutingContext rc, String batchId, String controllerKey, String entityId, IUser user) {
+        return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
+            try {
+                rc.request().setExpectMultipart(true);
+
+                rc.request().uploadHandler(upload -> {
+                    try {
+                        String originalFileName = upload.filename();
+                        validateUploadMeta(originalFileName, upload.contentType());
+                        String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
+                        Path destination = setupDirectoriesAndPath(controllerKey, entityId, user, safeFileName);
+                        Path tempInFinalDir = destination.getParent().resolve(".tmp_" + batchId + "_" + safeFileName);
+                        upload.streamToFileSystem(tempInFinalDir.toString());
+
+                        upload.endHandler(v -> {
+                            try {
+                                if (Files.size(tempInFinalDir) > MAX_FILE_SIZE_BYTES) {
+                                    Files.deleteIfExists(tempInFinalDir);
+                                    emitter.fail(new IllegalArgumentException(String.format("File too large. Maximum size is %d MB",
+                                            MAX_FILE_SIZE_BYTES / 1024 / 1024)));
+                                    return;
+                                }
+                                Files.move(tempInFinalDir, destination, StandardCopyOption.REPLACE_EXISTING);
+                                String fileUrl = generateFileUrl(entityId, safeFileName);
+
+                                // Return immediately with processing status
+                                UploadFileDTO dto = UploadFileDTO.builder()
+                                        .status("processing")
+                                        .percentage(100)
+                                        .batchId(batchId)
+                                        .name(safeFileName)
+                                        .url(fileUrl)
+                                        .build();
+                                uploadProgressMap.put(batchId, dto);
+                                emitter.complete(dto);
+
+                                // Extract metadata async in background
+                                Uni.createFrom().item(() -> {
+                                    AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, batchId);
+                                    UploadFileDTO finalDto = UploadFileDTO.builder()
+                                            .status("finished")
+                                            .percentage(100)
+                                            .batchId(batchId)
+                                            .name(safeFileName)
+                                            .url(fileUrl)
+                                            .metadata(metadata)
+                                            .build();
+                                    uploadProgressMap.put(batchId, finalDto);
+                                    return finalDto;
+                                }).runSubscriptionOn(Infrastructure.getDefaultExecutor())
+                                .subscribe().with(
+                                    result -> LOGGER.info("Metadata extraction completed for batchId: {}", batchId),
+                                    err -> {
+                                        LOGGER.error("Metadata extraction failed for batchId: {}", batchId, err);
+                                        UploadFileDTO errorDto = UploadFileDTO.builder()
+                                                .status("error")
+                                                .percentage(100)
+                                                .batchId(batchId)
+                                                .name(safeFileName)
+                                                .url(fileUrl)
+                                                .errorMessage("Metadata extraction failed: " + err.getMessage())
+                                                .build();
+                                        uploadProgressMap.put(batchId, errorDto);
+                                    }
+                                );
+
+                            } catch (Exception e) {
+                                try {
+                                    Files.deleteIfExists(tempInFinalDir);
+                                    Files.deleteIfExists(destination);
+                                } catch (IOException ignored) {}
+                                emitter.fail(e);
+                            }
+                        });
+
+                        upload.exceptionHandler(err -> {
+                            try {
+                                Path userDir = Paths.get(uploadDirectory, controllerKey, user.getUserName(), entityId != null ? entityId : "temp");
+                                Files.list(userDir)
+                                        .filter(p -> p.getFileName().toString().startsWith(".tmp_" + batchId + "_"))
+                                        .forEach(p -> {
+                                            try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+                                        });
+                            } catch (IOException ignored) {}
+                            emitter.fail(err);
+                        });
+
+                    } catch (Exception e) {
+                        emitter.fail(e);
+                    }
+                });
+            } catch (Exception e) {
+                emitter.fail(e);
+            }
+        }).emitOn(Infrastructure.getDefaultExecutor());
+    }
+
     public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, String entityId, IUser user, boolean extractMetadata) {
         return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
             try {

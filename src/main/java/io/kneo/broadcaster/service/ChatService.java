@@ -2,11 +2,10 @@ package io.kneo.broadcaster.service;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.Message;
+import com.anthropic.core.http.AsyncStreamResponse;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.Model;
-import com.anthropic.models.messages.TextBlock;
+import com.anthropic.models.messages.RawMessageStreamEvent;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -16,7 +15,9 @@ import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
@@ -33,7 +34,7 @@ public class ChatService {
                 .build();
     }
 
-    public Uni<String> sendMessage(String username, String content, String connectionId) {
+    public Uni<String> processUserMessage(String username, String content, String connectionId) {
         return Uni.createFrom().item(() -> {
             JsonObject message = createMessage(
                     username,
@@ -72,38 +73,79 @@ public class ChatService {
         });
     }
 
-    public Uni<String> generateBotResponse(String userMessage) {
-        return Uni.createFrom().item(() -> {
+    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId) {
+        return Uni.createFrom().completionStage(() -> {
             MessageCreateParams params = MessageCreateParams.builder()
                     .maxTokens(1024L)
                     .addUserMessage(userMessage)
-                    .model(Model.CLAUDE_3_5_SONNET_20241022)
+                    .model(Model.CLAUDE_3_OPUS_20240229)
                     .build();
             
-            Message response = anthropicClient.messages().create(params);
-            ContentBlock contentBlock = response.content().get(0);
-            
-            String botResponse = "";
-            if (contentBlock.text().isPresent()) {
-                TextBlock textBlock = contentBlock.text().get();
-                botResponse = textBlock.text();
-            }
-            
-            JsonObject message = createMessage(
-                    "ChatBot",
-                    botResponse,
-                    System.currentTimeMillis(),
-                    "bot-" + UUID.randomUUID().toString()
-            );
-            
-            chatHistory.add(message);
-            
-            JsonObject jsonResponse = new JsonObject()
-                    .put("type", "message")
-                    .put("data", message);
-            
-            return jsonResponse.encode();
+            StringBuilder fullResponse = new StringBuilder();
+
+            return anthropicClient.async().messages().createStreaming(params)
+                    .subscribe(new AsyncStreamResponse.Handler<RawMessageStreamEvent>() {
+                        @Override
+                        public void onNext(RawMessageStreamEvent chunk) {
+                            try {
+                                String chunkText = extractTextFromChunk(chunk);
+                                if (chunkText != null && !chunkText.isEmpty()) {
+                                    fullResponse.append(chunkText);
+
+                                    JsonObject chunkMessage = new JsonObject()
+                                            .put("type", "chunk")
+                                            .put("content", chunkText)
+                                            .put("connectionId", connectionId);
+
+                                    chunkHandler.accept(chunkMessage.encode());
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Error processing chunk: " + e.getMessage());
+                            }
+                        }
+
+                        @Override
+                        public void onComplete(Optional<Throwable> error) {
+                            if (error.isPresent()) {
+                                System.err.println("Stream error: " + error.get().getMessage());
+                                JsonObject errorMessage = new JsonObject()
+                                        .put("type", "error")
+                                        .put("message", "Bot response failed: " + error.get().getMessage());
+                                completionHandler.accept(errorMessage.encode());
+                            } else {
+                                JsonObject message = createMessage(
+                                        "ChatBot",
+                                        fullResponse.toString(),
+                                        System.currentTimeMillis(),
+                                        connectionId
+                                );
+
+                                chatHistory.add(message);
+
+                                JsonObject completeMessage = new JsonObject()
+                                        .put("type", "message")
+                                        .put("data", message);
+
+                                completionHandler.accept(completeMessage.encode());
+                            }
+                        }
+                    })
+                    .onCompleteFuture();
         }).runSubscriptionOn(getDefaultWorkerPool());
+    }
+    
+    private String extractTextFromChunk(RawMessageStreamEvent chunk) {
+        try {
+            if (chunk.contentBlockDelta().isPresent()) {
+                var delta = chunk.contentBlockDelta().get().delta();
+                if (delta.text().isPresent()) {
+                    return delta.text().get().text();
+                }
+            }
+        } catch (Exception e) {
+            // Silently ignore parsing errors for non-text chunks
+        }
+        return null;
     }
 
     private JsonObject createMessage(String username, String content, long timestamp, String connectionId) {

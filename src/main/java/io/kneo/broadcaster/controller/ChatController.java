@@ -10,6 +10,8 @@ import jakarta.inject.Inject;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static java.util.UUID.randomUUID;
+
 @ApplicationScoped
 public class ChatController {
 
@@ -38,7 +40,7 @@ public class ChatController {
     private void handleChatWebSocket(ServerWebSocket webSocket) {
         webSocket.accept();
         
-        String connectionId = java.util.UUID.randomUUID().toString();
+        String connectionId = randomUUID().toString();
         activeConnections.put(connectionId, webSocket);
 
         webSocket.textMessageHandler(message -> {
@@ -48,7 +50,7 @@ public class ChatController {
                 
                 switch (action) {
                     case "sendMessage":
-                        handleSendMessage(webSocket, msgJson, connectionId);
+                        handleUserMessage(webSocket, msgJson, connectionId);
                         break;
                     case "getHistory":
                         handleGetHistory(webSocket, msgJson);
@@ -72,7 +74,7 @@ public class ChatController {
         });
     }
 
-    private void handleSendMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId) {
+    private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId) {
         String username = msgJson.getString("username", "Anonymous");
         String content = msgJson.getString("content");
 
@@ -81,14 +83,29 @@ public class ChatController {
             return;
         }
 
-        chatService.sendMessage(username, content, connectionId)
+        chatService.processUserMessage(username, content, connectionId)
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
-                            sendBotResponse(webSocket, content);
+                            sendBotResponse(webSocket, content, connectionId);
                         },
                         err -> sendError(webSocket, err)
                 );
+    }
+
+    private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId) {
+        chatService.generateBotResponse(
+                userMessage,
+                chunk -> webSocket.writeTextMessage(chunk),
+                response -> webSocket.writeTextMessage(response),
+                connectionId
+        ).subscribe().with(
+                v -> {},
+                e -> {
+                    System.err.println("Bot response error: " + e.getMessage());
+                    sendError(webSocket, "Bot response failed: " + e.getMessage());
+                }
+        );
     }
 
     private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson) {
@@ -96,16 +113,8 @@ public class ChatController {
 
         chatService.getChatHistory(limit)
                 .subscribe().with(
-                        response -> webSocket.writeTextMessage(response),
-                        err -> sendError(webSocket, err)
-                );
-    }
-
-    private void sendBotResponse(ServerWebSocket webSocket, String userMessage) {
-        chatService.generateBotResponse(userMessage)
-                .subscribe().with(
                         webSocket::writeTextMessage,
-                        err -> System.err.println("Bot response error: " + err.getMessage())
+                        err -> sendError(webSocket, err)
                 );
     }
 

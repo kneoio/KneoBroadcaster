@@ -109,6 +109,11 @@ public class AudioConcatenatorManualTest {
             public String getAgentApiKey() {
                 return "test";
             }
+
+            @Override
+            public String getAnthropicApiKey() {
+                return "";
+            }
         };
     }
 

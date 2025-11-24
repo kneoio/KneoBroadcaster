@@ -1,24 +1,6 @@
 package io.kneo.broadcaster.server;
 
-import io.kneo.broadcaster.controller.AiAgentController;
-import io.kneo.broadcaster.controller.AiHelperController;
-import io.kneo.broadcaster.controller.DashboardController;
-import io.kneo.broadcaster.controller.DraftController;
-import io.kneo.broadcaster.controller.EventController;
-import io.kneo.broadcaster.controller.IcecastController;
-import io.kneo.broadcaster.controller.ListenerController;
-import io.kneo.broadcaster.controller.MemoryController;
-import io.kneo.broadcaster.controller.MessagingController;
-import io.kneo.broadcaster.controller.ProfileController;
-import io.kneo.broadcaster.controller.PromptController;
-import io.kneo.broadcaster.controller.QueueController;
-import io.kneo.broadcaster.controller.RadioController;
-import io.kneo.broadcaster.controller.RadioStationController;
-import io.kneo.broadcaster.controller.RefController;
-import io.kneo.broadcaster.controller.SceneController;
-import io.kneo.broadcaster.controller.ScriptController;
-import io.kneo.broadcaster.controller.SoundFragmentBulkUploadController;
-import io.kneo.broadcaster.controller.SoundFragmentController;
+import io.kneo.broadcaster.controller.*;
 import io.kneo.core.server.AbstractApplicationInit;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.ext.web.Router;
@@ -96,6 +78,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     DraftController draftController;
 
     @Inject
+    ChatController chatController;
+
+    @Inject
     public KneoBroadcasterApplicationInit(PgPool client) {
         super(client);
     }
@@ -124,6 +109,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         sceneController.setupRoutes(router);
         promptController.setupRoutes(router);
         draftController.setupRoutes(router);
+        chatController.setupRoutes(router);
 
         super.setupRoutes(router);
         logRegisteredRoutes(router);

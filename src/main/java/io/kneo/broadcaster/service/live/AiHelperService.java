@@ -24,11 +24,15 @@ import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.AiAgentService;
+import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.PromptService;
+import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.kneo.broadcaster.service.stream.HLSSongStats;
 import io.kneo.broadcaster.service.stream.HlsSegment;
@@ -74,8 +78,8 @@ public class AiHelperService {
     private LocalDate lastReset = LocalDate.now();
 
     private final RadioStationPool radioStationPool;
-    private final io.kneo.broadcaster.service.RadioStationService radioStationService;
-    private final io.kneo.broadcaster.service.ListenerService listenerService;
+    private final RadioStationService radioStationService;
+    private final ListenerService listenerService;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
     private final PromptService promptService;
@@ -84,8 +88,8 @@ public class AiHelperService {
     private final MemoryService memoryService;
     private final JinglePlaybackHandler jinglePlaybackHandler;
     private final Randomizator randomizator;
-    private final io.kneo.broadcaster.service.soundfragment.SoundFragmentService soundFragmentService;
-    private final io.kneo.broadcaster.service.RefService refService;
+    private final SoundFragmentService soundFragmentService;
+    private final RefService refService;
 
     @Inject
     StatsAccumulator statsAccumulator;

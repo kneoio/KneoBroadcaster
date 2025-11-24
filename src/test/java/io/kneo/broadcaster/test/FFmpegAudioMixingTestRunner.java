@@ -153,6 +153,11 @@ public class FFmpegAudioMixingTestRunner {
             public String getAgentApiKey() {
                 return "test";
             }
+
+            @Override
+            public String getAnthropicApiKey() {
+                return "";
+            }
         };
     }
 

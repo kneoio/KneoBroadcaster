@@ -66,4 +66,7 @@ public interface BroadcasterConfig {
 
     @WithName("agent.api-key")
     String getAgentApiKey();
+
+    @WithName("anthropic.api-key")
+    String getAnthropicApiKey();
 }

@@ -1,0 +1,123 @@
+package io.kneo.broadcaster.controller;
+
+import io.kneo.broadcaster.service.ChatService;
+import io.vertx.core.http.ServerWebSocket;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+@ApplicationScoped
+public class ChatController {
+
+    private final ChatService chatService;
+    private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
+
+    @Inject
+    public ChatController(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
+    public void setupRoutes(Router router) {
+        router.route("/api/ws/chat").handler(rc -> {
+            if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
+                rc.request().toWebSocket().onSuccess(this::handleChatWebSocket)
+                        .onFailure(err -> {
+                            System.err.println("WebSocket connection failed: " + err.getMessage());
+                            rc.fail(500, err);
+                        });
+            } else {
+                rc.response().setStatusCode(400).end("WebSocket upgrade required");
+            }
+        });
+    }
+
+    private void handleChatWebSocket(ServerWebSocket webSocket) {
+        webSocket.accept();
+        
+        String connectionId = java.util.UUID.randomUUID().toString();
+        activeConnections.put(connectionId, webSocket);
+
+        webSocket.textMessageHandler(message -> {
+            try {
+                JsonObject msgJson = new JsonObject(message);
+                String action = msgJson.getString("action");
+                
+                switch (action) {
+                    case "sendMessage":
+                        handleSendMessage(webSocket, msgJson, connectionId);
+                        break;
+                    case "getHistory":
+                        handleGetHistory(webSocket, msgJson);
+                        break;
+                    default:
+                        sendError(webSocket, "Unknown action: " + action);
+                }
+            } catch (Exception e) {
+                sendError(webSocket, "Invalid message format: " + e.getMessage());
+            }
+        });
+
+        webSocket.closeHandler(v -> {
+            activeConnections.remove(connectionId);
+            System.out.println("WebSocket closed: " + connectionId);
+        });
+
+        webSocket.exceptionHandler(err -> {
+            System.err.println("WebSocket error for " + connectionId + ": " + err.getMessage());
+            activeConnections.remove(connectionId);
+        });
+    }
+
+    private void handleSendMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId) {
+        String username = msgJson.getString("username", "Anonymous");
+        String content = msgJson.getString("content");
+
+        if (content == null || content.trim().isEmpty()) {
+            sendError(webSocket, "Message content cannot be empty");
+            return;
+        }
+
+        chatService.sendMessage(username, content, connectionId)
+                .subscribe().with(
+                        response -> {
+                            webSocket.writeTextMessage(response);
+                            sendBotResponse(webSocket, content);
+                        },
+                        err -> sendError(webSocket, err)
+                );
+    }
+
+    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson) {
+        Integer limit = msgJson.getInteger("limit", 50);
+
+        chatService.getChatHistory(limit)
+                .subscribe().with(
+                        response -> webSocket.writeTextMessage(response),
+                        err -> sendError(webSocket, err)
+                );
+    }
+
+    private void sendBotResponse(ServerWebSocket webSocket, String userMessage) {
+        chatService.generateBotResponse(userMessage)
+                .subscribe().with(
+                        webSocket::writeTextMessage,
+                        err -> System.err.println("Bot response error: " + err.getMessage())
+                );
+    }
+
+    private void sendError(ServerWebSocket webSocket, Throwable err) {
+        sendError(webSocket, err.getMessage());
+    }
+
+    private void sendError(ServerWebSocket webSocket, String message) {
+        JsonObject error = new JsonObject()
+                .put("type", "error")
+                .put("message", message)
+                .put("timestamp", System.currentTimeMillis());
+        webSocket.writeTextMessage(error.encode());
+    }
+}

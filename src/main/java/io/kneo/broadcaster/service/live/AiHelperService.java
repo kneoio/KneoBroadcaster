@@ -397,7 +397,16 @@ public class AiHelperService {
                         return Uni.createFrom().item(() -> null);
                     }
 
-                    if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(activeScene.getTalkativity())) {
+                    double effectiveTalkativity = activeScene.getTalkativity();
+                    if (station.getPopularityRate() != null) {
+                        double rate = station.getPopularityRate();
+                        if (rate < 5.0) {
+                            double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
+                            effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
+                        }
+                    }
+
+                    if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
                         addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Start filler mixing");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);

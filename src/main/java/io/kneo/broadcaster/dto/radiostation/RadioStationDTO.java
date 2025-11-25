@@ -9,6 +9,8 @@ import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.dto.validation.ValidCountry;
 import io.kneo.core.dto.validation.ValidLocalizedName;
 import io.kneo.core.localization.LanguageCode;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -55,6 +57,9 @@ public class RadioStationDTO extends AbstractDTO {
     private String description;
     private String titleFont;
     private long bitRate;
+    @DecimalMin(value = "0.0")
+    @DecimalMax(value = "10.0")
+    private Double popularityRate;
     private ScheduleDTO schedule;
     private boolean aiControlAllowed;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;

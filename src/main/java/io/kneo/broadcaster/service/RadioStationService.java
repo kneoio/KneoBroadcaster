@@ -205,6 +205,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setProfileId(doc.getProfileId());
             dto.setSubmissionPolicy(doc.getSubmissionPolicy());
             dto.setMessagingPolicy(doc.getMessagingPolicy());
+            dto.setPopularityRate(doc.getPopularityRate());
 
             if (doc.getAiOverriding() != null) {
                 AiOverridingDTO aiDto = new AiOverridingDTO();
@@ -316,6 +317,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setProfileId(dto.getProfileId());
         doc.setSubmissionPolicy(dto.getSubmissionPolicy());
         doc.setMessagingPolicy(dto.getMessagingPolicy());
+        doc.setPopularityRate(dto.getPopularityRate());
 
         if (dto.getAiOverriding() != null) {
             AiOverriding ai = new AiOverriding();

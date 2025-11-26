@@ -38,7 +38,7 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private String color;
     private String description;
     private String titleFont;
-    private Double popularityRate;
+    private double popularityRate;
     private Scheduler scheduler;
     private UUID aiAgentId;
     private UUID profileId;

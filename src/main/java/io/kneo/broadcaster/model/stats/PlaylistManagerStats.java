@@ -3,7 +3,7 @@ package io.kneo.broadcaster.model.stats;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.live.LiveSoundFragmentDTO;
-import io.kneo.broadcaster.model.cnst.SongSource;
+import io.kneo.broadcaster.model.cnst.LiveSongSource;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
@@ -29,14 +29,14 @@ public class PlaylistManagerStats {
 
     public PlaylistManagerStats(PlaylistManager playlistManager, int duration) {
         this.brand = playlistManager.getBrand();
-        this.livePlaylist = mapList(playlistManager.getPrioritizedQueue(), SongSource.PRIORITIZED);
-        this.queued = mapList(playlistManager.getObtainedByHlsPlaylist(), SongSource.QUEUED);
+        this.livePlaylist = mapList(playlistManager.getPrioritizedQueue(), LiveSongSource.PRIORITIZED);
+        this.queued = mapList(playlistManager.getObtainedByHlsPlaylist(), LiveSongSource.QUEUED);
         this.duration = duration;
     }
 
-    private List<LiveSoundFragmentDTO> mapList(Collection<LiveSoundFragment> list, SongSource type) {
+    private List<LiveSoundFragmentDTO> mapList(Collection<LiveSoundFragment> list, LiveSongSource type) {
         List<LiveSoundFragment> ordered = List.copyOf(list);
-        if (type == SongSource.PRIORITIZED) {
+        if (type == LiveSongSource.PRIORITIZED) {
             ordered = new java.util.ArrayList<>(ordered);
             java.util.Collections.reverse(ordered);
         }

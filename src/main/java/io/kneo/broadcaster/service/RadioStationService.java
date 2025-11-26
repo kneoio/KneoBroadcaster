@@ -317,7 +317,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setProfileId(dto.getProfileId());
         doc.setSubmissionPolicy(dto.getSubmissionPolicy());
         doc.setMessagingPolicy(dto.getMessagingPolicy());
-        doc.setPopularityRate(dto.getPopularityRate());
+        //doc.setPopularityRate(dto.getPopularityRate());  //cannot be changed from UI
 
         if (dto.getAiOverriding() != null) {
             AiOverriding ai = new AiOverriding();

@@ -194,7 +194,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getSubmissionPolicy().name())
                         .addString(station.getMessagingPolicy().name())
                         .addString(station.getTitleFont())
-                        .addBigDecimal(java.math.BigDecimal.valueOf(station.getPopularityRate() != null ? station.getPopularityRate() : 0.0));
+                        .addDouble(station.getPopularityRate());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -256,7 +256,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getSubmissionPolicy().name())
                                     .addString(station.getMessagingPolicy().name())
                                     .addString(station.getTitleFont())
-                                    .addBigDecimal(java.math.BigDecimal.valueOf(station.getPopularityRate() != null ? station.getPopularityRate() : 0.0))
+                                    .addDouble(station.getPopularityRate())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -361,15 +361,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         if (aiAgentId != null) {
             doc.setAiAgentId(aiAgentId);
         }
-
-        // popularity_rate
-        java.math.BigDecimal pr = row.getBigDecimal("popularity_rate");
-        if (pr != null) {
-            doc.setPopularityRate(pr.doubleValue());
-        } else {
-            doc.setPopularityRate(0.0);
-        }
-
+        doc.setPopularityRate(row.getDouble("popularity_rate"));
         UUID profileId = row.getUUID("profile_id");
         if (profileId != null) {
             doc.setProfileId(profileId);

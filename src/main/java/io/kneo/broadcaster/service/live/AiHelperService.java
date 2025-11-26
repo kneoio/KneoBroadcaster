@@ -398,12 +398,10 @@ public class AiHelperService {
                     }
 
                     double effectiveTalkativity = activeScene.getTalkativity();
-                    if (station.getPopularityRate() != null) {
-                        double rate = station.getPopularityRate();
-                        if (rate < 5.0) {
-                            double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
-                            effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
-                        }
+                    double rate = station.getPopularityRate();
+                    if (rate < 5.0) {
+                        double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
+                        effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
                     }
 
                     if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
@@ -658,18 +656,18 @@ public class AiHelperService {
 
         Uni<List<String>> genresUni = (genreIds != null && !genreIds.isEmpty())
                 ? Uni.join().all(genreIds.stream()
-                        .map(genreId -> refService.getById(genreId)
-                                .map(genre -> genre.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
-                                .onFailure().recoverWithItem("Unknown"))
-                        .collect(Collectors.toList())).andFailFast()
+                .map(genreId -> refService.getById(genreId)
+                        .map(genre -> genre.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                        .onFailure().recoverWithItem("Unknown"))
+                .collect(Collectors.toList())).andFailFast()
                 : Uni.createFrom().item(Collections.<String>emptyList());
 
         Uni<List<String>> labelsUni = (labelIds != null && !labelIds.isEmpty())
                 ? Uni.join().all(labelIds.stream()
-                        .map(labelId -> refService.getById(labelId)
-                                .map(label -> label.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
-                                .onFailure().recoverWithItem("Unknown"))
-                        .collect(Collectors.toList())).andFailFast()
+                .map(labelId -> refService.getById(labelId)
+                        .map(label -> label.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                        .onFailure().recoverWithItem("Unknown"))
+                .collect(Collectors.toList())).andFailFast()
                 : Uni.createFrom().item(Collections.<String>emptyList());
 
         return Uni.combine().all().unis(genresUni, labelsUni).asTuple()

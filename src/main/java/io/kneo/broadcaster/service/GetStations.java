@@ -1,13 +1,29 @@
 package io.kneo.broadcaster.service;
 
-import com.fasterxml.jackson.annotation.JsonClassDescription;
-import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.anthropic.core.JsonValue;
+import com.anthropic.models.messages.Tool;
 
-@JsonClassDescription("Get a list of available radio stations")
+import java.util.Map;
+
 public class GetStations {
-    @JsonPropertyDescription("Filter stations by country code (e.g., 'US', 'UK')")
-    public String country;
 
-    @JsonPropertyDescription("Search query to filter stations by name")
-    public String query;
+    public static Tool toTool() {
+        Tool.InputSchema schema = Tool.InputSchema.builder()
+                .properties(JsonValue.from(Map.of(
+                        "country",
+                        Map.of(
+                                "type", "string",
+                                "description", "Filter stations by country code (e.g., 'US', 'UK')"),
+                        "query",
+                        Map.of(
+                                "type", "string",
+                                "description", "Search query to filter stations by name"))))
+                .build();
+
+        return Tool.builder()
+                .name("get_stations")
+                .description("Get a list of available radio stations")
+                .inputSchema(schema)
+                .build();
+    }
 }

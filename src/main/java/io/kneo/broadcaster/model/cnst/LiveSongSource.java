@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.cnst;
 
-public enum SongSource {
+public enum LiveSongSource {
     PRIORITIZED,
     REGULAR,
     QUEUED

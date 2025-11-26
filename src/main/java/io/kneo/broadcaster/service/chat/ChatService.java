@@ -10,16 +10,26 @@ import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.RawContentBlockDelta;
 import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.ToolUseBlock;
+import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.aiagent.Voice;
+import io.kneo.broadcaster.model.cnst.MessageType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.repository.ChatRepository;
 import io.kneo.broadcaster.service.AddToQueueTool;
 import io.kneo.broadcaster.service.AiAgentService;
+import io.kneo.broadcaster.service.GetOnlineStations;
 import io.kneo.broadcaster.service.GetStations;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SearchBrandSoundFragments;
+import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
+import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -28,9 +38,6 @@ import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,13 +50,10 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 
 @ApplicationScoped
 public class ChatService {
-
-    private final List<JsonObject> chatHistory = new ArrayList<>();
-    private final List<MessageParam> conversationHistory = new ArrayList<>();
     private final AnthropicClient anthropicClient;
     private final AiHelperService aiHelperService;
     private final String mainPrompt;
-    private final String systemPromptCall2;
+    private final String followUpPrompt;
     private final BroadcasterConfig config;
     private final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     @Inject
@@ -58,6 +62,10 @@ public class ChatService {
     AiAgentService aiAgentService;
     @Inject
     QueueService queueService;
+    @Inject
+    ChatRepository chatRepository;
+    @Inject
+    ElevenLabsClient elevenLabsClient;
 
     @Inject
     public ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
@@ -66,28 +74,28 @@ public class ChatService {
                 .build();
         this.aiHelperService = aiHelperService;
         this.config = config;
-        this.mainPrompt = loadResourceAsString("/prompts/systemPrompt.hbs");
-        this.systemPromptCall2 = loadResourceAsString("/prompts/systemPrompt2.hbs");
+        this.mainPrompt = ResourceUtil.loadResourceAsString("/prompts/mainPrompt.hbs");
+        this.followUpPrompt = ResourceUtil.loadResourceAsString("/prompts/followUpPrompt.hbs");
     }
 
     public Uni<String> processUserMessage(String username, String content, String connectionId, IUser user) {
         return Uni.createFrom().item(() -> {
             JsonObject message = createMessage(
+                    MessageType.USER,
                     username,
                     content,
                     System.currentTimeMillis(),
-                    connectionId,
-                    false
+                    connectionId
             );
 
-            chatHistory.add(message);
-            if (chatHistory.size() > 100) {
-                chatHistory.remove(0);
-            }
+            chatRepository.saveChatMessage(user.getId(), message);
 
             JsonObject response = new JsonObject()
                     .put("type", "message")
-                    .put("data", message);
+                    .put("data",
+                            message.getJsonObject("data")
+                                    .put("type", MessageType.USER.name())
+                    );
 
             return response.encode();
         });
@@ -95,8 +103,7 @@ public class ChatService {
 
     public Uni<String> getChatHistory(int limit, IUser user) {
         return Uni.createFrom().item(() -> {
-            int startIndex = Math.max(0, chatHistory.size() - limit);
-            List<JsonObject> recentMessages = chatHistory.subList(startIndex, chatHistory.size());
+            List<JsonObject> recentMessages = chatRepository.getRecentChatMessages(user.getId(), limit);
 
             JsonArray messages = new JsonArray();
             recentMessages.forEach(messages::add);
@@ -116,8 +123,7 @@ public class ChatService {
                 .content(MessageParam.Content.ofString(userMessage))
                 .build();
 
-        conversationHistory.add(userMsg);
-        trimHistory();
+        chatRepository.appendToConversation(user.getId(), userMsg);
 
         Uni<RadioStation> stationUni = radioStationService.getBySlugName(stationId);
 
@@ -134,62 +140,56 @@ public class ChatService {
             }
 
             return agentUni.onItem().transform(agent -> {
-                String djName = agent != null && agent.getName() != null && !agent.getName().isBlank()
-                        ? agent.getName() : "DJ";
+                String djName = agent.getName();
 
-                String stationSlug = station != null ? String.valueOf(station.getSlugName()) : stationId;
-                String stationCountry = station != null && station.getCountry() != null ? station.getCountry().name() : "";
-                String stationBitRate = station != null ? String.valueOf(station.getBitRate()) : "";
+                assert station != null;
+                String stationSlug = station.getSlugName();
+                String stationCountry = station.getCountry().getCountryName();
+                String stationBitRate = Long.toString(station.getBitRate());
                 String stationStatus = "unknown";
-                String stationTz = station != null && station.getTimeZone() != null ? station.getTimeZone().getId() : "";
-                String stationDesc = station != null ? String.valueOf(station.getDescription()) : "";
+                String stationTz = station.getTimeZone().getId();
+                String stationDesc = station.getDescription();
                 String hlsUrl = config.getHost() + "/" + stationSlug + "/radio/stream.m3u8";
-                String mp3Url = config.getHost() + "/" + stationSlug + "/radio/stream.mp3";
                 String mixplaUrl = "https://player.mixpla.io/?radio=" + stationSlug;
 
                 String djLanguages = "";
                 String djPrimaryVoices = "";
                 String djCopilotName = "";
-                if (agent != null) {
-                    if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
-                        djLanguages = agent.getPreferredLang().stream()
-                                .sorted(java.util.Comparator.comparingDouble(io.kneo.broadcaster.model.aiagent.LanguagePreference::getWeight).reversed())
-                                .map(lp -> lp.getCode().name())
-                                .reduce((a, b) -> a + "," + b).orElse("");
-                    }
-                    if (agent.getPrimaryVoice() != null && !agent.getPrimaryVoice().isEmpty()) {
-                        djPrimaryVoices = agent.getPrimaryVoice().stream()
-                                .map(v -> v.getName() != null ? v.getName() : v.getId())
-                                .reduce((a, b) -> a + "," + b).orElse("");
-                    }
-                    // Optional: fetch copilot name; keep empty if not resolvable quickly
-                }
+                djLanguages = agent.getPreferredLang().stream()
+                        .sorted(java.util.Comparator.comparingDouble(io.kneo.broadcaster.model.aiagent.LanguagePreference::getWeight).reversed())
+                        .map(lp -> lp.getCode().name())
+                        .reduce((a, b) -> a + "," + b).orElse("");
+                djPrimaryVoices = agent.getPrimaryVoice().stream()
+                        .findFirst()
+                        .map(Voice::getId)
+                        .orElseThrow(() -> new IllegalStateException("No voice configured for DJ: " + djName));
 
                 String renderedPrompt = mainPrompt
-                        .replace("{{djName}}", safe(djName))
-                        .replace("{{radioStationName}}", safe(radioStationName))
-                        .replace("{{radioStationSlug}}", safe(stationSlug))
-                        .replace("{{radioStationCountry}}", safe(stationCountry))
-                        .replace("{{radioStationBitRate}}", safe(stationBitRate))
-                        .replace("{{radioStationStatus}}", safe(stationStatus))
-                        .replace("{{radioStationTimeZone}}", safe(stationTz))
-                        .replace("{{radioStationDescription}}", safe(stationDesc))
-                        .replace("{{radioStationHlsUrl}}", safe(hlsUrl))
-                        .replace("{{radioStationMp3Url}}", safe(mp3Url))
-                        .replace("{{radioStationMixplaUrl}}", safe(mixplaUrl))
-                        .replace("{{djLanguages}}", safe(djLanguages))
-                        .replace("{{djPrimaryVoices}}", safe(djPrimaryVoices))
-                        .replace("{{djCopilotName}}", safe(djCopilotName));
+                        .replace("{{djName}}", djName)
+                        .replace("{{radioStationName}}", radioStationName)
+                        .replace("{{owner}}", user.getUserName())
+                        .replace("{{radioStationSlug}}", stationSlug)
+                        .replace("{{radioStationCountry}}", stationCountry)
+                        .replace("{{radioStationBitRate}}", stationBitRate)
+                        .replace("{{radioStationStatus}}", stationStatus)
+                        .replace("{{radioStationTimeZone}}", stationTz)
+                        .replace("{{radioStationDescription}}", stationDesc)
+                        .replace("{{radioStationHlsUrl}}", hlsUrl)
+                        .replace("{{radioStationMixplaUrl}}", mixplaUrl)
+                        .replace("{{djLanguages}}", djLanguages)
+                        .replace("{{djCopilotName}}", djCopilotName);
 
-                // store assistant display name for this connection
                 assistantNameByConnectionId.put(connectionId, djName);
+                assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
 
+                List<MessageParam> history = chatRepository.getConversationHistory(user.getId());
                 return MessageCreateParams.builder()
                         .maxTokens(1024L)
                         .system(renderedPrompt)
-                        .messages(conversationHistory)
+                        .messages(history)
                         .model(Model.CLAUDE_3_5_HAIKU_20241022)
                         .addTool(GetStations.toTool())
+                        .addTool(GetOnlineStations.toTool())
                         .addTool(SearchBrandSoundFragments.toTool())
                         .addTool(AddToQueueTool.toTool())
                         .build();
@@ -202,9 +202,10 @@ public class ChatService {
                                     .findFirst();
 
                             if (toolUse.isPresent()) {
-                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId);
+                                List<MessageParam> history = chatRepository.getConversationHistory(user.getId());
+                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, user.getId(), history);
                             } else {
-                                return streamResponse(params, chunkHandler, completionHandler, connectionId);
+                                return streamResponse(params, chunkHandler, completionHandler, connectionId, user.getId());
                             }
                         })
         ).runSubscriptionOn(getDefaultWorkerPool());
@@ -213,25 +214,33 @@ public class ChatService {
     private Uni<Void> handleToolCall(ToolUseBlock toolUse,
                                      Consumer<String> chunkHandler,
                                      Consumer<String> completionHandler,
-                                     String connectionId) {
+                                     String connectionId,
+                                     long userId,
+                                     List<MessageParam> conversationHistory) {
+
         JsonValue inputVal = toolUse._input();
         Optional<Map<String, JsonValue>> maybeObj = inputVal.asObject();
         Map<String, JsonValue> inputMap = maybeObj.orElse(Collections.emptyMap());
 
         java.util.function.Function<MessageCreateParams, Uni<Void>> streamFn =
-                params -> streamResponse(params, chunkHandler, completionHandler, connectionId);
+                params -> streamResponse(params, chunkHandler, completionHandler, connectionId, userId);
 
         if ("get_stations".equals(toolUse.name())) {
-            return io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, conversationHistory, systemPromptCall2, streamFn
+            return GetStationsToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+            );
+        } else if ("get_online_stations".equals(toolUse.name())) {
+            return GetOnlineStationsToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
-            return io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, conversationHistory, systemPromptCall2, streamFn
+            return SearchBrandSoundFragmentsToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else if ("add_to_queue".equals(toolUse.name())) {
-            return io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler.handle(
-                    toolUse, inputMap, queueService, conversationHistory, systemPromptCall2, streamFn
+            String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
+            return AddToQueueToolHandler.handle(
+                    toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
@@ -241,7 +250,8 @@ public class ChatService {
     private Uni<Void> streamResponse(MessageCreateParams params,
                                      Consumer<String> chunkHandler,
                                      Consumer<String> completionHandler,
-                                     String connectionId) {
+                                     String connectionId,
+                                     long userId) {
 
         return Uni.createFrom().completionStage(() -> {
 
@@ -273,8 +283,9 @@ public class ChatService {
                                                 && !text.contains("</thinking>")) {
 
                                             JsonObject chunkMessage = new JsonObject()
-                                                    .put("type", "chunk")
+                                                    .put("type", MessageType.CHUNK)
                                                     .put("content", text)
+                                                    .put("username", assistantNameByConnectionId.get(connectionId))
                                                     .put("connectionId", connectionId);
 
                                             chunkHandler.accept(chunkMessage.encode());
@@ -307,23 +318,24 @@ public class ChatService {
                                         .content(MessageParam.Content.ofString(responseText))
                                         .build();
 
-                                conversationHistory.add(assistantResponse);
-                                trimHistory();
+                                chatRepository.appendToConversation(userId, assistantResponse);
 
-                                String assistantName = java.util.Optional.ofNullable(assistantNameByConnectionId.get(connectionId)).orElse("DJ");
                                 JsonObject botMessage = createMessage(
-                                        assistantName,
+                                        MessageType.BOT,
+                                        assistantNameByConnectionId.get(connectionId),
                                         responseText,
                                         System.currentTimeMillis(),
-                                        connectionId,
-                                        true
+                                        connectionId
                                 );
 
-                                chatHistory.add(botMessage);
+                                chatRepository.saveChatMessage(userId, botMessage);
+
 
                                 JsonObject completeMessage = new JsonObject()
                                         .put("type", "message")
-                                        .put("data", botMessage);
+                                        .put("data", botMessage.getJsonObject("data")
+                                                .put("type", MessageType.BOT.name()));
+
 
                                 completionHandler.accept(completeMessage.encode());
                             }
@@ -334,35 +346,15 @@ public class ChatService {
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    private void trimHistory() {
-        if (conversationHistory.size() > 30) {
-            conversationHistory.subList(0, conversationHistory.size() - 30).clear();
-        }
-    }
-
-    private String safe(Object v) {
-        return v == null ? "" : String.valueOf(v);
-    }
-
-    private String loadResourceAsString(String resourcePath) {
-        InputStream is = ChatService.class.getResourceAsStream(resourcePath);
-        if (is == null) {
-            throw new IllegalStateException("Resource not found: " + resourcePath);
-        }
-        try (is) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to read resource: " + resourcePath, e);
-        }
-    }
-
-    private JsonObject createMessage(String username, String content, long timestamp, String connectionId, boolean isBot) {
+    private JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {
         return new JsonObject()
-                .put("id", UUID.randomUUID().toString())
-                .put("username", username)
-                .put("content", content)
-                .put("timestamp", timestamp)
-                .put("connectionId", connectionId)
-                .put("isBot", isBot);
+                .put("type", type.name())
+                .put("data", new JsonObject()
+                        .put("id", UUID.randomUUID().toString())
+                        .put("username", username)
+                        .put("content", content)
+                        .put("timestamp", timestamp)
+                        .put("connectionId", connectionId)
+                );
     }
 }

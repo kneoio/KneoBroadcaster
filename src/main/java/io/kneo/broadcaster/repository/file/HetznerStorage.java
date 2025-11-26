@@ -165,8 +165,7 @@ public class HetznerStorage implements IFileStorage {
 
                     return hetznerStorageService.getFileStream(key)
                             .onItem().transform(streamMetadata -> {
-                                LOGGER.info("Processing Hetzner stream for key: {}, contentLength: {}, hasInputStream: {}", 
-                                        key, streamMetadata.getContentLength(), streamMetadata.getInputStream() != null);
+                                //LOGGER.info("Processing Hetzner stream for key: {}, contentLength: {}, hasInputStream: {}",key, streamMetadata.getContentLength(), streamMetadata.getInputStream() != null);
                                 metadata.setInputStream(streamMetadata.getInputStream());
                                 metadata.setContentLength(streamMetadata.getContentLength());
                                 return metadata;

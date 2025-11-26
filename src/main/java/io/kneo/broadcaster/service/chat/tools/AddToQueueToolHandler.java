@@ -1,122 +1,101 @@
 package io.kneo.broadcaster.service.chat.tools;
 
 import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Model;
-import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import com.anthropic.models.messages.ToolUseBlockParam;
+import io.kneo.broadcaster.agent.ElevenLabsClient;
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class AddToQueueToolHandler {
+public class AddToQueueToolHandler extends BaseToolHandler {
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             QueueService queueService,
+            ElevenLabsClient elevenLabsClient,
+            BroadcasterConfig config,
+            String djVoiceId,
+            Consumer<String> chunkHandler,
+            String connectionId,
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
+        AddToQueueToolHandler handler = new AddToQueueToolHandler();
         String brandName = inputMap.getOrDefault("brandName", JsonValue.from("")).toString();
-        String uploadId = inputMap.getOrDefault("uploadId", JsonValue.from("")).toString();
-        String mergingMethodStr = inputMap.getOrDefault("mergingMethod", JsonValue.from("NOT_MIXED")).toString();
-        Integer priority = null;
-        try {
-            if (inputMap.containsKey("priority")) {
-                priority = Integer.parseInt(inputMap.get("priority").toString());
-            }
-        } catch (Exception ignored) {}
-
-        Map<String, String> filePaths = new HashMap<>();
-        if (inputMap.containsKey("filePaths")) {
-            var opt = inputMap.get("filePaths").asObject();
-            if (opt.isPresent()) {
-              /*  Map<String, JsonValue> map = opt.get();
-                for (Map.Entry<String, JsonValue> e : map.entrySet()) {
-                    filePaths.put(e.getKey(), e.getValue().toString());
-                }*/
-            }
-        }
+        String textToTTSIntro = inputMap.getOrDefault("textToTTSIntro", JsonValue.from("")).toString();
+        String uploadId = UUID.randomUUID().toString();
 
         Map<String, UUID> soundFragments = new HashMap<>();
         if (inputMap.containsKey("soundFragments")) {
             var opt = inputMap.get("soundFragments").asObject();
             if (opt.isPresent()) {
-                /*Map<String, JsonValue> map = opt.get();
+                Map<String, JsonValue> map = (Map<String, JsonValue>) opt.get();
                 for (Map.Entry<String, JsonValue> e : map.entrySet()) {
                     try {
-                        soundFragments.put(e.getKey(), UUID.fromString(e.getValue().toString()));
+                        soundFragments.put("song1", UUID.fromString(e.getValue().toString()));
                     } catch (Exception ignored) {}
-                }*/
+                }
             }
         }
 
-        AddToQueueDTO dto = new AddToQueueDTO();
-        try {
-            dto.setMergingMethod(MergingType.valueOf(mergingMethodStr));
-        } catch (Exception e) {
-            dto.setMergingMethod(MergingType.NOT_MIXED);
-        }
-        dto.setFilePaths(filePaths.isEmpty() ? null : filePaths);
-        dto.setSoundFragments(soundFragments.isEmpty() ? null : soundFragments);
-        if (priority != null) dto.setPriority(priority);
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Generating intro ...");
 
-        return queueService.addToQueue(brandName, dto, uploadId)
+        return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId())
+                .flatMap(audioBytes -> {
+                    try {
+                        Path externalUploadsDir = Paths.get(config.getPathForExternalServiceUploads());
+                        Files.createDirectories(externalUploadsDir);
+                        
+                        String fileName = "tts_" + uploadId + ".mp3";
+                        Path audioFilePath = externalUploadsDir.resolve(fileName);
+                        Files.write(audioFilePath, audioBytes);
+                        
+                        handler.sendProcessingChunk(chunkHandler, connectionId, "Intro generated, adding to queue...");
+                        
+                        Map<String, String> filePaths = new HashMap<>();
+                        filePaths.put("audio1", audioFilePath.toAbsolutePath().toString());
+                        
+                        AddToQueueDTO dto = new AddToQueueDTO();
+                        dto.setMergingMethod(MergingType.INTRO_SONG);
+                        dto.setFilePaths(filePaths);
+                        dto.setSoundFragments(soundFragments.isEmpty() ? null : soundFragments);
+                        dto.setPriority(8);
+                        
+                        return queueService.addToQueue(brandName, dto, uploadId);
+                    } catch (IOException e) {
+                        return Uni.createFrom().failure(new RuntimeException("Failed to save TTS audio file: " + e.getMessage(), e));
+                    }
+                })
                 .flatMap(result -> {
                     JsonObject payload = new JsonObject()
                             .put("ok", result)
                             .put("brandName", brandName)
-                            .put("uploadId", uploadId)
-                            .put("mergingMethod", dto.getMergingMethod().name())
-                            .put("priority", dto.getPriority());
+                            .put("textToTTSIntro", textToTTSIntro);
 
-                    MessageParam assistantToolUseMsg = MessageParam.builder()
-                            .role(MessageParam.Role.ASSISTANT)
-                            .content(MessageParam.Content.ofBlockParams(
-                                    List.of(ContentBlockParam.ofToolUse(
-                                            ToolUseBlockParam.builder()
-                                                    .name(toolUse.name())
-                                                    .id(toolUse.id())
-                                                    .input(toolUse._input())
-                                                    .build()
-                                    ))
-                            ))
-                            .build();
-                    conversationHistory.add(assistantToolUseMsg);
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Song queued successfully!");
 
-                    MessageParam toolResultMsg = MessageParam.builder()
-                            .role(MessageParam.Role.USER)
-                            .content(MessageParam.Content.ofBlockParams(
-                                    List.of(ContentBlockParam.ofToolResult(
-                                            ToolResultBlockParam.builder()
-                                                    .toolUseId(toolUse.id())
-                                                    .content(payload.encode())
-                                                    .build()
-                                    ))
-                            ))
-                            .build();
-                    conversationHistory.add(toolResultMsg);
+                    handler.addToolUseToHistory(toolUse, conversationHistory);
+                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
 
-                    MessageCreateParams secondCallParams = MessageCreateParams.builder()
-                            .maxTokens(1024L)
-                            .system(systemPromptCall2)
-                            .messages(conversationHistory)
-                            .model(Model.CLAUDE_3_5_HAIKU_20241022)
-                            .build();
-
+                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                     return streamFn.apply(secondCallParams);
                 });
     }

@@ -149,7 +149,7 @@ public class EventTriggerJobRunner implements JobRunner {
             return;
         }
 
-        LOGGER.info("Scheduling event {} from {} to {} with interval {}m", id, start, end, interval);
+       // LOGGER.info("Scheduling event {} from {} to {} with interval {}m", id, start, end, interval);
 
         JobDetail job = newJob(EventTriggerJob.class)
                 .withIdentity(jobKey, "event")

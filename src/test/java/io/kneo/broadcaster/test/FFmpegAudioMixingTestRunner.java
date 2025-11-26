@@ -158,6 +158,26 @@ public class FFmpegAudioMixingTestRunner {
             public String getAnthropicApiKey() {
                 return "";
             }
+
+            @Override
+            public String getElevenLabsApiKey() {
+                return "";
+            }
+
+            @Override
+            public String getElevenLabsVoiceId() {
+                return "";
+            }
+
+            @Override
+            public String getElevenLabsModelId() {
+                return "";
+            }
+
+            @Override
+            public String getElevenLabsOutputFormat() {
+                return "";
+            }
         };
     }
 

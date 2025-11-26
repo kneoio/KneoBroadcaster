@@ -3,12 +3,19 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.service.chat.ChatService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
+import io.kneo.core.model.user.UndefinedUser;
+import io.kneo.core.repository.exception.UserNotFoundException;
+import io.kneo.core.service.UserService;
+import io.smallrye.jwt.auth.principal.JWTParser;
+import io.smallrye.jwt.auth.principal.ParseException;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,7 +25,9 @@ import static java.util.UUID.randomUUID;
 @ApplicationScoped
 public class ChatController extends AbstractSecuredController<Object, Object> {
 
+    private UserService userService;
     private ChatService chatService;
+    private JWTParser jwtParser;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
 
     public ChatController() {
@@ -26,26 +35,27 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
     }
 
     @Inject
-    public ChatController(io.kneo.core.service.UserService userService, ChatService chatService) {
+    public ChatController(UserService userService, ChatService chatService, JWTParser jwtParser) {
         super(userService);
+        this.userService = userService;
         this.chatService = chatService;
+        this.jwtParser = jwtParser;
     }
 
     public void setupRoutes(Router router) {
         router.route("/api/ws/chat").handler(rc -> {
             if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
-                getContextUser(rc, false, false)
+                getContextUserFromWebSocket(rc)
                         .subscribe().with(
                                 user -> rc.request().toWebSocket().onSuccess(ws -> handleChatWebSocket(ws, user))
                                         .onFailure(err -> {
                                             System.err.println("WebSocket connection failed: " + err.getMessage());
                                             rc.fail(500, err);
                                         }),
-                                err -> rc.request().toWebSocket().onSuccess(ws -> handleChatWebSocket(ws, null))
-                                        .onFailure(upgErr -> {
-                                            System.err.println("WebSocket upgrade failed (no user): " + upgErr.getMessage());
-                                            rc.fail(500, upgErr);
-                                        })
+                                err -> {
+                                    System.err.println("Authentication required for chat: " + err.getMessage());
+                                    rc.fail(401, err);
+                                }
                         );
             } else {
                 rc.response().setStatusCode(400).end("WebSocket upgrade required");
@@ -99,12 +109,11 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
             return;
         }
 
-        IUser effectiveUser = (user != null) ? user : SuperUser.build();
-        chatService.processUserMessage(username, content, connectionId, effectiveUser)
+        chatService.processUserMessage(username, content, connectionId, user)
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
-                            sendBotResponse(webSocket, content, connectionId, stationId, effectiveUser);
+                            sendBotResponse(webSocket, content, connectionId, stationId, user);
                         },
                         err -> sendError(webSocket, err)
                 );
@@ -123,6 +132,11 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
     }
 
     private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, io.kneo.core.model.user.IUser user) {
+        if (user == null) {
+            sendError(webSocket, "Authentication required to access chat history");
+            return;
+        }
+
         Integer limit = msgJson.getInteger("limit", 50);
 
         chatService.getChatHistory(limit, user)
@@ -142,5 +156,45 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
                 .put("message", message)
                 .put("timestamp", System.currentTimeMillis());
         webSocket.writeTextMessage(error.encode());
+    }
+
+    protected Uni<IUser> getContextUserFromWebSocket(RoutingContext rc) {
+        String token = rc.request().getParam("token");
+
+        if (token == null || token.isEmpty()) {
+            return Uni.createFrom().failure(new IllegalStateException("No token provided"));
+        }
+
+        // Validate the token and extract username
+        // This depends on your JWT validation logic
+        try {
+            String username = validateTokenAndGetUsername(token);
+
+            return userService.findByLogin(username)
+                    .onItem().transformToUni(user -> {
+                        if (user != null && !(user instanceof UndefinedUser)) {
+                            return Uni.createFrom().item(user);
+                        } else {
+                            return Uni.createFrom().failure(new UserNotFoundException(username));
+                        }
+                    });
+        } catch (Exception e) {
+            return Uni.createFrom().failure(new IllegalStateException("Invalid token: " + e.getMessage()));
+        }
+    }
+
+    private String validateTokenAndGetUsername(String token) throws ParseException {
+        JsonWebToken jwt = jwtParser.parse(token);
+        
+        String username = jwt.getClaim("preferred_username");
+        if (username == null || username.isEmpty()) {
+            username = jwt.getName();
+        }
+        
+        if (username == null || username.isEmpty()) {
+            throw new IllegalStateException("No username found in JWT token");
+        }
+        
+        return username;
     }
 }

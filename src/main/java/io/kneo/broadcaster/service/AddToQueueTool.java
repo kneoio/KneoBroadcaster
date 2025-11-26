@@ -13,19 +13,9 @@ public class AddToQueueTool {
                         "brandName", Map.of(
                                 "type", "string",
                                 "description", "Brand (radio station) slug name to queue into"),
-                        "uploadId", Map.of(
+                        "textToTTSIntro", Map.of(
                                 "type", "string",
-                                "description", "Client-provided upload/queue operation id for progress tracking"),
-                        "mergingMethod", Map.of(
-                                "type", "string",
-                                "description", "Merging strategy. One of: INTRO_SONG, NOT_MIXED, SONG_INTRO_SONG, INTRO_SONG_INTRO_SONG, SONG_CROSSFADE_SONG"),
-                        "priority", Map.of(
-                                "type", "integer",
-                                "description", "Queue priority (default 100)"),
-                        "filePaths", Map.of(
-                                "type", "object",
-                                "additionalProperties", Map.of("type", "string"),
-                                "description", "Optional map of file identifiers to absolute/remote paths"),
+                                "description", "Text to convert to speech for the intro"),
                         "soundFragments", Map.of(
                                 "type", "object",
                                 "additionalProperties", Map.of("type", "string"),
@@ -36,7 +26,7 @@ public class AddToQueueTool {
 
         return Tool.builder()
                 .name("add_to_queue")
-                .description("Queue audio for a brand using specified merging method and fragments")
+                .description("Queue audio for a brand using specified fragments")
                 .inputSchema(schema)
                 .build();
     }

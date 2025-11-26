@@ -156,7 +156,7 @@ public class PlaylistManager {
                                         SuperUser.build()
                                 )
                                 .chain(fetchedMetadata -> {
-                                    LOGGER.info("File to materialize: {}", fetchedMetadata.getFileOriginalName());
+                                    //LOGGER.info("File to materialize: {}", fetchedMetadata.getFileOriginalName());
                                     return fetchedMetadata.materializeFileStream(tempBaseDir)
                                             .onItem().transform(tempFilePath -> fetchedMetadata);
                                 })

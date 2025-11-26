@@ -4,19 +4,20 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
+import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class GetStationsToolHandler extends BaseToolHandler {
+public class GetOnlineStationsToolHandler extends BaseToolHandler {
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -28,22 +29,30 @@ public class GetStationsToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        GetStationsToolHandler handler = new GetStationsToolHandler();
-        String country = inputMap.getOrDefault("country", JsonValue.from("")).toString();
+        GetOnlineStationsToolHandler handler = new GetOnlineStationsToolHandler();
 
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Fetching stations...");
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Fetching online stations...");
 
-        return aiHelperService.getAllStations(null, country, null, null)
-                .flatMap((AvailableStationsAiDTO stationsData) -> {
-                    handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + stationsData.getRadioStations().size() + " stations");
-                    
+        List<RadioStationStatus> statuses = Arrays.asList(
+                RadioStationStatus.ON_LINE,
+                RadioStationStatus.WARMING_UP,
+                RadioStationStatus.QUEUE_SATURATED,
+                RadioStationStatus.IDLE
+        );
+
+        return aiHelperService.getOnline(statuses)
+                .flatMap((LiveContainerDTO liveData) -> {
+                    int count = liveData.getRadioStations().size();
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " online station" + (count != 1 ? "s" : ""));
+
                     JsonArray stationsJson = new JsonArray();
-                    stationsData.getRadioStations().forEach(station -> {
+                    liveData.getRadioStations().forEach(station -> {
                         JsonObject stationObj = new JsonObject()
-                                .put("name", station.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
+                                .put("name", station.getName())
                                 .put("slugName", station.getSlugName())
-                                .put("country", station.getCountry())
-                                .put("status", station.getRadioStationStatus().toString());
+                                .put("status", station.getRadioStationStatus().toString())
+                                .put("djName", station.getDjName())
+                                .put("info", station.getInfo());
                         stationsJson.add(stationObj);
                     });
 

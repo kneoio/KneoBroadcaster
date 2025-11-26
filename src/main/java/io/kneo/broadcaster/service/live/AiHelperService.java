@@ -456,16 +456,12 @@ public class AiHelperService {
                     Scene finalActiveScene = activeScene;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
-                                LOGGER.debug("Station '{}': Received {} prompts from Uni.join()",
-                                        station.getSlugName(), prompts.size());
-
+                                LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", station.getSlugName(), prompts.size());
                                 Random random = new Random();
-
                                 return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, randomizator.decideFragmentCount(station.getSlugName()))
                                         .flatMap(songs -> {
                                             if (songs == null || songs.isEmpty()) {
-                                                LOGGER.error("Station '{}': No songs available for prompt generation",
-                                                        station.getSlugName());
+                                                LOGGER.error("Station '{}': No songs available for prompt generation", station.getSlugName());
                                                 return Uni.createFrom().item(Tuple2.of(List.<SongPromptDTO>of(), finalCurrentSceneTitle));
                                             }
 

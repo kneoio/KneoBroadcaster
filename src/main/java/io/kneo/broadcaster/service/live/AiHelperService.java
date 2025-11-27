@@ -41,6 +41,7 @@ import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.StreamManagerStats;
 import io.kneo.broadcaster.util.AiHelperUtils;
+import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -370,10 +371,11 @@ public class AiHelperService {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
-                        memoryService.getByType(station.getSlugName(), MemoryType.MESSAGE.name(), MemoryType.EVENT.name(), MemoryType.CONVERSATION_HISTORY.name())
+                        memoryService.getByType(station.getSlugName(), MemoryType.EVENT.name())
                 )
                 .asTuple()
                 .flatMap(tuple -> {
+                    String brandSlugName = station.getSlugName();
                     List<BrandScript> brandScripts = tuple.getItem1();
                     MemoryResult memoryData = tuple.getItem2();
                     ZoneId zone = station.getTimeZone();
@@ -387,12 +389,12 @@ public class AiHelperService {
                     for (BrandScript brandScript : brandScripts) {
                         List<Scene> scenes = brandScript.getScript().getScenes();
                         for (Scene scene : scenes) {
-                            if (isSceneActive(station.getSlugName(), zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
+                            if (isSceneActive(brandSlugName, zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
                                 allMasterPromptIds.addAll(scene.getPrompts());
                                 currentSceneTitle = scene.getTitle();
                                 activeScene = scene;
                                 LOGGER.debug("Station '{}': Active scene '{}' found with {} prompts",
-                                        station.getSlugName(), scene.getTitle(), scene.getPrompts().size());
+                                        brandSlugName, scene.getTitle(), scene.getPrompts().size());
                             }
                         }
                     }
@@ -410,6 +412,7 @@ public class AiHelperService {
                         effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
                     }
 
+                    BrandActivityLogger.logActivity(brandSlugName, "decision", "effectiveTalkativity : %s", effectiveTalkativity);
                     if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
                         addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "mixing ...");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);

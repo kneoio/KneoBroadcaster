@@ -13,6 +13,7 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
+import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
@@ -22,6 +23,7 @@ import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.ListenerService;
@@ -177,7 +179,7 @@ public class AiHelperService {
 
                     List<Uni<RadioStationAiDTO>> unis = stations.stream()
                             .map(dto -> {
-                                if (statuses != null && !statuses.isEmpty() && (dto.getStatus() == null || !statuses.contains(dto.getStatus()))) {
+                                if (statuses != null && !statuses.contains(dto.getStatus())) {
                                     return Uni.createFrom().<RadioStationAiDTO>nullItem();
                                 }
 
@@ -187,9 +189,6 @@ public class AiHelperService {
                                     }
                                     return aiAgentService.getById(dto.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                                             .map(agent -> {
-                                                if (agent == null || agent.getPreferredLang() == null) {
-                                                    return null;
-                                                }
                                                 boolean supports = agent.getPreferredLang().stream()
                                                         .anyMatch(p -> p.getCode() == djLanguage);
                                                 if (!supports) {
@@ -211,9 +210,7 @@ public class AiHelperService {
 
                     return (unis.isEmpty() ? Uni.createFrom().item(List.<RadioStationAiDTO>of()) : Uni.join().all(unis).andFailFast())
                             .map(list -> {
-                                List<RadioStationAiDTO> stationsList = list.stream()
-                                        .filter(java.util.Objects::nonNull)
-                                        .collect(Collectors.toList());
+                                List<RadioStationAiDTO> stationsList = new ArrayList<>(list);
                                 AvailableStationsAiDTO container = new AvailableStationsAiDTO();
                                 container.setRadioStations(stationsList);
                                 return container;
@@ -271,18 +268,18 @@ public class AiHelperService {
                 });
     }
 
-    private RadioStationAiDTO toRadioStationAiDTO(RadioStationDTO dto, AiAgent agent) {
+    private RadioStationAiDTO toRadioStationAiDTO(RadioStationDTO radioStationDTO, AiAgent agent) {
         RadioStationAiDTO b = new RadioStationAiDTO();
-        b.setLocalizedName(dto.getLocalizedName());
-        b.setSlugName(dto.getSlugName());
-        b.setCountry(dto.getCountry());
-        b.setHlsUrl(dto.getHlsUrl());
-        b.setMp3Url(dto.getMp3Url());
-        b.setMixplaUrl(dto.getMixplaUrl());
-        b.setTimeZone(dto.getTimeZone());
-        b.setDescription(dto.getDescription());
-        b.setBitRate(dto.getBitRate());
-        b.setRadioStationStatus(dto.getStatus());
+        b.setLocalizedName(radioStationDTO.getLocalizedName());
+        b.setSlugName(radioStationDTO.getSlugName());
+        b.setCountry(radioStationDTO.getCountry());
+        b.setHlsUrl(radioStationDTO.getHlsUrl());
+        b.setMp3Url(radioStationDTO.getMp3Url());
+        b.setMixplaUrl(radioStationDTO.getMixplaUrl());
+        b.setTimeZone(radioStationDTO.getTimeZone());
+        b.setDescription(radioStationDTO.getDescription());
+        b.setBitRate(radioStationDTO.getBitRate());
+        b.setRadioStationStatus(radioStationDTO.getStatus());
         if (agent != null) {
             b.setDjName(agent.getName());
             List<LanguageCode> langs = agent.getPreferredLang().stream()
@@ -290,6 +287,12 @@ public class AiHelperService {
                     .map(LanguagePreference::getCode)
                     .collect(Collectors.toList());
             b.setAiAgentLang(langs);
+        }
+
+        if (radioStationDTO.isAiOverridingEnabled()){
+                AiOverridingDTO aiOverriding = radioStationDTO.getAiOverriding();
+                b.setOverriddenDjName(aiOverriding.getName());
+                b.setAdditionalUserInstruction(aiOverriding.getPrompt());
         }
         return b;
     }
@@ -321,28 +324,31 @@ public class AiHelperService {
                     LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                     liveRadioStation.setSlugName(station.getSlugName());
                     String stationName = station.getLocalizedName().get(broadcastingLanguage);
-                    if (stationName == null) {  //it might happen if dj speaks language that not represented in the localized names
-                        stationName = station.getLocalizedName().get(LanguageCode.en);
-                        LOGGER.warn("Station '{}': No localized name for language '{}'", station.getSlugName(), broadcastingLanguage);
-                    }
                     liveRadioStation.setName(stationName);
-                    liveRadioStation.setDjName(agent.getName());
-
-                    aiDjStatsRequestTracker.put(station.getSlugName(),
-                            new DjRequestInfo(LocalDateTime.now(), agent.getName()));
-
-                    return fetchPrompt(station, agent, broadcastingLanguage).flatMap(tuple -> {
+                    String primaryVoice;
+                    String additionalInstruction;
+                    AiOverriding overriding = station.getAiOverriding();
+                    if (overriding != null){
+                        liveRadioStation.setDjName(String.format("%s overridden as %s", agent.getName(), overriding.getName()));
+                        primaryVoice = overriding.getPrimaryVoice();
+                        additionalInstruction = "\n\nAdditional instruction: " + overriding.getPrompt();
+                    } else {
+                        primaryVoice = agent.getPrimaryVoice().stream().findAny().orElseThrow().getId();
+                        liveRadioStation.setDjName(agent.getName());
+                        additionalInstruction = "";
+                    }
+                    return fetchPrompt(station, agent, broadcastingLanguage, additionalInstruction).flatMap(tuple -> {
                         if (tuple == null) {
                             //LOGGER.warn("Station '{}' skipped: fetchPrompt() returned no data", station.getSlugName());
                             // addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No prompt data available");
                             return Uni.createFrom().item(liveRadioStation);
                         }
-                        var prompts = tuple.getItem1();
+                        List<SongPromptDTO> prompts = tuple.getItem1();
 
                         liveRadioStation.setPrompts(prompts);
                         liveRadioStation.setInfo(tuple.getItem2());
 
-                        String primaryVoice = agent.getPrimaryVoice().get(0).getId();
+
                         UUID copilotId = agent.getCopilot();
 
                         return aiAgentService.getDTO(copilotId, SuperUser.build(), LanguageCode.en)
@@ -360,7 +366,7 @@ public class AiHelperService {
                 });
     }
 
-    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage) {
+    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage, String additionalInstruction) {
         return Uni.combine().all()
                 .unis(
                         scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
@@ -432,9 +438,6 @@ public class AiHelperService {
                                             return Uni.createFrom().item(masterPrompt);
                                         }
 
-                                        LOGGER.debug("Station '{}': Looking for translation of master ID={} to language={}",
-                                                station.getSlugName(), masterId, broadcastingLanguage);
-
                                         return promptService.findByMasterAndLanguage(masterId, broadcastingLanguage, false)
                                                 .map(translatedPrompt -> {
                                                     if (translatedPrompt != null) {
@@ -479,17 +482,19 @@ public class AiHelperService {
                                                                 memoryData,
                                                                 selectedPrompt.getDraftId(),
                                                                 broadcastingLanguage
-                                                        ).map(draft -> new SongPromptDTO(
-                                                                song.getId(),
-                                                                draft,
-                                                                selectedPrompt.getPrompt(),
-                                                                selectedPrompt.getPromptType(),
-                                                                agent.getLlmType(),
-                                                                agent.getSearchEngineType(),
-                                                                finalActiveScene.getStartTime(),
-                                                                finalActiveScene.isOneTimeRun(),
-                                                                selectedPrompt.isPodcast()
-                                                        ));
+                                                        ).map(draft -> {
+                                                            return new SongPromptDTO(
+                                                                    song.getId(),
+                                                                    draft,
+                                                                    selectedPrompt.getPrompt() + additionalInstruction,
+                                                                    selectedPrompt.getPromptType(),
+                                                                    agent.getLlmType(),
+                                                                    agent.getSearchEngineType(),
+                                                                    finalActiveScene.getStartTime(),
+                                                                    finalActiveScene.isOneTimeRun(),
+                                                                    selectedPrompt.isPodcast()
+                                                            );
+                                                        });
                                                     }).collect(Collectors.toList());
 
                                             return Uni.join().all(songPromptUnis).andFailFast()

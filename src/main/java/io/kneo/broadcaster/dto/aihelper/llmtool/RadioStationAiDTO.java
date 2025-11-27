@@ -25,5 +25,7 @@ public class RadioStationAiDTO {
     private long bitRate;
     private RadioStationStatus radioStationStatus;
     private String djName;
+    private String overriddenDjName;
+    private String additionalUserInstruction;
     private List<LanguageCode> aiAgentLang;
 }

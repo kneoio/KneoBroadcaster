@@ -211,7 +211,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 AiOverridingDTO aiDto = new AiOverridingDTO();
                 aiDto.setName(doc.getAiOverriding().getName());
                 aiDto.setPrompt(doc.getAiOverriding().getPrompt());
-                aiDto.setTalkativity(doc.getAiOverriding().getTalkativity());
                 aiDto.setPrimaryVoice(doc.getAiOverriding().getPrimaryVoice());
                 dto.setAiOverriding(aiDto);
                 dto.setAiOverridingEnabled(true);
@@ -323,7 +322,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             AiOverriding ai = new AiOverriding();
             ai.setName(dto.getAiOverriding().getName());
             ai.setPrompt(dto.getAiOverriding().getPrompt());
-            ai.setTalkativity(dto.getAiOverriding().getTalkativity());
             ai.setPrimaryVoice(dto.getAiOverriding().getPrimaryVoice());
             doc.setAiOverriding(ai);
         }

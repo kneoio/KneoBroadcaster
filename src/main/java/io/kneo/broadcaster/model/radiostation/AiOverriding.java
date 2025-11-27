@@ -8,6 +8,5 @@ import lombok.Setter;
 public class AiOverriding {
     private String name;
     private String prompt;
-    private double talkativity;
     private String primaryVoice;
 }

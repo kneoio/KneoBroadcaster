@@ -4,7 +4,6 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.core.localization.LanguageCode;
@@ -12,7 +11,6 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,10 +32,7 @@ public class AiHelperController {
     }
 
     public void setupRoutes(Router router) {
-        BodyHandler bodyHandler = BodyHandler.create();
         router.get("/api/ai/memory/:brand").handler(this::getMemoriesByType);
-        router.get("/api/ai/messages/:brand/consume").handler(this::consumeInstantMessages);
-        router.patch("/api/ai/memory/reset/:brand/:type").handler(bodyHandler).handler(this::resetMemory);
         router.get("/api/ai/live/stations").handler(this::getLiveRadioStations);
         router.get("/api/ai/station/:slug/live").handler(this::getStationLiveStat);
         router.get("/api/ai/listener/by-telegram-name/:name").handler(this::getListenerByTelegramName);
@@ -86,99 +81,6 @@ public class AiHelperController {
                             }
                         }
                 );
-    }
-
-    private void consumeInstantMessages(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        if (brand == null || brand.trim().isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Brand parameter is required");
-            return;
-        }
-
-        memoryService.retrieveAndRemoveInstantMessages(brand)
-                .subscribe().with(
-                        messages -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encode(messages)),
-                        throwable -> {
-                            LOGGER.error("Error consuming instant messages for brand: {}", brand, throwable);
-                            rc.response()
-                                    .setStatusCode(500)
-                                    .putHeader("Content-Type", "text/plain")
-                                    .end("An error occurred while retrieving instant messages");
-                        }
-                );
-    }
-
-    private void resetMemory(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        String type = rc.pathParam("type");
-
-        if (brand == null || brand.trim().isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Brand parameter is required");
-            return;
-        }
-
-        if (type == null || type.trim().isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Type parameter is required");
-            return;
-        }
-
-        List<String> idParams = rc.queryParam("id");
-        String memoryId;
-        if (idParams != null && !idParams.isEmpty()) {
-            memoryId = idParams.get(0);
-        } else {
-            memoryId = null;
-        }
-
-        try {
-            MemoryType memoryType = MemoryType.valueOf(type.toUpperCase());
-
-            if (memoryId != null && !memoryId.trim().isEmpty()) {
-                memoryService.delete(memoryId.trim())
-                        .subscribe().with(
-                                removedCount -> rc.response()
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(Json.encode(new JsonObject().put("removedCount", removedCount))),
-                                throwable -> {
-                                    LOGGER.error("Error deleting memory by id: {} for brand: {}", memoryId, brand, throwable);
-                                    rc.response()
-                                            .setStatusCode(500)
-                                            .putHeader("Content-Type", "text/plain")
-                                            .end("An error occurred while deleting memory by id");
-                                }
-                        );
-            } else {
-                memoryService.resetMemory(brand, memoryType)
-                        .subscribe().with(
-                                removedCount -> rc.response()
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(Json.encode(new JsonObject().put("removedCount", removedCount))),
-                                throwable -> {
-                                    LOGGER.error("Error resetting memory for brand: {} and type: {}", brand, type, throwable);
-                                    rc.response()
-                                            .setStatusCode(500)
-                                            .putHeader("Content-Type", "text/plain")
-                                            .end("An error occurred while resetting memory");
-                                }
-                        );
-            }
-        } catch (IllegalArgumentException e) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Invalid memory type. Valid values: " + Arrays.toString(MemoryType.values()));
-        }
     }
 
     private void getLiveRadioStations(RoutingContext rc) {

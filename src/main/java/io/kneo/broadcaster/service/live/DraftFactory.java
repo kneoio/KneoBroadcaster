@@ -10,6 +10,8 @@ import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.Voice;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
+import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -186,19 +188,31 @@ public class DraftFactory {
         data.put("songArtist", song.getArtist());
         data.put("songDescription", song.getDescription());
         data.put("songGenres", genres);
-        data.put("djName", agent.getName());
-        data.put("djVoiceId", agent.getPrimaryVoice().stream().findAny().orElseThrow().getId());
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
         String brand = station.getLocalizedName().get(selectedLanguage);
         if (brand == null) {
             brand = station.getLocalizedName().values().iterator().next();
         }
+        AiOverriding overriddenAiDj = station.getAiOverriding();
+        if (overriddenAiDj != null){
+            data.put("djName", overriddenAiDj.getName());
+            data.put("djVoiceId", overriddenAiDj.getPrimaryVoice());
+        } else {
+            data.put("djName", agent.getName());
+            data.put("djVoiceId", agent.getPrimaryVoice().stream().findAny().orElseThrow().getId());
+        }
+        ProfileOverriding overriddenProfile = station.getProfileOverriding();
+        if (overriddenProfile != null){
+            data.put("profileName", overriddenProfile.getName());
+            data.put("profileDescription", overriddenProfile.getDescription());
+        } else {
+            data.put("profileName", profile.getName());
+            data.put("profileDescription", profile.getDescription());
+        }
         data.put("stationBrand", brand);
         data.put("country", station.getCountry());
         data.put("language", selectedLanguage);
-        data.put("profileName", profile.getName());
-        data.put("profileDescription", profile.getDescription());
         data.put("history", history);
         data.put("messages", messages);
         data.put("events", events);

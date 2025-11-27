@@ -136,7 +136,7 @@ public class SongSupplier {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    BrandActivityLogger.logActivity(brandName, "fetching_fragments", "Fetching fragments for brand ID: %s", brandId);
+                    BrandActivityLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
 
                     return repository.getBrandSongsRandomPage(brandId, fragmentType)
                             .flatMap(fragments -> {

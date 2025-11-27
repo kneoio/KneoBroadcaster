@@ -44,7 +44,8 @@ public class StreamManager implements IStreamManager {
     private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
     private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
 
-    @Getter @Setter
+    @Getter
+    @Setter
     private RadioStation radioStation;
     @Getter
     private PlaylistManager playlistManager;
@@ -91,13 +92,7 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void initialize() {
-        if (this.radioStation != null) {
-           this.radioStation.setStatus(RadioStationStatus.WARMING_UP);
-        } else {
-            LOGGER.error("StreamManager.initialize: RadioStation object is null. Cannot set initial status or properly initialize.");
-            return;
-        }
-
+        this.radioStation.setStatus(RadioStationStatus.WARMING_UP);
         LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
 
         playlistManager = new PlaylistManager(
@@ -256,14 +251,14 @@ public class StreamManager implements IStreamManager {
             }
             return segment;
         } catch (Exception e) {
-            LOGGER.warn("Error processing segment request '{}' : {}", segmentParam,  e.getMessage(), e);
+            LOGGER.warn("Error processing segment request '{}' : {}", segmentParam, e.getMessage(), e);
             return null;
         }
     }
 
 
     @Override
-    public StreamManagerStats getStats(){
+    public StreamManagerStats getStats() {
         return new StreamManagerStats(
                 Map.copyOf(liveSegments),
                 getSegmentHeartbeat()
@@ -275,7 +270,9 @@ public class StreamManager implements IStreamManager {
     public void shutdown() {
         LOGGER.info("Shutting down StreamManager for: {}", radioStation.getSlugName());
         timerSubscriptions.forEach((key, subscription) -> {
-            if (subscription != null) subscription.cancel();
+            if (subscription != null) {
+                subscription.cancel();
+            }
         });
         timerSubscriptions.clear();
         executorService.shutdownNow();

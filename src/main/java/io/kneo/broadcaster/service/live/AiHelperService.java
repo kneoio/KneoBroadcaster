@@ -405,15 +405,17 @@ public class AiHelperService {
 
                     double effectiveTalkativity = activeScene.getTalkativity();
                     double rate = station.getPopularityRate();
-                    if (rate < 5.0) {
+                    if (rate < 4.0) {
                         double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
                         effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
                     }
 
                     if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Start filler mixing");
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "mixing ...");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);
+                    } else {
+                        addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "DJ is curating ...");
                     }
 
                     if (allMasterPromptIds.isEmpty()) {
@@ -571,9 +573,9 @@ public class AiHelperService {
 
     public Uni<AiDjStats> getAiDjStats(RadioStation station) {
         return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
-                .map(scripts -> {
+                .flatMap(scripts -> {
                     if (scripts.isEmpty()) {
-                        return null;
+                        return Uni.createFrom().item(() -> null);
                     }
                     ZonedDateTime now = ZonedDateTime.now(station.getTimeZone());
                     LocalTime currentTime = now.toLocalTime();
@@ -583,32 +585,51 @@ public class AiHelperService {
                         List<Scene> scenes = brandScript.getScript().getScenes();
                         for (Scene scene : scenes) {
                             if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
-                                LocalTime sceneStart = scene.getStartTime();
-                                LocalTime sceneEnd = findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
-                                int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;
-                                String nextSceneTitle = findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
+                                final LocalTime sceneStart = scene.getStartTime();
+                                final LocalTime sceneEnd = findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
+                                final int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;
+                                final String nextSceneTitle = findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
                                 DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
-                                LocalDateTime lastRequestTime = null;
-                                String djName = null;
+                                final LocalDateTime lastRequestTime;
+                                final String trackedDjName;
                                 if (requestInfo != null) {
                                     lastRequestTime = requestInfo.requestTime();
-                                    djName = requestInfo.djName();
+                                    trackedDjName = requestInfo.djName();
+                                } else {
+                                    lastRequestTime = null;
+                                    trackedDjName = null;
                                 }
-                                return new AiDjStats(
-                                        scene.getId(),
-                                        scene.getTitle(),
-                                        sceneStart,
-                                        sceneEnd,
-                                        promptCount,
-                                        nextSceneTitle,
-                                        lastRequestTime,
-                                        djName,
-                                        aiDjMessagesTracker.get(station.getSlugName())
-                                );
+                                final AiOverriding overriding = station.getAiOverriding();
+                                if (overriding != null) {
+                                    return Uni.createFrom().item(() -> new AiDjStats(
+                                            scene.getId(),
+                                            scene.getTitle(),
+                                            sceneStart,
+                                            sceneEnd,
+                                            promptCount,
+                                            nextSceneTitle,
+                                            lastRequestTime,
+                                            overriding.getName(),
+                                            aiDjMessagesTracker.get(station.getSlugName())
+                                    ));
+                                } else {
+                                    // No AI overriding, use tracked DJ name
+                                    return Uni.createFrom().item(() -> new AiDjStats(
+                                            scene.getId(),
+                                            scene.getTitle(),
+                                            sceneStart,
+                                            sceneEnd,
+                                            promptCount,
+                                            nextSceneTitle,
+                                            lastRequestTime,
+                                            trackedDjName,
+                                            aiDjMessagesTracker.get(station.getSlugName())
+                                    ));
+                                }
                             }
                         }
                     }
-                    return null;
+                    return Uni.createFrom().item(() -> null);
                 });
     }
 

@@ -16,6 +16,7 @@ import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.AudioMixingHandler;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.util.BrandActivityLogger;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -65,8 +66,8 @@ public class JinglePlaybackHandler {
         LOGGER.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
                 station.getSlugName(), scene.getTalkativity());
 
-        boolean useJingle = new Random().nextBoolean();
-        
+        boolean useJingle = Math.random() < 0.7;
+
         if (useJingle) {
             handleJingleAndSong(station);
         } else {
@@ -123,8 +124,7 @@ public class JinglePlaybackHandler {
                             SoundFragment firstSong = songs.get(0);
                             SoundFragment secondSong = songs.get(1);
 
-                            LOGGER.info("Station '{}': Concatenating song '{}' with song '{}'",
-                                    station.getSlugName(), firstSong.getTitle(), secondSong.getTitle());
+                            BrandActivityLogger.logActivity(station.getSlugName(), "handle_two_songs", " %s + %s", firstSong.getTitle(), secondSong.getTitle());
 
                             AddToQueueDTO queueDTO = new AddToQueueDTO();
                             queueDTO.setMergingMethod(MergingType.SONG_CROSSFADE_SONG);

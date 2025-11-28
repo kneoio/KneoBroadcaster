@@ -36,6 +36,7 @@ import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -115,7 +116,7 @@ public class ChatService {
         });
     }
 
-    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String stationId, IUser user) {
+    public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
 
         MessageParam userMsg = MessageParam.builder()
                 .role(MessageParam.Role.USER)
@@ -124,16 +125,16 @@ public class ChatService {
 
         chatRepository.appendToConversation(user.getId(), userMsg);
 
-        Uni<RadioStation> stationUni = radioStationService.getBySlugName(stationId);
+        Uni<RadioStation> stationUni = radioStationService.getBySlugName(slugName, user);
 
         return stationUni.flatMap(station -> {
             String radioStationName = station != null && station.getLocalizedName() != null
                     ? station.getLocalizedName().getOrDefault(LanguageCode.en, station.getSlugName())
-                    : stationId;
+                    : slugName;
 
             Uni<AiAgent> agentUni;
             if (station != null && station.getAiAgentId() != null) {
-                agentUni = aiAgentService.getById(station.getAiAgentId(), user, LanguageCode.en);
+                agentUni = aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en);
             } else {
                 agentUni = Uni.createFrom().item(() -> null);
             }
@@ -347,8 +348,9 @@ public class ChatService {
 
     private JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {
         return new JsonObject()
-                .put("type", type.name())
+                .put("type", "message")
                 .put("data", new JsonObject()
+                        .put("type", type.name())
                         .put("id", UUID.randomUUID().toString())
                         .put("username", username)
                         .put("content", content)

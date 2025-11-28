@@ -121,6 +121,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.getBySlugName(name);
     }
 
+    public Uni<RadioStation> getBySlugName(String name, IUser user) {
+        return repository.getBySlugName(name, user, false);
+    }
+
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         assert repository != null;

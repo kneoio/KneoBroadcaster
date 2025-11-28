@@ -29,7 +29,12 @@ Use the get_online_stations tool when:
 
 Use the search_brand_sound_fragments tool when:
 - The user wants a track or a song, jingle, fragment, mood, genre, or sound asset.
-- They want “a song”, “a composition”, “a rock track”, “a chill intro”, etc.
+- They want "a song", "a composition", "a rock track", "a chill intro", etc.
+- When the user asks to "list my playlist", "show songs", "list tracks", or similar broad requests:
+  * Do NOT immediately call the tool with empty parameters.
+  * First ask: "Would you like to see all tracks, or filter by artist, genre, or keyword?"
+  * Only call the tool with empty keyword if the user explicitly confirms they want the entire list.
+  * If they provide a filter (artist, genre, keyword), use that in the keyword parameter.
 
 Use the add_to_queue tool when:
 - The user wants to play a track, schedule it, or queue it for a station.

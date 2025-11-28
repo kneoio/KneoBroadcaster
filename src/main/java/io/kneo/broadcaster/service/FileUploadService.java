@@ -51,19 +51,6 @@ public class FileUploadService {
         this.audioMetadataService = audioMetadataService;
     }
 
-    public void validateUpload(FileUpload uploadedFile) {
-        if (uploadedFile.size() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException(String.format("File too large. Maximum size is %d MB for audio files",
-                    MAX_FILE_SIZE_BYTES / 1024 / 1024));
-        }
-
-        String originalFileName = uploadedFile.fileName();
-        if (!isValidAudioFile(originalFileName, uploadedFile.contentType())) {
-            throw new IllegalArgumentException("Unsupported file type. Only audio files are allowed: " +
-                    String.join(", ", SUPPORTED_AUDIO_EXTENSIONS));
-        }
-    }
-
     public void validateUploadMeta(String originalFileName, String contentType) {
         if (!isValidAudioFile(originalFileName, contentType)) {
             throw new IllegalArgumentException("Unsupported file type. Only audio files are allowed: " +
@@ -342,7 +329,7 @@ public class FileUploadService {
     }
 
     private Path setupDirectoriesAndPath(String controllerKey, String entityId, IUser user, String safeFileName) throws Exception {
-        if (!"temp".equals(entityId)) {
+        if (!"temp".equals(entityId) && !"bulk".equals(entityId)) {
             try {
                 UUID.fromString(entityId);
             } catch (IllegalArgumentException e) {

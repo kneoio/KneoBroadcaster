@@ -40,7 +40,7 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
     public void setupRoutes(Router router) {
         String path = "/api/soundfragments-bulk";
         router.route(HttpMethod.GET, path + "/status/:batchId/stream").handler(this::streamProgress);
-        router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile);
+        router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
     }
 
 
@@ -66,7 +66,6 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
 
     private void uploadFile(RoutingContext rc) {
         String batchId = rc.request().getParam("batchId");
-        String entityId = rc.pathParam("id");
 
         if (batchId == null || batchId.trim().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("batchId parameter is required"));
@@ -74,7 +73,7 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
         }
 
         getContextUser(rc, false, true)
-                .chain(user -> fileUploadService.processDirectStreamAsync(rc, batchId, "sound-fragments-controller", entityId, user))
+                .chain(user -> fileUploadService.processDirectStreamAsync(rc, batchId, "sound-fragments-controller", "bulk", user))
                 .subscribe().with(
                         dto -> {
                             LOGGER.info("Bulk upload done: {}", batchId);

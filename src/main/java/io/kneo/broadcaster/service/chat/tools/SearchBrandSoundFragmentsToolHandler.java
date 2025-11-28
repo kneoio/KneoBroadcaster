@@ -47,6 +47,7 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
         return aiHelperService.searchBrandSoundFragmentsForAi(brandName, keyword, limit, offset)
                 .flatMap(list -> {
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + list.size() + " songs");
+                    
                     JsonArray items = new JsonArray();
                     list.forEach(f -> {
                         JsonObject obj = new JsonObject()

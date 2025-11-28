@@ -7,7 +7,6 @@ import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.RadioService;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
 
 import java.util.List;
@@ -36,35 +35,17 @@ public class RadioStationControlToolHandler extends BaseToolHandler {
         String action = inputMap.getOrDefault("action", JsonValue.from("")).toString();
 
         if (brand.isEmpty()) {
-            JsonObject errorMsg = new JsonObject()
-                    .put("type", "message")
-                    .put("data", new JsonObject()
-                            .put("type", "BOT")
-                            .put("content", "Station brand is required to control a station.")
-                    );
-            chunkHandler.accept(errorMsg.encode());
+            handler.sendBotChunk(chunkHandler, connectionId, "bot", "Station brand is required to control a station.");
             return Uni.createFrom().voidItem();
         }
 
         if (action.isEmpty()) {
-            JsonObject errorMsg = new JsonObject()
-                    .put("type", "message")
-                    .put("data", new JsonObject()
-                            .put("type", "BOT")
-                            .put("content", "Action is required: 'start' or 'stop'.")
-                    );
-            chunkHandler.accept(errorMsg.encode());
+            handler.sendBotChunk(chunkHandler, connectionId, "bot", "Action is required: 'start' or 'stop'.");
             return Uni.createFrom().voidItem();
         }
 
         if (!action.equals("start") && !action.equals("stop")) {
-            JsonObject errorMsg = new JsonObject()
-                    .put("type", "message")
-                    .put("data", new JsonObject()
-                            .put("type", "BOT")
-                            .put("content", "Invalid action. Must be 'start' or 'stop'.")
-                    );
-            chunkHandler.accept(errorMsg.encode());
+            handler.sendBotChunk(chunkHandler, connectionId, "bot", "Invalid action. Must be 'start' or 'stop'.");
             return Uni.createFrom().voidItem();
         }
 
@@ -90,13 +71,7 @@ public class RadioStationControlToolHandler extends BaseToolHandler {
                     return streamFn.apply(secondCallParams);
                 })
                 .onFailure().recoverWithUni(err -> {
-                    JsonObject msg = new JsonObject()
-                            .put("type", "message")
-                            .put("data", new JsonObject()
-                                    .put("type", "BOT")
-                                    .put("content", "Failed to " + action + " station '" + brand + "': " + err.getMessage())
-                            );
-                    chunkHandler.accept(msg.encode());
+                    handler.sendBotChunk(chunkHandler, connectionId, "bot", "Failed to " + action + " station '" + brand + "': " + err.getMessage());
                     return Uni.createFrom().voidItem();
                 });
     }

@@ -7,7 +7,9 @@ import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.model.chat.ChatMessage;
 import io.kneo.broadcaster.service.QueueService;
+import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -22,6 +24,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static io.kneo.broadcaster.model.cnst.QueuePriority.INTERRUPT;
 
 public class AddToQueueToolHandler extends BaseToolHandler {
 
@@ -41,6 +45,12 @@ public class AddToQueueToolHandler extends BaseToolHandler {
         AddToQueueToolHandler handler = new AddToQueueToolHandler();
         String brandName = inputMap.getOrDefault("brandName", JsonValue.from("")).toString();
         String textToTTSIntro = inputMap.getOrDefault("textToTTSIntro", JsonValue.from("")).toString();
+        Integer priority = null;
+        try {
+            if (inputMap.containsKey("priority")) {
+                priority = Integer.parseInt(inputMap.get("priority").toString());
+            }
+        } catch (Exception ignored) {}
         String uploadId = UUID.randomUUID().toString();
 
         Map<String, UUID> soundFragments = new HashMap<>();
@@ -58,6 +68,7 @@ public class AddToQueueToolHandler extends BaseToolHandler {
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Generating intro ...");
 
+        Integer finalPriority = priority;
         return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId())
                 .flatMap(audioBytes -> {
                     try {
@@ -77,7 +88,7 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                         dto.setMergingMethod(MergingType.INTRO_SONG);
                         dto.setFilePaths(filePaths);
                         dto.setSoundFragments(soundFragments.isEmpty() ? null : soundFragments);
-                        dto.setPriority(8);
+                        dto.setPriority(finalPriority != null ? finalPriority : INTERRUPT.value());
                         
                         return queueService.addToQueue(brandName, dto, uploadId);
                     } catch (IOException e) {
@@ -98,13 +109,18 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                     MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                     return streamFn.apply(secondCallParams);
                 }).onFailure().recoverWithUni(err -> {
-                    JsonObject msg = new JsonObject()
-                            .put("type", "message")
-                            .put("data", new JsonObject()
-                                    .put("type", "BOT")
-                                    .put("content", "I could not handle your request due to a technical issue.")
-                            );
-                    chunkHandler.accept(msg.encode());
+                    String errorMessage;
+                    if (err instanceof RadioStationException rsException) {
+                        if (rsException.getErrorType() == RadioStationException.ErrorType.STATION_NOT_ACTIVE) {
+                            errorMessage = "Station '" + brandName + "' is currently offline.";
+                        } else {
+                            errorMessage = "Station '" + brandName + "' is not available: " + err.getMessage();
+                        }
+                    } else {
+                        errorMessage = "I could not handle your request due to a technical issue: " + err.getMessage();
+                    }
+                    
+                    chunkHandler.accept(ChatMessage.bot(errorMessage, "bot", connectionId).build().toJson());
                     return Uni.createFrom().voidItem();
                 });
 

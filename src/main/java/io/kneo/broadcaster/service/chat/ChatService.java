@@ -14,6 +14,7 @@ import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.Voice;
+import io.kneo.broadcaster.model.chat.ChatMessage;
 import io.kneo.broadcaster.model.cnst.MessageType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.ChatRepository;
@@ -95,14 +96,7 @@ public class ChatService {
 
             chatRepository.saveChatMessage(user.getId(), message);
 
-            JsonObject response = new JsonObject()
-                    .put("type", "message")
-                    .put("data",
-                            message.getJsonObject("data")
-                                    .put("type", MessageType.USER.name())
-                    );
-
-            return response.encode();
+            return ChatMessage.user(content, username, connectionId).build().toJson();
         });
     }
 
@@ -292,13 +286,7 @@ public class ChatService {
                                                 && !text.contains("<thinking>")
                                                 && !text.contains("</thinking>")) {
 
-                                            JsonObject chunkMessage = new JsonObject()
-                                                    .put("type", MessageType.CHUNK)
-                                                    .put("content", text)
-                                                    .put("username", assistantNameByConnectionId.get(connectionId))
-                                                    .put("connectionId", connectionId);
-
-                                            chunkHandler.accept(chunkMessage.encode());
+                                            chunkHandler.accept(ChatMessage.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson());
                                         }
                                     }
                                 }
@@ -310,10 +298,7 @@ public class ChatService {
                         public void onComplete(Optional<Throwable> error) {
 
                             if (error.isPresent()) {
-                                JsonObject errorMessage = new JsonObject()
-                                        .put("type", "error")
-                                        .put("message", "Bot response failed: " + error.get().getMessage());
-                                completionHandler.accept(errorMessage.encode());
+                                completionHandler.accept(ChatMessage.error("Bot response failed: " + error.get().getMessage(), "system", "system").build().toJson());
                                 return;
                             }
 
@@ -341,13 +326,17 @@ public class ChatService {
                                 chatRepository.saveChatMessage(userId, botMessage);
 
 
-                                JsonObject completeMessage = new JsonObject()
-                                        .put("type", "message")
-                                        .put("data", botMessage.getJsonObject("data")
-                                                .put("type", MessageType.BOT.name()));
+                                String completeMessage = ChatMessage.bot(
+                    botMessage.getJsonObject("data").getString("content"),
+                    botMessage.getJsonObject("data").getString("username"),
+                    botMessage.getJsonObject("data").getString("connectionId")
+            )
+            .timestamp(botMessage.getJsonObject("data").getLong("timestamp"))
+            .build()
+            .toJson();
 
 
-                                completionHandler.accept(completeMessage.encode());
+                                completionHandler.accept(completeMessage);
                             }
                         }
                     })

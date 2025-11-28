@@ -51,16 +51,15 @@ public class GetStationsToolHandler extends BaseToolHandler {
                     handler.addToolResultToHistory(toolUse, stationsJson.encode(), conversationHistory);
 
                     MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
+                    return streamFn.apply(secondCallParams)
+                            .onFailure().invoke(err -> {
+                                System.err.println("StreamFn failed in GetStationsToolHandler: " + err.getMessage());
+                                err.printStackTrace();
+                                handler.sendBotChunk(chunkHandler, connectionId, "bot", "Failed to generate response: " + err.getMessage());
+                            });
                 })
                 .onFailure().recoverWithUni(err -> {
-                    JsonObject msg = new JsonObject()
-                            .put("type", "message")
-                            .put("data", new JsonObject()
-                                    .put("type", "BOT")
-                                    .put("content", "I could not handle your request due to a technical issue.")
-                            );
-                    chunkHandler.accept(msg.encode());
+                    handler.sendBotChunk(chunkHandler, connectionId, "bot", "I could not handle your request due to a technical issue.");
                     return Uni.createFrom().voidItem();
                 });
     }

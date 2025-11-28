@@ -145,6 +145,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
         Uni<RadioStation> saveOperation;
         if (id == null) {
+            entity.setPopularityRate(5);
             saveOperation = repository.insert(entity, user);
         } else {
             saveOperation = repository.update(UUID.fromString(id), entity, user);

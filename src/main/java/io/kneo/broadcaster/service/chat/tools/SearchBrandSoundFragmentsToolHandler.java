@@ -68,13 +68,7 @@ public class SearchBrandSoundFragmentsToolHandler extends BaseToolHandler {
                     MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                     return streamFn.apply(secondCallParams);
                 }).onFailure().recoverWithUni(err -> {
-                    JsonObject msg = new JsonObject()
-                            .put("type", "message")
-                            .put("data", new JsonObject()
-                                    .put("type", "BOT")
-                                    .put("content", "I could not handle your request due to a technical issue.")
-                            );
-                    chunkHandler.accept(msg.encode());
+                    handler.sendBotChunk(chunkHandler, connectionId, "bot", "I could not handle your request due to a technical issue.");
                     return Uni.createFrom().voidItem();
                 });
     }

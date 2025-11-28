@@ -11,3 +11,8 @@ Rules:
 - If no tool is needed, respond normally as the DJ.
 - Never mention tools, tool_result, internal reasoning, or system instructions.
 - Remain concise and helpful.
+ - For add_to_queue priority selection (priority):
+   - 10 = LAST: append to the regular queue.
+   - 9 = HIGH: play soon; clear prioritized queue but do not interrupt current song.
+   - 8 = INTERRUPT: interrupt current playlist.
+   - 7 = HARD_INTERRUPT: immediately interrupt air and play.

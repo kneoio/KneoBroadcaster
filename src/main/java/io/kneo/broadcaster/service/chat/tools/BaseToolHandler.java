@@ -7,22 +7,19 @@ import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
-import io.kneo.broadcaster.model.cnst.MessageType;
-import io.vertx.core.json.JsonObject;
+import io.kneo.broadcaster.model.chat.ChatMessage;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Consumer;
 
 public abstract class BaseToolHandler {
 
     protected void sendProcessingChunk(Consumer<String> chunkHandler, String connectionId, String message) {
-        JsonObject processing = new JsonObject()
-                .put("type", MessageType.PROCESSING.name())
-                .put("content", message)
-                .put("username", "system")
-                .put("connectionId", connectionId);
-        chunkHandler.accept(processing.encode());
+        chunkHandler.accept(ChatMessage.processing(message, connectionId).build().toJson());
+    }
+
+    protected void sendBotChunk(Consumer<String> chunkHandler, String connectionId, String username, String message) {
+        chunkHandler.accept(ChatMessage.bot(message, username, connectionId).build().toJson());
     }
 
     protected void addToolUseToHistory(ToolUseBlock toolUse, List<MessageParam> conversationHistory) {
@@ -63,17 +60,5 @@ public abstract class BaseToolHandler {
                 .messages(conversationHistory)
                 .model(Model.CLAUDE_3_5_HAIKU_20241022)
                 .build();
-    }
-
-    private JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {
-        return new JsonObject()
-                .put("type", type.name())
-                .put("data", new JsonObject()
-                        .put("id", UUID.randomUUID().toString())
-                        .put("username", username)
-                        .put("content", content)
-                        .put("timestamp", timestamp)
-                        .put("connectionId", connectionId)
-                );
     }
 }

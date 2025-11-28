@@ -504,6 +504,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     .genres(doc.getGenres())
                     .labels(doc.getLabels())
                     .album(doc.getAlbum())
+                    .length(doc.getLength())
                     .description(doc.getDescription())
                     .uploadedFiles(files)
                     .representedInBrands(representedInBrands)
@@ -520,6 +521,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setGenres(dto.getGenres());
         doc.setLabels(dto.getLabels());
         doc.setAlbum(dto.getAlbum());
+        doc.setLength(dto.getLength());
         doc.setDescription(dto.getDescription());
         doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
         return doc;

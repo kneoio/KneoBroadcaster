@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -25,6 +26,7 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private List<UUID> labels;
     private String album;
     private String slugName;
+    private Duration length;
     private String description;
     private Integer archived;
     private List<FileMetadata> fileMetadataList;

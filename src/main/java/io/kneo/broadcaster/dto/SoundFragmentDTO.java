@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.core.dto.AbstractDTO;
@@ -12,6 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,6 +38,9 @@ public class SoundFragmentDTO extends AbstractDTO {
     private List<UUID> labels;
     private String album;
     private String slugName;
+    @JsonDeserialize(using = DurationDeserializer.class)
+    @JsonSerialize(using = DurationSerializer.class)
+    private Duration length;
     private String description;
     private List<String> brands;  //?
     private List<String> newlyUploaded;

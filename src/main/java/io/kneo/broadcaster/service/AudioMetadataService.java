@@ -68,8 +68,7 @@ public class AudioMetadataService {
             FFmpegFormat format = probeResult.getFormat();
             if (format != null) {
                 metadata.setFormat(format.format_name);
-                metadata.setDurationSeconds((int) format.duration);
-                metadata.setDuration(Duration.ofSeconds((long) format.duration));
+                metadata.setLength(Duration.ofSeconds((long) format.duration));
                 metadata.setBitRate((int) format.bit_rate);
 
               //  LOGGER.info("Format extracted: {} duration: {}s", format.format_name, format.duration);

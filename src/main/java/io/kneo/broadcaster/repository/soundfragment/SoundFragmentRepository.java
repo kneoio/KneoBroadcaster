@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -314,8 +315,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return fileUploadCompletionUni.onItem().transformToUni(v -> {
             String sql = String.format(
                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                            "title, artist, album, description, slug_name) " +
-                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id;",
+                            "title, artist, album, length, description, slug_name) " +
+                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;",
                     entityData.getTableName()
             );
 
@@ -326,6 +327,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     .addString(doc.getTitle())
                     .addString(doc.getArtist())
                     .addString(doc.getAlbum())
+                    .addString(doc.getLength() != null ? formatDurationForPostgres(doc.getLength()) : null)
                     .addString(doc.getDescription())
                     .addString(doc.getSlugName());
 
@@ -553,7 +555,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     private Uni<RowSet<Row>> updateSoundFragmentRecord(SqlClient tx, UUID id, SoundFragment doc, IUser user, LocalDateTime nowTime) {
         String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                         "status=$3, type=$4, title=$5, " +
-                        "artist=$6, album=$7, description=$8, slug_name=$9 WHERE id=$10;",
+                        "artist=$6, album=$7, length=$8, description=$9, slug_name=$10 WHERE id=$11;",
                 entityData.getTableName());
 
         Tuple params = Tuple.of(user.getId(), nowTime)
@@ -562,6 +564,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getAlbum())
+                .addString(doc.getLength() != null ? formatDurationForPostgres(doc.getLength()) : null)
                 .addString(doc.getDescription())
                 .addString(doc.getSlugName())
                 .addUUID(id);
@@ -597,5 +600,15 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
+    }
+
+    private String formatDurationForPostgres(Duration duration) {
+        if (duration == null) {
+            return null;
+        }
+        long hours = duration.toHours();
+        long minutes = duration.toMinutesPart();
+        long seconds = duration.toSecondsPart();
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 }

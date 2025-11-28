@@ -20,6 +20,7 @@ public class AudioMetadataDTO {
     private String publisher;
     private String copyright;
     private String language;
+    private Duration length;
 
     private Integer bitRate;
     private Integer sampleRate;
@@ -27,8 +28,6 @@ public class AudioMetadataDTO {
     private String format;
     private String encodingType;
     private Boolean lossless;
-    private Integer durationSeconds;
-    private Duration duration;
 
     private Long fileSize;
     private String fileName;

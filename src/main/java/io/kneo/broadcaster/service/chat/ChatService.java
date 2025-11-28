@@ -22,11 +22,14 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.GetOnlineStations;
 import io.kneo.broadcaster.service.GetStations;
 import io.kneo.broadcaster.service.QueueService;
+import io.kneo.broadcaster.service.RadioService;
+import io.kneo.broadcaster.service.RadioStationControlTool;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.RadioStationControlToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.util.ResourceUtil;
@@ -62,6 +65,8 @@ public class ChatService {
     AiAgentService aiAgentService;
     @Inject
     QueueService queueService;
+    @Inject
+    RadioService radioService;
     @Inject
     ChatRepository chatRepository;
     @Inject
@@ -192,6 +197,7 @@ public class ChatService {
                         .addTool(GetOnlineStations.toTool())
                         .addTool(SearchBrandSoundFragments.toTool())
                         .addTool(AddToQueueTool.toTool())
+                        .addTool(RadioStationControlTool.toTool())
                         .build();
             });
         }).flatMap(params ->
@@ -241,6 +247,10 @@ public class ChatService {
             String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
             return AddToQueueToolHandler.handle(
                     toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+            );
+        } else if ("control_station".equals(toolUse.name())) {
+            return RadioStationControlToolHandler.handle(
+                    toolUse, inputMap, radioService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

@@ -2,11 +2,11 @@ package io.kneo.broadcaster.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.model.cnst.FileStorageType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -20,7 +20,10 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -32,6 +35,7 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.S
 
 public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
     protected static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(SOUND_FRAGMENT);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentRepositoryAbstract.class);
 
     public SoundFragmentRepositoryAbstract() {
         super();
@@ -50,6 +54,9 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setTitle(row.getString("title"));
         doc.setArtist(row.getString("artist"));
         doc.setAlbum(row.getString("album"));
+        if (row.getValue("length") != null) {
+            doc.setLength(parsePostgresIntervalToDuration(row.getValue("length").toString()));
+        }
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
         doc.setDescription(row.getString("description"));
@@ -179,5 +186,37 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         }
 
         return conditions.toString();
+    }
+
+    private Duration parsePostgresIntervalToDuration(String intervalStr) {
+        if (intervalStr == null || intervalStr.trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // PostgreSQL INTERVAL typically returns in HH:MM:SS format
+            if (intervalStr.contains(":")) {
+                String[] parts = intervalStr.split(":");
+                if (parts.length == 3) {
+                    long hours = Long.parseLong(parts[0]);
+                    long minutes = Long.parseLong(parts[1]);
+                    long seconds = Long.parseLong(parts[2]);
+                    return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds);
+                } else if (parts.length == 2) {
+                    long minutes = Long.parseLong(parts[0]);
+                    long seconds = Long.parseLong(parts[1]);
+                    return Duration.ofMinutes(minutes).plusSeconds(seconds);
+                }
+            }
+            
+            // Fallback: try to parse as seconds if it's a numeric value
+            long seconds = Long.parseLong(intervalStr);
+            return Duration.ofSeconds(seconds);
+            
+        } catch (Exception e) {
+            // Log error but return null to avoid breaking the whole entity loading
+            LOGGER.warn("Failed to parse PostgreSQL interval: {}", intervalStr, e);
+            return null;
+        }
     }
 }

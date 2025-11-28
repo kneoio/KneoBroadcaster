@@ -13,7 +13,7 @@ public interface BroadcasterConfig {
     String getHost();
 
     @WithName("agent.url")
-    @WithDefault("http://localhost:38756")
+    @WithDefault("http://localhost:38799")
     String getAgentUrl();
 
     @WithName("controller.upload.files.path")

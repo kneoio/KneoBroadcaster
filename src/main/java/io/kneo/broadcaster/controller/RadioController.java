@@ -62,7 +62,6 @@ public class RadioController {
         router.route(HttpMethod.GET, path + "/stream").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
-        router.route(HttpMethod.PUT, path + "/wakeup").handler(this::wakeUp);
         router.route(HttpMethod.GET, path + "/stream.mp3").handler(this::getMp3Stream);
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
@@ -94,9 +93,16 @@ public class RadioController {
                                     .putHeader("Content-Type", "audio/mpeg")
                                     .putHeader("Cache-Control", "no-cache")
                                     .putHeader("Connection", "keep-alive")
-                                    .putHeader("Accept-Ranges", "bytes")
+                                    .putHeader("Accept-Ranges", "none")
                                     .putHeader("Access-Control-Allow-Origin", "*")
                                     .putHeader("Content-Disposition", "inline")
+                                    .putHeader("icy-br", "128")
+                                    .putHeader("icy-pub", "1")
+                                    .putHeader("icy-name", brand.toUpperCase() + " Radio")
+                                    .putHeader("icy-genre", "Various")
+                                    .putHeader("icy-url", "https://mixpla.online")
+                                    .putHeader("icy-notice1", "<BR>Powered by Mixpla<BR>")
+                                    .putHeader("icy-notice2", "Mixpla Radio Streaming<BR>")
                                     .setChunked(true);
 
                             rc.response().closeHandler(v -> {
@@ -202,14 +208,6 @@ public class RadioController {
                 );
     }
 
-    private void wakeUp(RoutingContext rc) {
-        String brand = rc.pathParam("brand").toLowerCase();
-        service.initializeStation(brand)
-                .subscribe().with(
-                        station -> rc.response().setStatusCode(200).end(),
-                        throwable -> rc.response().setStatusCode(500).end("Failed to wake up radio station")
-                );
-    }
 
     private void getStations(RoutingContext rc) {
         service.getStations()

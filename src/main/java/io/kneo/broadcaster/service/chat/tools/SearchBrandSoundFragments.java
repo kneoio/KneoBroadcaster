@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.chat.tools;
 
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.Tool;

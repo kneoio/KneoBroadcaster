@@ -9,13 +9,14 @@ import io.kneo.core.repository.exception.UserNotFoundException;
 import io.kneo.core.service.UserService;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class SoundFragmentBulkUploadController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
@@ -43,27 +44,6 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
         router.route(HttpMethod.POST, path + "/files").handler(this::uploadFile);
     }
 
-
-    private void streamProgress(RoutingContext rc) {
-        String batchId = rc.pathParam("batchId");
-
-        rc.response()
-                .putHeader("Content-Type", "text/event-stream")
-                .putHeader("Cache-Control", "no-cache")
-                .setChunked(true);
-
-        long timerId = vertx.setPeriodic(500, id -> {
-            UploadFileDTO progress = fileUploadService.getUploadProgress(batchId);
-            if (progress != null && ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus()))) {
-                rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
-                vertx.cancelTimer(id);
-                rc.response().end();
-            }
-        });
-
-        rc.request().connection().closeHandler(v -> vertx.cancelTimer(timerId));
-    }
-
     private void uploadFile(RoutingContext rc) {
         String batchId = rc.request().getParam("batchId");
 
@@ -73,7 +53,7 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
         }
 
         getContextUser(rc, false, true)
-                .chain(user -> fileUploadService.processDirectStreamAsync(rc, batchId, "sound-fragments-controller", "bulk", user))
+                .chain(user -> fileUploadService.processDirectBulkStreamAsync(rc, batchId, "sound-fragments-controller",  user))
                 .subscribe().with(
                         dto -> {
                             LOGGER.info("Bulk upload done: {}", batchId);
@@ -97,6 +77,35 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
                             }
                         }
                 );
+    }
+
+
+    private void streamProgress(RoutingContext rc) {
+        String batchId = rc.pathParam("batchId");
+
+        rc.response()
+                .putHeader("Content-Type", "text/event-stream")
+                .putHeader("Cache-Control", "no-cache")
+                .setChunked(true);
+
+        long timerId = vertx.setPeriodic(500, id -> {
+            ConcurrentHashMap<String, UploadFileDTO> files = fileUploadService.getBulkUploadProgress(batchId);
+            if (!files.isEmpty()) {
+                rc.response().write("data: " + io.vertx.core.json.Json.encode(files) + "\n\n");
+                
+                // Check if all files are finished or errored
+                boolean allDone = files.values().stream().allMatch(f -> 
+                    "finished".equals(f.getStatus()) || "error".equals(f.getStatus())
+                );
+                
+                if (allDone) {
+                    vertx.cancelTimer(id);
+                    rc.response().end();
+                }
+            }
+        });
+
+        rc.request().connection().closeHandler(v -> vertx.cancelTimer(timerId));
     }
 
     protected void handleFailure(RoutingContext rc, Throwable throwable) {

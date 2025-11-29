@@ -7,7 +7,6 @@ import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -27,22 +26,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FileUploadService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileUploadService.class);
     private static final long MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; //200 mb
-
-    @Deprecated
+    private static final String BULK_FOLDER_NAME = "bulk";
     private final String uploadDir;
     private final String uploadDirectory;
     private final AudioMetadataService audioMetadataService;
     public final ConcurrentHashMap<String, UploadFileDTO> uploadProgressMap = new ConcurrentHashMap<>();
-
-    private static final Set<String> SUPPORTED_AUDIO_EXTENSIONS = Set.of(
-            "mp3", "wav", "flac", "aac", "ogg", "m4a"
-    );
-
-    private static final Set<String> SUPPORTED_AUDIO_MIME_TYPES = Set.of(
-            "audio/mpeg", "audio/wav", "audio/wave", "audio/x-wav",
-            "audio/flac", "audio/x-flac", "audio/aac", "audio/ogg",
-            "audio/mp4", "audio/x-m4a"
-    );
+    public final ConcurrentHashMap<String, ConcurrentHashMap<String, UploadFileDTO>> bulkUploadProgressMap = new ConcurrentHashMap<>();
 
     @Inject
     public FileUploadService(BroadcasterConfig config, AudioMetadataService audioMetadataService) {
@@ -58,163 +47,8 @@ public class FileUploadService {
         }
     }
 
-    public UploadFileDTO createUploadSession(String uploadId, String clientStartTimeStr) {
-        long clientStartTime = Long.parseLong(clientStartTimeStr);
-        long serverReceiveTime = System.currentTimeMillis();
-
-        long timeDiffMs = serverReceiveTime - clientStartTime;
-        long estimatedSeconds = Math.max(10, (timeDiffMs / 1000) + 2);
-
-        UploadFileDTO uploadDto = UploadFileDTO.builder()
-                .status("uploading")
-                .percentage(0)
-                .batchId(uploadId)
-                .estimatedDurationSeconds(estimatedSeconds)
-                .build();
-
-        uploadProgressMap.put(uploadId, uploadDto);
-        return uploadDto;
-    }
-
-    @Deprecated
-    public Uni<Void> processFile(FileUpload uploadedFile, String uploadId, String entityId,
-                                 IUser user, String originalFileName) {
-        return Uni.createFrom().item(() -> {
-            try {
-                LOGGER.info("Processing file upload - UploadId: {}, EntityId: {}, User: {}, File: {}",
-                        uploadId, entityId, user.getUserName(), originalFileName);
-
-                updateProgress(uploadId, 10, "validation", null, null, null, null);
-                String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
-                Path destination = setupDirectoriesAndPath(entityId, user, safeFileName);
-
-                updateProgress(uploadId, 20, "preparation", null, null, null, null);
-                Path tempFile = Paths.get(uploadedFile.uploadedFileName());
-
-                LOGGER.info("Moving file from {} to {}", tempFile, destination);
-                Files.move(tempFile, destination, StandardCopyOption.REPLACE_EXISTING);
-                LOGGER.info("File moved successfully to: {}", destination);
-
-                if (!Files.exists(destination)) {
-                    throw new IOException("File move appeared to succeed but destination file does not exist");
-                }
-
-                updateProgress(uploadId, 30, "extract_metadata", null, null, null, null);
-                AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, uploadId);
-
-                String fileUrl = generateFileUrl(entityId, safeFileName);
-                updateProgress(uploadId, 100, "finished", fileUrl, destination.toString(), metadata, null);
-
-                LOGGER.info("File processing completed - UploadId: {}, FinalPath: {}", uploadId, destination);
-                return (Void) null;
-
-            } catch (Exception e) {
-                LOGGER.error("File processing failed - UploadId: {}, Error: {}", uploadId, e.getMessage(), e);
-                updateProgress(uploadId, null, "error", null, null, null, e.getMessage());
-                throw new RuntimeException(e);
-            }
-        }).emitOn(Infrastructure.getDefaultExecutor()).replaceWithVoid();
-    }
-
     public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, IUser user) {
         return processDirectStream(rc, uploadId, controllerKey, "temp", user, true);
-    }
-
-    public Uni<UploadFileDTO> processDirectStreamAsync(RoutingContext rc, String batchId, String controllerKey, String entityId, IUser user) {
-        return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
-            try {
-                rc.request().setExpectMultipart(true);
-
-                rc.request().uploadHandler(upload -> {
-                    try {
-                        String originalFileName = upload.filename();
-                        validateUploadMeta(originalFileName, upload.contentType());
-                        String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
-                        Path destination = setupDirectoriesAndPath(controllerKey, entityId, user, safeFileName);
-                        Path tempInFinalDir = destination.getParent().resolve(".tmp_" + batchId + "_" + safeFileName);
-                        upload.streamToFileSystem(tempInFinalDir.toString());
-
-                        upload.endHandler(v -> {
-                            try {
-                                if (Files.size(tempInFinalDir) > MAX_FILE_SIZE_BYTES) {
-                                    Files.deleteIfExists(tempInFinalDir);
-                                    emitter.fail(new IllegalArgumentException(String.format("File too large. Maximum size is %d MB",
-                                            MAX_FILE_SIZE_BYTES / 1024 / 1024)));
-                                    return;
-                                }
-                                Files.move(tempInFinalDir, destination, StandardCopyOption.REPLACE_EXISTING);
-                                String fileUrl = generateFileUrl(entityId, safeFileName);
-
-                                // Return immediately with processing status
-                                UploadFileDTO dto = UploadFileDTO.builder()
-                                        .status("processing")
-                                        .percentage(100)
-                                        .batchId(batchId)
-                                        .name(safeFileName)
-                                        .url(fileUrl)
-                                        .build();
-                                uploadProgressMap.put(batchId, dto);
-                                emitter.complete(dto);
-
-                                // Extract metadata async in background
-                                Uni.createFrom().item(() -> {
-                                    AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, batchId);
-                                    UploadFileDTO finalDto = UploadFileDTO.builder()
-                                            .status("finished")
-                                            .percentage(100)
-                                            .batchId(batchId)
-                                            .name(safeFileName)
-                                            .url(fileUrl)
-                                            .metadata(metadata)
-                                            .build();
-                                    uploadProgressMap.put(batchId, finalDto);
-                                    return finalDto;
-                                }).runSubscriptionOn(Infrastructure.getDefaultExecutor())
-                                .subscribe().with(
-                                    result -> LOGGER.info("Metadata extraction completed for batchId: {}", batchId),
-                                    err -> {
-                                        LOGGER.error("Metadata extraction failed for batchId: {}", batchId, err);
-                                        UploadFileDTO errorDto = UploadFileDTO.builder()
-                                                .status("error")
-                                                .percentage(100)
-                                                .batchId(batchId)
-                                                .name(safeFileName)
-                                                .url(fileUrl)
-                                                .errorMessage("Metadata extraction failed: " + err.getMessage())
-                                                .build();
-                                        uploadProgressMap.put(batchId, errorDto);
-                                    }
-                                );
-
-                            } catch (Exception e) {
-                                try {
-                                    Files.deleteIfExists(tempInFinalDir);
-                                    Files.deleteIfExists(destination);
-                                } catch (IOException ignored) {}
-                                emitter.fail(e);
-                            }
-                        });
-
-                        upload.exceptionHandler(err -> {
-                            try {
-                                Path userDir = Paths.get(uploadDirectory, controllerKey, user.getUserName(), entityId != null ? entityId : "temp");
-                                Files.list(userDir)
-                                        .filter(p -> p.getFileName().toString().startsWith(".tmp_" + batchId + "_"))
-                                        .forEach(p -> {
-                                            try { Files.deleteIfExists(p); } catch (IOException ignored) {}
-                                        });
-                            } catch (IOException ignored) {}
-                            emitter.fail(err);
-                        });
-
-                    } catch (Exception e) {
-                        emitter.fail(e);
-                    }
-                });
-            } catch (Exception e) {
-                emitter.fail(e);
-            }
-        }).emitOn(Infrastructure.getDefaultExecutor());
     }
 
     public Uni<UploadFileDTO> processDirectStream(RoutingContext rc, String uploadId, String controllerKey, String entityId, IUser user, boolean extractMetadata) {
@@ -287,9 +121,116 @@ public class FileUploadService {
         }).emitOn(Infrastructure.getDefaultExecutor());
     }
 
+    public Uni<UploadFileDTO> processDirectBulkStreamAsync(RoutingContext rc, String batchId, String controllerKey, IUser user) {
+        return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
+            try {
+                rc.request().setExpectMultipart(true);
 
-    public UploadFileDTO getUploadProgress(String uploadId) {
-        return uploadProgressMap.get(uploadId);
+                rc.request().uploadHandler(upload -> {
+                    try {
+                        String originalFileName = upload.filename();
+                        validateUploadMeta(originalFileName, upload.contentType());
+                        String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
+                        Path destination = setupDirectoriesAndPath(controllerKey, BULK_FOLDER_NAME, user, safeFileName);
+                        String fileId = UUID.randomUUID().toString();
+                        Path tempInFinalDir = destination.getParent().resolve(".tmp_" + batchId + "_" + safeFileName);
+                        upload.streamToFileSystem(tempInFinalDir.toString());
+
+                        upload.endHandler(v -> {
+                            try {
+                                if (Files.size(tempInFinalDir) > MAX_FILE_SIZE_BYTES) {
+                                    Files.deleteIfExists(tempInFinalDir);
+                                    emitter.fail(new IllegalArgumentException(String.format("File too large. Maximum size is %d MB",
+                                            MAX_FILE_SIZE_BYTES / 1024 / 1024)));
+                                    return;
+                                }
+                                Files.move(tempInFinalDir, destination, StandardCopyOption.REPLACE_EXISTING);
+                                String fileUrl = generateFileUrl(BULK_FOLDER_NAME, safeFileName);
+
+                                // Get or create batch map once
+                                ConcurrentHashMap<String, UploadFileDTO> batchMap = bulkUploadProgressMap.computeIfAbsent(batchId, k -> new ConcurrentHashMap<>());
+
+                                // Return immediately with processing status
+                                UploadFileDTO dto = UploadFileDTO.builder()
+                                        .id(fileId)
+                                        .status("processing")
+                                        .percentage(100)
+                                        .batchId(batchId)
+                                        .name(safeFileName)
+                                        .url(fileUrl)
+                                        .build();
+                                
+                                batchMap.put(fileId, dto);
+                                emitter.complete(dto);
+
+                                // Extract metadata async in background
+                                Uni.createFrom().item(() -> {
+                                    AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, fileId);
+                                    UploadFileDTO finalDto = UploadFileDTO.builder()
+                                            .id(fileId)
+                                            .status("finished")
+                                            .percentage(100)
+                                            .batchId(batchId)
+                                            .name(safeFileName)
+                                            .url(fileUrl)
+                                            .metadata(metadata)
+                                            .build();
+                                    
+                                    batchMap.put(fileId, finalDto);
+                                    return finalDto;
+                                }).runSubscriptionOn(Infrastructure.getDefaultExecutor())
+                                .subscribe().with(
+                                    result -> LOGGER.info("Metadata extraction completed for fileId: {}", fileId),
+                                    err -> {
+                                        LOGGER.error("Metadata extraction failed for fileId: {}", fileId, err);
+                                        UploadFileDTO errorDto = UploadFileDTO.builder()
+                                                .id(fileId)
+                                                .status("error")
+                                                .percentage(100)
+                                                .batchId(batchId)
+                                                .name(safeFileName)
+                                                .url(fileUrl)
+                                                .errorMessage("Metadata extraction failed: " + err.getMessage())
+                                                .build();
+                                        
+                                        batchMap.put(fileId, errorDto);
+                                    }
+                                );
+
+                            } catch (Exception e) {
+                                try {
+                                    Files.deleteIfExists(tempInFinalDir);
+                                    Files.deleteIfExists(destination);
+                                } catch (IOException ignored) {}
+                                emitter.fail(e);
+                            }
+                        });
+
+                        upload.exceptionHandler(err -> {
+                            try {
+                                Path userDir = Paths.get(uploadDirectory, controllerKey, user.getUserName(), BULK_FOLDER_NAME);
+                                Files.list(userDir)
+                                        .filter(p -> p.getFileName().toString().startsWith(".tmp_" + batchId + "_"))
+                                        .forEach(p -> {
+                                            try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+                                        });
+                            } catch (IOException ignored) {}
+                            emitter.fail(err);
+                        });
+
+                    } catch (Exception e) {
+                        emitter.fail(e);
+                    }
+                });
+            } catch (Exception e) {
+                emitter.fail(e);
+            }
+        }).emitOn(Infrastructure.getDefaultExecutor());
+    }
+
+    public ConcurrentHashMap<String, UploadFileDTO> getBulkUploadProgress(String batchId) {
+        ConcurrentHashMap<String, UploadFileDTO> files = bulkUploadProgressMap.get(batchId);
+        return files != null ? files : new ConcurrentHashMap<>();
     }
 
     private String sanitizeAndValidateFilename(String originalFileName, IUser user) {
@@ -299,33 +240,6 @@ public class FileUploadService {
             LOGGER.warn("Unsafe filename rejected: {} from user: {}", originalFileName, user.getUserName());
             throw new IllegalArgumentException("Invalid filename: " + e.getMessage());
         }
-    }
-
-    @Deprecated
-    private Path setupDirectoriesAndPath(String entityId, IUser user, String safeFileName) throws Exception {
-        Path userDir = Files.createDirectories(Paths.get(uploadDir, user.getUserName()));
-        String entityIdSafe = entityId != null ? entityId : "temp";
-
-        if (!"temp".equals(entityIdSafe)) {
-            try {
-                UUID.fromString(entityIdSafe);
-            } catch (IllegalArgumentException e) {
-                LOGGER.warn("Invalid entity ID: {} from user: {}", entityIdSafe, user.getUserName());
-                throw new IllegalArgumentException("Invalid entity ID");
-            }
-        }
-
-        Path entityDir = Files.createDirectories(userDir.resolve(entityIdSafe));
-        Path destination = FileSecurityUtils.secureResolve(entityDir, safeFileName);
-        Path expectedBase = Paths.get(uploadDir, user.getUserName(), entityIdSafe);
-
-        if (!FileSecurityUtils.isPathWithinBase(expectedBase, destination)) {
-            LOGGER.error("Security violation: Path traversal attempt by user {} with filename {}",
-                    user.getUserName(), safeFileName);
-            throw new SecurityException("Invalid file path");
-        }
-
-        return destination;
     }
 
     private Path setupDirectoriesAndPath(String controllerKey, String entityId, IUser user, String safeFileName) throws Exception {
@@ -435,4 +349,15 @@ public class FileUploadService {
         }
         return "";
     }
+
+
+    private static final Set<String> SUPPORTED_AUDIO_EXTENSIONS = Set.of(
+            "mp3", "wav", "flac", "aac", "ogg", "m4a"
+    );
+
+    private static final Set<String> SUPPORTED_AUDIO_MIME_TYPES = Set.of(
+            "audio/mpeg", "audio/wav", "audio/wave", "audio/x-wav",
+            "audio/flac", "audio/x-flac", "audio/aac", "audio/ogg",
+            "audio/mp4", "audio/x-m4a"
+    );
 }

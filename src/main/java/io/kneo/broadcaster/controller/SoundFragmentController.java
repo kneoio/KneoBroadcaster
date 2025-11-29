@@ -3,7 +3,6 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.BulkBrandUpdateDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -274,62 +273,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                         count -> rc.response().setStatusCode(count > 0 ? 204 : 404).end(),
                         t -> handleFailure(rc, t)
                 );
-    }
-
-    private void startUploadSession(RoutingContext rc) {
-        String uploadId = rc.request().getParam("uploadId");
-        String clientStartTimeStr = rc.request().getParam("startTime");
-
-        if (uploadId == null || uploadId.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("uploadId parameter is required"));
-            return;
-        }
-
-        if (clientStartTimeStr == null || clientStartTimeStr.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("startTime parameter is required"));
-            return;
-        }
-
-        getContextUser(rc, false, true)
-                .chain(user -> {
-                    UploadFileDTO uploadDto = fileUploadService.createUploadSession(uploadId, clientStartTimeStr);
-                    rc.response()
-                            .putHeader("Content-Type", "application/json")
-                            .end(JsonObject.mapFrom(uploadDto).encode());
-
-                    return Uni.createFrom().voidItem();
-                })
-                .subscribe().with(
-                        success -> {
-                            LOGGER.info("Upload session started for uploadId: {}", uploadId);
-                        },
-                        t -> handleFailure(rc, t)
-                );
-    }
-
-    private void streamProgress(RoutingContext rc) {
-        String uploadId = rc.pathParam("uploadId");
-
-        rc.response()
-                .putHeader("Content-Type", "text/event-stream")
-                .putHeader("Cache-Control", "no-cache")
-                .setChunked(true);
-
-        long timerId = vertx.setPeriodic(500, id -> {
-            UploadFileDTO progress = fileUploadService.getUploadProgress(uploadId);
-            if (progress != null) {
-                rc.response().write("data: " + JsonObject.mapFrom(progress).encode() + "\n\n");
-
-                if ("finished".equals(progress.getStatus()) || "error".equals(progress.getStatus())) {
-                    vertx.cancelTimer(id);
-                    rc.response().end();
-                }
-            }
-        });
-
-        rc.request().connection().closeHandler(v -> {
-            vertx.cancelTimer(timerId);
-        });
     }
 
     private void getBySlugName(RoutingContext rc) {

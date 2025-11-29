@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.AudioMetadataDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -30,14 +31,18 @@ public class FileUploadService {
     private final String uploadDir;
     private final String uploadDirectory;
     private final AudioMetadataService audioMetadataService;
+    private final SoundFragmentService soundFragmentService;
     public final ConcurrentHashMap<String, UploadFileDTO> uploadProgressMap = new ConcurrentHashMap<>();
     public final ConcurrentHashMap<String, ConcurrentHashMap<String, UploadFileDTO>> bulkUploadProgressMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, UUID> batchBrandIdMap = new ConcurrentHashMap<>();
 
     @Inject
-    public FileUploadService(BroadcasterConfig config, AudioMetadataService audioMetadataService) {
+    public FileUploadService(BroadcasterConfig config, AudioMetadataService audioMetadataService,
+                             SoundFragmentService soundFragmentService) {
         this.uploadDir = config.getPathUploads() + "/sound-fragments-controller";
         this.uploadDirectory = config.getPathUploads();
         this.audioMetadataService = audioMetadataService;
+        this.soundFragmentService = soundFragmentService;
     }
 
     public void validateUploadMeta(String originalFileName, String contentType) {
@@ -121,7 +126,33 @@ public class FileUploadService {
         }).emitOn(Infrastructure.getDefaultExecutor());
     }
 
-    public Uni<UploadFileDTO> processDirectBulkStreamAsync(RoutingContext rc, String batchId, String controllerKey, IUser user) {
+    private Uni<Void> resolveBrandSlugIfNeeded(String batchId, String brandSlug) {
+        if (brandSlug == null || brandSlug.trim().isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        
+        // Check if already resolved for this batch
+        if (batchBrandIdMap.containsKey(batchId)) {
+            return Uni.createFrom().voidItem();
+        }
+        
+        // Resolve brandSlug to UUID once
+        return soundFragmentService.resolveBrandSlug(brandSlug)
+                .map(brandId -> {
+                    if (brandId != null) {
+                        batchBrandIdMap.put(batchId, brandId);
+                    }
+                    return null;
+                });
+    }
+
+    public Uni<UploadFileDTO> processDirectBulkStreamAsync(RoutingContext rc, String batchId, String fileId, String brandSlug, String controllerKey, IUser user) {
+        // Resolve brandSlug once for the batch before processing
+        return resolveBrandSlugIfNeeded(batchId, brandSlug)
+                .chain(() -> processFileUpload(rc, batchId, fileId, controllerKey, user));
+    }
+
+    private Uni<UploadFileDTO> processFileUpload(RoutingContext rc, String batchId, String fileId, String controllerKey, IUser user) {
         return Uni.createFrom().<UploadFileDTO>emitter(emitter -> {
             try {
                 rc.request().setExpectMultipart(true);
@@ -132,7 +163,6 @@ public class FileUploadService {
                         validateUploadMeta(originalFileName, upload.contentType());
                         String safeFileName = sanitizeAndValidateFilename(originalFileName, user);
                         Path destination = setupDirectoriesAndPath(controllerKey, BULK_FOLDER_NAME, user, safeFileName);
-                        String fileId = UUID.randomUUID().toString();
                         Path tempInFinalDir = destination.getParent().resolve(".tmp_" + batchId + "_" + safeFileName);
                         upload.streamToFileSystem(tempInFinalDir.toString());
 
@@ -166,23 +196,55 @@ public class FileUploadService {
                                 // Extract metadata async in background
                                 Uni.createFrom().item(() -> {
                                     AudioMetadataDTO metadata = extractMetadata(destination, originalFileName, fileId);
-                                    UploadFileDTO finalDto = UploadFileDTO.builder()
+                                    UploadFileDTO metadataDto = UploadFileDTO.builder()
                                             .id(fileId)
-                                            .status("finished")
+                                            .status("metadata_extracted")
                                             .percentage(100)
                                             .batchId(batchId)
                                             .name(safeFileName)
                                             .url(fileUrl)
+                                            .fullPath(destination.toString())
                                             .metadata(metadata)
                                             .build();
                                     
-                                    batchMap.put(fileId, finalDto);
-                                    return finalDto;
+                                    batchMap.put(fileId, metadataDto);
+                                    return metadataDto;
                                 }).runSubscriptionOn(Infrastructure.getDefaultExecutor())
+                                .chain(metadataDto -> {
+                                    // Create SoundFragment entity
+                                    UploadFileDTO creatingDto = UploadFileDTO.builder()
+                                            .id(fileId)
+                                            .status("creating_entity")
+                                            .percentage(100)
+                                            .batchId(batchId)
+                                            .name(safeFileName)
+                                            .url(fileUrl)
+                                            .metadata(metadataDto.getMetadata())
+                                            .build();
+                                    batchMap.put(fileId, creatingDto);
+                                    
+                                    // Get cached brandId for this batch
+                                    UUID brandId = batchBrandIdMap.get(batchId);
+                                    
+                                    return soundFragmentService.createFromBulkUpload(metadataDto, brandId, user)
+                                            .map(fragment -> {
+                                                UploadFileDTO finalDto = UploadFileDTO.builder()
+                                                        .id(fileId)
+                                                        .status("finished")
+                                                        .percentage(100)
+                                                        .batchId(batchId)
+                                                        .name(safeFileName)
+                                                        .url(fileUrl)
+                                                        .metadata(metadataDto.getMetadata())
+                                                        .build();
+                                                batchMap.put(fileId, finalDto);
+                                                return finalDto;
+                                            });
+                                })
                                 .subscribe().with(
-                                    result -> LOGGER.info("Metadata extraction completed for fileId: {}", fileId),
+                                    result -> LOGGER.info("Bulk upload completed for fileId: {}", fileId),
                                     err -> {
-                                        LOGGER.error("Metadata extraction failed for fileId: {}", fileId, err);
+                                        LOGGER.error("Bulk upload failed for fileId: {}", fileId, err);
                                         UploadFileDTO errorDto = UploadFileDTO.builder()
                                                 .id(fileId)
                                                 .status("error")
@@ -190,7 +252,7 @@ public class FileUploadService {
                                                 .batchId(batchId)
                                                 .name(safeFileName)
                                                 .url(fileUrl)
-                                                .errorMessage("Metadata extraction failed: " + err.getMessage())
+                                                .errorMessage("Upload failed: " + err.getMessage())
                                                 .build();
                                         
                                         batchMap.put(fileId, errorDto);

@@ -46,14 +46,21 @@ public class SoundFragmentBulkUploadController extends AbstractSecuredController
 
     private void uploadFile(RoutingContext rc) {
         String batchId = rc.request().getParam("batchId");
+        String brandSlug = rc.request().getParam("brandSlug");
+        String fileId = rc.request().getParam("fileId");
 
         if (batchId == null || batchId.trim().isEmpty()) {
             rc.fail(400, new IllegalArgumentException("batchId parameter is required"));
             return;
         }
 
+        if (fileId == null || fileId.trim().isEmpty()) {
+            rc.fail(400, new IllegalArgumentException("fileId parameter is required"));
+            return;
+        }
+
         getContextUser(rc, false, true)
-                .chain(user -> fileUploadService.processDirectBulkStreamAsync(rc, batchId, "sound-fragments-controller",  user))
+                .chain(user -> fileUploadService.processDirectBulkStreamAsync(rc, batchId, fileId, brandSlug, "sound-fragments-controller", user))
                 .subscribe().with(
                         dto -> {
                             LOGGER.info("Bulk upload done: {}", batchId);

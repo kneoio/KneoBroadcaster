@@ -19,9 +19,11 @@ import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @ApplicationScoped
 public class RefService extends AbstractService<Genre, GenreDTO> implements IRESTService<GenreDTO> {
@@ -59,6 +61,27 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
 
     public Uni<Genre> getByIdentifier(String uuid) {
         return repository.findByIdentifier(uuid);
+    }
+
+    public Uni<List<UUID>> resolveGenresByName(String genreString) {
+        if (genreString == null || genreString.trim().isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        String[] genreNames = genreString.split(",");
+        List<Uni<UUID>> genreUnis = Stream.of(genreNames)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .map(name -> repository.findByFuzzyIdentifier(name)
+                        .map(genres -> genres.isEmpty() ? null : genres.get(0).getId())
+                )
+                .collect(Collectors.toList());
+
+        return Uni.join().all(genreUnis).andFailFast()
+                .map(list -> list.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList())
+                );
     }
 
     @Override

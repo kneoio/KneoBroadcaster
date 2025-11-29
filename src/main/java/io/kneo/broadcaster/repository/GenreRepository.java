@@ -49,6 +49,18 @@ public class GenreRepository extends AsyncRepository {
         return findByIdentifier(identifier, entityData, this::from);
     }
 
+    public Uni<List<Genre>> findByFuzzyIdentifier(String identifier) {
+        String sql = String.format("SELECT * FROM %s WHERE LOWER(identifier) LIKE LOWER($1) LIMIT 10", 
+                entityData.getTableName());
+        String fuzzyPattern = "%" + identifier.trim() + "%";
+        
+        return client.preparedQuery(sql)
+                .execute(io.vertx.mutiny.sqlclient.Tuple.of(fuzzyPattern))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     private Genre from(Row row) {
         Genre doc = new Genre();
         setDefaultFields(doc, row);

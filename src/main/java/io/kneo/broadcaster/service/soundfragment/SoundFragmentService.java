@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.soundfragment;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.AudioMetadataDTO;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
@@ -49,6 +50,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final SoundFragmentRepository repository;
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
+    private final io.kneo.broadcaster.service.RefService refService;
     private String uploadDir;
     Validator validator;
 
@@ -57,6 +59,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.localFileCleanupService = null;
         this.repository = null;
         this.radioStationService = null;
+        this.refService = null;
     }
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
@@ -94,12 +97,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 LocalFileCleanupService localFileCleanupService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
-                                BroadcasterConfig config) {
+                                BroadcasterConfig config,
+                                io.kneo.broadcaster.service.RefService refService) {
         super(userService);
         this.localFileCleanupService = localFileCleanupService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
+        this.refService = refService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
 
@@ -573,5 +578,57 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         filter.setTypes(dto.getTypes());
 
         return filter;
+    }
+
+    public Uni<UUID> resolveBrandSlug(String brandSlug) {
+        if (brandSlug == null || brandSlug.trim().isEmpty()) {
+            return Uni.createFrom().nullItem();
+        }
+        
+        assert radioStationService != null;
+        return radioStationService.getBySlugName(brandSlug)
+                .map(station -> station != null ? station.getId() : null)
+                .onFailure().recoverWithItem(err -> {
+                    LOGGER.warn("Failed to resolve brandSlug: {}", brandSlug, err);
+                    return null;
+                });
+    }
+
+    public Uni<SoundFragment> createFromBulkUpload(UploadFileDTO uploadFile, UUID brandId, IUser user) {
+        if (uploadFile.getMetadata() == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Upload file has no metadata"));
+        }
+        
+        if (uploadFile.getFullPath() == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Upload file has no fullPath"));
+        }
+
+        AudioMetadataDTO metadata = uploadFile.getMetadata();
+        
+        SoundFragment fragment = new SoundFragment();
+        fragment.setSource(SourceType.USER_UPLOAD);
+        fragment.setStatus(1);
+        fragment.setType(PlaylistItemType.SONG);
+        fragment.setTitle(metadata.getTitle() != null ? metadata.getTitle() : uploadFile.getName());
+        fragment.setArtist(metadata.getArtist() != null ? metadata.getArtist() : "Unknown Artist");
+        fragment.setAlbum(metadata.getAlbum());
+        fragment.setLength(metadata.getLength());
+        fragment.setSlugName(WebHelper.generateSlug(fragment.getArtist(), fragment.getTitle()));
+        
+        FileMetadata fileMetadata = new FileMetadata();
+        fileMetadata.setFilePath(Paths.get(uploadFile.getFullPath()));
+        fragment.setFileMetadataList(List.of(fileMetadata));
+        
+        // Use pre-resolved brandId
+        List<UUID> brandIds = brandId != null ? List.of(brandId) : List.of();
+        
+        // Resolve genres from metadata string (handles comma-separated values like "pop, indipop")
+        assert refService != null;
+        return refService.resolveGenresByName(metadata.getGenre())
+                .chain(genreIds -> {
+                    fragment.setGenres(genreIds);
+                    assert repository != null;
+                    return repository.insert(fragment, brandIds, user);
+                });
     }
 }

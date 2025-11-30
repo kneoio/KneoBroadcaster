@@ -118,6 +118,10 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
         }
 
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql += " AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)";
+        }
+
         if (filter != null && filter.isActivated()) {
             sql += buildFilterConditions(filter);
         }
@@ -133,25 +137,42 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     @Deprecated
     public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, final int limit, final int offset, SoundFragmentFilter filter) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
-                "FROM " + entityData.getTableName() + " t " +
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand";
+        
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql += ", similarity(t.search_name, $2) AS sim";
+        }
+        
+        sql += " FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "WHERE bsf.brand_id = $1 AND t.archived = 0";
+
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql += " AND (t.search_name ILIKE '%' || $2 || '%' OR similarity(t.search_name, $2) > 0.05)";
+        }
 
         if (filter != null && filter.isActivated()) {
             sql += buildFilterConditions(filter);
         }
 
-        sql += " ORDER BY " +
-                "bsf.played_by_brand_count ASC, " +
-                "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql += " ORDER BY sim DESC";
+        } else {
+            sql += " ORDER BY " +
+                    "bsf.played_by_brand_count ASC, " +
+                    "COALESCE(bsf.last_time_played_by_brand, '1970-01-01'::timestamp) ASC";
+        }
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
 
+        Tuple params = (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty())
+                ? Tuple.of(brandId, filter.getSearchTerm())
+                : Tuple.of(brandId);
+
         return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
+                .execute(params)
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
                     Uni<SoundFragment> soundFragmentUni = from(row, false, false, false);

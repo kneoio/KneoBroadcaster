@@ -41,7 +41,7 @@ import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.StreamManagerStats;
 import io.kneo.broadcaster.util.AiHelperUtils;
-import io.kneo.broadcaster.util.BrandActivityLogger;
+import io.kneo.broadcaster.util.BrandLogger;
 import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -412,7 +412,7 @@ public class AiHelperService {
                         effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
                     }
 
-                    BrandActivityLogger.logActivity(brandSlugName, "decision", "effectiveTalkativity : %s", effectiveTalkativity);
+                    BrandLogger.logActivity(brandSlugName, "decision", "effectiveTalkativity : %s", effectiveTalkativity);
                     if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
                         addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "mixing ...");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);

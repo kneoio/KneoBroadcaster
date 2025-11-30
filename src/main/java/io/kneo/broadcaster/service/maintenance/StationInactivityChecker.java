@@ -5,7 +5,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.util.BrandActivityLogger;
+import io.kneo.broadcaster.util.BrandLogger;
 import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
@@ -98,7 +98,7 @@ public class StationInactivityChecker {
                     String slug = entry.getKey();
                     Instant markedTime = entry.getValue();
                     if (markedTime.isBefore(removalThreshold)) {
-                        BrandActivityLogger.logActivity(slug, "remove", "Removing station after %d minutes delay", REMOVAL_DELAY_MINUTES);
+                        BrandLogger.logActivity(slug, "remove", "Removing station after %d minutes delay", REMOVAL_DELAY_MINUTES);
                         stationsMarkedForRemoval.remove(slug);
                         idleStatusTime.remove(slug);
                         stationStartTime.remove(slug);

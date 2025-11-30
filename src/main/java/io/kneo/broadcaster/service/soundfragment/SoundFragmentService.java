@@ -16,7 +16,7 @@ import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
-import io.kneo.broadcaster.util.BrandActivityLogger;
+import io.kneo.broadcaster.util.BrandLogger;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -211,7 +211,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     }
                     SoundFragmentFilter filter = toFilter(filterDTO);
                     String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
-                    BrandActivityLogger.logActivity(brandName, "brand_fragments_request",
+                    BrandLogger.logActivity(brandName, "brand_fragments_request",
                             "Requesting fragments (limit: %d, offset: %d, filter: %s)",
                             limit, offset, filterStatus);
                     UUID brandId = radioStation.getId();
@@ -219,12 +219,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return repository.getForBrand(brandId, limit, offset, false, SuperUser.build(), filter)
                             .chain(fragments -> {
                                 if (fragments.isEmpty()) {
-                                    BrandActivityLogger.logActivity(brandName, "no_brand_fragments",
+                                    BrandLogger.logActivity(brandName, "no_brand_fragments",
                                             "No fragments found for this brand with applied filter");
                                     return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
                                 }
 
-                                BrandActivityLogger.logActivity(brandName, "brand_fragments_retrieved",
+                                BrandLogger.logActivity(brandName, "brand_fragments_retrieved",
                                         "Retrieved %d fragments", fragments.size());
 
                                 List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
@@ -235,7 +235,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
-                    BrandActivityLogger.logActivity(brandName, "brand_fragments_error",
+                    BrandLogger.logActivity(brandName, "brand_fragments_error",
                             "Failed to get fragments: %s", failure.getMessage());
                     LOGGER.error("Failed to get fragments for brand: {}", brandName, failure);
                     return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
@@ -248,25 +248,25 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         SoundFragmentFilter filter = toFilter(filterDTO);
         String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
 
-        BrandActivityLogger.logActivity(brand, "count_request",
+        BrandLogger.logActivity(brand, "count_request",
                 "Requesting fragment count for brand with filter: %s", filterStatus);
 
         return radioStationService.getBySlugName(brand)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
-                        BrandActivityLogger.logActivity(brand, "brand_not_found",
+                        BrandLogger.logActivity(brand, "brand_not_found",
                                 "Brand not found in getCountBrandSoundFragments");
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
                     }
                     UUID brandId = radioStation.getId();
                     return repository.getForBrandCount(brandId, false, SuperUser.build(), filter)
                             .invoke(count -> {
-                                BrandActivityLogger.logActivity(brand, "fragment_count",
+                                BrandLogger.logActivity(brand, "fragment_count",
                                         "Found %d fragments for this brand", count);
                             });
                 })
                 .onFailure().recoverWithUni(failure -> {
-                    BrandActivityLogger.logActivity(brand, "count_error",
+                    BrandLogger.logActivity(brand, "count_error",
                             "Failed to count fragments: %s", failure.getMessage());
                     LOGGER.error("Failed to get fragments count for brand: {}", brand, failure);
                     return Uni.createFrom().failure(failure);

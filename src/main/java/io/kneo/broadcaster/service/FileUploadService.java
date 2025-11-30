@@ -219,6 +219,7 @@ public class FileUploadService {
                                             .batchId(batchId)
                                             .name(safeFileName)
                                             .url(fileUrl)
+                                            .fullPath(metadataDto.getFullPath())
                                             .metadata(metadataDto.getMetadata())
                                             .build();
                                     batchMap.put(fileId, creatingDto);

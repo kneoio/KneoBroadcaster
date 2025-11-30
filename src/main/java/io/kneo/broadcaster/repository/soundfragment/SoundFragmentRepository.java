@@ -320,6 +320,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     entityData.getTableName()
             );
 
+            Long lengthMillis = doc.getLength() != null ? doc.getLength().toMillis() : null;
+            
             Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
                     .addString(doc.getSource().name())
                     .addInteger(doc.getStatus())
@@ -327,7 +329,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     .addString(doc.getTitle())
                     .addString(doc.getArtist())
                     .addString(doc.getAlbum())
-                    .addString(doc.getLength() != null ? formatDurationForPostgres(doc.getLength()) : null)
+                    .addLong(lengthMillis)
                     .addString(doc.getDescription())
                     .addString(doc.getSlugName());
 
@@ -564,7 +566,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .addString(doc.getTitle())
                 .addString(doc.getArtist())
                 .addString(doc.getAlbum())
-                .addString(doc.getLength() != null ? formatDurationForPostgres(doc.getLength()) : null)
+                .addLong(doc.getLength() != null ? doc.getLength().toMillis() : null)
                 .addString(doc.getDescription())
                 .addString(doc.getSlugName())
                 .addUUID(id);
@@ -609,6 +611,12 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         long hours = duration.toHours();
         long minutes = duration.toMinutesPart();
         long seconds = duration.toSecondsPart();
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+        int millis = duration.toMillisPart();
+        
+        if (millis > 0) {
+            return String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, millis);
+        } else {
+            return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+        }
     }
 }

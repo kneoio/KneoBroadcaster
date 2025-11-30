@@ -55,12 +55,16 @@ public class QueueService {
     public final ConcurrentHashMap<String, SSEProgressDTO> queuingProgressMap = new ConcurrentHashMap<>();
 
     public Uni<Boolean> addToQueue(String brandName, AddToQueueDTO toQueueDTO, String uploadId) {
-        LOGGER.info(" >>>>> request to add to queue from Introcaster {}", toQueueDTO.toString());
+        LOGGER.info("[QueueService] Request to add to queue - uploadId: {}, brandName: {}, mergingMethod: {}, priority: {}", 
+                uploadId, brandName, toQueueDTO.getMergingMethod(), toQueueDTO.getPriority());
+        LOGGER.debug("[QueueService] AddToQueueDTO details: {}", toQueueDTO.toString());
 
         updateProgress(uploadId, SSEProgressStatus.PROCESSING, null);
         if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {  //keeping JIC
+            LOGGER.info("[QueueService] Processing INTRO_SONG merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
                     .chain(radioStation -> {
+                        LOGGER.info("[QueueService] Radio station found: {} , creating IntroSongHandler",brandName);
                         try {
                             IntroSongHandler handler = new IntroSongHandler(
                                     broadcasterConfig,
@@ -69,64 +73,91 @@ public class QueueService {
                                     aiAgentService,
                                     fFmpegProvider
                             );
+                            LOGGER.debug("[QueueService] IntroSongHandler created, calling handle method");
                             return handler.handle(radioStation, toQueueDTO);
                         } catch (IOException | AudioMergeException e) {
+                            LOGGER.error("[QueueService] Failed to create or execute IntroSongHandler", e);
                             throw new RuntimeException(e);
                         }
                     })
                     .onItem().invoke(result -> {
+                        LOGGER.info("[QueueService] INTRO_SONG operation completed successfully - uploadId: {}, result: {}", uploadId, result);
                         updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
+                        LOGGER.error("[QueueService] INTRO_SONG operation failed - uploadId: {}", uploadId, err);
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.NOT_MIXED) {
+            LOGGER.info("[QueueService] Processing NOT_MIXED merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
                     .chain(radioStation -> {
+                        LOGGER.info("[QueueService] Radio station found: {}, creating AudioMixingHandler", brandName);
                         AudioMixingHandler handler = createAudioMixingHandler();
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, ConcatenationType.DIRECT_CONCAT);
                     })
                     .onItem().invoke(result -> {
+                        LOGGER.info("[QueueService] NOT_MIXED operation completed successfully - uploadId: {}", uploadId);
                         updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
+                        LOGGER.error("[QueueService] NOT_MIXED operation failed - uploadId: {}", uploadId, err);
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_INTRO_SONG) {
+            LOGGER.info("[QueueService] Processing SONG_INTRO_SONG merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
-                    .chain(radioStation -> createAudioMixingHandler().handleSongIntroSong(radioStation, toQueueDTO))
+                    .chain(radioStation -> {
+                        LOGGER.info("[QueueService] Radio station found: {}, handling SONG_INTRO_SONG", brandName);
+                        return createAudioMixingHandler().handleSongIntroSong(radioStation, toQueueDTO);
+                    })
                     .onItem().invoke(result -> {
+                        LOGGER.info("[QueueService] SONG_INTRO_SONG operation completed successfully - uploadId: {}", uploadId);
                         updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
+                        LOGGER.error("[QueueService] SONG_INTRO_SONG operation failed - uploadId: {}", uploadId, err);
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG_INTRO_SONG) {
+            LOGGER.info("[QueueService] Processing INTRO_SONG_INTRO_SONG merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
-                    .chain(radioStation -> createAudioMixingHandler().handleIntroSongIntroSong(radioStation, toQueueDTO))
+                    .chain(radioStation -> {
+                        LOGGER.info("[QueueService] Radio station found: {}, handling INTRO_SONG_INTRO_SONG", brandName);
+                        return createAudioMixingHandler().handleIntroSongIntroSong(radioStation, toQueueDTO);
+                    })
                     .onItem().invoke(result -> {
+                        LOGGER.info("[QueueService] INTRO_SONG_INTRO_SONG operation completed successfully - uploadId: {}", uploadId);
                         updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
+                        LOGGER.error("[QueueService] INTRO_SONG_INTRO_SONG operation failed - uploadId: {}", uploadId, err);
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_CROSSFADE_SONG) {
+            LOGGER.info("[QueueService] Processing SONG_CROSSFADE_SONG merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
                     .chain(radioStation -> {
+                        LOGGER.info("[QueueService] Radio station found: {}, creating AudioMixingHandler", brandName);
                         AudioMixingHandler handler = createAudioMixingHandler();
                         ConcatenationType concatType = Arrays.stream(ConcatenationType.values())
                                 .skip(new Random().nextInt(ConcatenationType.values().length))
                                 .findFirst()
                                 .orElse(ConcatenationType.CROSSFADE);
+                        LOGGER.debug("[QueueService] Selected concatenation type: {}", concatType);
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, concatType);
                     })
                     .onItem().invoke(result -> {
+                        LOGGER.info("[QueueService] SONG_CROSSFADE_SONG operation completed successfully - uploadId: {}", uploadId);
                         updateProgress(uploadId, SSEProgressStatus.DONE, null);
                     })
                     .onFailure().invoke(err -> {
+                        LOGGER.error("[QueueService] SONG_CROSSFADE_SONG operation failed - uploadId: {}", uploadId, err);
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else {
+            LOGGER.warn("[QueueService] Unknown or unsupported merging method: {} for uploadId: {}", 
+                    toQueueDTO.getMergingMethod(), uploadId);
             return Uni.createFrom().item(Boolean.FALSE);
         }
     }
@@ -147,12 +178,15 @@ public class QueueService {
     }
 
     private Uni<RadioStation> getRadioStation(String brand) {
+        LOGGER.debug("[QueueService] Looking up radio station for brand: {}", brand);
         return radioStationPool.get(brand)
                 .onItem().transform(v -> {
                     if (v == null) {
+                        LOGGER.error("[QueueService] Radio station not found for brand: {}", brand);
                         throw new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE,
                                 String.format("Station not found for brand: %s", brand));
                     }
+                    LOGGER.debug("[QueueService] Radio station retrieved successfully: {}", brand);
                     return v;
                 });
     }

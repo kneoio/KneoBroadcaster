@@ -50,48 +50,52 @@ public class AudioMetadataService {
             AudioMetadataDTO metadata = new AudioMetadataDTO();
             File file = new File(filePath);
 
-            // Step 1: Basic file info (55% - 60%)
             reportProgress(progressCallback, 55);
             metadata.setFileName(file.getName());
             metadata.setFileSize(file.length());
-
-            // Small delay to make progress visible
             Thread.sleep(50);
             reportProgress(progressCallback, 60);
 
-            // Step 2: Probe the file (60% - 65%)
-            //LOGGER.info("Starting FFprobe analysis for file: {}", filePath);
             FFmpegProbeResult probeResult = ffprobe.probe(filePath);
             reportProgress(progressCallback, 65);
 
-            // Step 3: Extract format information (65% - 70%)
             FFmpegFormat format = probeResult.getFormat();
+            double durationSec = (format != null ? format.duration : 0);
+
+            // fallback to stream duration
+            if (durationSec <= 0) {
+                FFmpegStream audioStream = probeResult.getStreams().stream()
+                        .filter(stream -> stream.codec_type == FFmpegStream.CodecType.AUDIO)
+                        .findFirst()
+                        .orElse(null);
+
+                if (audioStream != null && audioStream.duration > 0) {
+                    double timeBase = audioStream.time_base.doubleValue();
+                    durationSec = audioStream.duration * timeBase;
+                }
+            }
+
             if (format != null) {
                 metadata.setFormat(format.format_name);
-                metadata.setLength(Duration.ofSeconds((long) format.duration));
+                if (durationSec > 0) {
+                    metadata.setLength(Duration.ofMillis((long) (durationSec * 1000)));
+                }
                 metadata.setBitRate((int) format.bit_rate);
-
-              //  LOGGER.info("Format extracted: {} duration: {}s", format.format_name, format.duration);
             }
 
             Thread.sleep(50);
             reportProgress(progressCallback, 70);
 
-            // Step 4: Extract basic tag information (70% - 75%)
             if (format != null && format.tags != null) {
                 Map<String, String> tags = format.tags;
                 metadata.setTitle(getTagValue(tags, "title", "TITLE"));
                 metadata.setArtist(getTagValue(tags, "artist", "ARTIST"));
                 metadata.setAlbum(getTagValue(tags, "album", "ALBUM"));
-
-                LOGGER.info("Basic tags extracted - Title: {}, Artist: {}, Album: {}",
-                        metadata.getTitle(), metadata.getArtist(), metadata.getAlbum());
             }
 
             Thread.sleep(50);
             reportProgress(progressCallback, 75);
 
-            // Step 5: Extract additional tag information (75% - 80%)
             if (format != null && format.tags != null) {
                 Map<String, String> tags = format.tags;
                 metadata.setAlbumArtist(getTagValue(tags, "album_artist", "ALBUMARTIST"));
@@ -103,15 +107,11 @@ public class AudioMetadataService {
                 metadata.setPublisher(getTagValue(tags, "publisher", "PUBLISHER"));
                 metadata.setCopyright(getTagValue(tags, "copyright", "COPYRIGHT"));
                 metadata.setLanguage(getTagValue(tags, "language", "LANGUAGE"));
-
-                LOGGER.info("Extended metadata extracted - Genre: {}, Year: {}",
-                        metadata.getGenre(), metadata.getYear());
             }
 
             Thread.sleep(50);
             reportProgress(progressCallback, 80);
 
-            // Step 6: Extract audio stream technical details (80% - 85%)
             FFmpegStream audioStream = probeResult.getStreams().stream()
                     .filter(stream -> stream.codec_type == FFmpegStream.CodecType.AUDIO)
                     .findFirst()
@@ -127,15 +127,10 @@ public class AudioMetadataService {
                 }
 
                 metadata.setLossless(isLosslessCodec(audioStream.codec_name));
-
-               // LOGGER.info("Audio stream info - Codec: {}, Sample Rate: {}, Channels: {}", audioStream.codec_name, audioStream.sample_rate, audioStream.channels);
             }
 
             Thread.sleep(50);
             reportProgress(progressCallback, 85);
-
-            LOGGER.info("Successfully extracted complete metadata for file: {} - Title: {}, Artist: {}",
-                    file.getName(), metadata.getTitle(), metadata.getArtist());
 
             return metadata;
 

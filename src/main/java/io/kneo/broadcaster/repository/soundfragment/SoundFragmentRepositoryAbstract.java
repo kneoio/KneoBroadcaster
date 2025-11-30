@@ -55,7 +55,8 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setArtist(row.getString("artist"));
         doc.setAlbum(row.getString("album"));
         if (row.getValue("length") != null) {
-            doc.setLength(parsePostgresIntervalToDuration(row.getValue("length").toString()));
+            Long lengthMillis = row.getLong("length");
+            doc.setLength(Duration.ofMillis(lengthMillis));
         }
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
@@ -194,18 +195,36 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         }
         
         try {
-            // PostgreSQL INTERVAL typically returns in HH:MM:SS format
+            // PostgreSQL INTERVAL typically returns in HH:MM:SS or HH:MM:SS.mmm format
             if (intervalStr.contains(":")) {
                 String[] parts = intervalStr.split(":");
                 if (parts.length == 3) {
                     long hours = Long.parseLong(parts[0]);
                     long minutes = Long.parseLong(parts[1]);
-                    long seconds = Long.parseLong(parts[2]);
-                    return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds);
+                    
+                    // Handle fractional seconds (e.g., "45.632")
+                    String secondsPart = parts[2];
+                    if (secondsPart.contains(".")) {
+                        String[] secondsAndMillis = secondsPart.split("\\.");
+                        long seconds = Long.parseLong(secondsAndMillis[0]);
+                        int millis = Integer.parseInt(secondsAndMillis[1]);
+                        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds).plusMillis(millis);
+                    } else {
+                        long seconds = Long.parseLong(secondsPart);
+                        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds);
+                    }
                 } else if (parts.length == 2) {
                     long minutes = Long.parseLong(parts[0]);
-                    long seconds = Long.parseLong(parts[1]);
-                    return Duration.ofMinutes(minutes).plusSeconds(seconds);
+                    String secondsPart = parts[1];
+                    if (secondsPart.contains(".")) {
+                        String[] secondsAndMillis = secondsPart.split("\\.");
+                        long seconds = Long.parseLong(secondsAndMillis[0]);
+                        int millis = Integer.parseInt(secondsAndMillis[1]);
+                        return Duration.ofMinutes(minutes).plusSeconds(seconds).plusMillis(millis);
+                    } else {
+                        long seconds = Long.parseLong(secondsPart);
+                        return Duration.ofMinutes(minutes).plusSeconds(seconds);
+                    }
                 }
             }
             

@@ -16,15 +16,10 @@ public class DurationSerializer extends JsonSerializer<Duration> {
             return;
         }
         
-        // Convert Duration to MM:SS format for frontend consistency
-        long hours = duration.toHours();
-        long minutes = duration.toMinutesPart();
+        // Convert Duration to MM:SS format for frontend (total minutes and seconds)
+        long totalMinutes = duration.toMinutes();
         long seconds = duration.toSecondsPart();
         
-        if (hours > 0) {
-            gen.writeString(String.format("%d:%02d:%02d", hours, minutes, seconds));
-        } else {
-            gen.writeString(String.format("%d:%02d", minutes, seconds));
-        }
+        gen.writeString(String.format("%d:%02d", totalMinutes, seconds));
     }
 }

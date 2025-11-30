@@ -20,19 +20,36 @@ public class DurationDeserializer extends JsonDeserializer<Duration> {
         }
         
         try {
-            // Try MM:SS format first (frontend format)
+            // Try MM:SS or HH:MM:SS format first (frontend format)
             if (value.contains(":") && !value.startsWith("PT")) {
                 String[] parts = value.split(":");
                 if (parts.length == 2) {
+                    // MM:SS or MM:SS.mmm format
                     long minutes = Long.parseLong(parts[0]);
-                    long seconds = Long.parseLong(parts[1]);
-                    return Duration.ofMinutes(minutes).plusSeconds(seconds);
+                    String secondsPart = parts[1];
+                    if (secondsPart.contains(".")) {
+                        String[] secAndMillis = secondsPart.split("\\.");
+                        long seconds = Long.parseLong(secAndMillis[0]);
+                        long millis = (long) (Double.parseDouble("0." + secAndMillis[1]) * 1000);
+                        return Duration.ofMinutes(minutes).plusSeconds(seconds).plusMillis(millis);
+                    } else {
+                        long seconds = Long.parseLong(secondsPart);
+                        return Duration.ofMinutes(minutes).plusSeconds(seconds);
+                    }
                 } else if (parts.length == 3) {
-                    // HH:MM:SS format
+                    // HH:MM:SS or HH:MM:SS.mmm format
                     long hours = Long.parseLong(parts[0]);
                     long minutes = Long.parseLong(parts[1]);
-                    long seconds = Long.parseLong(parts[2]);
-                    return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds);
+                    String secondsPart = parts[2];
+                    if (secondsPart.contains(".")) {
+                        String[] secAndMillis = secondsPart.split("\\.");
+                        long seconds = Long.parseLong(secAndMillis[0]);
+                        long millis = (long) (Double.parseDouble("0." + secAndMillis[1]) * 1000);
+                        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds).plusMillis(millis);
+                    } else {
+                        long seconds = Long.parseLong(secondsPart);
+                        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds);
+                    }
                 }
             }
             

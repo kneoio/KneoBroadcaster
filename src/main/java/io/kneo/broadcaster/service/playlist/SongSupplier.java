@@ -4,7 +4,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.RadioStationService;
-import io.kneo.broadcaster.util.BrandActivityLogger;
+import io.kneo.broadcaster.util.BrandLogger;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.slf4j.Logger;
@@ -132,11 +132,11 @@ public class SongSupplier {
         return radioStationService.getBySlugName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
-                        BrandActivityLogger.logActivity(brandName, "brand_not_found", "Brand not found");
+                        BrandLogger.logActivity(brandName, "brand_not_found", "Brand not found");
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     UUID brandId = radioStation.getId();
-                    BrandActivityLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
+                    BrandLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
 
                     return repository.getBrandSongsRandomPage(brandId, fragmentType)
                             .flatMap(fragments -> {

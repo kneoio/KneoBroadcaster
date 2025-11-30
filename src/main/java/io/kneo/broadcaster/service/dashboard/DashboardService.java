@@ -7,7 +7,6 @@ import io.kneo.broadcaster.dto.dashboard.StatsDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
-import io.kneo.broadcaster.service.scheduler.SchedulerDataService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -32,8 +31,6 @@ public class DashboardService {
     @Inject
     ConfigurationStats configurationStats;
 
-    @Inject
-    SchedulerDataService schedulerDataService;
 
     public Uni<StatsDTO> getInfo() {
         return Uni.createFrom().item(() -> {
@@ -65,12 +62,6 @@ public class DashboardService {
             stats.setConfigurationStats(configurationStats);
 
             return stats;
-        }).chain(stats -> 
-            schedulerDataService.getSchedulerStats()
-                    .onItem().transform(schedulerStats -> {
-                        stats.setSchedulerStats(schedulerStats);
-                        return stats;
-                    })
-        );
+        });
     }
 }

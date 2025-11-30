@@ -4,7 +4,6 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.core.localization.LanguageCode;
 import io.vertx.core.json.Json;
@@ -23,65 +22,20 @@ import java.util.stream.Collectors;
 public class AiHelperController {
     private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperController.class);
 
-    private final MemoryService memoryService;
     private final AiHelperService aiHelperService;
 
-    public AiHelperController(MemoryService memoryService, AiHelperService aiHelperService) {
-        this.memoryService = memoryService;
+    public AiHelperController(AiHelperService aiHelperService) {
         this.aiHelperService = aiHelperService;
     }
 
     public void setupRoutes(Router router) {
-        router.get("/api/ai/memory/:brand").handler(this::getMemoriesByType);
         router.get("/api/ai/live/stations").handler(this::getLiveRadioStations);
         router.get("/api/ai/station/:slug/live").handler(this::getStationLiveStat);
         router.get("/api/ai/listener/by-telegram-name/:name").handler(this::getListenerByTelegramName);
         router.get("/api/ai/stations").handler(this::getAllStations);
         router.get("/api/ai/brand/:brand/soundfragments").handler(this::getBrandSoundFragments);
-    }
+   }
 
-    private void getMemoriesByType(RoutingContext rc) {
-        String brand = rc.pathParam("brand");
-        if (brand == null || brand.trim().isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Brand parameter is required");
-            return;
-        }
-
-        List<String> typeParams = rc.queryParam("type");
-        if (typeParams == null || typeParams.isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("At least one type query parameter is required");
-            return;
-        }
-
-        String[] types = typeParams.toArray(new String[0]);
-
-        memoryService.getByType(brand, types)
-                .subscribe().with(
-                        content -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .end(Json.encode(content)),
-                        throwable -> {
-                            LOGGER.error("Error getting memories by brand", throwable);
-                            if (throwable instanceof IllegalArgumentException) {
-                                rc.response()
-                                        .setStatusCode(400)
-                                        .putHeader("Content-Type", "text/plain")
-                                        .end(throwable.getMessage());
-                            } else {
-                                rc.response()
-                                        .setStatusCode(500)
-                                        .putHeader("Content-Type", "text/plain")
-                                        .end("An unexpected error occurred retrieving memories.");
-                            }
-                        }
-                );
-    }
 
     private void getLiveRadioStations(RoutingContext rc) {
         String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").get(0);

@@ -2,10 +2,6 @@ package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.agent.WeatherApiClient;
 import io.kneo.broadcaster.agent.WorldNewsApiClient;
-import io.kneo.broadcaster.dto.memory.EventInMemoryDTO;
-import io.kneo.broadcaster.dto.memory.MemoryResult;
-import io.kneo.broadcaster.dto.memory.MessageDTO;
-import io.kneo.broadcaster.dto.memory.SongIntroduction;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
@@ -66,7 +62,6 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            MemoryResult memoryData,
             UUID draftId,
             LanguageCode selectedLanguage
     ) {
@@ -96,7 +91,6 @@ public class DraftFactory {
                                 agent,
                                 copilot,
                                 station,
-                                memoryData,
                                 profile,
                                 genres,
                                 selectedLanguage
@@ -114,7 +108,6 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            MemoryResult memoryData,
             LanguageCode selectedLanguage
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
@@ -140,7 +133,6 @@ public class DraftFactory {
                             agent,
                             copilot,
                             station,
-                            memoryData,
                             profile,
                             genres,
                             selectedLanguage
@@ -174,14 +166,10 @@ public class DraftFactory {
             AiAgent agent,
             AiAgent copilot,
             RadioStation station,
-            MemoryResult memoryData,
             Profile profile,
             List<String> genres,
             LanguageCode selectedLanguage
     ) {
-        List<SongIntroduction> history = memoryData.getConversationHistory();
-        List<MessageDTO> messages = memoryData.getMessages();
-        List<EventInMemoryDTO> events = memoryData.getEvents();
         String countryIso = station.getCountry().getIsoCode();
         Map<String, Object> data = new HashMap<>();
         data.put("songTitle", song.getTitle());
@@ -213,9 +201,6 @@ public class DraftFactory {
         data.put("stationBrand", brand);
         data.put("country", station.getCountry());
         data.put("language", selectedLanguage);
-        data.put("history", history);
-        data.put("messages", messages);
-        data.put("events", events);
         data.put("random", random);
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));

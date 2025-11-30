@@ -5,8 +5,6 @@ import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
-import io.kneo.broadcaster.model.cnst.EventType;
-import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
 import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
@@ -35,19 +33,17 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     private final SoundFragmentService soundFragmentService;
     private final AiAgentService aiAgentService;
     private final RadioStationService radioStationService;
-    private final MemoryService memoryService;
 
     @Inject
     public DraftService(UserService userService, DraftRepository repository, DraftFactory draftFactory,
                         SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
-                        RadioStationService radioStationService, MemoryService memoryService) {
+                        RadioStationService radioStationService) {
         super(userService);
         this.repository = repository;
         this.draftFactory = draftFactory;
         this.soundFragmentService = soundFragmentService;
         this.aiAgentService = aiAgentService;
         this.radioStationService = radioStationService;
-        this.memoryService = memoryService;
     }
 
     public Uni<List<Draft>> getAll() {
@@ -150,34 +146,20 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
 
     public Uni<String> testDraft(DraftTestReqDTO dto, IUser user) {
         return radioStationService.getById(dto.getStationId(), user)
-                .chain(station -> {
-                    String brand = station.getSlugName();
-                    return memoryService.addMessage(brand, "John", "Can you play some rock music?")
-                            .chain(id1 -> memoryService.addMessage(brand, "Sarah", "I love this station!"))
-                            .chain(id2 -> memoryService.addEvent(brand, EventType.WEATHER, "2025-11-02T21:00:00Z", "Sunny weather, 25°C"))
-                            .chain(ignored -> soundFragmentService.getById(dto.getSongId(), user))
-                            .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
-                                    .chain(agent -> {
-                                        LanguageCode selectedLanguage = selectLanguageByWeight(agent);
-                                        return memoryService.getByType(
-                                                        brand,
-                                                        MemoryType.MESSAGE.name(),
-                                                        MemoryType.EVENT.name(),
-                                                        MemoryType.CONVERSATION_HISTORY.name()
-                                                )
-                                                .chain(memoryData ->
-                                                        draftFactory.createDraftFromCode(
-                                                                dto.getCode(),
-                                                                song,
-                                                                agent,
-                                                                station,
-                                                                memoryData,
-                                                                selectedLanguage
-                                                        )
-                                                );
-                                    })
-                            );
-                });
+                .chain(station -> soundFragmentService.getById(dto.getSongId(), user)
+                        .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
+                                .chain(agent -> {
+                                    LanguageCode selectedLanguage = selectLanguageByWeight(agent);
+                                    return draftFactory.createDraftFromCode(
+                                            dto.getCode(),
+                                            song,
+                                            agent,
+                                            station,
+                                            selectedLanguage
+                                    );
+                                })
+                        )
+                );
     }
 
     private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.aiagent.AiAgent agent) {

@@ -14,9 +14,10 @@ import java.util.UUID;
 @NoArgsConstructor
 public class SoundFragmentFilter {
     private boolean activated = false;
-    private List<UUID> genres;
-    private List<SourceType> sources;
-    private List<PlaylistItemType> types;
+    private List<UUID> genre;
+    private List<SourceType> source;
+    private List<PlaylistItemType> type;
+    private String searchTerm;
 
     public boolean isActivated() {
         if (activated) {
@@ -26,12 +27,15 @@ public class SoundFragmentFilter {
     }
 
     private boolean hasAnyFilter() {
-        if (genres != null && !genres.isEmpty()) {
+        if (genre != null && !genre.isEmpty()) {
             return true;
         }
-        if (sources != null && !sources.isEmpty()) {
+        if (source != null && !source.isEmpty()) {
             return true;
         }
-        return types != null && !types.isEmpty();
+        if (type != null && !type.isEmpty()) {
+            return true;
+        }
+        return searchTerm != null && !searchTerm.trim().isEmpty();
     }
 }

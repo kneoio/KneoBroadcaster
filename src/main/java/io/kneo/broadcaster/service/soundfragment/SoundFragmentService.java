@@ -573,9 +573,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
         SoundFragmentFilter filter = new SoundFragmentFilter();
         filter.setActivated(dto.isActivated());
-        filter.setGenres(dto.getGenres());
-        filter.setSources(dto.getSources());
-        filter.setTypes(dto.getTypes());
+        filter.setGenre(dto.getGenres());
+        filter.setSource(dto.getSources());
+        filter.setType(dto.getTypes());
+        filter.setSearchTerm(dto.getSearchTerm());
 
         return filter;
     }

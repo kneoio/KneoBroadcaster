@@ -2,10 +2,10 @@ package io.kneo.broadcaster.dto.filter;
 
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +25,8 @@ public class SoundFragmentFilterDTO implements IFilterDTO {
     @NotEmpty(message = "Types list cannot be empty when provided")
     private List<PlaylistItemType> types;
 
+    private String searchTerm;
+
     @Override
     public boolean isActivated() {
         return activated || hasAnyFilter();
@@ -34,6 +36,7 @@ public class SoundFragmentFilterDTO implements IFilterDTO {
     public boolean hasAnyFilter() {
         return (genres != null && !genres.isEmpty()) ||
                (sources != null && !sources.isEmpty()) ||
-               (types != null && !types.isEmpty());
+               (types != null && !types.isEmpty()) ||
+               (searchTerm != null && !searchTerm.trim().isEmpty());
     }
 }

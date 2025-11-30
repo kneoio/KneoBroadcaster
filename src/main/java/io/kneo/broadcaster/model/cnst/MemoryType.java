@@ -5,11 +5,7 @@ import lombok.Getter;
 @Getter
 public enum MemoryType {
     UNKNOWN("unknown"),
-    AUDIENCE_CONTEXT("environment"),
-    LISTENER_CONTEXT("listeners"),
-    CONVERSATION_HISTORY("history"),
-    EVENT("events"),
-    MESSAGE("messages");
+    EVENT("events");
 
     private final String value;
 

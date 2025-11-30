@@ -324,6 +324,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         //doc.setPopularityRate(dto.getPopularityRate());  //cannot be changed from UI
 
         if (dto.getAiOverriding() != null) {
+            //TODO should be validation
             AiOverriding ai = new AiOverriding();
             ai.setName(dto.getAiOverriding().getName());
             ai.setPrompt(dto.getAiOverriding().getPrompt());

@@ -12,7 +12,6 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
-import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.model.BrandScript;
@@ -21,13 +20,11 @@ import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.cnst.MemoryType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.ListenerService;
-import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.RefService;
@@ -88,7 +85,6 @@ public class AiHelperService {
     private final PromptService promptService;
     private final SongSupplier songSupplier;
     private final DraftFactory draftFactory;
-    private final MemoryService memoryService;
     private final JinglePlaybackHandler jinglePlaybackHandler;
     private final Randomizator randomizator;
     private final SoundFragmentService soundFragmentService;
@@ -107,7 +103,6 @@ public class AiHelperService {
             PromptService promptService,
             SongSupplier songSupplier,
             DraftFactory draftFactory,
-            MemoryService memoryService,
             JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator,
             io.kneo.broadcaster.service.RadioStationService radioStationService,
             io.kneo.broadcaster.service.ListenerService listenerService,
@@ -120,7 +115,6 @@ public class AiHelperService {
         this.promptService = promptService;
         this.songSupplier = songSupplier;
         this.draftFactory = draftFactory;
-        this.memoryService = memoryService;
         this.jinglePlaybackHandler = jinglePlaybackHandler;
         this.randomizator = randomizator;
         this.radioStationService = radioStationService;
@@ -368,16 +362,9 @@ public class AiHelperService {
     }
 
     private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage, String additionalInstruction) {
-        return Uni.combine().all()
-                .unis(
-                        scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build()),
-                        memoryService.getByType(station.getSlugName(), MemoryType.EVENT.name())
-                )
-                .asTuple()
-                .flatMap(tuple -> {
+        return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
+                .flatMap(brandScripts -> {
                     String brandSlugName = station.getSlugName();
-                    List<BrandScript> brandScripts = tuple.getItem1();
-                    MemoryResult memoryData = tuple.getItem2();
                     ZoneId zone = station.getTimeZone();
                     ZonedDateTime now = ZonedDateTime.now(zone);
                     LocalTime stationCurrentTime = now.toLocalTime();
@@ -484,7 +471,6 @@ public class AiHelperService {
                                                                 song,
                                                                 agent,
                                                                 station,
-                                                                memoryData,
                                                                 selectedPrompt.getDraftId(),
                                                                 broadcastingLanguage
                                                         ).map(draft -> {

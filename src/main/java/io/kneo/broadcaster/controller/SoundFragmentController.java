@@ -396,7 +396,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         boolean any = false;
         try {
             JsonObject json = new JsonObject(filterParam);
-            JsonArray g = json.getJsonArray("genres");
+            JsonArray g = json.getJsonArray("genre");
             if (g != null && !g.isEmpty()) {
                 List<UUID> genres = new ArrayList<>();
                 for (Object o : g) {
@@ -412,23 +412,17 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     any = true;
                 }
             }
-            JsonArray s = json.getJsonArray("sources");
-            if (s != null && !s.isEmpty()) {
-                List<SourceType> sources = new ArrayList<>();
-                for (Object o : s) {
-                    if (o instanceof String str) {
-                        try {
-                            sources.add(SourceType.valueOf(str));
-                        } catch (IllegalArgumentException ignored) {
-                        }
-                    }
-                }
-                if (!sources.isEmpty()) {
-                    dto.setSources(sources);
+            String sourceStr = json.getString("source");
+            if (sourceStr != null && !sourceStr.trim().isEmpty()) {
+                try {
+                    SourceType source = SourceType.valueOf(sourceStr);
+                    dto.setSources(List.of(source));
                     any = true;
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Invalid source value: " + sourceStr);
                 }
             }
-            JsonArray t = json.getJsonArray("types");
+            JsonArray t = json.getJsonArray("type");
             if (t != null && !t.isEmpty()) {
                 List<PlaylistItemType> types = new ArrayList<>();
                 for (Object o : t) {
@@ -444,6 +438,11 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     any = true;
                 }
             }
+            String searchTerm = json.getString("searchTerm");
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                dto.setSearchTerm(searchTerm.trim());
+                any = true;
+            }
             if (json.containsKey("activated")) {
                 dto.setActivated(json.getBoolean("activated", false));
                 any = true;
@@ -451,8 +450,10 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                 dto.setActivated(json.getBoolean("filterActivated", false));
                 any = true;
             }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
-            return null;
+            throw new IllegalArgumentException("Invalid filter JSON format: " + e.getMessage(), e);
         }
         return any ? dto : null;
     }

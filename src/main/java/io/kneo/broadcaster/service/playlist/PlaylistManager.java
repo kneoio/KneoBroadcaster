@@ -13,7 +13,6 @@ import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
-import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
@@ -75,7 +74,6 @@ public class PlaylistManager {
     private final String tempBaseDir;
     private volatile long lastStarvingFeedTime = 0;
     private final int segmentDuration;
-    private final MemoryService memoryService;
     @Getter
     private final LinkedList<LiveSoundFragment> fragmentsForMp3 = new LinkedList<>();
     private final AiHelperService aiHelperService;
@@ -87,7 +85,6 @@ public class PlaylistManager {
                            IStreamManager streamManager,
                            SongSupplier songSupplier,
                            BrandSoundFragmentUpdateService brandSoundFragmentUpdateService,
-                           MemoryService memoryService,
                            AiHelperService aiHelperService
     ) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
@@ -100,7 +97,6 @@ public class PlaylistManager {
         this.brandId = radioStation.getId();
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
-        this.memoryService = memoryService;
         LOGGER.info("Created PlaylistManager for brand: {}", brand);
     }
 

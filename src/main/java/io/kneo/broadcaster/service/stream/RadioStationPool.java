@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
-import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
@@ -53,9 +52,6 @@ public class RadioStationPool {
 
     @Inject
     BrandSoundFragmentUpdateService updateService;
-
-    @Inject
-    MemoryService memoryService;
 
     @Inject
     AiHelperService aiHelperService;
@@ -112,7 +108,6 @@ public class RadioStationPool {
                                             segmentationService,
                                             songSupplier,
                                             updateService,
-                                            memoryService,
                                             aiHelperService
                                     );
                                     stationFromDb.setStreamManager(newPlaylist);
@@ -197,14 +192,6 @@ public class RadioStationPool {
                 radioStation.getStreamManager().shutdown();
             }
             radioStation.setStatus(RadioStationStatus.OFF_LINE);
-
-            LOGGER.info("Resetting memory for station: {}", brandName);
-            memoryService.deleteByBrand(brandName)
-                    .subscribe().with(
-                            deletedCount -> LOGGER.info("Successfully deleted {} memory entries for station {}", deletedCount, brandName),
-                            failure -> LOGGER.error("Failed to reset memory for station {}: {}", brandName, failure.getMessage(), failure)
-                    );
-
             return Uni.createFrom().item(radioStation);
         } else {
             LOGGER.warn("Station {} not found in pool during stopAndRemove.", brandName);

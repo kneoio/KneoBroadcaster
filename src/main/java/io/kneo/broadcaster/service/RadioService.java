@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.radio.MessageDTO;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
@@ -77,8 +76,6 @@ public class RadioService {
     @Inject
     private BroadcasterConfig config;
 
-    @Inject
-    MemoryService memoryService;
 
     private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d", "malucra");
 
@@ -286,12 +283,6 @@ public class RadioService {
                                             .replaceWith(moved)))
                             .chain(doc -> {
                                 String messageText = dto.getAttachedMessage();
-                                if (messageText != null && !messageText.trim().isEmpty()) {
-                                    return memoryService.addMessage(brand, dto.getMessageFrom(), dto.getAttachedMessage())
-                                            .replaceWith(doc)
-                                            .onFailure().invoke(failure ->
-                                                    LOGGER.warn("Failed to add message to memory for brand {}: {}", brand, failure.getMessage()));
-                                }
                                 return Uni.createFrom().item(doc);
                             })
                             .chain(this::mapToDTO)
@@ -306,10 +297,6 @@ public class RadioService {
                 });
     }
 
-    public Uni<MessageDTO> postMessage(String brand, MessageDTO dto) {
-        return memoryService.addMessage(brand, dto.getFrom(), dto.getContent())
-                .map(id -> dto);
-    }
 
     private Uni<Void> createContributionAndAgreement(SoundFragment doc, SubmissionDTO dto) {
         Long userId = AnonymousUser.build().getId();

@@ -12,6 +12,10 @@ public class SoundFragmentQueryBuilder {
         StringBuilder sql = new StringBuilder()
                 .append("SELECT t.*, rls.*");
 
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql.append(", similarity(t.search_name, $1) AS sim");
+        }
+
         sql.append(" FROM ").append(tableName).append(" t ")
                 .append("JOIN ").append(rlsName).append(" rls ON t.id = rls.entity_id ")
                 .append("WHERE rls.reader = ").append(user.getId());
@@ -24,7 +28,11 @@ public class SoundFragmentQueryBuilder {
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY t.last_mod_date DESC");
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql.append(" ORDER BY sim DESC");
+        } else {
+            sql.append(" ORDER BY t.last_mod_date DESC");
+        }
 
         if (limit > 0) {
             sql.append(String.format(" LIMIT %s OFFSET %s", limit, offset));
@@ -38,12 +46,16 @@ public class SoundFragmentQueryBuilder {
         StringBuilder sql = new StringBuilder()
                 .append("SELECT t.*, rls.*");
 
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            sql.append(", similarity(t.search_name, $2) AS sim");
+        }
+
         sql.append(" FROM ").append(tableName).append(" t ")
                 .append("JOIN ").append(rlsName).append(" rls ON t.id = rls.entity_id ")
                 .append("WHERE rls.reader = $1");
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            sql.append(" AND (LOWER(t.title) LIKE $2 OR LOWER(t.artist) LIKE $3 OR EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg JOIN kneobroadcaster__genres g ON g.id = sfg.genre_id WHERE sfg.sound_fragment_id = t.id AND LOWER(g.identifier) LIKE $4) OR CAST(t.id AS TEXT) LIKE $5)");
+            sql.append(" AND (t.search_name ILIKE '%' || $2 || '%' OR similarity(t.search_name, $2) > 0.05)");
         }
 
         if (!includeArchived) {
@@ -54,7 +66,11 @@ public class SoundFragmentQueryBuilder {
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY t.last_mod_date DESC");
+        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+            sql.append(" ORDER BY sim DESC");
+        } else {
+            sql.append(" ORDER BY t.last_mod_date DESC");
+        }
 
         if (limit > 0) {
             sql.append(String.format(" LIMIT %s OFFSET %s", limit, offset));
@@ -66,29 +82,33 @@ public class SoundFragmentQueryBuilder {
     String buildFilterConditions(SoundFragmentFilter filter) {
         StringBuilder conditions = new StringBuilder();
 
-        if (filter.getGenres() != null && !filter.getGenres().isEmpty()) {
+        if (filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            conditions.append(" AND (t.search_name ILIKE '%' || $1 || '%' OR similarity(t.search_name, $1) > 0.05)");
+        }
+
+        if (filter.getGenre() != null && !filter.getGenre().isEmpty()) {
             conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
-            for (int i = 0; i < filter.getGenres().size(); i++) {
+            for (int i = 0; i < filter.getGenre().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getGenres().get(i).toString()).append("'");
+                conditions.append("'").append(filter.getGenre().get(i).toString()).append("'");
             }
             conditions.append("))");
         }
 
-        if (filter.getSources() != null && !filter.getSources().isEmpty()) {
+        if (filter.getSource() != null && !filter.getSource().isEmpty()) {
             conditions.append(" AND t.source IN (");
-            for (int i = 0; i < filter.getSources().size(); i++) {
+            for (int i = 0; i < filter.getSource().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getSources().get(i).name()).append("'");
+                conditions.append("'").append(filter.getSource().get(i).name()).append("'");
             }
             conditions.append(")");
         }
 
-        if (filter.getTypes() != null && !filter.getTypes().isEmpty()) {
+        if (filter.getType() != null && !filter.getType().isEmpty()) {
             conditions.append(" AND t.type IN (");
-            for (int i = 0; i < filter.getTypes().size(); i++) {
+            for (int i = 0; i < filter.getType().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getTypes().get(i).name()).append("'");
+                conditions.append("'").append(filter.getType().get(i).name()).append("'");
             }
             conditions.append(")");
         }

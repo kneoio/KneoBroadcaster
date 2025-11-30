@@ -87,6 +87,16 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         assert queryBuilder != null;
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),
                 user, includeArchived, filter, limit, offset, false);
+        
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(filter.getSearchTerm()))
+                    .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                    .onItem().transformToUni(row -> from(row, false, false, false))
+                    .concatenate()
+                    .collect().asList();
+        }
+        
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -100,7 +110,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0 ";
         }
 
         if (filter != null && filter.isActivated()) {
@@ -108,28 +118,15 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             sql += queryBuilder.buildFilterConditions(filter);
         }
 
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(filter.getSearchTerm()))
+                    .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+        }
+
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
-    public Uni<List<SoundFragment>> findByType(PlaylistItemType type, int limit, int offset, boolean includeArchived, IUser user) {
-        StringBuilder sql = new StringBuilder();
-        sql.append("SELECT t.*, rls.* FROM ")
-                .append(entityData.getTableName()).append(" t JOIN ")
-                .append(entityData.getRlsName()).append(" rls ON t.id = rls.entity_id ")
-                .append("WHERE rls.reader = $1 AND t.type = $2 ");
-        if (!includeArchived) {
-            sql.append("AND t.archived = 0 ");
-        }
-        sql.append("ORDER BY t.reg_date DESC LIMIT $3 OFFSET $4");
-
-        return client.preparedQuery(sql.toString())
-                .execute(Tuple.of(user.getId(), type.name(), limit, offset))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
-                .concatenate()
-                .collect().asList();
     }
 
     public Uni<List<SoundFragment>> findByTypeAndBrand(PlaylistItemType type, UUID brandId, int limit, int offset) {
@@ -148,11 +145,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         params.add(user.getId());
 
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String normalizedTerm = "%" + searchTerm.trim().toLowerCase() + "%";
-            params.add(normalizedTerm);
-            params.add(normalizedTerm);
-            params.add(normalizedTerm);
-            params.add(normalizedTerm);
+            params.add(searchTerm.trim());
         }
 
         return client.preparedQuery(sql)

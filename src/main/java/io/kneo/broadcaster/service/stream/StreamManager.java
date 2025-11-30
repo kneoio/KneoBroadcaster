@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.service.MemoryService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
@@ -64,7 +63,6 @@ public class StreamManager implements IStreamManager {
     private final int maxVisibleSegments = 10;
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
     private final BrandSoundFragmentUpdateService updateService;
-    private final MemoryService memoryService;
     private final Object fragmentRetrievalLock = new Object();
     private final AiHelperService aiHelperService;
 
@@ -76,7 +74,7 @@ public class StreamManager implements IStreamManager {
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService, SongSupplier songSupplier,
             BrandSoundFragmentUpdateService updateService,
-            MemoryService memoryService, AiHelperService aiHelperService
+            AiHelperService aiHelperService
     ) {
         this.sliderTimer = sliderTimer;
         this.segmentFeederTimer = segmentFeederTimer;
@@ -86,7 +84,6 @@ public class StreamManager implements IStreamManager {
         this.segmentationService = segmentationService;
         this.songSupplier = songSupplier;
         this.updateService = updateService;
-        this.memoryService = memoryService;
         this.aiHelperService = aiHelperService;
     }
 
@@ -101,7 +98,6 @@ public class StreamManager implements IStreamManager {
                 this,
                 songSupplier,
                 updateService,
-                memoryService,
                 aiHelperService
         );
         if (radioStation.getManagedBy() == ManagedBy.ITSELF) {

@@ -158,30 +158,30 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
     protected String buildFilterConditions(SoundFragmentFilter filter) {
         StringBuilder conditions = new StringBuilder();
 
-        if (filter.getGenres() != null && !filter.getGenres().isEmpty()) {
+        if (filter.getGenre() != null && !filter.getGenre().isEmpty()) {
             conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_genres sfg2 ")
                     .append("WHERE sfg2.sound_fragment_id = t.id AND sfg2.genre_id IN (");
-            for (int i = 0; i < filter.getGenres().size(); i++) {
+            for (int i = 0; i < filter.getGenre().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getGenres().get(i).toString()).append("'");
+                conditions.append("'").append(filter.getGenre().get(i).toString()).append("'");
             }
             conditions.append("))");
         }
 
-        if (filter.getSources() != null && !filter.getSources().isEmpty()) {
+        if (filter.getSource() != null && !filter.getSource().isEmpty()) {
             conditions.append(" AND t.source IN (");
-            for (int i = 0; i < filter.getSources().size(); i++) {
+            for (int i = 0; i < filter.getSource().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getSources().get(i).name()).append("'");
+                conditions.append("'").append(filter.getSource().get(i).name()).append("'");
             }
             conditions.append(")");
         }
 
-        if (filter.getTypes() != null && !filter.getTypes().isEmpty()) {
+        if (filter.getType() != null && !filter.getType().isEmpty()) {
             conditions.append(" AND t.type IN (");
-            for (int i = 0; i < filter.getTypes().size(); i++) {
+            for (int i = 0; i < filter.getType().size(); i++) {
                 if (i > 0) conditions.append(", ");
-                conditions.append("'").append(filter.getTypes().get(i).name()).append("'");
+                conditions.append("'").append(filter.getType().get(i).name()).append("'");
             }
             conditions.append(")");
         }

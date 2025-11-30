@@ -257,7 +257,7 @@ public class ScriptDryRunService {
                     emptyMemory.setMessages(List.of());
                     emptyMemory.setEvents(List.of());
                     
-                    return draftFactory.createDraftFromCode(draft.getContent(), song, context.agent, context.station, emptyMemory, LanguageCode.en)
+                    return draftFactory.createDraftFromCode(draft.getContent(), song, context.agent, context.station, LanguageCode.en)
                             .onFailure().invoke(err -> {
                                 assert song != null;
                                 String errorDetail = String.format("Failed to render draft template. Prompt: '%s', Draft: '%s', Station: '%s', Song: %s, Agent: %s. Error: %s",

@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.radio.MessageDTO;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.service.FileUploadService;
 import io.kneo.broadcaster.service.GeolocationService;
@@ -73,11 +72,6 @@ public class RadioController {
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)
                 .handler(this::submit);
-
-        router.route(HttpMethod.POST, "/radio/:brand/messages")
-                .handler(jsonBodyHandler)
-                .handler(this::validateMixplaAccess)
-                .handler(this::postMessage);
 
         router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:id").handler(rc -> rc.response().setStatusCode(204).end());
@@ -262,34 +256,6 @@ public class RadioController {
                                     rc.response().setStatusCode(403).end("Not enough rights");
                                 else if (throwable instanceof UploadAbsenceException)
                                     rc.response().setStatusCode(400).end(throwable.getMessage());
-                                else rc.fail(throwable);
-                            }
-                    );
-
-        } catch (Exception e) {
-            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
-        }
-    }
-
-    private void postMessage(RoutingContext rc) {
-        if (jsonBodyIsBad(rc)) return;
-
-        try {
-            MessageDTO dto = rc.body().asJsonObject().mapTo(MessageDTO.class);
-            String[] ipCountry = GeolocationService.parseIPHeader(rc.request().getHeader("stream-connecting-ip"));
-            dto.setIpAddress(ipCountry[0]);
-            dto.setCountry(CountryCode.valueOf(ipCountry[1]));
-            dto.setUserAgent(rc.request().getHeader("User-Agent"));
-            String brand = rc.pathParam("brand");
-
-            validationService.validateMessageDTO(dto)
-                    .chain(v -> v.valid()
-                            ? service.postMessage(brand, dto)
-                            : Uni.createFrom().failure(new IllegalArgumentException(v.errorMessage())))
-                    .subscribe().with(
-                            ok -> rc.response().setStatusCode(200).end(ok.toString()),
-                            throwable -> {
-                                if (throwable instanceof IllegalArgumentException) rc.fail(400, throwable);
                                 else rc.fail(throwable);
                             }
                     );

@@ -32,7 +32,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 "WHERE bsf.brand_id = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND  t.archived = 0 ";
         }
 
         sql += " AND (t.search_name ILIKE '%' || $3 || '%' OR similarity(t.search_name, $3) > 0.05)";
@@ -59,8 +59,13 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,
                                                       boolean includeArchived, IUser user, SoundFragmentFilter filter) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand " +
-                "FROM " + entityData.getTableName() + " t " +
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand";
+        
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql += ", similarity(t.search_name, $3) AS sim";
+        }
+        
+        sql += " FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
                 "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
                 "WHERE bsf.brand_id = $1 AND rls.reader = $2";
@@ -73,14 +78,22 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql += buildFilterConditions(filter);
         }
 
-        sql += " ORDER BY t.reg_date DESC";
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            sql += " ORDER BY sim DESC";
+        } else {
+            sql += " ORDER BY t.reg_date DESC";
+        }
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
 
+        Tuple params = (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty())
+                ? Tuple.of(brandId, user.getId(), filter.getSearchTerm())
+                : Tuple.of(brandId, user.getId());
+
         return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
+                .execute(params)
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
                     Uni<SoundFragment> soundFragmentUni = from(row, false, false, false);
@@ -109,8 +122,12 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql += buildFilterConditions(filter);
         }
 
+        Tuple params = (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty())
+                ? Tuple.of(brandId, user.getId(), filter.getSearchTerm())
+                : Tuple.of(brandId, user.getId());
+
         return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId, user.getId()))
+                .execute(params)
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 

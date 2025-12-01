@@ -14,6 +14,7 @@ import java.util.UUID;
 public class Script extends SecureDataEntity<UUID> {
     private String name;
     private String description;
+    private Integer accessLevel = 0;
     private Integer archived;
     private List<UUID> labels;
     private List<UUID> brands;

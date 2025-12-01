@@ -17,7 +17,7 @@ public class SceneDTO extends AbstractDTO {
     private String title;
     private double talkativity;
     private double podcastMode;
-    private List<UUID> prompts;
+    private List<ScenePromptDTO> prompts;
     private LocalTime startTime;
     private boolean oneTimeRun;
     private List<Integer> weekdays;

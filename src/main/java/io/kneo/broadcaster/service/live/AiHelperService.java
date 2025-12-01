@@ -16,6 +16,7 @@ import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.Prompt;
@@ -377,11 +378,16 @@ public class AiHelperService {
                         List<Scene> scenes = brandScript.getScript().getScenes();
                         for (Scene scene : scenes) {
                             if (isSceneActive(brandSlugName, zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
-                                allMasterPromptIds.addAll(scene.getPrompts());
+                                List<UUID> promptIds = scene.getPrompts() != null ? 
+                                    scene.getPrompts().stream()
+                                        .filter(ScenePrompt::isActive)
+                                        .map(ScenePrompt::getPromptId)
+                                        .collect(java.util.stream.Collectors.toList()) : List.of();
+                                allMasterPromptIds.addAll(promptIds);
                                 currentSceneTitle = scene.getTitle();
                                 activeScene = scene;
                                 LOGGER.debug("Station '{}': Active scene '{}' found with {} prompts",
-                                        brandSlugName, scene.getTitle(), scene.getPrompts().size());
+                                        brandSlugName, scene.getTitle(), promptIds.size());
                             }
                         }
                     }
@@ -576,7 +582,8 @@ public class AiHelperService {
                             if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
                                 final LocalTime sceneStart = scene.getStartTime();
                                 final LocalTime sceneEnd = findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
-                                final int promptCount = scene.getPrompts() != null ? scene.getPrompts().size() : 0;
+                                final int promptCount = scene.getPrompts() != null ? 
+                                    (int) scene.getPrompts().stream().filter(ScenePrompt::isActive).count() : 0;
                                 final String nextSceneTitle = findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
                                 DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
                                 final LocalDateTime lastRequestTime;

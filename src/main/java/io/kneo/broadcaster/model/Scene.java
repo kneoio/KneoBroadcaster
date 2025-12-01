@@ -15,7 +15,7 @@ import java.util.UUID;
 public class Scene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
-    private List<UUID> prompts;
+    private List<ScenePrompt> prompts;
     private LocalTime startTime;
     private Integer archived;
     private boolean oneTimeRun;

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.repository.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -26,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.PROMPT;
@@ -282,16 +282,24 @@ public class PromptRepository extends AsyncRepository {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 
-    public Uni<List<UUID>> getPromptsForScene(UUID sceneId) {
-        String sql = "SELECT prompt_id FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
+    public Uni<List<ScenePrompt>> getPromptsForScene(UUID sceneId) {
+        String sql = "SELECT prompt_id, rank, weight, extra_instructions, active FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(sceneId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("prompt_id"))
+                .onItem().transform(row -> {
+                    ScenePrompt scenePrompt = new ScenePrompt();
+                    scenePrompt.setPromptId(row.getUUID("prompt_id"));
+                    scenePrompt.setRank(row.getInteger("rank"));
+                    scenePrompt.setWeight(row.getBigDecimal("weight"));
+                    scenePrompt.setExtraInstructions(row.getString("extra_instructions"));
+                    scenePrompt.setActive(row.getBoolean("active"));
+                    return scenePrompt;
+                })
                 .collect().asList();
     }
 
-    public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<UUID> prompts) {
+    public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<ScenePrompt> prompts) {
         String deleteSql = "DELETE FROM mixpla_script_scene_prompts WHERE script_scene_id = $1";
         if (prompts == null || prompts.isEmpty()) {
             return tx.preparedQuery(deleteSql)
@@ -299,8 +307,8 @@ public class PromptRepository extends AsyncRepository {
                     .replaceWithVoid();
         }
 
-        List<UUID> validPrompts = prompts.stream()
-                .filter(Objects::nonNull)
+        List<ScenePrompt> validPrompts = prompts.stream()
+                .filter(p -> p != null && p.getPromptId() != null)
                 .toList();
 
         if (validPrompts.isEmpty()) {
@@ -309,13 +317,21 @@ public class PromptRepository extends AsyncRepository {
                     .replaceWithVoid();
         }
 
-        String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank) VALUES ($1, $2, $3)";
+        String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank, weight, extra_instructions, active) VALUES ($1, $2, $3, $4, $5, $6)";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(sceneId))
                 .chain(() -> {
                     List<Tuple> batches = new java.util.ArrayList<>();
                     for (int i = 0; i < validPrompts.size(); i++) {
-                        batches.add(Tuple.of(sceneId, validPrompts.get(i), i));
+                        ScenePrompt prompt = validPrompts.get(i);
+                        batches.add(Tuple.of(
+                            sceneId, 
+                            prompt.getPromptId(), 
+                            prompt.getRank() != 0 ? prompt.getRank() : i,
+                            prompt.getWeight(),
+                            prompt.getExtraInstructions(),
+                            prompt.isActive()
+                        ));
                     }
                     return tx.preparedQuery(insertSql).executeBatch(batches);
                 })

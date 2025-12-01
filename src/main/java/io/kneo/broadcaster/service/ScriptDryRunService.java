@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.SceneDTO;
+import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.memory.MemoryResult;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
@@ -213,13 +214,14 @@ public class ScriptDryRunService {
         return processPromptSequentially(jobId, sceneDTO.getPrompts(), 0, context, scenarioBuilder);
     }
 
-    private Uni<Void> processPromptSequentially(String jobId, List<UUID> promptIds, int idx, 
+    private Uni<Void> processPromptSequentially(String jobId, List<ScenePromptDTO> scenePrompts, int idx,
                                                  ProcessContext context, StringBuilder scenarioBuilder) {
-        if (idx >= promptIds.size()) {
+        if (idx >= scenePrompts.size()) {
             return Uni.createFrom().voidItem();
         }
 
-        UUID promptId = promptIds.get(idx);
+        ScenePromptDTO scenePrompt = scenePrompts.get(idx);
+        UUID promptId = scenePrompt.getPromptId();
         
         return promptService.getById(promptId, context.user)
                 .chain(prompt -> {
@@ -231,7 +233,7 @@ public class ScriptDryRunService {
                     return draftService.getById(prompt.getDraftId(), context.user)
                             .chain(draft -> testPromptWithDraft(jobId, prompt, draft, context, scenarioBuilder, idx + 1));
                 })
-                .chain(() -> processPromptSequentially(jobId, promptIds, idx + 1, context, scenarioBuilder));
+                .chain(() -> processPromptSequentially(jobId, scenePrompts, idx + 1, context, scenarioBuilder));
     }
 
     private Uni<Void> testPromptWithDraft(String jobId, Prompt prompt, Draft draft, 

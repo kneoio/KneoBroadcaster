@@ -14,7 +14,6 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
@@ -63,6 +62,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
         router.get(path + "/shared").handler(this::getAllShared);
+        router.get(path + "/available-scripts").handler(this::getForBrand);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
         router.post(path + "/:id").handler(this::upsert);
@@ -104,10 +104,10 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
 
-        SuperUser su = SuperUser.build();
-        Uni.combine().all().unis(
-                        service.getAllCount(su),
-                        service.getAll(size, (page - 1) * size, su)
+        getContextUser(rc, false, true)
+                .chain(user -> Uni.combine().all().unis(
+                        service.getAllSharedCount(user),
+                        service.getAllShared(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<ScriptDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -117,7 +117,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                     viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                     return viewPage;
-                })
+                }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
@@ -225,6 +225,30 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
+    }
+
+    private void getForBrand(RoutingContext rc) {
+        String brandName = rc.request().getParam("brand");
+        int page = Integer.parseInt(rc.request().getParam("page", "1"));
+        int size = Integer.parseInt(rc.request().getParam("size", "10"));
+
+        getContextUser(rc, false, true)
+                .chain(user -> Uni.combine().all().unis(
+                        service.getBrandScripts(brandName, size, (page - 1) * size, user),
+                        service.getCountBrandScripts(brandName, user)
+                ).asTuple().map(tuple -> {
+                    ViewPage viewPage = new ViewPage();
+                    View<BrandScriptDTO> dtoEntries = new View<>(tuple.getItem1(),
+                            tuple.getItem2(), page,
+                            RuntimeUtil.countMaxPage(tuple.getItem2(), size),
+                            size);
+                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                    return viewPage;
+                }))
+                .subscribe().with(
+                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                        rc::fail
+                );
     }
 
     private void getScriptsForBrand(RoutingContext rc) {

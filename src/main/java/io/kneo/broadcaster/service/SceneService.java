@@ -1,9 +1,12 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.SceneDTO;
+import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.repository.SceneRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
@@ -61,7 +64,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
     }
 
     @Override
-    public Uni<SceneDTO> getDTO(UUID id, IUser user, io.kneo.core.localization.LanguageCode language) {
+    public Uni<SceneDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
@@ -106,9 +109,26 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setTalkativity(doc.getTalkativity());
             dto.setPodcastMode(doc.getPodcastMode());
             dto.setWeekdays(doc.getWeekdays());
-            dto.setPrompts(includePrompts ? doc.getPrompts() : null);
+            dto.setPrompts(includePrompts ? mapScenePromptsToDTOs(doc.getPrompts()) : null);
             return dto;
         });
+    }
+
+    private List<ScenePromptDTO> mapScenePromptsToDTOs(List<ScenePrompt> scenePrompts) {
+        if (scenePrompts == null) {
+            return null;
+        }
+        return scenePrompts.stream()
+                .map(sp -> {
+                    ScenePromptDTO dto = new ScenePromptDTO();
+                    dto.setPromptId(sp.getPromptId());
+                    dto.setRank(sp.getRank());
+                    dto.setWeight(sp.getWeight());
+                    dto.setExtraInstructions(sp.getExtraInstructions());
+                    dto.setActive(sp.isActive());
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     private Scene buildEntity(SceneDTO dto) {
@@ -119,8 +139,25 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         entity.setWeekdays(dto.getWeekdays());
         entity.setTalkativity(dto.getTalkativity());
         entity.setPodcastMode(dto.getPodcastMode());
-        entity.setPrompts(dto.getPrompts() != null ? dto.getPrompts() : List.of());
+        entity.setPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
         return entity;
+    }
+
+    private List<ScenePrompt> mapScenePromptDTOsToEntities(List<ScenePromptDTO> dtos) {
+        if (dtos == null) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(dto -> {
+                    ScenePrompt sp = new ScenePrompt();
+                    sp.setPromptId(dto.getPromptId());
+                    sp.setRank(dto.getRank());
+                    sp.setWeight(dto.getWeight());
+                    sp.setExtraInstructions(dto.getExtraInstructions());
+                    sp.setActive(dto.isActive());
+                    return sp;
+                })
+                .collect(Collectors.toList());
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

@@ -55,6 +55,25 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.getAllCount(user, false);
     }
 
+    public Uni<List<ScriptDTO>> getAllShared(final int limit, final int offset, final IUser user) {
+        assert repository != null;
+        return repository.getAllShared(limit, offset, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    List<Uni<ScriptDTO>> unis = list.stream()
+                            .map(script -> mapToDTO(script, user))
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
+                });
+    }
+
+    public Uni<Integer> getAllSharedCount(final IUser user) {
+        assert repository != null;
+        return repository.getAllSharedCount(user);
+    }
+
     @Override
     public Uni<ScriptDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;
@@ -97,6 +116,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setLastModifiedDate(script.getLastModifiedDate());
             dto.setName(script.getName());
             dto.setDescription(script.getDescription());
+            dto.setAccessLevel(script.getAccessLevel());
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
             dto.setScenes(tuple.getItem3());
@@ -108,6 +128,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         Script entity = new Script();
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
+        entity.setAccessLevel(dto.getAccessLevel());
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
         return entity;
@@ -177,5 +198,24 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                                 .map(this::mapToDocumentAccessDTO)
                                 .collect(Collectors.toList())
                 );
+    }
+
+    public Uni<List<BrandScriptDTO>> getBrandScripts(String brandName, final int limit, final int offset, IUser user) {
+        assert repository != null;
+        return repository.findForBrandByName(brandName, limit, offset, false, user)
+                .chain(list -> {
+                    if (list.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    List<Uni<BrandScriptDTO>> unis = list.stream()
+                            .map(brandScript -> mapToDTO(brandScript, user))
+                            .collect(Collectors.toList());
+                    return Uni.join().all(unis).andFailFast();
+                });
+    }
+
+    public Uni<Integer> getCountBrandScripts(String brandName, IUser user) {
+        assert repository != null;
+        return repository.findForBrandByNameCount(brandName, false, user);
     }
 }

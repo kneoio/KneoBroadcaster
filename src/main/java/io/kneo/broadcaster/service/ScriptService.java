@@ -202,7 +202,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
 
     public Uni<List<BrandScriptDTO>> getBrandScripts(String brandName, final int limit, final int offset, IUser user) {
         assert repository != null;
-        return repository.findForBrandByName(brandName, limit, offset, false, user)
+        return repository.findForBrandByName(brandName, limit, offset, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -216,6 +216,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
 
     public Uni<Integer> getCountBrandScripts(String brandName, IUser user) {
         assert repository != null;
-        return repository.findForBrandByNameCount(brandName, false, user);
+        return repository.findForBrandByNameCount(brandName, user);
     }
 }

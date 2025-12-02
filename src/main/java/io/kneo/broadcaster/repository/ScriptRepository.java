@@ -370,32 +370,25 @@ public class ScriptRepository extends AsyncRepository {
         return brandScript;
     }
 
-    public Uni<List<BrandScript>> findForBrandByName(String brandName, final int limit, final int offset,
-                                                      boolean includeArchived, IUser user) {
-        String sql = "SELECT t.*, bs.rank, bs.active, bs.brand_id, " +
+    public Uni<List<BrandScript>> findForBrandByName(String brandName, final int limit, final int offset, IUser user) {
+        String sql = "SELECT t.*, " +
                 "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
-                "JOIN kneobroadcaster__brands b ON b.id = bs.brand_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE b.slug_name = $1 AND rls.reader = $2";
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        sql += " ORDER BY bs.rank ASC, t.name ASC";
+                "WHERE (t.access_level = 1 OR EXISTS (" +
+                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() + 
+                ")) AND t.archived = 0" +
+                " ORDER BY t.access_level ASC, t.last_mod_date DESC";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
 
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandName, user.getId()))
+        return client.query(sql)
+                .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> {
-                    UUID brandId = row.getUUID("brand_id");
-                    BrandScript brandScript = createBrandScript(row, brandId);
+                    BrandScript brandScript = new BrandScript();
+                    brandScript.setId(row.getUUID("id"));
                     Script script = from(row);
                     brandScript.setScript(script);
                     return brandScript;
@@ -403,20 +396,15 @@ public class ScriptRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> findForBrandByNameCount(String brandName, boolean includeArchived, IUser user) {
+    public Uni<Integer> findForBrandByNameCount(String brandName, IUser user) {
         String sql = "SELECT COUNT(*) " +
                 "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
-                "JOIN kneobroadcaster__brands b ON b.id = bs.brand_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE b.slug_name = $1 AND rls.reader = $2";
+                "WHERE (t.access_level = 1 OR EXISTS (" +
+                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() + 
+                ")) AND t.archived = 0";
 
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandName, user.getId()))
+        return client.query(sql)
+                .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 }

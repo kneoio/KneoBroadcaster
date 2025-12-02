@@ -200,7 +200,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, SoundFragmentFilterDTO filterDTO) {
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, SoundFragmentFilterDTO filterDTO, IUser user) {
         assert repository != null;
         assert radioStationService != null;
 
@@ -212,11 +212,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     SoundFragmentFilter filter = toFilter(filterDTO);
                     String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
                     BrandLogger.logActivity(brandName, "brand_fragments_request",
-                            "Requesting fragments (limit: %d, offset: %d, filter: %s)",
-                            limit, offset, filterStatus);
+                            "Requesting fragments (limit: %d, offset: %d, filter: %s) for user: %s",
+                            limit, offset, filterStatus, user.getUserName());
                     UUID brandId = radioStation.getId();
-                    //ignoring RLS deliberately
-                    return repository.getForBrand(brandId, limit, offset, false, SuperUser.build(), filter)
+                    return repository.getForBrand(brandId, limit, offset, false, user, filter)
                             .chain(fragments -> {
                                 if (fragments.isEmpty()) {
                                     BrandLogger.logActivity(brandName, "no_brand_fragments",
@@ -242,14 +241,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<Integer> getBrandSoundFragmentsCount(final String brand, final SoundFragmentFilterDTO filterDTO) {
+    public Uni<Integer> getBrandSoundFragmentsCount(final String brand, final SoundFragmentFilterDTO filterDTO, IUser user) {
         assert repository != null;
 
         SoundFragmentFilter filter = toFilter(filterDTO);
         String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
 
         BrandLogger.logActivity(brand, "count_request",
-                "Requesting fragment count for brand with filter: %s", filterStatus);
+                "Requesting fragment count for brand with filter: %s for user: %s", filterStatus, user.getUserName());
 
         return radioStationService.getBySlugName(brand)
                 .onItem().transformToUni(radioStation -> {
@@ -259,7 +258,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.getForBrandCount(brandId, false, SuperUser.build(), filter)
+                    return repository.getForBrandCount(brandId, false, user, filter)
                             .invoke(count -> {
                                 BrandLogger.logActivity(brand, "fragment_count",
                                         "Found %d fragments for this brand", count);
@@ -271,6 +270,10 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     LOGGER.error("Failed to get fragments count for brand: {}", brand, failure);
                     return Uni.createFrom().failure(failure);
                 });
+    }
+
+    public Uni<Integer> getBrandSoundFragmentsCount(final String brand, final SoundFragmentFilterDTO filterDTO) {
+        return getBrandSoundFragmentsCount(brand, filterDTO, SuperUser.build());
     }
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {

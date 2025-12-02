@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.BrandScriptDTO;
+import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
@@ -15,6 +16,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -82,11 +84,20 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
 
     public Uni<ScriptDTO> upsert(String id, ScriptDTO dto, IUser user) {
         assert repository != null;
+        assert scriptSceneService != null;
         Script entity = buildEntity(dto);
+        
         if (id == null) {
-            return repository.insert(entity, user).chain(script -> mapToDTO(script, user));
+            return repository.insert(entity, user)
+                    .chain(script -> processScenes(script.getId(), dto.getScenes(), user)
+                            .replaceWith(script))
+                    .chain(script -> mapToDTO(script, user));
         } else {
-            return repository.update(UUID.fromString(id), entity, user).chain(script -> mapToDTO(script, user));
+            UUID scriptId = UUID.fromString(id);
+            return repository.update(scriptId, entity, user)
+                    .chain(script -> processScenes(scriptId, dto.getScenes(), user)
+                            .replaceWith(script))
+                    .chain(script -> mapToDTO(script, user));
         }
     }
 
@@ -198,6 +209,43 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                                 .map(this::mapToDocumentAccessDTO)
                                 .collect(Collectors.toList())
                 );
+    }
+
+    private Uni<Void> processScenes(UUID scriptId, List<SceneDTO> sceneDTOs, IUser user) {
+        assert scriptSceneService != null;
+        return scriptSceneService.getAllByScript(scriptId, 1000, 0, user)
+                .chain(existingScenes -> {
+                    List<UUID> incomingSceneIds = sceneDTOs != null ? sceneDTOs.stream()
+                            .map(SceneDTO::getId)
+                            .filter(Objects::nonNull)
+                            .toList() : List.of();
+
+                    List<UUID> scenesToDelete = existingScenes.stream()
+                            .map(SceneDTO::getId)
+                            .filter(id -> !incomingSceneIds.contains(id))
+                            .toList();
+
+                    Uni<Void> deleteUni = scenesToDelete.isEmpty()
+                            ? Uni.createFrom().voidItem()
+                            : Uni.join().all(scenesToDelete.stream()
+                                    .map(id -> scriptSceneService.delete(id.toString(), user))
+                                    .collect(Collectors.toList()))
+                                    .andFailFast()
+                                    .replaceWithVoid();
+
+                    if (sceneDTOs == null || sceneDTOs.isEmpty()) {
+                        return deleteUni;
+                    }
+
+                    List<Uni<SceneDTO>> upsertUnis = sceneDTOs.stream()
+                            .map(sceneDTO -> {
+                                String sceneId = sceneDTO.getId() != null ? sceneDTO.getId().toString() : null;
+                                return scriptSceneService.upsert(sceneId, scriptId, sceneDTO, user);
+                            })
+                            .collect(Collectors.toList());
+
+                    return deleteUni.chain(() -> Uni.join().all(upsertUnis).andFailFast().replaceWithVoid());
+                });
     }
 
     public Uni<List<BrandScriptDTO>> getBrandScripts(String brandName, final int limit, final int offset, IUser user) {

@@ -301,8 +301,8 @@ public class ScriptRepository extends AsyncRepository {
                 "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bs.brand_id = $1 AND rls.reader = $2";
+                "WHERE bs.brand_id = $1 AND (t.access_level = 1 OR EXISTS (" +
+                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
 
         if (!includeArchived) {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";
@@ -330,8 +330,8 @@ public class ScriptRepository extends AsyncRepository {
         String sql = "SELECT COUNT(*) " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE bs.brand_id = $1 AND rls.reader = $2";
+                "WHERE bs.brand_id = $1 AND (t.access_level = 1 OR EXISTS (" +
+                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
 
         if (!includeArchived) {
             sql += " AND (t.archived IS NULL OR t.archived = 0)";

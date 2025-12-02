@@ -101,6 +101,32 @@ public class PromptRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<List<Prompt>> findByIds(List<UUID> ids, IUser user) {
+        if (ids == null || ids.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        String placeholders = ids.stream()
+                .map(id -> "$" + (ids.indexOf(id) + 2))
+                .collect(java.util.stream.Collectors.joining(","));
+
+        String sql = "SELECT theTable.* " +
+                "FROM " + entityData.getTableName() + " theTable " +
+                "JOIN " + entityData.getRlsName() + " rls ON theTable.id = rls.entity_id " +
+                "WHERE rls.reader = $1 AND theTable.id IN (" + placeholders + ") AND theTable.archived = 0";
+
+        Tuple params = Tuple.tuple().addLong(user.getId());
+        for (UUID id : ids) {
+            params.addUUID(id);
+        }
+
+        return client.preparedQuery(sql)
+                .execute(params)
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(this::from)
+                .collect().asList();
+    }
+
     public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
                 " WHERE master_id = $1 AND language_code = $2";

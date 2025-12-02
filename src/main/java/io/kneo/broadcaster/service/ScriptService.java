@@ -2,20 +2,29 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.SceneDTO;
+import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
+import io.kneo.broadcaster.dto.ScriptExportDTO;
 import io.kneo.broadcaster.model.BrandScript;
+import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,18 +33,24 @@ import java.util.stream.Collectors;
 public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private final ScriptRepository repository;
     private final SceneService scriptSceneService;
+    private final PromptService promptService;
+    private final DraftService draftService;
 
     protected ScriptService() {
         super();
         this.repository = null;
         this.scriptSceneService = null;
+        this.promptService = null;
+        this.draftService = null;
     }
 
     @Inject
-    public ScriptService(UserService userService, ScriptRepository repository, SceneService scriptSceneService) {
+    public ScriptService(UserService userService, ScriptRepository repository, SceneService scriptSceneService, PromptService promptService, DraftService draftService) {
         super(userService);
         this.repository = repository;
         this.scriptSceneService = scriptSceneService;
+        this.promptService = promptService;
+        this.draftService = draftService;
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -265,5 +280,260 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     public Uni<Integer> getCountBrandScripts(String brandName, IUser user) {
         assert repository != null;
         return repository.findForBrandByNameCount(brandName, user);
+    }
+
+    public Uni<ScriptExportDTO> exportScript(UUID scriptId, IUser user, boolean extended) {
+        assert repository != null;
+        assert scriptSceneService != null;
+        assert promptService != null;
+        assert draftService != null;
+        
+        return repository.findById(scriptId, user, false)
+                .chain(script -> scriptSceneService.getAllWithPromptIds(scriptId, 1000, 0, user)
+                        .chain(scenes -> {
+                            List<UUID> promptIds = scenes.stream()
+                                    .flatMap(scene -> scene.getPrompts() != null ? scene.getPrompts().stream() : java.util.stream.Stream.empty())
+                                    .map(ScenePrompt::getPromptId)
+                                    .distinct()
+                                    .collect(Collectors.toList());
+                            
+                            if (promptIds.isEmpty()) {
+                                return Uni.createFrom().item(mapToExportDTO(script, scenes, Map.of(), Map.of(), extended));
+                            }
+                            
+                            return promptService.getByIds(promptIds, user)
+                                    .chain(prompts -> {
+                                        Map<UUID, Prompt> promptMap = prompts.stream()
+                                                .collect(Collectors.toMap(Prompt::getId, p -> p));
+                                        
+                                        if (!extended) {
+                                            return Uni.createFrom().item(mapToExportDTO(script, scenes, promptMap, Map.of(), extended));
+                                        }
+                                        
+                                        List<UUID> draftIds = prompts.stream()
+                                                .map(Prompt::getDraftId)
+                                                .filter(java.util.Objects::nonNull)
+                                                .distinct()
+                                                .collect(Collectors.toList());
+                                        
+                                        if (draftIds.isEmpty()) {
+                                            return Uni.createFrom().item(mapToExportDTO(script, scenes, promptMap, Map.of(), extended));
+                                        }
+                                        
+                                        return draftService.getByIds(draftIds, user)
+                                                .map(drafts -> {
+                                                    Map<UUID, Draft> draftMap = drafts.stream()
+                                                            .collect(Collectors.toMap(Draft::getId, d -> d));
+                                                    return mapToExportDTO(script, scenes, promptMap, draftMap, extended);
+                                                });
+                                    });
+                        })
+                );
+    }
+
+    private ScriptExportDTO mapToExportDTO(Script script, List<Scene> scenes, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
+        ScriptExportDTO dto = new ScriptExportDTO();
+        dto.setName(script.getName());
+        dto.setDescription(script.getDescription());
+        dto.setLabels(script.getLabels());
+        dto.setExtended(extended);
+        
+        if (scenes != null && !scenes.isEmpty()) {
+            List<ScriptExportDTO.SceneExportDTO> sceneDTOs = scenes.stream()
+                    .map(scene -> mapSceneToExportDTO(scene, promptMap, draftMap, extended))
+                    .collect(Collectors.toList());
+            dto.setScenes(sceneDTOs);
+        }
+        
+        return dto;
+    }
+
+    private ScriptExportDTO.SceneExportDTO mapSceneToExportDTO(Scene scene, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
+        ScriptExportDTO.SceneExportDTO dto = new ScriptExportDTO.SceneExportDTO();
+        dto.setTitle(scene.getTitle());
+        dto.setStartTime(scene.getStartTime());
+        dto.setOneTimeRun(scene.isOneTimeRun());
+        dto.setTalkativity(scene.getTalkativity());
+        dto.setPodcastMode(scene.getPodcastMode());
+        dto.setWeekdays(scene.getWeekdays());
+        
+        if (scene.getPrompts() != null && !scene.getPrompts().isEmpty()) {
+            List<ScriptExportDTO.ScenePromptExportDTO> promptDTOs = scene.getPrompts().stream()
+                    .map(prompt -> mapPromptToExportDTO(prompt, promptMap, draftMap, extended))
+                    .collect(Collectors.toList());
+            dto.setActions(promptDTOs);
+        }
+        
+        return dto;
+    }
+
+    private ScriptExportDTO.ScenePromptExportDTO mapPromptToExportDTO(ScenePrompt scenePrompt, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
+        ScriptExportDTO.ScenePromptExportDTO dto = new ScriptExportDTO.ScenePromptExportDTO();
+        dto.setId(scenePrompt.getPromptId());
+        
+        Prompt prompt = promptMap.get(scenePrompt.getPromptId());
+        if (prompt != null) {
+            dto.setTitle(prompt.getTitle());
+            if (extended) {
+                dto.setPrompt(prompt.getPrompt());
+                dto.setLanguageCode(prompt.getLanguageCode().name());
+                
+                if (prompt.getDraftId() != null) {
+                    Draft draft = draftMap.get(prompt.getDraftId());
+                    if (draft != null) {
+                        ScriptExportDTO.PromptDraftDTO draftDTO = new ScriptExportDTO.PromptDraftDTO();
+                        draftDTO.setId(draft.getId());
+                        draftDTO.setContent(draft.getContent());
+                        draftDTO.setLanguageCode(draft.getLanguageCode() != null ? draft.getLanguageCode().name() : null);
+                        dto.setDraft(draftDTO);
+                    }
+                }
+            }
+        }
+        
+        dto.setExtraInstructions(scenePrompt.getExtraInstructions());
+        dto.setActive(scenePrompt.isActive());
+        dto.setWeight(scenePrompt.getWeight());
+        return dto;
+    }
+
+    public Uni<ScriptDTO> importScript(ScriptExportDTO importDTO, IUser user) {
+        assert repository != null;
+        assert scriptSceneService != null;
+        assert promptService != null;
+        
+        Script script = new Script();
+        script.setName(importDTO.getName());
+        script.setDescription(importDTO.getDescription());
+        script.setAccessLevel(0);
+        script.setLabels(importDTO.getLabels());
+        
+        return repository.insert(script, user)
+                .chain(savedScript -> {
+                    if (importDTO.getScenes() == null || importDTO.getScenes().isEmpty()) {
+                        return getDTO(savedScript.getId(), user, LanguageCode.en);
+                    }
+                    
+                    Uni<Void> importOperation;
+                    if (importDTO.isExtended()) {
+                        importOperation = importScenesWithPrompts(savedScript.getId(), importDTO.getScenes(), user);
+                    } else {
+                        List<Uni<Scene>> sceneUnis = importDTO.getScenes().stream()
+                                .map(sceneDTO -> importScene(savedScript.getId(), sceneDTO, user, null))
+                                .collect(Collectors.toList());
+                        importOperation = Uni.join().all(sceneUnis).andFailFast().replaceWithVoid();
+                    }
+                    
+                    return importOperation
+                            .chain(() -> getDTO(savedScript.getId(), user, LanguageCode.en))
+                            .onFailure().recoverWithUni(failure -> 
+                                    repository.delete(savedScript.getId(), SuperUser.build(), true)
+                                            .onFailure().invoke(deleteError -> 
+                                                    System.err.println("Failed to cleanup script after import failure: " + deleteError.getMessage())
+                                            )
+                                            .onFailure().recoverWithNull()
+                                            .chain(() -> Uni.createFrom().failure(failure))
+                            );
+                });
+    }
+
+    private Uni<Void> importScenesWithPrompts(UUID scriptId, List<ScriptExportDTO.SceneExportDTO> sceneDTOs, IUser user) {
+        List<Uni<Void>> sceneUnis = sceneDTOs.stream()
+                .map(sceneDTO -> {
+                    if (sceneDTO.getActions() == null || sceneDTO.getActions().isEmpty()) {
+                        return importScene(scriptId, sceneDTO, user, null).replaceWithVoid();
+                    }
+                    
+                    Map<String, ScriptExportDTO.ScenePromptExportDTO> uniquePrompts = sceneDTO.getActions().stream()
+                            .filter(action -> action.getPrompt() != null)
+                            .collect(Collectors.toMap(
+                                    action -> action.getPrompt() + "|" + (action.getTitle() != null ? action.getTitle() : ""),
+                                    action -> action,
+                                    (existing, replacement) -> existing
+                            ));
+                    
+                    if (uniquePrompts.isEmpty()) {
+                        return importScene(scriptId, sceneDTO, user, null).replaceWithVoid();
+                    }
+                    
+                    List<Uni<Prompt>> promptUnis = uniquePrompts.values().stream()
+                            .map(action -> createPromptFromExport(action, user))
+                            .collect(Collectors.toList());
+                    
+                    List<String> promptKeys = new ArrayList<>(uniquePrompts.keySet());
+                    
+                    return Uni.join().all(promptUnis).andFailFast()
+                            .chain(createdPrompts -> {
+                                Map<String, UUID> promptKeyToNewId = new java.util.HashMap<>();
+                                for (int i = 0; i < createdPrompts.size(); i++) {
+                                    promptKeyToNewId.put(promptKeys.get(i), createdPrompts.get(i).getId());
+                                }
+                                
+                                Map<ScriptExportDTO.ScenePromptExportDTO, UUID> actionToPromptId = new java.util.HashMap<>();
+                                for (ScriptExportDTO.ScenePromptExportDTO action : sceneDTO.getActions()) {
+                                    if (action.getPrompt() != null) {
+                                        String key = action.getPrompt() + "|" + (action.getTitle() != null ? action.getTitle() : "");
+                                        actionToPromptId.put(action, promptKeyToNewId.get(key));
+                                    }
+                                }
+                                
+                                return importScene(scriptId, sceneDTO, user, actionToPromptId).replaceWithVoid();
+                            });
+                })
+                .collect(Collectors.toList());
+        
+        return Uni.join().all(sceneUnis).andFailFast().replaceWithVoid();
+    }
+
+    private Uni<Prompt> createPromptFromExport(ScriptExportDTO.ScenePromptExportDTO exportDTO, IUser user) {
+        Prompt prompt = new Prompt();
+        prompt.setTitle(exportDTO.getTitle() + " (imported)");
+        prompt.setPrompt(exportDTO.getPrompt());
+        
+        if (exportDTO.getLanguageCode() != null) {
+            prompt.setLanguageCode(LanguageCode.valueOf(exportDTO.getLanguageCode()));
+        }
+        
+        if (exportDTO.getDraft() != null) {
+            prompt.setDraftId(exportDTO.getDraft().getId());
+        }
+        
+        return promptService.insert(prompt, user);
+    }
+
+    private Uni<Scene> importScene(UUID scriptId, ScriptExportDTO.SceneExportDTO sceneDTO, IUser user, Map<ScriptExportDTO.ScenePromptExportDTO, UUID> actionToPromptId) {
+        SceneDTO dto = new SceneDTO();
+        dto.setScriptId(scriptId);
+        dto.setTitle(sceneDTO.getTitle() + " (imported)");
+        dto.setStartTime(sceneDTO.getStartTime());
+        dto.setOneTimeRun(sceneDTO.isOneTimeRun());
+        dto.setTalkativity(sceneDTO.getTalkativity());
+        dto.setPodcastMode(sceneDTO.getPodcastMode());
+        dto.setWeekdays(sceneDTO.getWeekdays());
+        
+        if (sceneDTO.getActions() != null && !sceneDTO.getActions().isEmpty()) {
+            List<ScenePromptDTO> promptDTOs = sceneDTO.getActions().stream()
+                    .map(action -> importScenePromptDTO(action, actionToPromptId))
+                    .collect(Collectors.toList());
+            dto.setPrompts(promptDTOs);
+        }
+        
+        return scriptSceneService.upsert(null, scriptId, dto, user)
+                .map(savedDTO -> {
+                    Scene scene = new Scene();
+                    scene.setId(savedDTO.getId());
+                    return scene;
+                });
+    }
+
+    private ScenePromptDTO importScenePromptDTO(ScriptExportDTO.ScenePromptExportDTO promptDTO, Map<ScriptExportDTO.ScenePromptExportDTO, UUID> actionToPromptId) {
+        ScenePromptDTO dto = new ScenePromptDTO();
+        UUID promptId = actionToPromptId != null ? actionToPromptId.get(promptDTO) : null;
+        dto.setPromptId(promptId);
+        dto.setExtraInstructions(promptDTO.getExtraInstructions());
+        dto.setActive(promptDTO.isActive());
+        dto.setRank(0);
+        dto.setWeight(promptDTO.getWeight() != null ? promptDTO.getWeight() : java.math.BigDecimal.valueOf(0.5));
+        return dto;
     }
 }

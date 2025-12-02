@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.aiagent.DraftingMethod;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.DataEntity;
 import lombok.Getter;
@@ -16,6 +17,7 @@ public class Draft extends DataEntity<UUID> {
     private String title;
     private String content;
     private LanguageCode languageCode;
+    private DraftingMethod method;
     private Integer archived;
     private boolean enabled;
     private boolean isMaster;

@@ -22,6 +22,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.pgclient.PgException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.Validator;
@@ -63,6 +64,8 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.get(path).handler(this::getAll);
         router.get(path + "/shared").handler(this::getAllShared);
         router.get(path + "/available-scripts").handler(this::getForBrand);
+        router.post(path + "/import").handler(this::importScript);
+        router.get(path + "/:id/export").handler(this::exportScript);
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
         router.post(path + "/:id").handler(this::upsert);
@@ -346,5 +349,63 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         // Unsubscribe when client disconnects
         resp.exceptionHandler(t -> dryRunService.unsubscribe(jobId, consumer));
         resp.endHandler(v -> dryRunService.unsubscribe(jobId, consumer));
+    }
+
+    private void exportScript(RoutingContext rc) {
+        String id = rc.pathParam("id");
+        boolean extended = "true".equals(rc.request().getParam("extended"));
+        
+        try {
+            UUID scriptId = UUID.fromString(id);
+            
+            getContextUser(rc, false, true)
+                    .chain(user -> service.exportScript(scriptId, user, extended))
+                    .subscribe().with(
+                            exportDTO -> {
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .putHeader("Content-Disposition", "attachment; filename=\"script-" + id + ".json\"")
+                                        .end(JsonObject.mapFrom(exportDTO).encodePrettily());
+                            },
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid script ID format"));
+        }
+    }
+
+    private void importScript(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+            
+            io.kneo.broadcaster.dto.ScriptExportDTO importDTO = rc.body().asJsonObject().mapTo(io.kneo.broadcaster.dto.ScriptExportDTO.class);
+            
+            getContextUser(rc, false, true)
+                    .chain(user -> service.importScript(importDTO, user))
+                    .subscribe().with(
+                            scriptDTO -> {
+                                ViewPage viewPage = new ViewPage();
+                                viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                                viewPage.addPayload(PayloadType.DOC_DATA, scriptDTO);
+                                rc.response()
+                                        .setStatusCode(201)
+                                        .end(JsonObject.mapFrom(viewPage).encode());
+                            },
+                            failure -> {
+                                if (failure instanceof PgException pgEx) {
+                                    String sqlState = pgEx.getSqlState();
+                                    if ("23505".equals(sqlState)) {
+                                        String detail = pgEx.getErrorMessage();
+                                        rc.fail(409, new IllegalStateException("Import failed: duplicate key constraint violation. " + detail));
+                                        return;
+                                    }
+                                }
+                                rc.fail(failure);
+                            }
+                    );
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid import data format: " + e.getMessage()));
+        }
     }
 }

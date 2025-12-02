@@ -72,6 +72,18 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         return repository.findById(id, user, true);
     }
 
+    public Uni<List<Draft>> getByIds(List<UUID> ids, IUser user) {
+        List<Uni<Draft>> draftUnis = ids.stream()
+                .map(id -> repository.findById(id, user, false)
+                        .onFailure().recoverWithNull())
+                .collect(Collectors.toList());
+        
+        return Uni.join().all(draftUnis).andCollectFailures()
+                .map(drafts -> drafts.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .collect(Collectors.toList()));
+    }
+
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         return repository.archive(UUID.fromString(id), user);

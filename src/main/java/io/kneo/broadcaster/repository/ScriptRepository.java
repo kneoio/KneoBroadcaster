@@ -253,6 +253,10 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<Integer> delete(UUID id, IUser user) {
+        return delete(id, user, false);
+    }
+
+    public Uni<Integer> delete(UUID id, IUser user, boolean cascade) {
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[1]) {
@@ -261,34 +265,49 @@ public class ScriptRepository extends AsyncRepository {
                         );
                     }
 
-                    String checkScenesSql = "SELECT COUNT(*) FROM mixpla_script_scenes WHERE script_id = $1";
-                    return client.preparedQuery(checkScenesSql)
-                            .execute(Tuple.of(id))
-                            .onItem().transform(rows -> rows.iterator().next().getInteger(0))
-                            .onItem().transformToUni(sceneCount -> {
-                                if (sceneCount != null && sceneCount > 0) {
-                                    return Uni.createFrom().failure(new IllegalStateException(
-                                            "Cannot delete script: it has " + sceneCount + " scene(s)"
-                                    ));
-                                }
-
-                                return client.withTransaction(tx -> {
-                                    String deleteLabelsSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
-                                    String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
-                                    String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
-
-                                    return tx.preparedQuery(deleteLabelsSql)
-                                            .execute(Tuple.of(id))
-                                            .onItem().transformToUni(ignored ->
-                                                    tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
-                                            )
-                                            .onItem().transformToUni(ignored ->
-                                                    tx.preparedQuery(deleteDocSql).execute(Tuple.of(id))
-                                            )
-                                            .onItem().transform(RowSet::rowCount);
+                    if (!cascade) {
+                        String checkScenesSql = "SELECT COUNT(*) FROM mixpla_script_scenes WHERE script_id = $1";
+                        return client.preparedQuery(checkScenesSql)
+                                .execute(Tuple.of(id))
+                                .onItem().transform(rows -> rows.iterator().next().getInteger(0))
+                                .onItem().transformToUni(sceneCount -> {
+                                    if (sceneCount != null && sceneCount > 0) {
+                                        return Uni.createFrom().failure(new IllegalStateException(
+                                                "Cannot delete script: it has " + sceneCount + " scene(s)"
+                                        ));
+                                    }
+                                    return performDelete(id);
                                 });
-                            });
+                    }
+
+                    return performDelete(id);
                 });
+    }
+
+    private Uni<Integer> performDelete(UUID id) {
+        return client.withTransaction(tx -> {
+            String deleteScenePromptsSql = "DELETE FROM mixpla_script_scene_prompts WHERE script_scene_id IN (SELECT id FROM mixpla_script_scenes WHERE script_id = $1)";
+            String deleteScenesSql = "DELETE FROM mixpla_script_scenes WHERE script_id = $1";
+            String deleteLabelsSql = "DELETE FROM mixpla_script_labels WHERE script_id = $1";
+            String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
+            String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
+
+            return tx.preparedQuery(deleteScenePromptsSql)
+                    .execute(Tuple.of(id))
+                    .onItem().transformToUni(ignored ->
+                            tx.preparedQuery(deleteScenesSql).execute(Tuple.of(id))
+                    )
+                    .onItem().transformToUni(ignored ->
+                            tx.preparedQuery(deleteLabelsSql).execute(Tuple.of(id))
+                    )
+                    .onItem().transformToUni(ignored ->
+                            tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
+                    )
+                    .onItem().transformToUni(ignored ->
+                            tx.preparedQuery(deleteDocSql).execute(Tuple.of(id))
+                    )
+                    .onItem().transform(RowSet::rowCount);
+        });
     }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
@@ -305,7 +324,7 @@ public class ScriptRepository extends AsyncRepository {
                 "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = $2))";
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         sql += " ORDER BY bs.rank ASC, t.name ASC";
@@ -340,25 +359,6 @@ public class ScriptRepository extends AsyncRepository {
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId, user.getId()))
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
-    public Uni<List<Script>> getBrandScripts(UUID brandId, final int limit, final int offset) {
-        String sql = "SELECT t.*, " +
-                "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
-                "FROM " + entityData.getTableName() + " t " +
-                "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
-                "WHERE bs.brand_id = $1 AND (t.archived IS NULL OR t.archived = 0) AND bs.active = true " +
-                "ORDER BY bs.rank ASC, t.name ASC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
-                .collect().asList();
     }
 
     private BrandScript createBrandScript(Row row, UUID brandId) {

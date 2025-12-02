@@ -49,6 +49,10 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         return repository.findById(id, user, false);
     }
 
+    public Uni<List<Prompt>> getByIds(List<UUID> ids, IUser user) {
+        return repository.findByIds(ids, user);
+    }
+
     @Override
     public Uni<PromptDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         return repository.findById(id, user, false).chain(this::mapToDTO);

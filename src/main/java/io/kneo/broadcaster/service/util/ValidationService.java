@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.util;
 
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.radio.MessageDTO;

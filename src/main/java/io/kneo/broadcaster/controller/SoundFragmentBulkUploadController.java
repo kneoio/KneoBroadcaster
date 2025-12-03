@@ -3,7 +3,7 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.service.FileUploadService;
+import io.kneo.broadcaster.service.util.FileUploadService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.repository.exception.UserNotFoundException;
 import io.kneo.core.service.UserService;

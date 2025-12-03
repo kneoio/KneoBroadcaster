@@ -110,16 +110,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 .chain(this::mapToDTO);
     }
 
-    public Uni<List<BrandListener>> getBrandListenersEntities(String brandName, int limit, final int offset, IUser user) {
-        return getBrandListenersEntities(brandName, limit, offset, user, null);
-    }
-
-    public Uni<List<BrandListener>> getBrandListenersEntities(String brandName, int limit, final int offset, IUser user, ListenerFilterDTO filterDTO) {
-        assert repository != null;
-        ListenerFilter filter = toFilter(filterDTO);
-        return repository.findForBrand(brandName, limit, offset, user, false, filter);
-    }
-
     public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user, ListenerFilterDTO filterDTO) {
         assert repository != null;
         assert radioStationService != null;
@@ -143,6 +133,21 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         assert repository != null;
         ListenerFilter filter = toFilter(filterDTO);
         return repository.findForBrandCount(brand, user, false, filter);
+    }
+
+    public Uni<ListenerDTO> upsertWithStationSlug(String id, ListenerDTO dto, String stationSlug, IUser user) {
+        assert radioStationService != null;
+        return radioStationService.getBySlugName(stationSlug)
+                .chain(station -> {
+                    if (station == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Station not found: " + stationSlug));
+                    }
+                    dto.setCountry(station.getCountry().name());
+                    List<UUID> stationIds = new ArrayList<>();
+                    stationIds.add(station.getId());
+                    dto.setListenerOf(stationIds);
+                    return upsert(id, dto, user);
+                });
     }
 
     public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, IUser user) {

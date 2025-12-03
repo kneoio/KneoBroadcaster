@@ -20,6 +20,7 @@ import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.service.util.AnimationService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.AnonymousUser;

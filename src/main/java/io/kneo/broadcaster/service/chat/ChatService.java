@@ -6,7 +6,6 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.core.http.AsyncStreamResponse;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.RawContentBlockDelta;
 import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.ToolUseBlock;
@@ -22,16 +21,6 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.RadioStationService;
-import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
-import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
-import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
-import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
-import io.kneo.broadcaster.service.chat.tools.GetStations;
-import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
-import io.kneo.broadcaster.service.chat.tools.RadioStationControlTool;
-import io.kneo.broadcaster.service.chat.tools.RadioStationControlToolHandler;
-import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
-import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
@@ -40,7 +29,6 @@ import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.Collections;
@@ -53,36 +41,52 @@ import java.util.function.Consumer;
 
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
-@ApplicationScoped
-public class ChatService {
-    private final AnthropicClient anthropicClient;
-    private final AiHelperService aiHelperService;
-    private final String mainPrompt;
-    private final String followUpPrompt;
-    private final BroadcasterConfig config;
-    private final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
+public abstract class ChatService {
+    protected final AnthropicClient anthropicClient;
+    protected final AiHelperService aiHelperService;
+    protected final String mainPrompt;
+    protected final String followUpPrompt;
+    protected final BroadcasterConfig config;
+    protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
+    
     @Inject
-    RadioStationService radioStationService;
+    protected RadioStationService radioStationService;
     @Inject
-    AiAgentService aiAgentService;
+    protected AiAgentService aiAgentService;
     @Inject
-    QueueService queueService;
+    protected QueueService queueService;
     @Inject
-    RadioService radioService;
+    protected RadioService radioService;
     @Inject
-    ChatRepository chatRepository;
+    protected ChatRepository chatRepository;
     @Inject
-    ElevenLabsClient elevenLabsClient;
+    protected ElevenLabsClient elevenLabsClient;
 
-    @Inject
-    public ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
-        this.anthropicClient = AnthropicOkHttpClient.builder()
-                .apiKey(config.getAnthropicApiKey())
-                .build();
-        this.aiHelperService = aiHelperService;
-        this.config = config;
-        this.mainPrompt = ResourceUtil.loadResourceAsString("/prompts/mainPrompt.hbs");
-        this.followUpPrompt = ResourceUtil.loadResourceAsString("/prompts/followUpPrompt.hbs");
+    protected ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
+        if (config != null) {
+            this.anthropicClient = AnthropicOkHttpClient.builder()
+                    .apiKey(config.getAnthropicApiKey())
+                    .build();
+            this.aiHelperService = aiHelperService;
+            this.config = config;
+            this.mainPrompt = ResourceUtil.loadResourceAsString("/prompts/mainPrompt.hbs");
+            this.followUpPrompt = ResourceUtil.loadResourceAsString("/prompts/followUpPrompt.hbs");
+        } else {
+            this.anthropicClient = null;
+            this.aiHelperService = null;
+            this.config = null;
+            this.mainPrompt = null;
+            this.followUpPrompt = null;
+        }
+    }
+
+    // Prompt getters to allow subclasses to override prompt sources
+    protected String getMainPrompt() {
+        return this.mainPrompt;
+    }
+
+    protected String getFollowUpPrompt() {
+        return this.followUpPrompt;
     }
 
     public Uni<String> processUserMessage(String username, String content, String connectionId, IUser user) {
@@ -164,7 +168,7 @@ public class ChatService {
                         .map(Voice::getId)
                         .orElseThrow(() -> new IllegalStateException("No voice configured for DJ: " + djName));
 
-                String renderedPrompt = mainPrompt
+                String renderedPrompt = getMainPrompt()
                         .replace("{{djName}}", djName)
                         .replace("{{radioStationName}}", radioStationName)
                         .replace("{{owner}}", user.getUserName())
@@ -183,17 +187,7 @@ public class ChatService {
                 assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
 
                 List<MessageParam> history = chatRepository.getConversationHistory(user.getId());
-                return MessageCreateParams.builder()
-                        .maxTokens(1024L)
-                        .system(renderedPrompt)
-                        .messages(history)
-                        .model(Model.CLAUDE_3_5_HAIKU_20241022)
-                        .addTool(GetStations.toTool())
-                        .addTool(GetOnlineStations.toTool())
-                        .addTool(SearchBrandSoundFragments.toTool())
-                        .addTool(AddToQueueTool.toTool())
-                        .addTool(RadioStationControlTool.toTool())
-                        .build();
+                return buildMessageCreateParams(renderedPrompt, history);
             });
         }).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
@@ -212,47 +206,16 @@ public class ChatService {
         ).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    private Uni<Void> handleToolCall(ToolUseBlock toolUse,
-                                     Consumer<String> chunkHandler,
-                                     Consumer<String> completionHandler,
-                                     String connectionId,
-                                     long userId,
-                                     List<MessageParam> conversationHistory) {
+    protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history);
 
-        JsonValue inputVal = toolUse._input();
-        Optional<Map<String, JsonValue>> maybeObj = inputVal.asObject();
-        Map<String, JsonValue> inputMap = maybeObj.orElse(Collections.emptyMap());
+    protected abstract Uni<Void> handleToolCall(ToolUseBlock toolUse,
+                                                Consumer<String> chunkHandler,
+                                                Consumer<String> completionHandler,
+                                                String connectionId,
+                                                long userId,
+                                                List<MessageParam> conversationHistory);
 
-        java.util.function.Function<MessageCreateParams, Uni<Void>> streamFn =
-                params -> streamResponse(params, chunkHandler, completionHandler, connectionId, userId);
-
-        if ("get_stations".equals(toolUse.name())) {
-            return GetStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
-            );
-        } else if ("get_online_stations".equals(toolUse.name())) {
-            return GetOnlineStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
-            );
-        } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
-            return SearchBrandSoundFragmentsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
-            );
-        } else if ("add_to_queue".equals(toolUse.name())) {
-            String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
-            return AddToQueueToolHandler.handle(
-                    toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
-            );
-        } else if ("control_station".equals(toolUse.name())) {
-            return RadioStationControlToolHandler.handle(
-                    toolUse, inputMap, radioService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
-            );
-        } else {
-            return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
-        }
-    }
-
-    private Uni<Void> streamResponse(MessageCreateParams params,
+    protected Uni<Void> streamResponse(MessageCreateParams params,
                                      Consumer<String> chunkHandler,
                                      Consumer<String> completionHandler,
                                      String connectionId,
@@ -346,7 +309,7 @@ public class ChatService {
         }).runSubscriptionOn(getDefaultWorkerPool());
     }
 
-    private JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {
+    protected JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {
         return new JsonObject()
                 .put("type", "message")
                 .put("data", new JsonObject()
@@ -357,5 +320,19 @@ public class ChatService {
                         .put("timestamp", timestamp)
                         .put("connectionId", connectionId)
                 );
+    }
+
+    protected Map<String, JsonValue> extractInputMap(ToolUseBlock toolUse) {
+        JsonValue inputVal = toolUse._input();
+        Optional<Map<String, JsonValue>> maybeObj = inputVal.asObject();
+        return maybeObj.orElse(Collections.emptyMap());
+    }
+
+    protected java.util.function.Function<MessageCreateParams, Uni<Void>> createStreamFunction(
+            Consumer<String> chunkHandler,
+            Consumer<String> completionHandler,
+            String connectionId,
+            long userId) {
+        return params -> streamResponse(params, chunkHandler, completionHandler, connectionId, userId);
     }
 }

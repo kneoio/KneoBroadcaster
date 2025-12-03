@@ -7,9 +7,9 @@ import io.kneo.broadcaster.controller.DashboardController;
 import io.kneo.broadcaster.controller.DraftController;
 import io.kneo.broadcaster.controller.IcecastController;
 import io.kneo.broadcaster.controller.ListenerController;
-import io.kneo.broadcaster.controller.MessagingController;
 import io.kneo.broadcaster.controller.ProfileController;
 import io.kneo.broadcaster.controller.PromptController;
+import io.kneo.broadcaster.controller.PublicChatController;
 import io.kneo.broadcaster.controller.QueueController;
 import io.kneo.broadcaster.controller.RadioController;
 import io.kneo.broadcaster.controller.RadioStationController;
@@ -36,7 +36,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     AiHelperController aiHelperController;
 
     @Inject
-    MessagingController messagingController;
+    PublicChatController publicChatController;
 
 
     @Inject
@@ -104,7 +104,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     public void onStart(@Observes StartupEvent ev) {
         soundFragmentController.setupRoutes(router);
         soundFragmentBulkUploadController.setupRoutes(router);
-        messagingController.setupRoutes(router);
+        publicChatController.setupRoutes(router);
         aiHelperController.setupRoutes(router);
         dashboardController.setupRoutes(router);
         radioController.setupRoutes(router);

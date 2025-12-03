@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.util;
 
 import java.util.Collections;
 import java.util.List;

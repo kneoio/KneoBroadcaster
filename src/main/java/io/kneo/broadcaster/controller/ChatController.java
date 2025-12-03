@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.model.chat.ChatMessage;
-import io.kneo.broadcaster.service.chat.ChatService;
+import io.kneo.broadcaster.service.chat.OwnerChatService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.UndefinedUser;
@@ -27,7 +27,7 @@ import static java.util.UUID.randomUUID;
 public class ChatController extends AbstractSecuredController<Object, Object> {
 
     private UserService userService;
-    private ChatService chatService;
+    private OwnerChatService ownerChatService;
     private JWTParser jwtParser;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
 
@@ -36,10 +36,10 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
     }
 
     @Inject
-    public ChatController(UserService userService, ChatService chatService, JWTParser jwtParser) {
+    public ChatController(UserService userService, OwnerChatService ownerChatService, JWTParser jwtParser) {
         super(userService);
         this.userService = userService;
-        this.chatService = chatService;
+        this.ownerChatService = ownerChatService;
         this.jwtParser = jwtParser;
     }
 
@@ -110,7 +110,7 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
             return;
         }
 
-        chatService.processUserMessage(username, content, connectionId, user)
+        ownerChatService.processUserMessage(username, content, connectionId, user)
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
@@ -121,7 +121,7 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
     }
 
     private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, String stationId, IUser user) {
-        chatService.generateBotResponse(
+        ownerChatService.generateBotResponse(
                 userMessage, chunk -> webSocket.writeTextMessage(chunk), response -> webSocket.writeTextMessage(response), connectionId, stationId, user
         ).subscribe().with(
                 v -> {},
@@ -140,7 +140,7 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
 
         Integer limit = msgJson.getInteger("limit", 50);
 
-        chatService.getChatHistory(limit, user)
+        ownerChatService.getChatHistory(limit, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> sendError(webSocket, err)

@@ -1,0 +1,456 @@
+package io.kneo.broadcaster.controller;
+
+import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.model.chat.ChatMessage;
+import io.kneo.broadcaster.service.ListenerService;
+import io.kneo.broadcaster.service.chat.PublicChatService;
+import io.kneo.broadcaster.service.chat.PublicChatSessionManager;
+import io.kneo.broadcaster.service.chat.PublicChatTokenService;
+import io.kneo.broadcaster.service.external.MailService;
+import io.kneo.core.controller.AbstractSecuredController;
+import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.AnonymousUser;
+import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
+import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
+import io.kneo.core.service.UserService;
+import io.kneo.core.util.WebHelper;
+import io.smallrye.mutiny.Uni;
+import io.vertx.core.http.ServerWebSocket;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static java.util.UUID.randomUUID;
+
+@ApplicationScoped
+public class PublicChatController extends AbstractSecuredController<Object, Object> {
+    private static final Logger LOG = LoggerFactory.getLogger(PublicChatController.class);
+    private final UserService userService;
+    private final MailService mailService;
+    private final PublicChatSessionManager sessionManager;
+    private final PublicChatService publicChatService;
+    private final ListenerService listenerService;
+    private final PublicChatTokenService tokenService;
+    private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
+
+    public PublicChatController() {
+        super(null);
+        this.userService = null;
+        this.mailService = null;
+        this.sessionManager = null;
+        this.publicChatService = null;
+        this.listenerService = null;
+        this.tokenService = null;
+    }
+
+    @Inject
+    public PublicChatController(UserService userService, MailService mailService, 
+                               PublicChatSessionManager sessionManager, PublicChatService publicChatService,
+                               ListenerService listenerService, PublicChatTokenService tokenService) {
+        super(userService);
+        this.userService = userService;
+        this.mailService = mailService;
+        this.sessionManager = sessionManager;
+        this.publicChatService = publicChatService;
+        this.listenerService = listenerService;
+        this.tokenService = tokenService;
+    }
+
+    public void setupRoutes(Router router) {
+        String path = "/api/chat";
+        router.route(path + "*").handler(BodyHandler.create());
+        router.route(path + "*").handler(this::addHeaders);
+        router.post(path + "/send-code/:email").handler(this::sendCode);
+        router.post(path + "/verify-code").handler(this::verifyCode);
+        router.post(path + "/register-listener").handler(this::registerListener);
+        router.post(path + "/refresh-token").handler(this::refreshToken);
+        
+        router.route("/api/ws/public-chat").handler(rc -> {
+            if ("websocket".equalsIgnoreCase(rc.request().getHeader("Upgrade"))) {
+                String token = rc.request().getParam("token");
+                LOG.info("WebSocket connection attempt with token: {}", token);
+                
+                authenticateUserFromToken(token)
+                        .subscribe().with(
+                                user -> {
+                                    LOG.info("User authenticated: {}", user.getUserName());
+                                    rc.request().toWebSocket().onSuccess(ws -> handlePublicChatWebSocket(ws, user))
+                                            .onFailure(err -> {
+                                                LOG.error("WebSocket connection failed", err);
+                                                rc.fail(500, err);
+                                            });
+                                },
+                                err -> {
+                                    LOG.error("Authentication failed for token: {}", token, err);
+                                    rc.response().setStatusCode(401).end("Invalid or expired token");
+                                }
+                        );
+            } else {
+                rc.response().setStatusCode(400).end("WebSocket upgrade required");
+            }
+        });
+    }
+
+    private void sendCode(RoutingContext rc) {
+        try {
+            String email = rc.pathParam("email");
+
+            if (email == null || email.isBlank()) {
+                rc.response()
+                        .setStatusCode(400)
+                        .end(new JsonObject().put("error", "Email is required").encode());
+                return;
+            }
+
+            String code = sessionManager.generateAndStoreCode(email);
+
+            mailService.sendHtmlConfirmationCodeAsync(email, code)
+                    .subscribe().with(
+                            v -> {
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("success", true)
+                                                .put("message", "Code sent to " + email)
+                                                .encode());
+                            },
+                            throwable -> {
+                                LOG.error("Failed to send code to {}", email, throwable);
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .end(new JsonObject().put("error", "Failed to send code").encode());
+                            }
+                    );
+
+        } catch (Exception e) {
+            rc.fail(400, e);
+        }
+    }
+
+    private void verifyCode(RoutingContext rc) {
+        try {
+            JsonObject body = rc.body().asJsonObject();
+            String email = body.getString("email");
+            String code = body.getString("code");
+
+            if (email == null || email.isBlank() || code == null || code.isBlank()) {
+                rc.response()
+                        .setStatusCode(400)
+                        .end(new JsonObject().put("error", "Email and code are required").encode());
+                return;
+            }
+
+            PublicChatSessionManager.VerificationResult result = sessionManager.verifyCode(email, code);
+
+            if (result.success()) {
+                rc.response()
+                        .setStatusCode(200)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonObject()
+                                .put("success", true)
+                                .put("sessionToken", result.sessionToken())
+                                .put("message", result.message())
+                                .encode());
+            } else {
+                rc.response()
+                        .setStatusCode(400)
+                        .end(new JsonObject()
+                                .put("success", false)
+                                .put("error", result.message())
+                                .encode());
+            }
+
+        } catch (Exception e) {
+            rc.fail(400, e);
+        }
+    }
+
+    private void registerListener(RoutingContext rc) {
+        try {
+            JsonObject body = rc.body().asJsonObject();
+            String sessionToken = body.getString("sessionToken");
+            String stationSlug = body.getString("stationSlug");
+            String nickname = body.getString("nickname");
+
+            if (sessionToken == null || sessionToken.isBlank()) {
+                rc.response()
+                        .setStatusCode(401)
+                        .end(new JsonObject().put("error", "Session token is required").encode());
+                return;
+            }
+
+            if (stationSlug == null || stationSlug.isBlank()) {
+                rc.response()
+                        .setStatusCode(400)
+                        .end(new JsonObject().put("error", "Station slug is required").encode());
+                return;
+            }
+
+            String email = validateSessionToken(sessionToken);
+            if (email == null) {
+                rc.response()
+                        .setStatusCode(401)
+                        .end(new JsonObject().put("error", "Invalid or expired session").encode());
+                return;
+            }
+
+            ListenerDTO dto = new ListenerDTO();
+            dto.setEmail(email);
+            dto.getLocalizedName().put(LanguageCode.en, email);
+            if (nickname != null && !nickname.isBlank()) {
+                dto.getNickName().put(LanguageCode.en, nickname);
+            }
+
+
+            assert listenerService != null;
+            listenerService.upsertWithStationSlug(null, dto, stationSlug, SuperUser.build())
+                    .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
+                        String slugName = WebHelper.generateSlug(nickname != null && !nickname.isBlank() ? nickname : email);
+                        assert userService != null;
+                        return userService.findByLogin(slugName)
+                                .onItem().transformToUni(existingUser -> {
+                                    if (existingUser.getId() == 0) {
+                                        return Uni.createFrom().failure(throwable);
+                                    }
+                                    ListenerDTO existingDto = new ListenerDTO();
+                                    existingDto.setUserId(existingUser.getId());
+                                    existingDto.setSlugName(slugName);
+                                    return Uni.createFrom().item(existingDto);
+                                });
+                    })
+                    .subscribe().with(
+                            listenerDTO -> {
+                                assert tokenService != null;
+                                String userToken = tokenService.generateToken(
+                                        listenerDTO.getUserId(), 
+                                        listenerDTO.getSlugName()
+                                );
+                                
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("success", true)
+                                                .put("userId", listenerDTO.getUserId())
+                                                .put("userToken", userToken)
+                                                .put("message", "Listener token generated successfully")
+                                                .encode());
+                            },
+                            throwable -> {
+                                LOG.error("Failed to register listener for email: {}", email, throwable);
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .end(new JsonObject()
+                                                .put("error", "Failed to register listener: " + throwable.getMessage())
+                                                .encode());
+                            }
+                    );
+
+        } catch (Exception e) {
+            LOG.error("Error in registerListener", e);
+            rc.fail(400, e);
+        }
+    }
+
+    private void refreshToken(RoutingContext rc) {
+        try {
+            JsonObject body = rc.body().asJsonObject();
+            String oldToken = body.getString("userToken");
+
+            if (oldToken == null || oldToken.isBlank()) {
+                rc.response()
+                        .setStatusCode(400)
+                        .end(new JsonObject().put("error", "User token is required").encode());
+                return;
+            }
+
+            PublicChatTokenService.TokenValidationResult result = tokenService.validateToken(oldToken);
+            if (!result.valid()) {
+                rc.response()
+                        .setStatusCode(401)
+                        .end(new JsonObject().put("error", "Invalid or expired token").encode());
+                return;
+            }
+
+            assert userService != null;
+            userService.findById(result.userId())
+                    .subscribe().with(
+                            userOptional -> {
+                                if (userOptional.isPresent()) {
+                                    rc.response()
+                                            .setStatusCode(401)
+                                            .end(new JsonObject().put("error", "User not found").encode());
+                                    return;
+                                }
+                                IUser user = userOptional.get();
+                                String newToken = tokenService.generateToken(user.getId(), user.getUserName());
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("success", true)
+                                                .put("userToken", newToken)
+                                                .put("message", "Token refreshed successfully")
+                                                .encode());
+                            },
+                            throwable -> {
+                                LOG.error("Error finding user for token refresh", throwable);
+                                rc.response()
+                                        .setStatusCode(500)
+                                        .end(new JsonObject().put("error", "Failed to refresh token").encode());
+                            }
+                    );
+
+        } catch (Exception e) {
+            LOG.error("Error in refreshToken", e);
+            rc.fail(400, e);
+        }
+    }
+
+    private Uni<IUser> authenticateUserFromToken(String token) {
+        if (token == null || token.isBlank()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
+        }
+
+        assert tokenService != null;
+        PublicChatTokenService.TokenValidationResult jwtResult = tokenService.validateToken(token);
+        if (jwtResult.valid()) {
+            assert userService != null;
+            return userService.findById(jwtResult.userId())
+                    .onItem().transformToUni(userOptional -> {
+                        if (!userOptional.isPresent()) {
+                            return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
+                        }
+                        return Uni.createFrom().item(userOptional.get());
+                    });
+        }
+
+        assert sessionManager != null;
+        String email = sessionManager.validateSessionAndGetEmail(token);
+        if (email != null) {
+            return Uni.createFrom().item(AnonymousUser.build());
+        }
+
+        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
+    }
+
+    private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user) {
+        webSocket.accept();
+        
+        String connectionId = randomUUID().toString();
+        activeConnections.put(connectionId, webSocket);
+        LOG.info("Public chat WebSocket connected: {} for user: {}", connectionId, user.getUserName());
+
+        webSocket.textMessageHandler(message -> {
+            try {
+                JsonObject msgJson = new JsonObject(message);
+                String action = msgJson.getString("action");
+                String stationId = msgJson.getString("stationId");
+                
+                switch (action) {
+                    case "sendMessage":
+                        handleUserMessage(webSocket, msgJson, connectionId, stationId, user);
+                        break;
+                    case "getHistory":
+                        handleGetHistory(webSocket, msgJson, user);
+                        break;
+                    default:
+                        sendError(webSocket, "Unknown action: " + action);
+                }
+            } catch (Exception e) {
+                LOG.error("Error processing message", e);
+                sendError(webSocket, "Invalid message format: " + e.getMessage());
+            }
+        });
+
+        webSocket.closeHandler(v -> {
+            activeConnections.remove(connectionId);
+            LOG.info("Public chat WebSocket closed: {}", connectionId);
+        });
+
+        webSocket.exceptionHandler(err -> {
+            LOG.error("WebSocket error for {}", connectionId, err);
+            activeConnections.remove(connectionId);
+        });
+    }
+
+    private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, 
+                                  String stationId, IUser user) {
+        String username = msgJson.getString("username", user.getUserName());
+        String content = msgJson.getString("content");
+
+        if (content == null || content.trim().isEmpty()) {
+            sendError(webSocket, "Message content cannot be empty");
+            return;
+        }
+
+        publicChatService.processUserMessage(username, content, connectionId, user)
+                .subscribe().with(
+                        response -> {
+                            webSocket.writeTextMessage(response);
+                            sendBotResponse(webSocket, content, connectionId, stationId, user);
+                        },
+                        err -> {
+                            LOG.error("Error processing user message", err);
+                            sendError(webSocket, err);
+                        }
+                );
+    }
+
+    private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
+                                String stationId, IUser user) {
+        publicChatService.generateBotResponse(
+                userMessage,
+                chunk -> webSocket.writeTextMessage(chunk),
+                response -> webSocket.writeTextMessage(response),
+                connectionId,
+                stationId,
+                user
+        ).subscribe().with(
+                v -> {},
+                e -> {
+                    LOG.error("Bot response error", e);
+                    sendError(webSocket, "Bot response failed: " + e.getMessage());
+                }
+        );
+    }
+
+    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, IUser user) {
+        Integer limit = msgJson.getInteger("limit", 50);
+
+        publicChatService.getChatHistory(limit, user)
+                .subscribe().with(
+                        webSocket::writeTextMessage,
+                        err -> {
+                            LOG.error("Error getting chat history", err);
+                            sendError(webSocket, err);
+                        }
+                );
+    }
+
+    private void sendError(ServerWebSocket webSocket, Throwable err) {
+        sendError(webSocket, err.getMessage());
+    }
+
+    private void sendError(ServerWebSocket webSocket, String message) {
+        webSocket.writeTextMessage(ChatMessage.error(message, "system", "system").build().toJson());
+    }
+
+    private String validateSessionToken(String token) {
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+        assert sessionManager != null;
+        return sessionManager.validateSessionAndGetEmail(token);
+    }
+}

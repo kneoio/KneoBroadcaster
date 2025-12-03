@@ -1,0 +1,108 @@
+package io.kneo.broadcaster.service.chat;
+
+import com.anthropic.core.JsonValue;
+import com.anthropic.models.messages.MessageCreateParams;
+import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.Model;
+import com.anthropic.models.messages.ToolUseBlock;
+import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
+import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
+import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
+import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.GetStations;
+import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
+import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
+import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.util.ResourceUtil;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+@ApplicationScoped
+public class PublicChatService extends ChatService {
+
+    protected PublicChatService() {
+        super(null, null);
+    }
+
+    @Inject
+    public PublicChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
+        super(config, aiHelperService);
+    }
+
+    @Override
+    protected MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history) {
+        return MessageCreateParams.builder()
+                .maxTokens(1024L)
+                .system(renderedPrompt)
+                .messages(history)
+                .model(Model.CLAUDE_3_5_HAIKU_20241022)
+                .addTool(GetStations.toTool())
+                .addTool(GetOnlineStations.toTool())
+                .addTool(SearchBrandSoundFragments.toTool())
+                .addTool(AddToQueueTool.toTool())
+                .build();
+    }
+
+    @Override
+    protected Uni<Void> handleToolCall(ToolUseBlock toolUse,
+                                      Consumer<String> chunkHandler,
+                                      Consumer<String> completionHandler,
+                                      String connectionId,
+                                      long userId,
+                                      List<MessageParam> conversationHistory) {
+
+        Map<String, JsonValue> inputMap = extractInputMap(toolUse);
+        Function<MessageCreateParams, Uni<Void>> streamFn =
+                createStreamFunction(chunkHandler, completionHandler, connectionId, userId);
+
+        if ("get_stations".equals(toolUse.name())) {
+            return GetStationsToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("get_online_stations".equals(toolUse.name())) {
+            return GetOnlineStationsToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
+            return SearchBrandSoundFragmentsToolHandler.handle(
+                    toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("add_to_queue".equals(toolUse.name())) {
+            String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
+            return AddToQueueToolHandler.handle(
+                    toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else {
+            return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));
+        }
+    }
+
+    // Override prompts to use public-specific templates if available
+    @Override
+    protected String getMainPrompt() {
+        try {
+            String custom = ResourceUtil.loadResourceAsString("/prompts/publicMainPrompt.hbs");
+            return (custom != null && !custom.isBlank()) ? custom : super.getMainPrompt();
+        } catch (Exception ignored) {
+            return super.getMainPrompt();
+        }
+    }
+
+    @Override
+    protected String getFollowUpPrompt() {
+        try {
+            String custom = ResourceUtil.loadResourceAsString("/prompts/publicFollowUpPrompt.hbs");
+            return (custom != null && !custom.isBlank()) ? custom : super.getFollowUpPrompt();
+        } catch (Exception ignored) {
+            return super.getFollowUpPrompt();
+        }
+    }
+}

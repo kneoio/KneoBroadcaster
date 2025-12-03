@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.util;
 
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;

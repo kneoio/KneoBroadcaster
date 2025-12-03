@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service;
+package io.kneo.broadcaster.service.util;
 
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.smallrye.mutiny.Uni;

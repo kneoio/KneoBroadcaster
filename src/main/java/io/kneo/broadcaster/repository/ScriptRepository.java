@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -135,8 +136,8 @@ public class ScriptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, name, description, access_level) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, name, description, access_level, language_code) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -147,7 +148,8 @@ public class ScriptRepository extends AsyncRepository {
                         .addOffsetDateTime(now)
                         .addString(script.getName())
                         .addString(script.getDescription())
-                        .addInteger(script.getAccessLevel());
+                        .addInteger(script.getAccessLevel())
+                        .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null);
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -179,8 +181,8 @@ public class ScriptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET name=$1, description=$2, access_level=$3, last_mod_user=$4, last_mod_date=$5 " +
-                                    "WHERE id=$6";
+                                    " SET name=$1, description=$2, access_level=$3, language_code=$4, last_mod_user=$5, last_mod_date=$6 " +
+                                    "WHERE id=$7";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -188,6 +190,7 @@ public class ScriptRepository extends AsyncRepository {
                                     .addString(script.getName())
                                     .addString(script.getDescription())
                                     .addInteger(script.getAccessLevel())
+                                    .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -236,6 +239,10 @@ public class ScriptRepository extends AsyncRepository {
         doc.setDescription(row.getString("description"));
         doc.setAccessLevel(row.getInteger("access_level"));
         doc.setArchived(row.getInteger("archived"));
+        String lang = row.getString("language_code");
+        if (lang != null) {
+            doc.setLanguageCode(LanguageCode.valueOf(lang));
+        }
 
         Object[] arr = row.getArrayOfUUIDs("labels");
         if (arr != null && arr.length > 0) {

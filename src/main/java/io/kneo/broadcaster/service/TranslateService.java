@@ -4,7 +4,7 @@ import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
-import io.kneo.broadcaster.model.aiagent.Prompt;
+import io.kneo.broadcaster.model.Prompt;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;

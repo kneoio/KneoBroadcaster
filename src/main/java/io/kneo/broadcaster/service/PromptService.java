@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
-import io.kneo.broadcaster.model.aiagent.Prompt;
+import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -101,6 +101,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setEnabled(doc.isEnabled());
             dto.setPrompt(doc.getPrompt());
+            dto.setDescription(doc.getDescription());
             dto.setLanguageCode(doc.getLanguageCode());
             dto.setMaster(doc.isMaster());
             dto.setLocked(doc.isLocked());
@@ -119,6 +120,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         doc.setId(dto.getId());
         doc.setEnabled(dto.isEnabled());
         doc.setPrompt(dto.getPrompt());
+        doc.setDescription(dto.getDescription());
         doc.setLanguageCode(dto.getLanguageCode());
         doc.setMaster(dto.isMaster());
         doc.setLocked(dto.isLocked());

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.core.dto.AbstractDTO;
+import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,6 +19,7 @@ public class ScriptDTO extends AbstractDTO {
     @NotBlank
     private String description;
     private Integer accessLevel = 0;
+    private LanguageCode languageCode;
     private List<UUID> labels;
     private List<UUID> brands;
     private List<SceneDTO> scenes;

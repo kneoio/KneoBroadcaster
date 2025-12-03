@@ -5,7 +5,7 @@ import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.agentrest.PromptTestReqDTO;
 import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
-import io.kneo.broadcaster.model.aiagent.Prompt;
+import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.TranslateService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;

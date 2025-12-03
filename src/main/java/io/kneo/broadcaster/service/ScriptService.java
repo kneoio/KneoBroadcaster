@@ -7,10 +7,10 @@ import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptExportDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.Script;
-import io.kneo.broadcaster.model.aiagent.Prompt;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -143,6 +143,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setName(script.getName());
             dto.setDescription(script.getDescription());
             dto.setAccessLevel(script.getAccessLevel());
+            dto.setLanguageCode(script.getLanguageCode());
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
             dto.setScenes(tuple.getItem3());
@@ -155,6 +156,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setAccessLevel(dto.getAccessLevel());
+        entity.setLanguageCode(dto.getLanguageCode());
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
         return entity;

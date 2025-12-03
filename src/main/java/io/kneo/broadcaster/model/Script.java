@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,4 +20,5 @@ public class Script extends SecureDataEntity<UUID> {
     private List<UUID> labels;
     private List<UUID> brands;
     private List<Scene> scenes;
+    private LanguageCode languageCode;
 }

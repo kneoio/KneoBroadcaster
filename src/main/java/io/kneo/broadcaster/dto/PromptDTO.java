@@ -13,6 +13,7 @@ import java.util.UUID;
 public class PromptDTO extends AbstractDTO {
     private boolean enabled;
     private String prompt;
+    private String description;
     private LanguageCode languageCode;
     private boolean master;
     private boolean locked;

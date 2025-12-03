@@ -393,7 +393,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             }
         }
         
-        dto.setExtraInstructions(scenePrompt.getExtraInstructions());
         dto.setActive(scenePrompt.isActive());
         dto.setWeight(scenePrompt.getWeight());
         return dto;
@@ -532,7 +531,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         ScenePromptDTO dto = new ScenePromptDTO();
         UUID promptId = actionToPromptId != null ? actionToPromptId.get(promptDTO) : null;
         dto.setPromptId(promptId);
-        dto.setExtraInstructions(promptDTO.getExtraInstructions());
         dto.setActive(promptDTO.isActive());
         dto.setRank(0);
         dto.setWeight(promptDTO.getWeight() != null ? promptDTO.getWeight() : java.math.BigDecimal.valueOf(0.5));

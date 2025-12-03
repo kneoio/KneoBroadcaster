@@ -16,7 +16,6 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ScenePromptDTO {
     private UUID promptId;
-    private String extraInstructions;
     private boolean active = true;
     private int rank = 0;
     private BigDecimal weight = BigDecimal.valueOf(0.5);

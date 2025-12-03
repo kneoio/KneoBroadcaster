@@ -14,7 +14,6 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ScenePrompt {
     private UUID promptId;
-    private String extraInstructions;
     private boolean active = true;
     private int rank = 0;
     private BigDecimal weight = BigDecimal.valueOf(0.5);

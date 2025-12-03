@@ -312,7 +312,7 @@ public class PromptRepository extends AsyncRepository {
     }
 
     public Uni<List<ScenePrompt>> getPromptsForScene(UUID sceneId) {
-        String sql = "SELECT prompt_id, rank, weight, extra_instructions, active FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
+        String sql = "SELECT prompt_id, rank, weight, active FROM mixpla_script_scene_prompts WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(sceneId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -321,7 +321,6 @@ public class PromptRepository extends AsyncRepository {
                     scenePrompt.setPromptId(row.getUUID("prompt_id"));
                     scenePrompt.setRank(row.getInteger("rank"));
                     scenePrompt.setWeight(row.getBigDecimal("weight"));
-                    scenePrompt.setExtraInstructions(row.getString("extra_instructions"));
                     scenePrompt.setActive(row.getBoolean("active"));
                     return scenePrompt;
                 })
@@ -346,7 +345,7 @@ public class PromptRepository extends AsyncRepository {
                     .replaceWithVoid();
         }
 
-        String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank, weight, extra_instructions, active) VALUES ($1, $2, $3, $4, $5, $6)";
+        String insertSql = "INSERT INTO mixpla_script_scene_prompts (script_scene_id, prompt_id, rank, weight, active) VALUES ($1, $2, $3, $4, $5)";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(sceneId))
                 .chain(() -> {
@@ -358,7 +357,6 @@ public class PromptRepository extends AsyncRepository {
                             prompt.getPromptId(), 
                             prompt.getRank() != 0 ? prompt.getRank() : i,
                             prompt.getWeight(),
-                            prompt.getExtraInstructions(),
                             prompt.isActive()
                         ));
                     }

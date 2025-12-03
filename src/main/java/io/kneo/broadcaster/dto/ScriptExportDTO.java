@@ -44,7 +44,6 @@ public class ScriptExportDTO {
     public static class ScenePromptExportDTO {
         private UUID id;
         private String title;
-        private String extraInstructions;
         private boolean active;
         private BigDecimal weight;
         private String prompt;
@@ -62,3 +61,4 @@ public class ScriptExportDTO {
         private String languageCode;
     }
 }
+

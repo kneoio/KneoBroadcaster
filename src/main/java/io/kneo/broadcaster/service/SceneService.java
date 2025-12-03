@@ -124,7 +124,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
                     dto.setPromptId(sp.getPromptId());
                     dto.setRank(sp.getRank());
                     dto.setWeight(sp.getWeight());
-                    dto.setExtraInstructions(sp.getExtraInstructions());
                     dto.setActive(sp.isActive());
                     return dto;
                 })
@@ -153,7 +152,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
                     sp.setPromptId(dto.getPromptId());
                     sp.setRank(dto.getRank());
                     sp.setWeight(dto.getWeight());
-                    sp.setExtraInstructions(dto.getExtraInstructions());
                     sp.setActive(dto.isActive());
                     return sp;
                 })

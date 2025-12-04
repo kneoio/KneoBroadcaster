@@ -7,6 +7,7 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -226,6 +227,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setNickName(doc.getNickName());
             dto.setListenerOf(tuple.getItem3());
+            dto.setListenerType(doc.getListenerType() != null ? doc.getListenerType().name() : null);
             return dto;
         });
     }
@@ -238,6 +240,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setNickName(dto.getNickName());
         doc.setSlugName(dto.getSlugName());
         doc.setTelegramName(dto.getTelegramName());
+        if (dto.getListenerType() != null) {
+            doc.setListenerType(ListenerType.valueOf(dto.getListenerType()));
+        } else {
+            doc.setListenerType(ListenerType.REGULAR);
+        }
         return doc;
     }
 

@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import io.kneo.officeframe.cnst.CountryCode;
@@ -23,6 +24,7 @@ public class Listener extends SecureDataEntity<UUID> {
     private String slugName;
     private Integer archived;
     private List<UUID> radioStations;
+    private ListenerType listenerType;
 
 
 }

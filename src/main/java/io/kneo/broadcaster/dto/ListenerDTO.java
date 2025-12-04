@@ -33,5 +33,6 @@ public class ListenerDTO extends AbstractReferenceDTO {
     private String slugName;
     private Integer archived;
     private List<UUID> listenerOf;
+    private String listenerType;
 
 }

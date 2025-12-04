@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -203,8 +204,8 @@ public class ListenersRepository extends AsyncRepository {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, telegram_name, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
+                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, telegram_name, listener_type, archived) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
         JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
         JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
 
@@ -219,6 +220,7 @@ public class ListenersRepository extends AsyncRepository {
                 .addJsonObject(localizedNickNameJson)
                 .addString(listener.getSlugName())
                 .addString(listener.getTelegramName())
+                .addString(listener.getListenerType() != null ? listener.getListenerType().name() : ListenerType.REGULAR.name())
                 .addInteger(0);
 
         return client.withTransaction(tx ->
@@ -265,8 +267,8 @@ public class ListenersRepository extends AsyncRepository {
 
                             return client.withTransaction(tx -> {
                                 String sql = "UPDATE " + entityData.getTableName() +
-                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, telegram_name=$5, last_mod_user=$6, last_mod_date=$7 " +
-                                        "WHERE id=$8";
+                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, telegram_name=$5, listener_type=$6, last_mod_user=$7, last_mod_date=$8 " +
+                                        "WHERE id=$9";
 
                                 Tuple params = Tuple.tuple()
                                         .addString(listener.getCountry().name())
@@ -274,6 +276,7 @@ public class ListenersRepository extends AsyncRepository {
                                         .addJsonObject(localizedNickNameJson)
                                         .addString(listener.getSlugName())
                                         .addString(listener.getTelegramName())
+                                        .addString(listener.getListenerType() != null ? listener.getListenerType().name() : ListenerType.REGULAR.name())
                                         .addLong(user.getId())
                                         .addLocalDateTime(nowTime)
                                         .addUUID(id);
@@ -375,6 +378,10 @@ public class ListenersRepository extends AsyncRepository {
         doc.setTelegramName(row.getString("telegram_name"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
         doc.setSlugName(row.getString("slug_name"));
+        String lt = row.getString("listener_type");
+        if (lt != null) {
+            doc.setListenerType(ListenerType.valueOf(lt));
+        }
 
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {

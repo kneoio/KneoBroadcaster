@@ -6,6 +6,9 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.service.ListenerService;
+import io.kneo.broadcaster.service.chat.PublicChatSessionManager.VerificationResult;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
@@ -14,8 +17,16 @@ import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
+import io.kneo.broadcaster.service.external.MailService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.util.ResourceUtil;
+import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.AnonymousUser;
+import io.kneo.core.model.user.IUser;
+import io.kneo.core.model.user.SuperUser;
+import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
+import io.kneo.core.service.UserService;
+import io.kneo.core.util.WebHelper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -35,6 +46,104 @@ public class PublicChatService extends ChatService {
     @Inject
     public PublicChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
         super(config, aiHelperService);
+    }
+
+    @Inject
+    MailService mailService;
+
+    @Inject
+    PublicChatSessionManager sessionManager;
+
+    @Inject
+    ListenerService listenerService;
+
+    @Inject
+    UserService userService;
+
+    @Inject
+    PublicChatTokenService tokenService;
+
+    public Uni<Void> sendCode(String email) {
+        String code = sessionManager.generateAndStoreCode(email);
+        return mailService.sendHtmlConfirmationCodeAsync(email, code).replaceWithVoid();
+    }
+
+    public VerificationResult verifyCode(String email, String code) {
+        return sessionManager.verifyCode(email, code);
+    }
+
+    public record RegistrationResult(Long userId, String userToken) {}
+
+    public Uni<RegistrationResult> registerListener(String sessionToken, String stationSlug, String nickname) {
+        String email = sessionManager.validateSessionAndGetEmail(sessionToken);
+        if (email == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired session"));
+        }
+
+        ListenerDTO dto = new ListenerDTO();
+        dto.setEmail(email);
+        dto.getLocalizedName().put(LanguageCode.en, email);
+        if (nickname != null && !nickname.isBlank()) {
+            dto.getNickName().put(LanguageCode.en, nickname);
+        }
+
+        return listenerService.upsertWithStationSlug(null, dto, stationSlug, SuperUser.build())
+                .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
+                    String slugName = WebHelper.generateSlug(nickname != null && !nickname.isBlank() ? nickname : email);
+                    return userService.findByLogin(slugName)
+                            .onItem().transformToUni(existingUser -> {
+                                if (existingUser.getId() == 0) {
+                                    return Uni.createFrom().failure(throwable);
+                                }
+                                ListenerDTO existingDto = new ListenerDTO();
+                                existingDto.setUserId(existingUser.getId());
+                                existingDto.setSlugName(slugName);
+                                return Uni.createFrom().item(existingDto);
+                            });
+                })
+                .onItem().transform(listenerDTO -> new RegistrationResult(
+                        listenerDTO.getUserId(),
+                        tokenService.generateToken(listenerDTO.getUserId(), listenerDTO.getSlugName())
+                ));
+    }
+
+    public Uni<String> refreshToken(String oldToken) {
+        PublicChatTokenService.TokenValidationResult result = tokenService.validateToken(oldToken);
+        if (!result.valid()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
+        }
+        return userService.findById(result.userId())
+                .onItem().transform(userOptional -> {
+                    if (userOptional.isEmpty()) {
+                        throw new IllegalArgumentException("User not found");
+                    }
+                    IUser user = userOptional.get();
+                    return tokenService.generateToken(user.getId(), user.getUserName());
+                });
+    }
+
+    public Uni<IUser> authenticateUserFromToken(String token) {
+        if (token == null || token.isBlank()) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
+        }
+
+        PublicChatTokenService.TokenValidationResult jwtResult = tokenService.validateToken(token);
+        if (jwtResult.valid()) {
+            return userService.findById(jwtResult.userId())
+                    .onItem().transformToUni(userOptional -> {
+                        if (userOptional.isEmpty()) {
+                            return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
+                        }
+                        return Uni.createFrom().item(userOptional.get());
+                    });
+        }
+
+        String email = sessionManager.validateSessionAndGetEmail(token);
+        if (email != null) {
+            return Uni.createFrom().item(AnonymousUser.build());
+        }
+
+        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
     }
 
     @Override
@@ -85,7 +194,6 @@ public class PublicChatService extends ChatService {
         }
     }
 
-    // Override prompts to use public-specific templates if available
     @Override
     protected String getMainPrompt() {
         try {

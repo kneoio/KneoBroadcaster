@@ -488,35 +488,35 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             if (exposeFileUrl && doc.getFileMetadataList() != null) {
                 doc.getFileMetadataList().forEach(meta -> {
                     String safeFileName = FileSecurityUtils.sanitizeFilename(meta.getFileOriginalName());
-                    files.add(UploadFileDTO.builder()
-                            .id(meta.getSlugName())
-                            .name(safeFileName)
-                            .status("finished")
-                            .url("/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName())
-                            .percentage(100)
-                            .build());
+                    UploadFileDTO fileDto = new UploadFileDTO();
+                    fileDto.setId(meta.getSlugName());
+                    fileDto.setName(safeFileName);
+                    fileDto.setStatus("finished");
+                    fileDto.setUrl("/soundfragments/files/" + doc.getId() + "/" + meta.getSlugName());
+                    fileDto.setPercentage(100);
+                    files.add(fileDto);
                 });
             }
 
-            return SoundFragmentDTO.builder()
-                    .id(doc.getId())
-                    .author(author)
-                    .regDate(doc.getRegDate())
-                    .lastModifier(lastModifier)
-                    .lastModifiedDate(doc.getLastModifiedDate())
-                    .source(doc.getSource())
-                    .status(doc.getStatus())
-                    .type(doc.getType())
-                    .title(doc.getTitle())
-                    .artist(doc.getArtist())
-                    .genres(doc.getGenres())
-                    .labels(doc.getLabels())
-                    .album(doc.getAlbum())
-                    .length(doc.getLength())
-                    .description(doc.getDescription())
-                    .uploadedFiles(files)
-                    .representedInBrands(representedInBrands)
-                    .build();
+            SoundFragmentDTO dto = new SoundFragmentDTO();
+            dto.setId(doc.getId());
+            dto.setAuthor(author);
+            dto.setRegDate(doc.getRegDate());
+            dto.setLastModifier(lastModifier);
+            dto.setLastModifiedDate(doc.getLastModifiedDate());
+            dto.setSource(doc.getSource());
+            dto.setStatus(doc.getStatus());
+            dto.setType(doc.getType());
+            dto.setTitle(doc.getTitle());
+            dto.setArtist(doc.getArtist());
+            dto.setGenres(doc.getGenres());
+            dto.setLabels(doc.getLabels());
+            dto.setAlbum(doc.getAlbum());
+            dto.setLength(doc.getLength());
+            dto.setDescription(doc.getDescription());
+            dto.setUploadedFiles(files);
+            dto.setRepresentedInBrands(representedInBrands);
+            return dto;
         });
     }
 

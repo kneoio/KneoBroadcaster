@@ -1,20 +1,11 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.chat.ChatMessage;
-import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.PublicChatService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager;
-import io.kneo.broadcaster.service.chat.PublicChatTokenService;
-import io.kneo.broadcaster.service.external.MailService;
 import io.kneo.core.controller.AbstractSecuredController;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.UserService;
-import io.kneo.core.util.WebHelper;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
@@ -34,35 +25,18 @@ import static java.util.UUID.randomUUID;
 @ApplicationScoped
 public class PublicChatController extends AbstractSecuredController<Object, Object> {
     private static final Logger LOG = LoggerFactory.getLogger(PublicChatController.class);
-    private final UserService userService;
-    private final MailService mailService;
-    private final PublicChatSessionManager sessionManager;
     private final PublicChatService publicChatService;
-    private final ListenerService listenerService;
-    private final PublicChatTokenService tokenService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
 
     public PublicChatController() {
         super(null);
-        this.userService = null;
-        this.mailService = null;
-        this.sessionManager = null;
         this.publicChatService = null;
-        this.listenerService = null;
-        this.tokenService = null;
     }
 
     @Inject
-    public PublicChatController(UserService userService, MailService mailService, 
-                               PublicChatSessionManager sessionManager, PublicChatService publicChatService,
-                               ListenerService listenerService, PublicChatTokenService tokenService) {
+    public PublicChatController(UserService userService, PublicChatService publicChatService) {
         super(userService);
-        this.userService = userService;
-        this.mailService = mailService;
-        this.sessionManager = sessionManager;
         this.publicChatService = publicChatService;
-        this.listenerService = listenerService;
-        this.tokenService = tokenService;
     }
 
     public void setupRoutes(Router router) {
@@ -111,19 +85,16 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 return;
             }
 
-            String code = sessionManager.generateAndStoreCode(email);
-
-            mailService.sendHtmlConfirmationCodeAsync(email, code)
+            assert publicChatService != null;
+            publicChatService.sendCode(email)
                     .subscribe().with(
-                            v -> {
-                                rc.response()
-                                        .setStatusCode(200)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject()
-                                                .put("success", true)
-                                                .put("message", "Code sent to " + email)
-                                                .encode());
-                            },
+                            v -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject()
+                                            .put("success", true)
+                                            .put("message", "Code sent to " + email)
+                                            .encode()),
                             throwable -> {
                                 LOG.error("Failed to send code to {}", email, throwable);
                                 rc.response()
@@ -150,7 +121,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 return;
             }
 
-            PublicChatSessionManager.VerificationResult result = sessionManager.verifyCode(email, code);
+            assert publicChatService != null;
+            PublicChatSessionManager.VerificationResult result = publicChatService.verifyCode(email, code);
 
             if (result.success()) {
                 rc.response()
@@ -196,58 +168,20 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 return;
             }
 
-            String email = validateSessionToken(sessionToken);
-            if (email == null) {
-                rc.response()
-                        .setStatusCode(401)
-                        .end(new JsonObject().put("error", "Invalid or expired session").encode());
-                return;
-            }
-
-            ListenerDTO dto = new ListenerDTO();
-            dto.setEmail(email);
-            dto.getLocalizedName().put(LanguageCode.en, email);
-            if (nickname != null && !nickname.isBlank()) {
-                dto.getNickName().put(LanguageCode.en, nickname);
-            }
-
-
-            assert listenerService != null;
-            listenerService.upsertWithStationSlug(null, dto, stationSlug, SuperUser.build())
-                    .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
-                        String slugName = WebHelper.generateSlug(nickname != null && !nickname.isBlank() ? nickname : email);
-                        assert userService != null;
-                        return userService.findByLogin(slugName)
-                                .onItem().transformToUni(existingUser -> {
-                                    if (existingUser.getId() == 0) {
-                                        return Uni.createFrom().failure(throwable);
-                                    }
-                                    ListenerDTO existingDto = new ListenerDTO();
-                                    existingDto.setUserId(existingUser.getId());
-                                    existingDto.setSlugName(slugName);
-                                    return Uni.createFrom().item(existingDto);
-                                });
-                    })
+            assert publicChatService != null;
+            publicChatService.registerListener(sessionToken, stationSlug, nickname)
                     .subscribe().with(
-                            listenerDTO -> {
-                                assert tokenService != null;
-                                String userToken = tokenService.generateToken(
-                                        listenerDTO.getUserId(), 
-                                        listenerDTO.getSlugName()
-                                );
-                                
-                                rc.response()
-                                        .setStatusCode(200)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject()
-                                                .put("success", true)
-                                                .put("userId", listenerDTO.getUserId())
-                                                .put("userToken", userToken)
-                                                .put("message", "Listener token generated successfully")
-                                                .encode());
-                            },
+                            result -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject()
+                                            .put("success", true)
+                                            .put("userId", result.userId())
+                                            .put("userToken", result.userToken())
+                                            .put("message", "Listener token generated successfully")
+                                            .encode()),
                             throwable -> {
-                                LOG.error("Failed to register listener for email: {}", email, throwable);
+                                LOG.error("Failed to register listener", throwable);
                                 rc.response()
                                         .setStatusCode(500)
                                         .end(new JsonObject()
@@ -274,40 +208,28 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                 return;
             }
 
-            PublicChatTokenService.TokenValidationResult result = tokenService.validateToken(oldToken);
-            if (!result.valid()) {
-                rc.response()
-                        .setStatusCode(401)
-                        .end(new JsonObject().put("error", "Invalid or expired token").encode());
-                return;
-            }
-
-            assert userService != null;
-            userService.findById(result.userId())
+            assert publicChatService != null;
+            publicChatService.refreshToken(oldToken)
                     .subscribe().with(
-                            userOptional -> {
-                                if (userOptional.isPresent()) {
+                            newToken -> rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(new JsonObject()
+                                            .put("success", true)
+                                            .put("userToken", newToken)
+                                            .put("message", "Token refreshed successfully")
+                                            .encode()),
+                            throwable -> {
+                                if (throwable instanceof IllegalArgumentException) {
                                     rc.response()
                                             .setStatusCode(401)
-                                            .end(new JsonObject().put("error", "User not found").encode());
-                                    return;
+                                            .end(new JsonObject().put("error", throwable.getMessage()).encode());
+                                } else {
+                                    LOG.error("Error in refreshToken", throwable);
+                                    rc.response()
+                                            .setStatusCode(500)
+                                            .end(new JsonObject().put("error", "Failed to refresh token").encode());
                                 }
-                                IUser user = userOptional.get();
-                                String newToken = tokenService.generateToken(user.getId(), user.getUserName());
-                                rc.response()
-                                        .setStatusCode(200)
-                                        .putHeader("Content-Type", "application/json")
-                                        .end(new JsonObject()
-                                                .put("success", true)
-                                                .put("userToken", newToken)
-                                                .put("message", "Token refreshed successfully")
-                                                .encode());
-                            },
-                            throwable -> {
-                                LOG.error("Error finding user for token refresh", throwable);
-                                rc.response()
-                                        .setStatusCode(500)
-                                        .end(new JsonObject().put("error", "Failed to refresh token").encode());
                             }
                     );
 
@@ -318,30 +240,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private Uni<IUser> authenticateUserFromToken(String token) {
-        if (token == null || token.isBlank()) {
-            return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
-        }
-
-        assert tokenService != null;
-        PublicChatTokenService.TokenValidationResult jwtResult = tokenService.validateToken(token);
-        if (jwtResult.valid()) {
-            assert userService != null;
-            return userService.findById(jwtResult.userId())
-                    .onItem().transformToUni(userOptional -> {
-                        if (!userOptional.isPresent()) {
-                            return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
-                        }
-                        return Uni.createFrom().item(userOptional.get());
-                    });
-        }
-
-        assert sessionManager != null;
-        String email = sessionManager.validateSessionAndGetEmail(token);
-        if (email != null) {
-            return Uni.createFrom().item(AnonymousUser.build());
-        }
-
-        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
+        assert publicChatService != null;
+        return publicChatService.authenticateUserFromToken(token);
     }
 
     private void handlePublicChatWebSocket(ServerWebSocket webSocket, IUser user) {
@@ -394,6 +294,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             return;
         }
 
+        assert publicChatService != null;
         publicChatService.processUserMessage(username, content, connectionId, user)
                 .subscribe().with(
                         response -> {
@@ -409,10 +310,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
                                 String stationId, IUser user) {
+        assert publicChatService != null;
         publicChatService.generateBotResponse(
                 userMessage,
-                chunk -> webSocket.writeTextMessage(chunk),
-                response -> webSocket.writeTextMessage(response),
+                webSocket::writeTextMessage,
+                webSocket::writeTextMessage,
                 connectionId,
                 stationId,
                 user
@@ -428,6 +330,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, IUser user) {
         Integer limit = msgJson.getInteger("limit", 50);
 
+        assert publicChatService != null;
         publicChatService.getChatHistory(limit, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
@@ -444,13 +347,5 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
     private void sendError(ServerWebSocket webSocket, String message) {
         webSocket.writeTextMessage(ChatMessage.error(message, "system", "system").build().toJson());
-    }
-
-    private String validateSessionToken(String token) {
-        if (token == null || token.isEmpty()) {
-            return null;
-        }
-        assert sessionManager != null;
-        return sessionManager.validateSessionAndGetEmail(token);
     }
 }

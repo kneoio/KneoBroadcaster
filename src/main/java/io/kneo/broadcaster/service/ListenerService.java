@@ -138,16 +138,49 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     public Uni<ListenerDTO> upsertWithStationSlug(String id, ListenerDTO dto, String stationSlug, IUser user) {
         assert radioStationService != null;
+        assert repository != null;
         return radioStationService.getBySlugName(stationSlug)
                 .chain(station -> {
                     if (station == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Station not found: " + stationSlug));
                     }
-                    dto.setCountry(station.getCountry().name());
+                    
+                    Listener listener = buildEntity(dto);
+                    listener.setCountry(station.getCountry());
+                    
                     List<UUID> stationIds = new ArrayList<>();
                     stationIds.add(station.getId());
-                    dto.setListenerOf(stationIds);
-                    return upsert(id, dto, user);
+                    
+                    String slugName;
+                    if (listener.getNickName().get(LanguageCode.en) != null && !listener.getNickName().get(LanguageCode.en).isEmpty()) {
+                        slugName = WebHelper.generateSlug(listener.getNickName().get(LanguageCode.en));
+                    } else {
+                        slugName = WebHelper.generateSlug(listener.getLocalizedName().get(LanguageCode.en));
+                    }
+                    listener.setSlugName(slugName);
+                    
+                    if (id == null) {
+                        return userService.findByLogin(slugName)
+                                .chain(existingUser -> {
+                                    if (existingUser.getId() != UndefinedUser.ID) {
+                                        return Uni.createFrom().failure(
+                                                new UserAlreadyExistsException(slugName));
+                                    }
+                                    
+                                    UserDTO listenerUserDTO = new UserDTO();
+                                    listenerUserDTO.setLogin(slugName);
+                                    return userService.add(listenerUserDTO, true);
+                                })
+                                .chain(userId -> {
+                                    listener.setUserId(userId);
+                                    listener.setListenerType(ListenerType.TEMPORARY);
+                                    return repository.insert(listener, stationIds, user);
+                                })
+                                .chain(this::mapToDTO);
+                    } else {
+                        return repository.update(UUID.fromString(id), listener, stationIds, user)
+                                .chain(this::mapToDTO);
+                    }
                 });
     }
 
@@ -184,6 +217,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     })
                     .chain(userId -> {
                         Listener entity = buildEntity(dto);
+                        entity.setListenerType(ListenerType.REGULAR);
                         entity.setUserId(userId);
                         return repository.insert(entity, dto.getListenerOf(), user);
                     })

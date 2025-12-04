@@ -129,7 +129,7 @@ public abstract class ChatService {
 
         chatRepository.appendToConversation(user.getId(), userMsg);
 
-        Uni<RadioStation> stationUni = radioStationService.getBySlugName(slugName, user);
+        Uni<RadioStation> stationUni = radioStationService.getBySlugName(slugName, SuperUser.build()); //I still dont knw shou we use superuser here
 
         return stationUni.flatMap(station -> {
             String radioStationName = station != null && station.getLocalizedName() != null

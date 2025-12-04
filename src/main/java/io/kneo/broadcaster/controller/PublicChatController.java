@@ -45,6 +45,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         router.route(path + "*").handler(this::addHeaders);
         router.post(path + "/send-code/:email").handler(this::sendCode);
         router.post(path + "/verify-code").handler(this::verifyCode);
+        router.post(path + "/validate-token").handler(this::validateToken);
         router.post(path + "/register-listener").handler(this::registerListener);
         router.post(path + "/refresh-token").handler(this::refreshToken);
         
@@ -143,6 +144,52 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             }
 
         } catch (Exception e) {
+            rc.fail(400, e);
+        }
+    }
+
+    private void validateToken(RoutingContext rc) {
+        try {
+            JsonObject body = rc.body().asJsonObject();
+            String token = body.getString("token");
+
+            if (token == null || token.isBlank()) {
+                rc.response()
+                        .setStatusCode(400)
+                        .end(new JsonObject().put("error", "Token is required").encode());
+                return;
+            }
+
+            assert publicChatService != null;
+            authenticateUserFromToken(token)
+                    .subscribe().with(
+                            user -> {
+                                boolean isRegistered = user.getId() != io.kneo.core.model.user.AnonymousUser.ID;
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("success", true)
+                                                .put("valid", true)
+                                                .put("registered", isRegistered)
+                                                .put("userId", user.getId())
+                                                .put("username", user.getUserName())
+                                                .encode());
+                            },
+                            throwable -> {
+                                rc.response()
+                                        .setStatusCode(200)
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("success", true)
+                                                .put("valid", false)
+                                                .put("registered", false)
+                                                .encode());
+                            }
+                    );
+
+        } catch (Exception e) {
+            LOG.error("Error in validateToken", e);
             rc.fail(400, e);
         }
     }

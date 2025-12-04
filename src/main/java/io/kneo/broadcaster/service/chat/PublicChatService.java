@@ -7,6 +7,7 @@ import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager.VerificationResult;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
@@ -82,6 +83,7 @@ public class PublicChatService extends ChatService {
 
         ListenerDTO dto = new ListenerDTO();
         dto.setEmail(email);
+        dto.setListenerType(String.valueOf(ListenerType.REGULAR));
         dto.getLocalizedName().put(LanguageCode.en, email);
         if (nickname != null && !nickname.isBlank()) {
             dto.getNickName().put(LanguageCode.en, nickname);
@@ -127,9 +129,9 @@ public class PublicChatService extends ChatService {
             return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
         }
 
-        PublicChatTokenService.TokenValidationResult jwtResult = tokenService.validateToken(token);
-        if (jwtResult.valid()) {
-            return userService.findById(jwtResult.userId())
+        PublicChatTokenService.TokenValidationResult result = tokenService.validateToken(token);
+        if (result.valid()) {
+            return userService.findById(result.userId())
                     .onItem().transformToUni(userOptional -> {
                         if (userOptional.isEmpty()) {
                             return Uni.createFrom().failure(new IllegalArgumentException("User not found"));

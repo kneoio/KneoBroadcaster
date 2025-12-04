@@ -15,7 +15,7 @@ public class PublicChatSessionManager {
     private static final int MAX_ATTEMPTS = 3;
     
     private final Map<String, VerificationCode> verificationCodes = new ConcurrentHashMap<>();
-    private final Map<String, Session> sessions = new ConcurrentHashMap<>();
+    private final Map<String, PublicChatSession> sessions = new ConcurrentHashMap<>();
     private final SecureRandom secureRandom = new SecureRandom();
 
     public String generateAndStoreCode(String email) {
@@ -56,14 +56,14 @@ public class PublicChatSessionManager {
 
     private String createSession(String email) {
         String token = UUID.randomUUID().toString();
-        sessions.put(token, new Session(email, Instant.now().plusSeconds(SESSION_EXPIRY_SECONDS)));
+        sessions.put(token, new PublicChatSession(email, Instant.now().plusSeconds(SESSION_EXPIRY_SECONDS)));
         return token;
     }
 
     public String validateSessionAndGetEmail(String token) {
         cleanupExpiredSessions();
         
-        Session session = sessions.get(token);
+        PublicChatSession session = sessions.get(token);
         if (session == null || session.isExpired()) {
             if (session != null) {
                 sessions.remove(token);
@@ -71,7 +71,7 @@ public class PublicChatSessionManager {
             return null;
         }
         
-        return session.email;
+        return session.email();
     }
 
     public void invalidateSession(String token) {
@@ -93,20 +93,6 @@ public class PublicChatSessionManager {
 
         VerificationCode(String code, Instant expiresAt) {
             this.code = code;
-            this.expiresAt = expiresAt;
-        }
-
-        boolean isExpired() {
-            return Instant.now().isAfter(expiresAt);
-        }
-    }
-
-    private static class Session {
-        final String email;
-        final Instant expiresAt;
-
-        Session(String email, Instant expiresAt) {
-            this.email = email;
             this.expiresAt = expiresAt;
         }
 

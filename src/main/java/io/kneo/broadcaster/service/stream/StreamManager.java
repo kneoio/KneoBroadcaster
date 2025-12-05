@@ -41,7 +41,6 @@ public class StreamManager implements IStreamManager {
     private final AtomicLong currentSequence = new AtomicLong(0);
     private final Queue<HlsSegment> pendingFragmentSegmentsQueue = new LinkedList<>();
     private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
-    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 5;
 
     @Getter
     @Setter
@@ -60,7 +59,9 @@ public class StreamManager implements IStreamManager {
     private final SliderTimer sliderTimer;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
-    private final int maxVisibleSegments = 10;
+    private final int maxVisibleSegments = 20; //was 10
+    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 10; //was 5
+
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
     private final BrandSoundFragmentUpdateService updateService;
     private final Object fragmentRetrievalLock = new Object();

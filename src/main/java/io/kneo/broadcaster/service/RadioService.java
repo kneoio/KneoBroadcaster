@@ -184,9 +184,10 @@ public class RadioService {
                         .map(v -> toStatusDTO(v, false))
                         .collect(Collectors.toList());
 
-                return onlineStatusUnis.isEmpty()
+                Uni<List<RadioStationStatusDTO>> result = onlineStatusUnis.isEmpty()
                         ? Uni.createFrom().item(List.of())
                         : Uni.join().all(onlineStatusUnis).andFailFast();
+                return result;
             } else {
                 List<Uni<RadioStationStatusDTO>> allStatusUnis = allStations.stream()
                         .map(station -> {
@@ -198,9 +199,10 @@ public class RadioService {
                         })
                         .collect(Collectors.toList());
 
-                return allStatusUnis.isEmpty()
+                Uni<List<RadioStationStatusDTO>> result = allStatusUnis.isEmpty()
                         ? Uni.createFrom().item(List.of())
                         : Uni.join().all(allStatusUnis).andFailFast();
+                return result;
             }
         }).onFailure().invoke(failure ->
                 LOGGER.error("Failed to get all stations", failure)

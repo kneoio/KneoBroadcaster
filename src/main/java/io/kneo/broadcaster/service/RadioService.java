@@ -4,7 +4,6 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
@@ -169,35 +168,48 @@ public class RadioService {
     }
 
     public Uni<List<RadioStationStatusDTO>> getAllStations() {
-        return radioStationService.getAllDTO(10, 0, SuperUser.build())
-                .chain(stations -> {
-                    if (stations.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    }
+        return Uni.combine().all().unis(
+                getOnlineStations(),
+                radioStationService.getAll(1000, 0)
+        ).asTuple().chain(tuple -> {
+            List<RadioStation> onlineStations = tuple.getItem1();
+            List<RadioStation> allStations = tuple.getItem2();
 
-                    List<RadioStationDTO> stationsToProcess = stations.stream()
-                            .toList();
+            List<String> onlineBrands = onlineStations.stream()
+                    .map(RadioStation::getSlugName)
+                    .toList();
 
-                    List<Uni<RadioStationStatusDTO>> statusUnis = stationsToProcess.stream()
-                            .map(station -> radioStationPool.get(station.getSlugName())
-                                    .chain(onlineStation -> {
-                                        if (onlineStation != null &&
-                                                (onlineStation.getStatus() == RadioStationStatus.ON_LINE ||
-                                                        onlineStation.getStatus() == RadioStationStatus.QUEUE_SATURATED ||
-                                                        onlineStation.getStatus() == RadioStationStatus.WARMING_UP ||
-                                                        onlineStation.getStatus() == RadioStationStatus.IDLE)) {
-                                            return toStatusDTO(onlineStation, false);
-                                        }
+            List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
+                    .map(v -> toStatusDTO(v, false))
+                    .collect(Collectors.toList());
 
-                                        return Uni.createFrom().nullItem();
-                                    })
-                                    .onFailure().recoverWithItem(() -> null))
-                            .collect(Collectors.toList());
-                    return Uni.join().all(statusUnis).andFailFast()
-                            .onItem().transform(results -> results.stream()
-                                    .filter(dto -> dto != null)
-                                    .collect(Collectors.toList()));
-                });
+            List<Uni<RadioStationStatusDTO>> offlineStatusUnis = allStations.stream()
+                    .filter(station -> !onlineBrands.contains(station.getSlugName()))
+                    .map(v -> toStatusDTO(v, false))
+                    .collect(Collectors.toList());
+
+            Uni<List<RadioStationStatusDTO>> onlineResultsUni = onlineStatusUnis.isEmpty()
+                    ? Uni.createFrom().item(List.of())
+                    : Uni.join().all(onlineStatusUnis).andFailFast();
+
+            Uni<List<RadioStationStatusDTO>> offlineResultsUni = offlineStatusUnis.isEmpty()
+                    ? Uni.createFrom().item(List.of())
+                    : Uni.join().all(offlineStatusUnis).andFailFast();
+
+            return Uni.combine().all().unis(onlineResultsUni, offlineResultsUni)
+                    .asTuple().map(results -> {
+                        List<RadioStationStatusDTO> onlineResults = results.getItem1();
+                        List<RadioStationStatusDTO> offlineResults = results.getItem2();
+
+                        List<RadioStationStatusDTO> combined = new ArrayList<>();
+                        combined.addAll(onlineResults);
+                        combined.addAll(offlineResults);
+
+                        return combined;
+                    });
+        }).onFailure().invoke(failure ->
+                LOGGER.error("Failed to get all stations", failure)
+        );
     }
 
     public Uni<RadioStationStatusDTO> getStation(String slugName) {

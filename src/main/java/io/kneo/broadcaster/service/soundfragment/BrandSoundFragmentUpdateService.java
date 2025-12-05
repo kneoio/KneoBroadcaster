@@ -41,4 +41,28 @@ public class BrandSoundFragmentUpdateService {
                         soundFragmentId, error.getMessage(), error))
                 .replaceWithVoid();
     }
+
+    public Uni<Void> updateRatedCount(UUID brandId, UUID soundFragmentId, int delta) {
+        String sql = "WITH sf AS (SELECT id FROM kneobroadcaster__sound_fragments WHERE id = $2) " +
+                "INSERT INTO kneobroadcaster__brand_sound_fragments " +
+                "(brand_id, sound_fragment_id, rated_by_brand_count) " +
+                "SELECT $1, sf.id, $3 FROM sf " +
+                "ON CONFLICT (brand_id, sound_fragment_id) DO UPDATE SET " +
+                "rated_by_brand_count = kneobroadcaster__brand_sound_fragments.rated_by_brand_count + $3";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(brandId, soundFragmentId, delta))
+                .onItem().invoke(result -> {
+                    int affected = result.rowCount();
+                    if (affected == 0) {
+                        LOGGER.warn("Skipped rated count update: sound fragment not found. fragmentId={}, brandId={}",
+                                soundFragmentId, brandId);
+                    } else {
+                        LOGGER.info("Rated count updated by {} - affected rows: {}, fragment: {}", delta, affected, soundFragmentId);
+                    }
+                })
+                .onFailure().invoke(error -> LOGGER.error("Failed to update rated count for fragment {}: {}",
+                        soundFragmentId, error.getMessage(), error))
+                .replaceWithVoid();
+    }
 }

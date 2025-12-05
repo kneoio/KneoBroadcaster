@@ -18,6 +18,7 @@ public class BrandSoundFragment {
     @Deprecated
     private int queueNum = 1000;
     private int playedByBrandCount;
+    private int ratedByBrandCount;
     private LocalDateTime playedTime;
     private SoundFragment soundFragment;
     @Deprecated

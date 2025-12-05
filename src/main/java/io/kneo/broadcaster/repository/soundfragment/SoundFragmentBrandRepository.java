@@ -24,7 +24,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     public Uni<List<BrandSoundFragment>> findForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset,
                                                                   boolean includeArchived, IUser user) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand, " +
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand, " +
                 "similarity(t.search_name, $3) AS sim " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id " +
@@ -59,7 +59,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     public Uni<List<BrandSoundFragment>> findForBrand(UUID brandId, final int limit, final int offset,
                                                       boolean includeArchived, IUser user, SoundFragmentFilter filter) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand";
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand";
         
         if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
             sql += ", similarity(t.search_name, $3) AS sim";
@@ -137,7 +137,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     @Deprecated
     public Uni<List<BrandSoundFragment>> getBrandSongs(UUID brandId, final int limit, final int offset, SoundFragmentFilter filter) {
-        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.last_time_played_by_brand";
+        String sql = "SELECT t.*, bsf.played_by_brand_count, bsf.rated_by_brand_count, bsf.last_time_played_by_brand";
         
         if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
             sql += ", similarity(t.search_name, $2) AS sim";
@@ -211,6 +211,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         brandSoundFragment.setId(row.getUUID("id"));
         brandSoundFragment.setDefaultBrandId(brandId);
         brandSoundFragment.setPlayedByBrandCount(row.getInteger("played_by_brand_count"));
+        brandSoundFragment.setRatedByBrandCount(row.getInteger("rated_by_brand_count"));
         brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
         return brandSoundFragment;
     }

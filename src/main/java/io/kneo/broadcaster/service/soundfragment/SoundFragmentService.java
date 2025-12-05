@@ -51,6 +51,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
     private final io.kneo.broadcaster.service.RefService refService;
+    private final BrandSoundFragmentUpdateService brandSoundFragmentUpdateService;
     private String uploadDir;
     Validator validator;
 
@@ -60,6 +61,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.repository = null;
         this.radioStationService = null;
         this.refService = null;
+        this.brandSoundFragmentUpdateService = null;
     }
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
@@ -98,13 +100,15 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 Validator validator,
                                 SoundFragmentRepository repository,
                                 BroadcasterConfig config,
-                                io.kneo.broadcaster.service.RefService refService) {
+                                io.kneo.broadcaster.service.RefService refService,
+                                BrandSoundFragmentUpdateService brandSoundFragmentUpdateService) {
         super(userService);
         this.localFileCleanupService = localFileCleanupService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
         this.refService = refService;
+        this.brandSoundFragmentUpdateService = brandSoundFragmentUpdateService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
 
@@ -552,6 +556,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     dto.setId(doc.getId());
                     dto.setSoundFragmentDTO(soundFragmentDTO);
                     dto.setPlayedByBrandCount(doc.getPlayedByBrandCount());
+                    dto.setRatedByBrandCount(doc.getRatedByBrandCount());
                     dto.setLastTimePlayedByBrand(doc.getPlayedTime());
                     dto.setDefaultBrandId(doc.getDefaultBrandId());
                     dto.setRepresentedInBrands(doc.getRepresentedInBrands());
@@ -622,11 +627,8 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         FileMetadata fileMetadata = new FileMetadata();
         fileMetadata.setFilePath(Paths.get(uploadFile.getFullPath()));
         fragment.setFileMetadataList(List.of(fileMetadata));
-        
-        // Use pre-resolved brandId
         List<UUID> brandIds = brandId != null ? List.of(brandId) : List.of();
         
-        // Resolve genres from metadata string (handles comma-separated values like "pop, indipop")
         assert refService != null;
         return refService.resolveGenresByName(metadata.getGenre())
                 .chain(genreIds -> {
@@ -634,5 +636,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     assert repository != null;
                     return repository.insert(fragment, brandIds, user);
                 });
+    }
+
+    public Uni<Void> rateSoundFragment(UUID brandId, UUID soundFragmentId, int delta) {
+        return brandSoundFragmentUpdateService.updateRatedCount(brandId, soundFragmentId, delta);
     }
 }

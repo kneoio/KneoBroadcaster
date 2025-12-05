@@ -167,7 +167,7 @@ public class RadioService {
         );
     }
 
-    public Uni<List<RadioStationStatusDTO>> getAllStations() {
+    public Uni<List<RadioStationStatusDTO>> getAllStations(Boolean onlineOnly) {
         return Uni.combine().all().unis(
                 getOnlineStations(),
                 radioStationService.getAll(1000, 0)
@@ -202,8 +202,12 @@ public class RadioService {
                         List<RadioStationStatusDTO> offlineResults = results.getItem2();
 
                         List<RadioStationStatusDTO> combined = new ArrayList<>();
-                        combined.addAll(onlineResults);
-                        combined.addAll(offlineResults);
+                        if (onlineOnly != null && onlineOnly) {
+                            combined.addAll(onlineResults);
+                        } else {
+                            combined.addAll(onlineResults);
+                            combined.addAll(offlineResults);
+                        }
 
                         return combined;
                     });

@@ -214,7 +214,9 @@ public class RadioController {
     }
 
     private void getAllStations(RoutingContext rc) {
-        service.getAllStations()
+        String onlineParam = rc.request().getParam("online");
+        Boolean onlineOnly = onlineParam != null ? Boolean.parseBoolean(onlineParam) : null;
+        service.getAllStations(onlineOnly)
                 .subscribe().with(
                         stations -> rc.response()
                                 .putHeader("Content-Type", MediaType.APPLICATION_JSON)

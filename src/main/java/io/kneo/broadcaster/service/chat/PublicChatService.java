@@ -89,7 +89,7 @@ public class PublicChatService extends ChatService {
             dto.getNickName().put(LanguageCode.en, nickname);
         }
 
-        return listenerService.upsertWithStationSlug(null, dto, stationSlug, SuperUser.build())
+        return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
                     String slugName = WebHelper.generateSlug(nickname != null && !nickname.isBlank() ? nickname : email);
                     return userService.findByLogin(slugName)

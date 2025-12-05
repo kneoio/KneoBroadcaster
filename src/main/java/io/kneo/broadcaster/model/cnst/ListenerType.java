@@ -2,5 +2,5 @@ package io.kneo.broadcaster.model.cnst;
 
 public enum ListenerType {
     OWNER,
-    TEMPORARY, REGULAR
+    TEMPORARY, REGULAR, CONTRIBUTOR, GROUP
 }

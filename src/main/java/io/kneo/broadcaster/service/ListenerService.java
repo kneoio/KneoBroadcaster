@@ -136,7 +136,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.findForBrandCount(brand, user, false, filter);
     }
 
-    public Uni<ListenerDTO> upsertWithStationSlug(String id, ListenerDTO dto, String stationSlug, IUser user) {
+    public Uni<ListenerDTO> upsertWithStationSlug(String id, ListenerDTO dto, String stationSlug, ListenerType listenerType, IUser user) {
         assert radioStationService != null;
         assert repository != null;
         return radioStationService.getBySlugName(stationSlug)
@@ -173,7 +173,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                 })
                                 .chain(userId -> {
                                     listener.setUserId(userId);
-                                    listener.setListenerType(ListenerType.TEMPORARY);
+                                    listener.setListenerType(listenerType);
                                     return repository.insert(listener, stationIds, user);
                                 })
                                 .chain(this::mapToDTO);

@@ -1,12 +1,14 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
@@ -20,11 +22,14 @@ import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.util.AnimationService;
+import io.kneo.broadcaster.service.util.GeolocationService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
+import io.kneo.core.service.UserService;
 import io.kneo.core.util.WebHelper;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
@@ -75,6 +80,12 @@ public class RadioService {
 
     @Inject
     private BroadcasterConfig config;
+
+    @Inject
+    ListenerService listenerService;
+
+    @Inject
+    UserService userService;
 
 
     private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d", "malucra");
@@ -240,9 +251,45 @@ public class RadioService {
                 });
     }
 
-    public Uni<SubmissionDTO> submit(String brand, SubmissionDTO dto) {
+    public Uni<SubmissionDTO> submit(String brand, SubmissionDTO dto, String ipHeader, String userAgent) {
         return radioStationService.getBySlugName(brand)
-                .chain(radioStation -> {
+                .chain(radioStation -> registerContributor(dto.getEmail(), brand)
+                        .chain(contributorUser -> {
+                            String[] ipCountry = GeolocationService.parseIPHeader(ipHeader);
+                            dto.setIpAddress(ipCountry[0]);
+                            dto.setCountry(CountryCode.valueOf(ipCountry[1]));
+                            dto.setUserAgent(userAgent);
+                            return processSubmission(radioStation, dto, contributorUser);
+                        }));
+    }
+
+    private Uni<IUser> registerContributor(String email, String stationSlug) {
+        ListenerDTO dto = new ListenerDTO();
+        dto.setEmail(email);
+        dto.setListenerType(String.valueOf(ListenerType.CONTRIBUTOR));
+        dto.getLocalizedName().put(LanguageCode.en, email);
+
+        return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.CONTRIBUTOR, SuperUser.build())
+                .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
+                    String slugName = WebHelper.generateSlug(email);
+                    return userService.findByLogin(slugName)
+                            .onItem().transformToUni(existingUser -> {
+                                if (existingUser.getId() == 0) {
+                                    return Uni.createFrom().failure(throwable);
+                                }
+                                ListenerDTO existingDto = new ListenerDTO();
+                                existingDto.setUserId(existingUser.getId());
+                                existingDto.setSlugName(slugName);
+                                return Uni.createFrom().item(existingDto);
+                            });
+                })
+                .onItem().transformToUni(listenerDTO ->
+                        userService.findById(listenerDTO.getUserId())
+                                .onItem().transform(userOptional -> userOptional.orElse(AnonymousUser.build()))
+                );
+    }
+
+    private Uni<SubmissionDTO> processSubmission(RadioStation radioStation, SubmissionDTO dto, IUser user) {
                     SoundFragment entity = buildEntity(dto);
                     entity.setSource(SourceType.CONTRIBUTION);
                     List<FileMetadata> fileMetadataList = new ArrayList<>();
@@ -287,8 +334,8 @@ public class RadioService {
 
                     entity.setFileMetadataList(fileMetadataList);
 
-                    return soundFragmentRepository.insert(entity, List.of(radioStation.getId()), AnonymousUser.build())
-                            .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, AnonymousUser.build())
+                    return soundFragmentRepository.insert(entity, List.of(radioStation.getId()), user)
+                            .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user)
                                     .chain(moved -> createContributionAndAgreement(moved, dto)
                                             .replaceWith(moved)))
                             .chain(doc -> {
@@ -298,18 +345,17 @@ public class RadioService {
                             .chain(this::mapToDTO)
                             .onFailure().invoke(failure -> {
                                 LOGGER.warn("Entity creation failed, cleaning up temp files for user: {}", dto.getEmail());
-                                localFileCleanupService.cleanupTempFilesForUser(AnonymousUser.USER_NAME)
+                                localFileCleanupService.cleanupTempFilesForUser(user.getUserName())
                                         .subscribe().with(
                                                 ignored -> LOGGER.debug("Temp files cleaned up after failure"),
                                                 cleanupError -> LOGGER.warn("Failed to cleanup temp files", cleanupError)
                                         );
                             });
-                });
     }
 
 
     private Uni<Void> createContributionAndAgreement(SoundFragment doc, SubmissionDTO dto) {
-        Long userId = AnonymousUser.build().getId();
+        Long userId = doc.getAuthor();
         return contributionRepository.insertContributionAndAgreementTx(
                 doc.getId(),
                 dto.getEmail(),

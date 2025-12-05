@@ -12,7 +12,6 @@ import io.kneo.broadcaster.service.util.ValidationService;
 import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
@@ -240,15 +239,13 @@ public class RadioController {
 
         try {
             SubmissionDTO dto = rc.body().asJsonObject().mapTo(SubmissionDTO.class);
-            String[] ipCountry = GeolocationService.parseIPHeader(rc.request().getHeader("stream-connecting-ip"));
-            dto.setIpAddress(ipCountry[0]);
-            dto.setCountry(CountryCode.valueOf(ipCountry[1]));
-            dto.setUserAgent(rc.request().getHeader("User-Agent"));
             String brand = rc.pathParam("brand");
+            String ipHeader = rc.request().getHeader("stream-connecting-ip");
+            String userAgent = rc.request().getHeader("User-Agent");
 
             validationService.validateSubmissionDTO(dto)
                     .chain(v -> v.valid()
-                            ? service.submit(brand, dto)
+                            ? service.submit(brand, dto, ipHeader, userAgent)
                             : Uni.createFrom().failure(new IllegalArgumentException(v.errorMessage())))
                     .subscribe().with(
                             ok -> rc.response().setStatusCode(200).end(ok.toString()),

@@ -179,38 +179,29 @@ public class RadioService {
                     .map(RadioStation::getSlugName)
                     .toList();
 
-            List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
-                    .map(v -> toStatusDTO(v, false))
-                    .collect(Collectors.toList());
+            if (onlineOnly != null && onlineOnly) {
+                List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
+                        .map(v -> toStatusDTO(v, false))
+                        .collect(Collectors.toList());
 
-            List<Uni<RadioStationStatusDTO>> offlineStatusUnis = allStations.stream()
-                    .filter(station -> !onlineBrands.contains(station.getSlugName()))
-                    .map(v -> toStatusDTO(v, false))
-                    .collect(Collectors.toList());
+                return onlineStatusUnis.isEmpty()
+                        ? Uni.createFrom().item(List.of())
+                        : Uni.join().all(onlineStatusUnis).andFailFast();
+            } else {
+                List<Uni<RadioStationStatusDTO>> allStatusUnis = allStations.stream()
+                        .map(station -> {
+                            RadioStation onlineStation = onlineStations.stream()
+                                    .filter(os -> os.getSlugName().equals(station.getSlugName()))
+                                    .findFirst()
+                                    .orElse(null);
+                            return toStatusDTO(onlineStation != null ? onlineStation : station, false);
+                        })
+                        .collect(Collectors.toList());
 
-            Uni<List<RadioStationStatusDTO>> onlineResultsUni = onlineStatusUnis.isEmpty()
-                    ? Uni.createFrom().item(List.of())
-                    : Uni.join().all(onlineStatusUnis).andFailFast();
-
-            Uni<List<RadioStationStatusDTO>> offlineResultsUni = offlineStatusUnis.isEmpty()
-                    ? Uni.createFrom().item(List.of())
-                    : Uni.join().all(offlineStatusUnis).andFailFast();
-
-            return Uni.combine().all().unis(onlineResultsUni, offlineResultsUni)
-                    .asTuple().map(results -> {
-                        List<RadioStationStatusDTO> onlineResults = results.getItem1();
-                        List<RadioStationStatusDTO> offlineResults = results.getItem2();
-
-                        List<RadioStationStatusDTO> combined = new ArrayList<>();
-                        if (onlineOnly != null && onlineOnly) {
-                            combined.addAll(onlineResults);
-                        } else {
-                            combined.addAll(onlineResults);
-                            combined.addAll(offlineResults);
-                        }
-
-                        return combined;
-                    });
+                return allStatusUnis.isEmpty()
+                        ? Uni.createFrom().item(List.of())
+                        : Uni.join().all(allStatusUnis).andFailFast();
+            }
         }).onFailure().invoke(failure ->
                 LOGGER.error("Failed to get all stations", failure)
         );

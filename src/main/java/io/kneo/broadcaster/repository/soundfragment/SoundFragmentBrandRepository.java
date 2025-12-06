@@ -11,6 +11,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
+import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
 
 import java.util.List;
@@ -115,7 +116,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 "WHERE bsf.brand_id = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
+            sql += " AND t.archived = 0";
         }
 
         if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
@@ -214,5 +215,66 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         brandSoundFragment.setRatedByBrandCount(row.getInteger("rated_by_brand_count"));
         brandSoundFragment.setPlayedTime(row.getLocalDateTime("last_time_played_by_brand"));
         return brandSoundFragment;
+    }
+
+    public Uni<Integer> updateRatedByBrandCount(UUID brandId, UUID soundFragmentId, int delta, IUser user) {
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), soundFragmentId)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new io.kneo.core.repository.exception.DocumentModificationAccessException(
+                                "User does not have edit permission", user.getUserName(), soundFragmentId
+                        ));
+                    }
+
+                    String selectSql = "SELECT rated_by_brand_count, last_rated_at FROM kneobroadcaster__brand_sound_fragments " +
+                            "WHERE brand_id = $1 AND sound_fragment_id = $2";
+
+                    return client.preparedQuery(selectSql)
+                            .execute(Tuple.of(brandId, soundFragmentId))
+                            .onItem().transformToUni(rowSet -> {
+                                int currentRating = 100;
+                                java.time.LocalDateTime lastRatedAt = null;
+                                
+                                if (rowSet.iterator().hasNext()) {
+                                    Row row = rowSet.iterator().next();
+                                    Integer dbValue = row.getInteger("rated_by_brand_count");
+                                    if (dbValue != null) {
+                                        currentRating = dbValue;
+                                    }
+                                    lastRatedAt = row.getLocalDateTime("last_rated_at");
+                                }
+
+                                if (lastRatedAt != null) {
+                                    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+                                    long secondsSinceLastRating = java.time.Duration.between(lastRatedAt, now).getSeconds();
+                                    
+                                    if (secondsSinceLastRating < 2) {
+                                        boolean sameDirection = (delta > 0 && currentRating > 100) || (delta < 0 && currentRating < 100);
+                                        if (sameDirection) {
+                                            return Uni.createFrom().failure(new IllegalStateException(
+                                                    "Please wait before rating again."
+                                            ));
+                                        }
+                                    }
+                                }
+
+                                int newRating = currentRating + delta;
+                                if (newRating < 0) {
+                                    newRating = 0;
+                                } else if (newRating > 200) {
+                                    newRating = 200;
+                                }
+
+                                String updateSql = "UPDATE kneobroadcaster__brand_sound_fragments " +
+                                        "SET rated_by_brand_count = $1, last_rated_at = NOW() " +
+                                        "WHERE brand_id = $2 AND sound_fragment_id = $3";
+
+                                Tuple updateParams = Tuple.of(newRating, brandId, soundFragmentId);
+
+                                return client.preparedQuery(updateSql)
+                                        .execute(updateParams)
+                                        .onItem().transform(SqlResult::rowCount);
+                            });
+                });
     }
 }

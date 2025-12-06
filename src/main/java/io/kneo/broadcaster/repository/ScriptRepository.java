@@ -132,6 +132,43 @@ public class ScriptRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<Script> updateAccessLevel(UUID id, Integer accessLevel, IUser user) {
+        return Uni.createFrom().deferred(() -> {
+            try {
+                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                        .onItem().transformToUni(permissions -> {
+                            if (!permissions[0]) {
+                                return Uni.createFrom().failure(
+                                        new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id)
+                                );
+                            }
+
+                            String sql = "UPDATE " + entityData.getTableName() +
+                                    " SET access_level=$1, last_mod_user=$2, last_mod_date=$3 WHERE id=$4";
+
+                            OffsetDateTime now = OffsetDateTime.now();
+
+                            Tuple params = Tuple.tuple()
+                                    .addInteger(accessLevel)
+                                    .addLong(user.getId())
+                                    .addOffsetDateTime(now)
+                                    .addUUID(id);
+
+                            return client.preparedQuery(sql)
+                                    .execute(params)
+                                    .onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return findById(id, user, true);
+                                    });
+                        });
+            } catch (Exception e) {
+                return Uni.createFrom().failure(e);
+            }
+        });
+    }
+
     public Uni<Script> insert(Script script, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
@@ -181,15 +218,14 @@ public class ScriptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET name=$1, description=$2, access_level=$3, language_code=$4, last_mod_user=$5, last_mod_date=$6 " +
-                                    "WHERE id=$7";
+                                    " SET name=$1, description=$2, language_code=$3, last_mod_user=$4, last_mod_date=$5 " +
+                                    "WHERE id=$6";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
                             Tuple params = Tuple.tuple()
                                     .addString(script.getName())
                                     .addString(script.getDescription())
-                                    .addInteger(script.getAccessLevel())
                                     .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)

@@ -69,6 +69,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
         router.post(path + "/:id").handler(this::upsert);
+        router.patch(path + "/:id/access-level").handler(this::updateAccessLevel);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
         router.post(path + "/:id/dry-run").handler(this::startDryRun);
@@ -406,6 +407,48 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                     );
         } catch (Exception e) {
             rc.fail(400, new IllegalArgumentException("Invalid import data format: " + e.getMessage()));
+        }
+    }
+
+    private void updateAccessLevel(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            String id = rc.pathParam("id");
+            JsonObject body = rc.body().asJsonObject();
+            
+            int accessLevel;
+            Object accessLevelValue = body.getValue("accessLevel");
+            
+            if (accessLevelValue == null) {
+                rc.fail(400, new IllegalArgumentException("accessLevel is required"));
+                return;
+            }
+            
+            if (accessLevelValue instanceof String accessLevelStr) {
+                if ("PUBLIC".equalsIgnoreCase(accessLevelStr)) {
+                    accessLevel = 1;
+                } else if ("PRIVATE".equalsIgnoreCase(accessLevelStr)) {
+                    accessLevel = 0;
+                } else {
+                    rc.fail(400, new IllegalArgumentException("Invalid accessLevel value. Expected 'PUBLIC', 'PRIVATE', or integer"));
+                    return;
+                }
+            } else if (accessLevelValue instanceof Number) {
+                accessLevel = ((Number) accessLevelValue).intValue();
+            } else {
+                rc.fail(400, new IllegalArgumentException("accessLevel must be a string or integer"));
+                return;
+            }
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.updateAccessLevel(id, accessLevel, user))
+                    .subscribe().with(
+                            dto -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(dto).encode()),
+                            rc::fail
+                    );
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
         }
     }
 }

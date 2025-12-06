@@ -382,7 +382,7 @@ public class AiHelperService {
                                     scene.getPrompts().stream()
                                         .filter(ScenePrompt::isActive)
                                         .map(ScenePrompt::getPromptId)
-                                        .collect(java.util.stream.Collectors.toList()) : List.of();
+                                        .toList() : List.of();
                                 allMasterPromptIds.addAll(promptIds);
                                 currentSceneTitle = scene.getTitle();
                                 activeScene = scene;

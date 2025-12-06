@@ -254,8 +254,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, ai_overriding=$7, profile_overriding=$8, " +
-                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, submission_policy=$14, messaging_policy=$15, title_font=$16, popularity_rate=$17, last_mod_user=$18, last_mod_date=$19 " +
-                                    "WHERE id=$20";
+                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, submission_policy=$14, messaging_policy=$15, title_font=$16, last_mod_user=$17, last_mod_date=$18 " +
+                                    "WHERE id=$19";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -278,7 +278,6 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getSubmissionPolicy().name())
                                     .addString(station.getMessagingPolicy().name())
                                     .addString(station.getTitleFont())
-                                    .addDouble(station.getPopularityRate())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);

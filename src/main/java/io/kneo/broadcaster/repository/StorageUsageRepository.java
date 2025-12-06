@@ -1,5 +1,8 @@
 package io.kneo.broadcaster.repository;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.core.repository.AsyncRepository;
+import io.kneo.core.repository.rls.RLSRepository;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Tuple;
@@ -13,15 +16,14 @@ import java.util.List;
 import java.util.UUID;
 
 @ApplicationScoped
-public class StorageUsageRepository {
+public class StorageUsageRepository  extends AsyncRepository {
     private static final Logger LOGGER = LoggerFactory.getLogger(StorageUsageRepository.class);
 
-    private final PgPool client;
-
     @Inject
-    public StorageUsageRepository(PgPool client) {
-        this.client = client;
+    public StorageUsageRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+        super(client, mapper, rlsRepository);
     }
+
 
     public Uni<Void> insertBatch(List<StorageUsageRecord> records) {
         String sql = "INSERT INTO _storage_usage (author, station_id, station_slug, total_bytes, file_count, " +

@@ -431,6 +431,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandSongs(brandId, fragmentType, 200, 0);
     }
 
+    public Uni<Integer> updateRatedByBrandCount(UUID brandId, UUID soundFragmentId, int delta, IUser user) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.updateRatedByBrandCount(brandId, soundFragmentId, delta, user);
+    }
+
     public Uni<List<UUID>> getBrandsForSoundFragment(UUID soundFragmentId, IUser user) {
         String sql = "SELECT bsf.brand_id " +
                 "FROM kneobroadcaster__brand_sound_fragments bsf " +

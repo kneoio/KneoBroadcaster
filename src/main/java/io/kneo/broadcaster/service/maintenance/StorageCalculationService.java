@@ -10,7 +10,6 @@ import io.smallrye.mutiny.subscription.Cancellable;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.Tuple;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
@@ -32,7 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-@ApplicationScoped
+//@ApplicationScoped
 public class StorageCalculationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(StorageCalculationService.class);
     private static final int INTERVAL_HOURS = 24;

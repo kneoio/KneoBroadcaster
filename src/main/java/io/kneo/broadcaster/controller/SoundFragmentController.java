@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
@@ -49,7 +50,6 @@ import java.util.UUID;
 @ApplicationScoped
 public class SoundFragmentController extends AbstractSecuredController<SoundFragment, SoundFragmentDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentController.class);
-    private static final long BODY_HANDLER_LIMIT = 1024L * 1024L * 1024L;
     private static final int STREAM_BUFFER_SIZE = 524288; // 512KB buffer for file streaming
 
     private SoundFragmentService service;
@@ -83,16 +83,14 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
         router.route(HttpMethod.GET, path).handler(this::get);
         router.route(HttpMethod.GET, path + "/available-soundfragments").handler(this::getForBrand);
         router.route(HttpMethod.GET, path + "/available-soundfragments/:id").handler(this::getForBrand);
-        //router.route(HttpMethod.GET, path + "/search").handler(this::search);
-        //router.route(HttpMethod.GET, path + "/upload-progress/:uploadId/stream").handler(this::streamProgress);
         router.route(HttpMethod.GET, path + "/:id").handler(this::getById);
         router.route(HttpMethod.GET, path + "/files/:id/:slug").handler(this::getBySlugName);
         router.route(HttpMethod.POST, path + "/bulk-brand-update").handler(jsonBodyHandler).handler(this::bulkBrandUpdate);
         router.route(HttpMethod.POST, path + "/:id?").handler(jsonBodyHandler).handler(this::upsert);
         router.route(HttpMethod.DELETE, path + "/:id").handler(this::delete);
-       // router.route(HttpMethod.POST, path + "/files/:id/start").handler(jsonBodyHandler).handler(this::startUploadSession);  //or submissons
         router.route(HttpMethod.POST, path + "/files/:id").handler(this::uploadFile); //!!
         router.route(HttpMethod.GET, path + "/:id/access").handler(this::getDocumentAccess);
+        router.route(HttpMethod.PATCH, path + "/:id/rating").handler(jsonBodyHandler).handler(this::rateFragment);
 
     }
 
@@ -163,38 +161,6 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                             RuntimeUtil.countMaxPage(tuple.getItem2(), size),
                             size);
                     viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                    return viewPage;
-                }))
-                .subscribe().with(
-                        viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                        t -> handleFailure(rc, t)
-                );
-    }
-
-    private void search(RoutingContext rc) {
-        String searchTerm = rc.request().getParam("q");
-        int page = Integer.parseInt(rc.request().getParam("page", "1"));
-        int size = Integer.parseInt(rc.request().getParam("size", "10"));
-        SoundFragmentFilterDTO filter = parseFilterDTO(rc);
-
-        if (searchTerm == null || searchTerm.trim().isEmpty()) {
-            rc.fail(400, new IllegalArgumentException("Search term 'q' parameter is required"));
-            return;
-        }
-
-        getContextUser(rc, false, true)
-                .chain(user -> Uni.combine().all().unis(
-                        service.getSearchCount(searchTerm, user, filter),
-                        service.search(searchTerm, size, (page - 1) * size, user, filter)
-                ).asTuple().map(tuple -> {
-                    ViewPage viewPage = new ViewPage();
-                    View<SoundFragmentDTO> dtoEntries = new View<>(tuple.getItem2(),
-                            tuple.getItem1(), page,
-                            RuntimeUtil.countMaxPage(tuple.getItem1(), size),
-                            size);
-                    viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                    ActionBox actions = SoundFragmentActionsFactory.getViewActions(user.getActivatedRoles());
-                    viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, actions);
                     return viewPage;
                 }))
                 .subscribe().with(
@@ -361,6 +327,53 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
         }
     }
+
+
+    private void rateFragment(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+
+            String id = rc.pathParam("id");
+            String brandSlug = rc.request().getParam("brand");
+            if (brandSlug == null || brandSlug.isBlank()) {
+                rc.fail(400, new IllegalArgumentException("brand is required"));
+                return;
+            }
+
+            JsonObject body = rc.body().asJsonObject();
+            String actionStr = body.getString("action");
+            if (actionStr == null) {
+                rc.fail(400, new IllegalArgumentException("action is required (LIKE or DISLIKE)"));
+                return;
+            }
+
+            RatingAction action;
+            try {
+                action = RatingAction.valueOf(actionStr);
+            } catch (IllegalArgumentException e) {
+                rc.fail(400, new IllegalArgumentException("Invalid action. Use LIKE or DISLIKE"));
+                return;
+            }
+
+            UUID fragmentId = UUID.fromString(id);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.rateSoundFragmentByAction(brandSlug, fragmentId, action, user))
+                    .subscribe().with(
+                            updated -> {
+                                JsonObject response = new JsonObject();
+                                response.put("updated", updated);
+                                rc.response().setStatusCode(200).end(response.encode());
+                            },
+                            t -> handleFailure(rc, t)
+                    );
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
+    }
+
 
     private void getDocumentAccess(RoutingContext rc) {
         String id = rc.pathParam("id");

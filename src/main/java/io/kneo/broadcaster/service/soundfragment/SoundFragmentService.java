@@ -8,6 +8,7 @@ import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
@@ -638,7 +639,15 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<Void> rateSoundFragment(UUID brandId, UUID soundFragmentId, int delta) {
-        return brandSoundFragmentUpdateService.updateRatedCount(brandId, soundFragmentId, delta);
+    public Uni<Integer> rateSoundFragmentByAction(String brandSlug, UUID soundFragmentId, RatingAction action, IUser user) {
+        int delta = (action == RatingAction.LIKE) ? 10 : -10;
+        return resolveBrandSlug(brandSlug)
+                .chain(brandId -> {
+                    if (brandId == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandSlug));
+                    }
+                    assert repository != null;
+                    return repository.updateRatedByBrandCount(brandId, soundFragmentId, delta, user);
+                });
     }
 }

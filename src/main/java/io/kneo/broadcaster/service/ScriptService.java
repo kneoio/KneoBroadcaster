@@ -155,11 +155,17 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         Script entity = new Script();
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
-        entity.setAccessLevel(dto.getAccessLevel());
         entity.setLanguageCode(dto.getLanguageCode());
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
         return entity;
+    }
+
+    public Uni<ScriptDTO> updateAccessLevel(String id, Integer accessLevel, IUser user) {
+        assert repository != null;
+        UUID uuid = UUID.fromString(id);
+        return repository.updateAccessLevel(uuid, accessLevel, user)
+                .chain(script -> mapToDTO(script, user));
     }
 
     public Uni<List<BrandScript>> getAllScriptsForBrandWithScenes(UUID brandId, IUser user) {

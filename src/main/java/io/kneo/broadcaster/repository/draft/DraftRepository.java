@@ -107,8 +107,8 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, title, content, language_code, enabled, is_master, locked, master_id, version) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, title, content, description, language_code, enabled, is_master, locked, master_id, version) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -119,6 +119,7 @@ public class DraftRepository extends AsyncRepository {
                         .addOffsetDateTime(now)
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
+                        .addString(draft.getDescription())
                         .addString(draft.getLanguageCode().name())
                         .addBoolean(draft.isEnabled())
                         .addBoolean(draft.isMaster())
@@ -140,14 +141,15 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "UPDATE " + entityData.getTableName() +
-                        " SET title = $1, content = $2, language_code = $3, enabled = $4, is_master = $5, locked = $6, master_id = $7, " +
-                        "version = $8, last_mod_user = $9, last_mod_date = $10 WHERE id = $11";
+                        " SET title = $1, content = $2, description = $3, language_code = $4, enabled = $5, is_master = $6, locked = $7, master_id = $8, " +
+                        "version = $9, last_mod_user = $10, last_mod_date = $11 WHERE id = $12";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
                 Tuple params = Tuple.tuple()
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
+                        .addString(draft.getDescription())
                         .addString(draft.getLanguageCode().name())
                         .addBoolean(draft.isEnabled())
                         .addBoolean(draft.isMaster())
@@ -199,6 +201,7 @@ public class DraftRepository extends AsyncRepository {
 
         doc.setTitle(row.getString("title"));
         doc.setContent(row.getString("content"));
+        doc.setDescription(row.getString("description"));
         doc.setArchived(row.getInteger("archived"));
         doc.setEnabled(row.getBoolean("enabled"));
         doc.setMaster(row.getBoolean("is_master"));

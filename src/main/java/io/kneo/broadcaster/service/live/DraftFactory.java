@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.live;
 
+import io.kneo.broadcaster.agent.PerplexityApiClient;
 import io.kneo.broadcaster.agent.WeatherApiClient;
 import io.kneo.broadcaster.agent.WorldNewsApiClient;
 import io.kneo.broadcaster.model.Draft;
@@ -42,19 +43,21 @@ public class DraftFactory {
     private final AiAgentService aiAgentService;
     private final WeatherApiClient weatherApiClient;
     private final WorldNewsApiClient worldNewsApiClient;
+    private final PerplexityApiClient perplexityApiClient;
     private final Random random = new Random();
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
     public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService,
-                       AiAgentService aiAgentService, WeatherApiClient weatherApiClient, 
-                       WorldNewsApiClient worldNewsApiClient) {
+                        AiAgentService aiAgentService, WeatherApiClient weatherApiClient,
+                        WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient) {
         this.refService = refService;
         this.profileService = profileService;
         this.draftService = draftService;
         this.aiAgentService = aiAgentService;
         this.weatherApiClient = weatherApiClient;
         this.worldNewsApiClient = worldNewsApiClient;
+        this.perplexityApiClient = perplexityApiClient;
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
@@ -202,6 +205,7 @@ public class DraftFactory {
         data.put("country", station.getCountry());
         data.put("language", selectedLanguage);
         data.put("random", random);
+        data.put("perplexity", new PerpelxitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
 

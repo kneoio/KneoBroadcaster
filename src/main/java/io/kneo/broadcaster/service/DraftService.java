@@ -131,6 +131,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setTitle(doc.getTitle());
             dto.setContent(doc.getContent());
+            dto.setDescription(doc.getDescription());
             dto.setLanguageCode(doc.getLanguageCode());
             dto.setArchived(doc.getArchived());
             dto.setEnabled(doc.isEnabled());
@@ -146,6 +147,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         Draft doc = new Draft();
         doc.setTitle(dto.getTitle());
         doc.setContent(dto.getContent());
+        doc.setDescription(dto.getDescription());
         doc.setLanguageCode(dto.getLanguageCode());
         doc.setArchived(dto.getArchived() != null ? dto.getArchived() : 0);
         doc.setEnabled(dto.isEnabled());

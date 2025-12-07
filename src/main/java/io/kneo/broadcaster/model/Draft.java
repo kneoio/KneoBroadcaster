@@ -16,6 +16,7 @@ public class Draft extends DataEntity<UUID> {
     private String draftType;
     private String title;
     private String content;
+    private String description;
     private LanguageCode languageCode;
     private DraftingMethod method;
     private Integer archived;

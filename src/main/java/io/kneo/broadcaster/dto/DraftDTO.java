@@ -16,6 +16,7 @@ import java.util.UUID;
 public class DraftDTO  extends AbstractReferenceDTO {
     private String title;
     private String content;
+    private String description;
     private LanguageCode languageCode;
     private Integer archived;
     private boolean enabled;

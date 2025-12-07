@@ -4,6 +4,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.Model;
+import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
@@ -153,17 +154,28 @@ public class PublicChatService extends ChatService {
     }
 
     @Override
+    protected List<Tool> getAvailableTools() {
+        return List.of(
+                GetStations.toTool(),
+                GetOnlineStations.toTool(),
+                SearchBrandSoundFragments.toTool(),
+                AddToQueueTool.toTool()
+        );
+    }
+
+    @Override
     protected MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history) {
-        return MessageCreateParams.builder()
+        MessageCreateParams.Builder builder = MessageCreateParams.builder()
                 .maxTokens(1024L)
                 .system(renderedPrompt)
                 .messages(history)
-                .model(Model.CLAUDE_3_5_HAIKU_20241022)
-                .addTool(GetStations.toTool())
-                .addTool(GetOnlineStations.toTool())
-                .addTool(SearchBrandSoundFragments.toTool())
-                .addTool(AddToQueueTool.toTool())
-                .build();
+                .model(Model.CLAUDE_3_5_HAIKU_20241022);
+        
+        for (Tool tool : getAvailableTools()) {
+            builder.addTool(tool);
+        }
+        
+        return builder.build();
     }
 
     @Override
@@ -171,12 +183,13 @@ public class PublicChatService extends ChatService {
                                       Consumer<String> chunkHandler,
                                       Consumer<String> completionHandler,
                                       String connectionId,
+                                      String brandName,
                                       long userId,
                                       List<MessageParam> conversationHistory) {
 
         Map<String, JsonValue> inputMap = extractInputMap(toolUse);
         Function<MessageCreateParams, Uni<Void>> streamFn =
-                createStreamFunction(chunkHandler, completionHandler, connectionId, userId);
+                createStreamFunction(chunkHandler, completionHandler, connectionId, brandName, userId);
 
         if ("get_stations".equals(toolUse.name())) {
             return GetStationsToolHandler.handle(

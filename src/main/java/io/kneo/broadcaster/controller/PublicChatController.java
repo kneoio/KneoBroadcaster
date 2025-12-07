@@ -302,11 +302,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             try {
                 JsonObject msgJson = new JsonObject(message);
                 String action = msgJson.getString("action");
-                String stationId = msgJson.getString("stationId");
+                String brandSlug = msgJson.getString("brandSlug");
                 
                 switch (action) {
                     case "sendMessage":
-                        handleUserMessage(webSocket, msgJson, connectionId, stationId, user);
+                        handleUserMessage(webSocket, msgJson, connectionId, brandSlug, user);
                         break;
                     case "getHistory":
                         handleGetHistory(webSocket, msgJson, user);
@@ -332,7 +332,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private void handleUserMessage(ServerWebSocket webSocket, JsonObject msgJson, String connectionId, 
-                                  String stationId, IUser user) {
+                                  String brandSlug, IUser user) {
         String username = msgJson.getString("username", user.getUserName());
         String content = msgJson.getString("content");
 
@@ -342,11 +342,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
 
         assert publicChatService != null;
-        publicChatService.processUserMessage(username, content, connectionId, user)
+        publicChatService.processUserMessage(username, content, connectionId, brandSlug, user)
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);
-                            sendBotResponse(webSocket, content, connectionId, stationId, user);
+                            sendBotResponse(webSocket, content, connectionId, brandSlug, user);
                         },
                         err -> {
                             LOG.error("Error processing user message", err);
@@ -356,14 +356,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private void sendBotResponse(ServerWebSocket webSocket, String userMessage, String connectionId, 
-                                String stationId, IUser user) {
+                                String brandSlug, IUser user) {
         assert publicChatService != null;
         publicChatService.generateBotResponse(
                 userMessage,
                 webSocket::writeTextMessage,
                 webSocket::writeTextMessage,
                 connectionId,
-                stationId,
+                brandSlug,
                 user
         ).subscribe().with(
                 v -> {},
@@ -375,10 +375,11 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, IUser user) {
+        String brandSlug = msgJson.getString("brandSlug");
         Integer limit = msgJson.getInteger("limit", 50);
 
         assert publicChatService != null;
-        publicChatService.getChatHistory(limit, user)
+        publicChatService.getChatHistory(brandSlug, limit, user)
                 .subscribe().with(
                         webSocket::writeTextMessage,
                         err -> {

@@ -78,11 +78,21 @@ public class AddToQueueToolHandler extends BaseToolHandler {
         }
         LOGGER.info("[AddToQueue] Parsed {} sound fragments", soundFragments.size());
 
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Generating intro ...");
-
         Integer finalPriority = priority;
-        LOGGER.info("[AddToQueue] Calling ElevenLabs TTS - voiceId: {}, modelId: {}", djVoiceId, config.getElevenLabsModelId());
-        return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId())
+        
+        return queueService.isStationOnline(brandName)
+                .flatMap(isOnline -> {
+                    if (!isOnline) {
+                        LOGGER.warn("[AddToQueue] Station '{}' is offline, cannot queue song", brandName);
+                        return Uni.createFrom().failure(
+                                new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE,
+                                        "Station '" + brandName + "' is currently offline. Please start the station first."));
+                    }
+                    
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Generating intro ...");
+                    LOGGER.info("[AddToQueue] Calling ElevenLabs TTS - voiceId: {}, modelId: {}", djVoiceId, config.getElevenLabsModelId());
+                    return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId());
+                })
                 .flatMap(audioBytes -> {
                     LOGGER.info("[AddToQueue] TTS completed - received {} bytes", audioBytes.length);
                     try {

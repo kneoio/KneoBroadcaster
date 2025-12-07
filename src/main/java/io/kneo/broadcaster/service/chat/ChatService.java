@@ -94,7 +94,7 @@ public abstract class ChatService {
 
     protected abstract ChatType getChatType();
 
-    public Uni<String> processUserMessage(String username, String content, String connectionId, IUser user) {
+    public Uni<String> processUserMessage(String username, String content, String connectionId, String brandName, IUser user) {
         return Uni.createFrom().item(() -> {
             JsonObject message = createMessage(
                     MessageType.USER,
@@ -104,7 +104,7 @@ public abstract class ChatService {
                     connectionId
             );
 
-            chatRepository.saveChatMessage(user.getId(), getChatType(), message).subscribe().with(
+            chatRepository.saveChatMessage(user.getId(), brandName, getChatType(), message).subscribe().with(
                     success -> {},
                     failure -> LOGGER.error("Failed to save user message", failure)
             );
@@ -113,8 +113,8 @@ public abstract class ChatService {
         });
     }
 
-    public Uni<String> getChatHistory(int limit, IUser user) {
-        return chatRepository.getRecentChatMessages(user.getId(), getChatType(), limit)
+    public Uni<String> getChatHistory(String brandName, int limit, IUser user) {
+        return chatRepository.getRecentChatMessages(user.getId(), brandName, getChatType(), limit)
                 .map(recentMessages -> {
 
                     JsonArray messages = new JsonArray();
@@ -206,9 +206,9 @@ public abstract class ChatService {
 
                             if (toolUse.isPresent()) {
                                 List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
-                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, user.getId(), history);
+                                return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, slugName, user.getId(), history);
                             } else {
-                                return streamResponse(params, chunkHandler, completionHandler, connectionId, user.getId());
+                                return streamResponse(params, chunkHandler, completionHandler, connectionId, slugName, user.getId());
                             }
                         })
         ).runSubscriptionOn(getDefaultWorkerPool());
@@ -216,10 +216,13 @@ public abstract class ChatService {
 
     protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history);
 
+    protected abstract List<com.anthropic.models.messages.Tool> getAvailableTools();
+
     protected abstract Uni<Void> handleToolCall(ToolUseBlock toolUse,
                                                 Consumer<String> chunkHandler,
                                                 Consumer<String> completionHandler,
                                                 String connectionId,
+                                                String brandName,
                                                 long userId,
                                                 List<MessageParam> conversationHistory);
 
@@ -227,6 +230,7 @@ public abstract class ChatService {
                                      Consumer<String> chunkHandler,
                                      Consumer<String> completionHandler,
                                      String connectionId,
+                                     String brandName,
                                      long userId) {
 
         return Uni.createFrom().completionStage(() -> {
@@ -295,7 +299,7 @@ public abstract class ChatService {
                                         connectionId
                                 );
 
-                                chatRepository.saveChatMessage(userId, getChatType(), botMessage).subscribe().with(
+                                chatRepository.saveChatMessage(userId, brandName, getChatType(), botMessage).subscribe().with(
                                         success -> {},
                                         failure -> LOGGER.error("Failed to save bot message", failure)
                                 );
@@ -343,7 +347,44 @@ public abstract class ChatService {
             Consumer<String> chunkHandler,
             Consumer<String> completionHandler,
             String connectionId,
+            String brandName,
             long userId) {
-        return params -> streamResponse(params, chunkHandler, completionHandler, connectionId, userId);
+        return params -> handleFollowUpWithToolDetection(params, chunkHandler, completionHandler, connectionId, brandName, userId);
+    }
+
+    protected Uni<Void> handleFollowUpWithToolDetection(
+            MessageCreateParams params,
+            Consumer<String> chunkHandler,
+            Consumer<String> completionHandler,
+            String connectionId,
+            String brandName,
+            long userId) {
+        
+        MessageCreateParams.Builder builder = MessageCreateParams.builder()
+                .maxTokens(params.maxTokens())
+                .system(params.system().orElse(null))
+                .messages(params.messages())
+                .model(params.model());
+        
+        for (com.anthropic.models.messages.Tool tool : getAvailableTools()) {
+            builder.addTool(tool);
+        }
+        
+        MessageCreateParams paramsWithTools = builder.build();
+        
+        return Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(paramsWithTools))
+                .flatMap(message -> {
+                    Optional<ToolUseBlock> toolUse = message.content().stream()
+                            .flatMap(block -> block.toolUse().stream())
+                            .findFirst();
+
+                    if (toolUse.isPresent()) {
+                        LOGGER.debug("Follow-up detected tool call: {}", toolUse.get().name());
+                        List<MessageParam> history = chatRepository.getConversationHistory(userId, getChatType());
+                        return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, brandName, userId, history);
+                    } else {
+                        return streamResponse(params, chunkHandler, completionHandler, connectionId, brandName, userId);
+                    }
+                }).runSubscriptionOn(getDefaultWorkerPool());
     }
 }

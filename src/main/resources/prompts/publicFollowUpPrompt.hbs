@@ -18,3 +18,7 @@ Rules:
    - 9 = HIGH: play soon; clear prioritized queue but do not interrupt current song.
    - 8 = INTERRUPT: interrupt current playlist.
    - 7 = HARD_INTERRUPT: immediately interrupt air and play.
+
+Station offline handling:
+- If add_to_queue returns an error with "offline" or "not active", inform the user: "The station is currently offline. Please try again later or contact the station owner."
+- Do NOT suggest starting the station - public users cannot control stations.

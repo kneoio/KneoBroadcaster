@@ -2,7 +2,6 @@ package io.kneo.broadcaster.model.chat;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.cnst.ChatType;
-import io.kneo.broadcaster.model.cnst.MessageType;
 import io.kneo.core.model.DataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,15 +14,19 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ChatMessage extends DataEntity<UUID> {
-    private Long userId;
+public class ChatSummary extends DataEntity<UUID> {
     private String brandName;
+    private SummaryType summaryType;
+    private Long userId;
     private ChatType chatType;
-    private MessageType messageType;
-    private String username;
-    private String content;
-    private String connectionId;
-    private LocalDateTime timestamp;
-    private LocalDateTime summarizedAt;
-    private UUID summaryId;
+    private String summary;
+    private int messageCount;
+    private LocalDateTime periodStart;
+    private LocalDateTime periodEnd;
+    private LocalDateTime createdAt;
+
+    public enum SummaryType {
+        BRAND,
+        USER
+    }
 }

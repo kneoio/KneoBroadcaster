@@ -191,6 +191,12 @@ public class QueueService {
                 });
     }
 
+    public Uni<Boolean> isStationOnline(String brand) {
+        LOGGER.debug("[QueueService] Checking if station is online: {}", brand);
+        return radioStationPool.get(brand)
+                .onItem().transform(station -> station != null && station.getStreamManager() != null);
+    }
+
     public SSEProgressDTO getQueuingProgress(String uploadId) {
         return queuingProgressMap.get(uploadId);
     }

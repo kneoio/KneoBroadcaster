@@ -11,6 +11,7 @@ import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.ContributionRepository;
@@ -459,11 +460,15 @@ public class RadioService {
             return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                     .onItem().transform(aiAgent -> {
                         LanguageCode selectedLang = selectLanguageByWeight(aiAgent);
+                        AiOverriding overriddenAiDj = radioStation.getAiOverriding();
+                        String djName = (overriddenAiDj != null && overriddenAiDj.getName() != null)
+                                ? overriddenAiDj.getName()
+                                : aiAgent.getName();
                         return new RadioStationStatusDTO(
                                 stationName,
                                 slugName,
                                 managedByType,
-                                aiAgent.getName(),
+                                djName,
                                 selectedLang.name().toUpperCase(),
                                 agentStatus,
                                 currentStatus,

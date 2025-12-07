@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
@@ -10,6 +11,7 @@ import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
@@ -33,6 +35,7 @@ import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +43,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,6 +60,9 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
 
     @Inject
     private QuartzSchedulerService quartzSchedulerService;
+
+    @Inject
+    Provider<ListenerService> listenerService;
 
     @Inject
     public RadioStationService(
@@ -159,11 +166,24 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             quartzSchedulerService.removeForEntity(savedEntity);
             quartzSchedulerService.scheduleEntity(savedEntity);
 
-            if (radiostationPool.getStation(savedEntity.getSlugName()).isPresent()) {
-                return radiostationPool.updateStationConfig(savedEntity.getSlugName(), savedEntity);
-            } else {
-                return Uni.createFrom().item(savedEntity);
-            }
+            ListenerDTO listenerDTO = new ListenerDTO();
+            listenerDTO.setCountry(savedEntity.getCountry().name());
+            listenerDTO.setUserId(user.getId());
+            EnumMap<LanguageCode, String> names = new EnumMap<>(LanguageCode.class);
+            names.put(LanguageCode.en, user.getUserName());
+            listenerDTO.setLocalizedName(names);
+            listenerDTO.setNickName(names);
+
+            return listenerService.get().upsertWithStationSlug(null, listenerDTO, savedEntity.getSlugName(), ListenerType.OWNER, user)
+                    .onFailure().invoke(t -> LOGGER.error("Failed to ensure owner listener for station: {}", savedEntity.getSlugName(), t))
+                    .onItem().ignore().andContinueWithNull()
+                    .chain(() -> {
+                        if (radiostationPool.getStation(savedEntity.getSlugName()).isPresent()) {
+                            return radiostationPool.updateStationConfig(savedEntity.getSlugName(), savedEntity);
+                        } else {
+                            return Uni.createFrom().item(savedEntity);
+                        }
+                    });
         }).chain(this::mapToDTO);
     }
 

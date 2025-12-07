@@ -8,6 +8,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.RawContentBlockDelta;
 import com.anthropic.models.messages.RawMessageStreamEvent;
+import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
@@ -216,7 +217,7 @@ public abstract class ChatService {
 
     protected abstract MessageCreateParams buildMessageCreateParams(String renderedPrompt, List<MessageParam> history);
 
-    protected abstract List<com.anthropic.models.messages.Tool> getAvailableTools();
+    protected abstract List<Tool> getAvailableTools();
 
     protected abstract Uni<Void> handleToolCall(ToolUseBlock toolUse,
                                                 Consumer<String> chunkHandler,

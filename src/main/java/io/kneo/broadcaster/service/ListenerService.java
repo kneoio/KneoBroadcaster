@@ -13,6 +13,7 @@ import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.dto.document.UserDTO;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.model.user.UndefinedUser;
@@ -160,21 +161,40 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     listener.setSlugName(slugName);
                     
                     if (id == null) {
-                        return userService.findByLogin(slugName)
+                        Uni<IUser> findUserUni;
+                        if (dto.getUserId() > 0) {
+                            findUserUni = userService.findById(dto.getUserId())
+                                    .map(opt -> opt.orElse(AnonymousUser.build()));
+                        } else {
+                            findUserUni = userService.findByLogin(slugName);
+                        }
+
+                        return findUserUni
                                 .chain(existingUser -> {
                                     if (existingUser.getId() != UndefinedUser.ID) {
-                                        return Uni.createFrom().failure(
-                                                new UserAlreadyExistsException(slugName));
+                                        return repository.findByUserId(existingUser.getId())
+                                                .chain(existingListener -> {
+                                                    if (existingListener != null) {
+                                                        if (listenerType == ListenerType.OWNER) {
+                                                            existingListener.setListenerType(ListenerType.OWNER);
+                                                        }
+                                                        return repository.update(existingListener.getId(), existingListener, stationIds, user);
+                                                    } else {
+                                                        listener.setUserId(existingUser.getId());
+                                                        listener.setListenerType(listenerType);
+                                                        return repository.insert(listener, stationIds, user);
+                                                    }
+                                                });
                                     }
                                     
                                     UserDTO listenerUserDTO = new UserDTO();
                                     listenerUserDTO.setLogin(slugName);
-                                    return userService.add(listenerUserDTO, true);
-                                })
-                                .chain(userId -> {
-                                    listener.setUserId(userId);
-                                    listener.setListenerType(listenerType);
-                                    return repository.insert(listener, stationIds, user);
+                                    return userService.add(listenerUserDTO, true)
+                                            .chain(userId -> {
+                                                listener.setUserId(userId);
+                                                listener.setListenerType(listenerType);
+                                                return repository.insert(listener, stationIds, user);
+                                            });
                                 })
                                 .chain(this::mapToDTO);
                     } else {

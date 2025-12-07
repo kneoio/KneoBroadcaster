@@ -423,6 +423,19 @@ public class ListenersRepository extends AsyncRepository {
                 });
     }
 
+    public Uni<Listener> findByUserId(Long userId) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE user_id = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(userId))
+                .onItem().transformToUni(rows -> {
+                    if (rows.iterator().hasNext()) {
+                        return from(rows.iterator().next());
+                    } else {
+                        return Uni.createFrom().nullItem();
+                    }
+                });
+    }
+
     private String buildFilterConditions(ListenerFilter filter) {
         return buildFilterConditions(filter, "t");
     }

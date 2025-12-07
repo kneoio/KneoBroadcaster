@@ -13,6 +13,7 @@ import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.DraftService;
+import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
@@ -44,13 +45,15 @@ public class DraftFactory {
     private final WeatherApiClient weatherApiClient;
     private final WorldNewsApiClient worldNewsApiClient;
     private final PerplexityApiClient perplexityApiClient;
+    private final ListenerService listenerService;
     private final Random random = new Random();
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
     public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService,
                         AiAgentService aiAgentService, WeatherApiClient weatherApiClient,
-                        WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient) {
+                        WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient,
+                        ListenerService listenerService) {
         this.refService = refService;
         this.profileService = profileService;
         this.draftService = draftService;
@@ -58,6 +61,7 @@ public class DraftFactory {
         this.weatherApiClient = weatherApiClient;
         this.worldNewsApiClient = worldNewsApiClient;
         this.perplexityApiClient = perplexityApiClient;
+        this.listenerService = listenerService;
         this.groovyEngine = new GroovyTemplateEngine();
     }
 
@@ -77,7 +81,8 @@ public class DraftFactory {
                         getDraftTemplate(draftId, station.getSlugName(), selectedLanguage),
                         profileService.getById(station.getProfileId()),
                         resolveGenreNames(song, selectedLanguage),
-                        copilotUni
+                        copilotUni,
+                        listenerService.getBrandListeners(station.getSlugName(), 500, 0, SuperUser.build(), null)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -86,6 +91,7 @@ public class DraftFactory {
                     Profile profile = tuple.getItem2();
                     List<String> genres = tuple.getItem3();
                     AiAgent copilot = tuple.getItem4();
+                    List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners = tuple.getItem5();
 
                     if (template != null) {
                         return buildFromTemplate(
@@ -96,6 +102,7 @@ public class DraftFactory {
                                 station,
                                 profile,
                                 genres,
+                                listeners,
                                 selectedLanguage
                         );
                     } else {
@@ -121,7 +128,8 @@ public class DraftFactory {
                 .unis(
                         profileService.getById(station.getProfileId()),
                         resolveGenreNames(song, selectedLanguage),
-                        copilotUni
+                        copilotUni,
+                        listenerService.getBrandListeners(station.getSlugName(), 500, 0, SuperUser.build(), null)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -129,6 +137,7 @@ public class DraftFactory {
                     Profile profile = tuple.getItem1();
                     List<String> genres = tuple.getItem2();
                     AiAgent copilot = tuple.getItem3();
+                    List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners = tuple.getItem4();
 
                     return buildFromTemplate(
                             code,
@@ -138,6 +147,7 @@ public class DraftFactory {
                             station,
                             profile,
                             genres,
+                            listeners,
                             selectedLanguage
                     );
                 });
@@ -171,6 +181,7 @@ public class DraftFactory {
             RadioStation station,
             Profile profile,
             List<String> genres,
+            List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners,
             LanguageCode selectedLanguage
     ) {
         String countryIso = station.getCountry().getIsoCode();
@@ -181,6 +192,7 @@ public class DraftFactory {
         data.put("songGenres", genres);
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
+        data.put("listeners", listeners);
         String brand = station.getLocalizedName().get(selectedLanguage);
         if (brand == null) {
             brand = station.getLocalizedName().values().iterator().next();

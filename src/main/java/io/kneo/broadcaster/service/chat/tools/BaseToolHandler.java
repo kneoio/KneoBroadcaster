@@ -7,7 +7,7 @@ import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
-import io.kneo.broadcaster.model.chat.ChatMessage;
+import io.kneo.broadcaster.dto.ChatMessageDTO;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -15,11 +15,11 @@ import java.util.function.Consumer;
 public abstract class BaseToolHandler {
 
     protected void sendProcessingChunk(Consumer<String> chunkHandler, String connectionId, String message) {
-        chunkHandler.accept(ChatMessage.processing(message, connectionId).build().toJson());
+        chunkHandler.accept(ChatMessageDTO.processing(message, connectionId).build().toJson());
     }
 
     protected void sendBotChunk(Consumer<String> chunkHandler, String connectionId, String username, String message) {
-        chunkHandler.accept(ChatMessage.bot(message, username, connectionId).build().toJson());
+        chunkHandler.accept(ChatMessageDTO.bot(message, username, connectionId).build().toJson());
     }
 
     protected void addToolUseToHistory(ToolUseBlock toolUse, List<MessageParam> conversationHistory) {

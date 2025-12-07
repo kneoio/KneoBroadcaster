@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.model.chat.ChatMessage;
+import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.service.chat.PublicChatService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -393,6 +393,6 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     }
 
     private void sendError(ServerWebSocket webSocket, String message) {
-        webSocket.writeTextMessage(ChatMessage.error(message, "system", "system").build().toJson());
+        webSocket.writeTextMessage(ChatMessageDTO.error(message, "system", "system").build().toJson());
     }
 }

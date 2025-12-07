@@ -11,9 +11,10 @@ import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.Voice;
-import io.kneo.broadcaster.model.chat.ChatMessage;
+import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.MessageType;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.ChatRepository;
@@ -42,6 +43,8 @@ import java.util.function.Consumer;
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
 public abstract class ChatService {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(ChatService.class);
+    
     protected final AnthropicClient anthropicClient;
     protected final AiHelperService aiHelperService;
     protected final String mainPrompt;
@@ -89,6 +92,8 @@ public abstract class ChatService {
         return this.followUpPrompt;
     }
 
+    protected abstract ChatType getChatType();
+
     public Uni<String> processUserMessage(String username, String content, String connectionId, IUser user) {
         return Uni.createFrom().item(() -> {
             JsonObject message = createMessage(
@@ -99,25 +104,28 @@ public abstract class ChatService {
                     connectionId
             );
 
-            chatRepository.saveChatMessage(user.getId(), message);
+            chatRepository.saveChatMessage(user.getId(), getChatType(), message).subscribe().with(
+                    success -> {},
+                    failure -> LOGGER.error("Failed to save user message", failure)
+            );
 
-            return ChatMessage.user(content, username, connectionId).build().toJson();
+            return ChatMessageDTO.user(content, username, connectionId).build().toJson();
         });
     }
 
     public Uni<String> getChatHistory(int limit, IUser user) {
-        return Uni.createFrom().item(() -> {
-            List<JsonObject> recentMessages = chatRepository.getRecentChatMessages(user.getId(), limit);
+        return chatRepository.getRecentChatMessages(user.getId(), getChatType(), limit)
+                .map(recentMessages -> {
 
-            JsonArray messages = new JsonArray();
-            recentMessages.forEach(messages::add);
+                    JsonArray messages = new JsonArray();
+                    recentMessages.forEach(messages::add);
 
-            JsonObject response = new JsonObject()
-                    .put("type", "history")
-                    .put("messages", messages);
+                    JsonObject response = new JsonObject()
+                            .put("type", "history")
+                            .put("messages", messages);
 
-            return response.encode();
-        });
+                    return response.encode();
+                });
     }
 
     public Uni<Void> generateBotResponse(String userMessage, Consumer<String> chunkHandler, Consumer<String> completionHandler, String connectionId, String slugName, IUser user) {
@@ -127,7 +135,7 @@ public abstract class ChatService {
                 .content(MessageParam.Content.ofString(userMessage))
                 .build();
 
-        chatRepository.appendToConversation(user.getId(), userMsg);
+        chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
 
         Uni<RadioStation> stationUni = radioStationService.getBySlugName(slugName, SuperUser.build()); //I still dont knw shou we use superuser here
 
@@ -186,7 +194,7 @@ public abstract class ChatService {
                 assistantNameByConnectionId.put(connectionId, djName);
                 assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
 
-                List<MessageParam> history = chatRepository.getConversationHistory(user.getId());
+                List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
                 return buildMessageCreateParams(renderedPrompt, history);
             });
         }).flatMap(params ->
@@ -197,7 +205,7 @@ public abstract class ChatService {
                                     .findFirst();
 
                             if (toolUse.isPresent()) {
-                                List<MessageParam> history = chatRepository.getConversationHistory(user.getId());
+                                List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
                                 return handleToolCall(toolUse.get(), chunkHandler, completionHandler, connectionId, user.getId(), history);
                             } else {
                                 return streamResponse(params, chunkHandler, completionHandler, connectionId, user.getId());
@@ -250,7 +258,7 @@ public abstract class ChatService {
                                                 && !text.contains("<thinking>")
                                                 && !text.contains("</thinking>")) {
 
-                                            chunkHandler.accept(ChatMessage.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson());
+                                            chunkHandler.accept(ChatMessageDTO.chunk(text, assistantNameByConnectionId.get(connectionId), connectionId).build().toJson());
                                         }
                                     }
                                 }
@@ -262,7 +270,7 @@ public abstract class ChatService {
                         public void onComplete(Optional<Throwable> error) {
 
                             if (error.isPresent()) {
-                                completionHandler.accept(ChatMessage.error("Bot response failed: " + error.get().getMessage(), "system", "system").build().toJson());
+                                completionHandler.accept(ChatMessageDTO.error("Bot response failed: " + error.get().getMessage(), "system", "system").build().toJson());
                                 return;
                             }
 
@@ -277,7 +285,7 @@ public abstract class ChatService {
                                         .content(MessageParam.Content.ofString(responseText))
                                         .build();
 
-                                chatRepository.appendToConversation(userId, assistantResponse);
+                                chatRepository.appendToConversation(userId, getChatType(), assistantResponse);
 
                                 JsonObject botMessage = createMessage(
                                         MessageType.BOT,
@@ -287,10 +295,13 @@ public abstract class ChatService {
                                         connectionId
                                 );
 
-                                chatRepository.saveChatMessage(userId, botMessage);
+                                chatRepository.saveChatMessage(userId, getChatType(), botMessage).subscribe().with(
+                                        success -> {},
+                                        failure -> LOGGER.error("Failed to save bot message", failure)
+                                );
 
 
-                                String completeMessage = ChatMessage.bot(
+                                String completeMessage = ChatMessageDTO.bot(
                     botMessage.getJsonObject("data").getString("content"),
                     botMessage.getJsonObject("data").getString("username"),
                     botMessage.getJsonObject("data").getString("connectionId")

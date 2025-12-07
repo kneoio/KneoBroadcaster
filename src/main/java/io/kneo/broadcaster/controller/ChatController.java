@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.model.chat.ChatMessage;
+import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.service.chat.OwnerChatService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.model.user.IUser;
@@ -152,7 +152,7 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
     }
 
     private void sendError(ServerWebSocket webSocket, String message) {
-        webSocket.writeTextMessage(ChatMessage.error(message, "system", "system").build().toJson());
+        webSocket.writeTextMessage(ChatMessageDTO.error(message, "system", "system").build().toJson());
     }
 
     protected Uni<IUser> getContextUserFromWebSocket(RoutingContext rc) {

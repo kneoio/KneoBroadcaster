@@ -17,6 +17,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     public static final String SCRIPT_SCENE = "script scene";
     public static final String PROMPT = "prompt";
     public static final String DRAFT = "draft";
+    public static final String CHAT_MESSAGE = "chat message";
 
     private static final String SOUND_FRAGMENT_TABLE_NAME = "kneobroadcaster__sound_fragments";
     private static final String SOUND_FRAGMENT_ACCESS_TABLE_NAME = "kneobroadcaster__sound_fragment_readers";
@@ -41,6 +42,7 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     private static final String PROMPT_TABLE_NAME = "mixpla_prompts";
     private static final String PROMPT_ACCESS_TABLE_NAME = "mixpla_prompt_readers";
     private static final String DRAFT_TABLE_NAME = "mixpla__drafts";
+    private static final String CHAT_MESSAGE_TABLE_NAME = "mixpla__chat_messages";
 
     @Override
     public EntityData getEntityNames(String type) {
@@ -94,6 +96,9 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
             );
             case DRAFT -> new EntityData(
                     DRAFT_TABLE_NAME
+            );
+            case CHAT_MESSAGE -> new EntityData(
+                    CHAT_MESSAGE_TABLE_NAME
             );
             default -> super.getEntityNames(type);
         };

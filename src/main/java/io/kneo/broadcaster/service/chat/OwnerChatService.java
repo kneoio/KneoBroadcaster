@@ -6,6 +6,7 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
@@ -36,6 +37,11 @@ public class OwnerChatService extends ChatService {
     @Inject
     public OwnerChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
         super(config, aiHelperService);
+    }
+
+    @Override
+    protected ChatType getChatType() {
+        return ChatType.OWNER;
     }
 
     @Override

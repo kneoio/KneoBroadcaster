@@ -7,6 +7,7 @@ import com.anthropic.models.messages.Model;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager.VerificationResult;
@@ -58,6 +59,11 @@ public class PublicChatService extends ChatService {
     @Inject
     ListenerService listenerService;
 
+    @Override
+    protected ChatType getChatType() {
+        return ChatType.PUBLIC;
+    }
+
     @Inject
     UserService userService;
 
@@ -72,8 +78,6 @@ public class PublicChatService extends ChatService {
     public VerificationResult verifyCode(String email, String code) {
         return sessionManager.verifyCode(email, code);
     }
-
-    public record RegistrationResult(Long userId, String userToken) {}
 
     public Uni<RegistrationResult> registerListener(String sessionToken, String stationSlug, String nickname) {
         String email = sessionManager.validateSessionAndGetEmail(sessionToken);
@@ -200,7 +204,7 @@ public class PublicChatService extends ChatService {
     protected String getMainPrompt() {
         try {
             String custom = ResourceUtil.loadResourceAsString("/prompts/publicMainPrompt.hbs");
-            return (custom != null && !custom.isBlank()) ? custom : super.getMainPrompt();
+            return !custom.isBlank() ? custom : super.getMainPrompt();
         } catch (Exception ignored) {
             return super.getMainPrompt();
         }
@@ -210,7 +214,7 @@ public class PublicChatService extends ChatService {
     protected String getFollowUpPrompt() {
         try {
             String custom = ResourceUtil.loadResourceAsString("/prompts/publicFollowUpPrompt.hbs");
-            return (custom != null && !custom.isBlank()) ? custom : super.getFollowUpPrompt();
+            return !custom.isBlank() ? custom : super.getFollowUpPrompt();
         } catch (Exception ignored) {
             return super.getFollowUpPrompt();
         }

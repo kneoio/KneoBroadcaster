@@ -294,11 +294,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setNickName(dto.getNickName());
         doc.setSlugName(dto.getSlugName());
         doc.setTelegramName(dto.getTelegramName());
-        if (dto.getListenerType() != null) {
-            doc.setListenerType(ListenerType.valueOf(dto.getListenerType()));
-        } else {
-            doc.setListenerType(ListenerType.REGULAR);
-        }
         return doc;
     }
 

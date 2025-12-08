@@ -639,8 +639,28 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<Integer> rateSoundFragmentByAction(String brandSlug, UUID soundFragmentId, RatingAction action, IUser user) {
-        int delta = (action == RatingAction.LIKE) ? 10 : -10;
+    public Uni<Integer> rateSoundFragmentByAction(String brandSlug, UUID soundFragmentId, RatingAction action, String previousAction, IUser user) {
+        int delta;
+        switch (action) {
+            case LIKE:
+                delta = 10;
+                break;
+            case DISLIKE:
+                delta = -10;
+                break;
+            case CANCEL:
+                if ("LIKE".equals(previousAction)) {
+                    delta = -10;
+                } else if ("DISLIKE".equals(previousAction)) {
+                    delta = 10;
+                } else {
+                    delta = 0;
+                }
+                break;
+            default:
+                return Uni.createFrom().failure(new IllegalArgumentException("Invalid action: " + action));
+        }
+
         return resolveBrandSlug(brandSlug)
                 .chain(brandId -> {
                     if (brandId == null) {

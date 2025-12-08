@@ -358,9 +358,9 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
             }
 
             UUID fragmentId = UUID.fromString(id);
-
+            String previousAction = null; //always null since it affects immediately
             getContextUser(rc, false, true)
-                    .chain(user -> service.rateSoundFragmentByAction(brandSlug, fragmentId, action, user))
+                    .chain(user -> service.rateSoundFragmentByAction(brandSlug, fragmentId, action, previousAction, user))
                     .subscribe().with(
                             updated -> {
                                 JsonObject response = new JsonObject();

@@ -114,7 +114,10 @@ public class RadioController {
                         }
                         return segment.getLiveSoundFragment().getSoundFragmentId();
                     })
-                    .chain(fragmentId -> service.rateSoundFragmentByAction(brand, fragmentId, action))
+                    .chain(fragmentId -> {
+                        String previousAction = body.getString("previousAction");
+                        return service.rateSoundFragmentByAction(brand, fragmentId, action, previousAction);
+                    })
                     .subscribe().with(
                             updated -> {
                                 JsonObject response = new JsonObject();

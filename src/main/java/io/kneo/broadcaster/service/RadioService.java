@@ -10,6 +10,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -515,6 +517,10 @@ public class RadioService {
                 radioStation.getMessagingPolicy(),
                 includeAnimation ? animationService.generateRandomAnimation() : null
         ));
+    }
+
+    public Uni<Integer> rateSoundFragmentByAction(String brand, UUID fragmentId, RatingAction action) {
+        return soundFragmentService.rateSoundFragmentByAction(brand, fragmentId, action, AnonymousUser.build());
     }
 
     private Uni<List<RadioStation>> getOnlineStations() {

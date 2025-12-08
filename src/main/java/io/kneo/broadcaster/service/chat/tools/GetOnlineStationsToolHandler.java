@@ -7,6 +7,7 @@ import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.service.live.LiveStationWaiter;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -23,6 +24,7 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             AiHelperService aiHelperService,
+            LiveStationWaiter waiter,
             Consumer<String> chunkHandler,
             String connectionId,
             List<MessageParam> conversationHistory,
@@ -40,7 +42,7 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
                 RadioStationStatus.IDLE
         );
 
-        return aiHelperService.getOnline(statuses)
+        return waiter.getOnline(statuses)
                 .flatMap((LiveContainerDTO liveData) -> {
                     int count = liveData.getRadioStations().size();
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " online station" + (count != 1 ? "s" : ""));

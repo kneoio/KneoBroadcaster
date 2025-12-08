@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
+import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.stream.HlsSegment;
@@ -47,7 +48,8 @@ public class RadioController {
     }
 
     @Inject GeolocationService geoService;
-    @Inject Mp3Streamer mp3Streamer;
+    @Inject
+    Mp3Streamer mp3Streamer;
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -65,6 +67,7 @@ public class RadioController {
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);  //used by Mixpla
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
+        router.route(HttpMethod.PATCH, "/radio/:brand/:id/rating").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::rateFragment);
         router.route(HttpMethod.POST, "/radio/alexa/skill").handler(jsonBodyHandler).handler(this::getSkill);
 
         router.route(HttpMethod.POST, "/radio/:brand/submissions")
@@ -74,6 +77,55 @@ public class RadioController {
 
         router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile);
         router.route(HttpMethod.OPTIONS, "/radio/:brand/submissions/files/:id").handler(rc -> rc.response().setStatusCode(204).end());
+    }
+
+    private void rateFragment(RoutingContext rc) {
+        if (jsonBodyIsBad(rc)) return;
+
+        try {
+            String brand = rc.pathParam("brand");
+            String id = rc.pathParam("id");
+            JsonObject body = rc.body().asJsonObject();
+            String actionStr = body.getString("action");
+
+
+            RatingAction action;
+            try {
+                action = RatingAction.valueOf(actionStr);
+            } catch (IllegalArgumentException e) {
+                rc.fail(400, new IllegalArgumentException("Invalid action. Use LIKE or DISLIKE"));
+                return;
+            }
+
+            service.getStreamManager(brand)
+                    .map(manager -> {
+                        HlsSegment segment = manager.getSegment(id);
+                        if (segment == null || segment.getLiveSoundFragment() == null || segment.getLiveSoundFragment().getSoundFragmentId() == null) {
+                            throw new WebApplicationException("Segment not found or invalid", 404);
+                        }
+                        return segment.getLiveSoundFragment().getSoundFragmentId();
+                    })
+                    .chain(fragmentId -> service.rateSoundFragmentByAction(brand, fragmentId, action))
+                    .subscribe().with(
+                            updated -> {
+                                JsonObject response = new JsonObject();
+                                response.put("updated", updated);
+                                rc.response().setStatusCode(200).end(response.encode());
+                            },
+                            throwable -> {
+                                if (throwable instanceof WebApplicationException webAppException) {
+                                    rc.response().setStatusCode(webAppException.getResponse().getStatus()).end(webAppException.getMessage());
+                                } else if (throwable instanceof IllegalArgumentException) {
+                                    rc.fail(400, throwable);
+                                } else {
+                                    rc.fail(500, throwable);
+                                }
+                            }
+                    );
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
     }
 
     private void getMp3Stream(RoutingContext rc) {

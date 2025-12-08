@@ -5,6 +5,7 @@ import io.kneo.broadcaster.controller.AiHelperController;
 import io.kneo.broadcaster.controller.ChatController;
 import io.kneo.broadcaster.controller.DashboardController;
 import io.kneo.broadcaster.controller.DraftController;
+import io.kneo.broadcaster.controller.EventController;
 import io.kneo.broadcaster.controller.IcecastController;
 import io.kneo.broadcaster.controller.ListenerController;
 import io.kneo.broadcaster.controller.ProfileController;
@@ -92,6 +93,9 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     ChatController chatController;
 
     @Inject
+    private EventController eventController;
+
+    @Inject
     public KneoBroadcasterApplicationInit(PgPool client) {
         super(client);
     }
@@ -111,6 +115,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         queueController.setupRoutes(router);
         radioStationController.setupRoutes(router);
         listenerController.setupRoutes(router);
+        eventController.setupRoutes(router);
         genreController.setupRoutes(router);
         aiAgentController.setupRoutes(router);
         profileController.setupRoutes(router);

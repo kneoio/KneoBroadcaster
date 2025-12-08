@@ -24,6 +24,7 @@ import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.service.live.LiveStationWaiter;
 import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -32,6 +33,8 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,7 +47,7 @@ import java.util.function.Consumer;
 import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool;
 
 public abstract class ChatService {
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(ChatService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ChatService.class);
     
     protected final AnthropicClient anthropicClient;
     protected final AiHelperService aiHelperService;
@@ -65,6 +68,8 @@ public abstract class ChatService {
     protected ChatRepository chatRepository;
     @Inject
     protected ElevenLabsClient elevenLabsClient;
+    @Inject
+    protected LiveStationWaiter waiter;
 
     protected ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
         if (config != null) {

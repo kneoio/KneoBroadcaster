@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.ScenePrompt;
+import io.kneo.broadcaster.model.aiagent.PromptType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -151,8 +152,8 @@ public class PromptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, description, language_code, is_master, locked, title, backup, podcast, draft_id, master_id, version) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, description, prompt_type, language_code, is_master, locked, title, backup, podcast, draft_id, master_id, version) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -164,6 +165,7 @@ public class PromptRepository extends AsyncRepository {
                         .addBoolean(prompt.isEnabled())
                         .addString(prompt.getPrompt())
                         .addString(prompt.getDescription())
+                        .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
                         .addString(prompt.getLanguageCode().name())
                         .addBoolean(prompt.isMaster())
                         .addBoolean(prompt.isLocked())
@@ -200,8 +202,8 @@ public class PromptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET enabled=$1, prompt=$2, description=$3, language_code=$4, is_master=$5, locked=$6, title=$7, backup=$8, podcast=$9, draft_id=$10, master_id=$11, version=$12, last_mod_user=$13, last_mod_date=$14 " +
-                                    "WHERE id=$15";
+                                    " SET enabled=$1, prompt=$2, description=$3, prompt_type=$4, language_code=$5, is_master=$6, locked=$7, title=$8, backup=$9, podcast=$10, draft_id=$11, master_id=$12, version=$13, last_mod_user=$14, last_mod_date=$15 " +
+                                    "WHERE id=$16";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -209,6 +211,7 @@ public class PromptRepository extends AsyncRepository {
                                     .addBoolean(prompt.isEnabled())
                                     .addString(prompt.getPrompt())
                                     .addString(prompt.getDescription())
+                                    .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
                                     .addString(prompt.getLanguageCode().name())
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
@@ -243,6 +246,7 @@ public class PromptRepository extends AsyncRepository {
         doc.setEnabled(row.getBoolean("enabled"));
         doc.setPrompt(row.getString("prompt"));
         doc.setDescription(row.getString("description"));
+        doc.setPromptType(PromptType.valueOf(row.getString("prompt_type")));
         doc.setLanguageCode(LanguageCode.valueOf(row.getString("language_code")));
         doc.setMaster(row.getBoolean("is_master"));
         doc.setLocked(row.getBoolean("locked"));

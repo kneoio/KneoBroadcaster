@@ -102,6 +102,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
             dto.setEnabled(doc.isEnabled());
             dto.setPrompt(doc.getPrompt());
             dto.setDescription(doc.getDescription());
+            dto.setPromptType(doc.getPromptType());
             dto.setLanguageCode(doc.getLanguageCode());
             dto.setMaster(doc.isMaster());
             dto.setLocked(doc.isLocked());
@@ -121,6 +122,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         doc.setEnabled(dto.isEnabled());
         doc.setPrompt(dto.getPrompt());
         doc.setDescription(dto.getDescription());
+        doc.setPromptType(dto.getPromptType());
         doc.setLanguageCode(dto.getLanguageCode());
         doc.setMaster(dto.isMaster());
         doc.setLocked(dto.isLocked());

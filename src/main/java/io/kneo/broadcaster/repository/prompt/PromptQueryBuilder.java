@@ -38,6 +38,12 @@ public class PromptQueryBuilder {
                     .append("'");
         }
 
+        if (filter.getPromptType() != null) {
+            conditions.append(" AND t.prompt_type = '")
+                    .append(filter.getPromptType().name())
+                    .append("'");
+        }
+
         if (filter.isEnabled()) {
             conditions.append(" AND t.enabled = true");
         }

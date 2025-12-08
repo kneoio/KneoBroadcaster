@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.service.live.LiveStationWaiter;
 import io.kneo.core.localization.LanguageCode;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -23,9 +24,11 @@ public class AiHelperController {
     private static final Logger LOGGER = LoggerFactory.getLogger(AiHelperController.class);
 
     private final AiHelperService aiHelperService;
+    private final LiveStationWaiter liveStationWaiter;
 
-    public AiHelperController(AiHelperService aiHelperService) {
+    public AiHelperController(AiHelperService aiHelperService, LiveStationWaiter liveStationWaiter) {
         this.aiHelperService = aiHelperService;
+        this.liveStationWaiter = liveStationWaiter;
     }
 
     public void setupRoutes(Router router) {
@@ -54,7 +57,7 @@ public class AiHelperController {
                     .map(RadioStationStatus::valueOf)
                     .collect(Collectors.toList());
 
-            aiHelperService.getOnline(statuses)
+            liveStationWaiter.getOnline(statuses)
                     .subscribe().with(
                             liveContainer -> rc.response()
                                     .setStatusCode(200)

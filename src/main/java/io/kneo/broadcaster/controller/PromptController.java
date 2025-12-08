@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.agentrest.PromptTestReqDTO;
 import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.Prompt;
+import io.kneo.broadcaster.model.aiagent.PromptType;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.TranslateService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -32,7 +33,6 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -117,12 +117,16 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
         boolean any = false;
 
         try {
-            String decodedFilter = URLDecoder.decode(filterParam, java.nio.charset.StandardCharsets.UTF_8);
-            LOGGER.debug("Parsing filter parameter: {} -> decoded: {}", filterParam, decodedFilter);
-            JsonObject json = new JsonObject(decodedFilter);
+            LOGGER.debug("Parsing filter parameter: {}", filterParam);
+            JsonObject json = new JsonObject(filterParam);
 
             if (json.containsKey("languageCode")) {
                 dto.setLanguageCode(LanguageCode.valueOf(json.getString("languageCode")));
+                any = true;
+            }
+
+            if (json.containsKey("promptType")) {
+                dto.setPromptType(PromptType.valueOf(json.getString("promptType")));
                 any = true;
             }
 

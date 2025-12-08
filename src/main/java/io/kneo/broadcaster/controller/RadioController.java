@@ -99,7 +99,16 @@ public class RadioController {
 
             service.getStreamManager(brand)
                     .map(manager -> {
-                        HlsSegment segment = manager.getSegment(id);
+                        HlsSegment segment;
+                        // Try to parse as sequence number first (clean path)
+                        try {
+                            long sequence = Long.parseLong(id);
+                            segment = manager.getSegment(sequence);
+                        } catch (NumberFormatException e) {
+                            // Fallback to string lookup (filename or regex path)
+                            segment = manager.getSegment(id);
+                        }
+
                         if (segment == null || segment.getLiveSoundFragment() == null || segment.getLiveSoundFragment().getSoundFragmentId() == null) {
                             throw new WebApplicationException("Segment not found or invalid", 404);
                         }

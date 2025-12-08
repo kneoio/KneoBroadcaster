@@ -233,6 +233,11 @@ public class StreamManager implements IStreamManager {
     }
 
     @Override
+    public HlsSegment getSegment(long sequence) {
+        return liveSegments.get(sequence);
+    }
+
+    @Override
     public HlsSegment getSegment(String segmentParam) {
         try {
             Matcher matcher = SEGMENT_PATTERN.matcher(segmentParam);

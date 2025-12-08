@@ -520,7 +520,7 @@ public class RadioService {
     }
 
     public Uni<Integer> rateSoundFragmentByAction(String brand, UUID fragmentId, RatingAction action) {
-        return soundFragmentService.rateSoundFragmentByAction(brand, fragmentId, action, AnonymousUser.build());
+        return soundFragmentService.rateSoundFragmentByAction(brand, fragmentId, action, SuperUser.build());
     }
 
     private Uni<List<RadioStation>> getOnlineStations() {

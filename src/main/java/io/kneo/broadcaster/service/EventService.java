@@ -307,7 +307,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
         dto.setTitle(stagePlaylist.getTitle());
         dto.setArtist(stagePlaylist.getArtist());
         dto.setGenres(stagePlaylist.getGenres());
-        dto.setLabels(stagePlaylist.getLabels());`r`n        dto.setSoundFragments(stagePlaylist.getSoundFragments());`r`n        return dto;
+        dto.setLabels(stagePlaylist.getLabels());
+        dto.setSoundFragments(stagePlaylist.getSoundFragments());
+        return dto;
     }
 
     private StagePlaylist mapDTOToStagePlaylist(StagePlaylistDTO dto) {
@@ -319,7 +321,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
         stagePlaylist.setTitle(dto.getTitle());
         stagePlaylist.setArtist(dto.getArtist());
         stagePlaylist.setGenres(dto.getGenres());
-        stagePlaylist.setLabels(dto.getLabels());`r`n        stagePlaylist.setSoundFragments(dto.getSoundFragments());`r`n        return stagePlaylist;
+        stagePlaylist.setLabels(dto.getLabels());
+        stagePlaylist.setSoundFragments(dto.getSoundFragments());
+        return stagePlaylist;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

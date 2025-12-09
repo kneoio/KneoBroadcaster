@@ -204,7 +204,7 @@ public class SceneRepository extends AsyncRepository {
                         return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have delete permission", user.getUserName(), id));
                     }
                     return client.withTransaction(tx -> {
-                        String deletePromptsSql = "DELETE FROM mixpla_script_scene_prompts WHERE script_scene_id = $1";
+                        String deletePromptsSql = "DELETE FROM mixpla__script_scene_actions WHERE script_scene_id = $1";
                         String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
                         String deleteEntitySql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
                         return tx.preparedQuery(deletePromptsSql).execute(Tuple.of(id))

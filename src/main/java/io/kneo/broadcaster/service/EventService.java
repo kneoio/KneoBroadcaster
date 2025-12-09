@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.ScenePromptDTO;
+import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.dto.event.EventEntryDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
@@ -9,8 +10,10 @@ import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
@@ -166,6 +169,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
             dto.setActions(mapActionsToDTOs(doc.getActions()));
+            dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getStagePlaylist()));
 
             if (doc.getScheduler() != null) {
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
@@ -262,6 +266,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             doc.setScheduler(schedule);
         }
         doc.setActions(mapDTOsToActions(dto.getActions()));
+        doc.setStagePlaylist(mapDTOToStagePlaylist(dto.getStagePlaylist()));
 
         return doc;
     }
@@ -295,6 +300,32 @@ public class EventService extends AbstractService<Event, EventDTO> {
                     return action;
                 })
                 .collect(Collectors.toList());
+    }
+
+    private StagePlaylistDTO mapStagePlaylistToDTO(StagePlaylist stagePlaylist) {
+        if (stagePlaylist == null) {
+            return null;
+        }
+        StagePlaylistDTO dto = new StagePlaylistDTO();
+        dto.setSourcing(stagePlaylist.getSourcing() != null ? stagePlaylist.getSourcing().name() : null);
+        dto.setTitle(stagePlaylist.getTitle());
+        dto.setArtist(stagePlaylist.getArtist());
+        dto.setGenres(stagePlaylist.getGenres());
+        dto.setLabels(stagePlaylist.getLabels());
+        return dto;
+    }
+
+    private StagePlaylist mapDTOToStagePlaylist(StagePlaylistDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        StagePlaylist stagePlaylist = new StagePlaylist();
+        stagePlaylist.setSourcing(dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null);
+        stagePlaylist.setTitle(dto.getTitle());
+        stagePlaylist.setArtist(dto.getArtist());
+        stagePlaylist.setGenres(dto.getGenres());
+        stagePlaylist.setLabels(dto.getLabels());
+        return stagePlaylist;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

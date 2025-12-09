@@ -16,6 +16,7 @@ public class Scene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
     private List<Action> prompts;
+    private StagePlaylist stagePlaylist;
     private LocalTime startTime;
     private Integer archived;
     private boolean oneTimeRun;

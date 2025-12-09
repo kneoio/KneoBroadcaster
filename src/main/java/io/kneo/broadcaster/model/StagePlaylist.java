@@ -5,11 +5,16 @@ import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+import java.util.UUID;
+
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Playlist {
+public class StagePlaylist {
     private WayOfSourcing sourcing;
-    private String description;
-    private boolean explicitContent;
+    private String title;
+    private String artist;
+    private List<UUID> genres;
+    private List<UUID> labels;
 }

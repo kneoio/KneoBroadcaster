@@ -3,6 +3,7 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -147,8 +148,8 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                 LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, brand_id, type, description, priority, archived, scheduler) " +
-                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, brand_id, type, description, priority, archived, scheduler, stage_playlist) " +
+                        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
 
                 Tuple params = Tuple.tuple()
                         .addLong(user.getId())
@@ -160,7 +161,8 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                         .addString(event.getDescription())
                         .addString(event.getPriority().name())
                         .addInteger(0)
-                        .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())));
+                        .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())))
+                        .addJsonObject(event.getStagePlaylist() != null ? JsonObject.mapFrom(event.getStagePlaylist()) : null);
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -194,8 +196,8 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                             LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET brand_id=$1, type=$2, description=$3, priority=$4, scheduler=$5, last_mod_user=$6, last_mod_date=$7 " +
-                                    "WHERE id=$8";
+                                    " SET brand_id=$1, type=$2, description=$3, priority=$4, scheduler=$5, stage_playlist=$6, last_mod_user=$7, last_mod_date=$8 " +
+                                    "WHERE id=$9";
 
                             Tuple params = Tuple.tuple()
                                     .addUUID(event.getBrandId())
@@ -203,6 +205,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
                                     .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())))
+                                    .addJsonObject(event.getStagePlaylist() != null ? JsonObject.mapFrom(event.getStagePlaylist()) : null)
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -288,6 +291,16 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to parse scheduler JSON for event: {}", row.getUUID("id"), e);
+            }
+        }
+
+        JsonObject stagePlaylistJson = row.getJsonObject("stage_playlist");
+        if (stagePlaylistJson != null) {
+            try {
+                StagePlaylist stagePlaylist = mapper.treeToValue(mapper.valueToTree(stagePlaylistJson.getMap()), StagePlaylist.class);
+                doc.setStagePlaylist(stagePlaylist);
+            } catch (Exception e) {
+                LOGGER.error("Failed to parse stage_playlist JSON for event: {}", row.getUUID("id"), e);
             }
         }
 

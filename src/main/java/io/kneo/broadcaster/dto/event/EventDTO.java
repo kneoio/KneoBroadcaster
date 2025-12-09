@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
+import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.core.dto.AbstractDTO;
 import jakarta.validation.constraints.NotNull;
@@ -29,5 +30,6 @@ public class EventDTO extends AbstractDTO {
     private ScheduleDTO schedule;
     private String priority;
     private List<ScenePromptDTO> actions;
+    private StagePlaylistDTO stagePlaylist;
 
 }

@@ -13,7 +13,6 @@ import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.StagePlaylist;
-import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -25,7 +24,10 @@ import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
+import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.util.AiHelperUtils;
+import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
@@ -42,7 +44,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @ApplicationScoped
 public class EventExecutor {
@@ -66,6 +67,9 @@ public class EventExecutor {
 
     @Inject
     AiAgentService aiAgentService;
+
+    @Inject
+    DraftFactory draftFactory;
 
     @Inject
     BroadcasterConfig config;
@@ -116,7 +120,7 @@ public class EventExecutor {
                                 return Uni.createFrom().voidItem();
                             }
 
-                            SoundFragment adFragment = pickRandom(adFragments);
+                            SoundFragment adFragment = Randomizator.pickRandom(adFragments);
                             LOGGER.info("Selected ad fragment: {} - {}", adFragment.getTitle(), adFragment.getId());
 
                             List<Action> activeActions = event.getActions().stream()
@@ -129,7 +133,7 @@ public class EventExecutor {
                                 return queueAdWithoutTts(station, adFragment);
                             }
 
-                            Action selectedAction = pickRandom(activeActions);
+                            Action selectedAction = Randomizator.pickRandom(activeActions);
                             return executeAdWithPrompt(station, adFragment, selectedAction);
                         }));
     }
@@ -139,22 +143,24 @@ public class EventExecutor {
 
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
-                        .chain(agent -> generateAdText(prompt, adFragment, agent)
-                                .chain(ttsText -> {
-                                    String voiceId = resolveVoiceId(station, agent);
-                                    return generateTtsAndQueue(station, adFragment, ttsText, voiceId);
-                                })));
+                        .chain(agent -> {
+                            LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
+                            return draftFactory.createDraft(adFragment, agent, station, prompt.getDraftId(), broadcastingLanguage)
+                                    .chain(draft -> generateAdText(prompt, draft))
+                                    .chain(ttsText -> {
+                                        String voiceId = AiHelperUtils.resolvePrimaryVoiceId(station, agent);
+                                        return generateTtsAndQueue(station, adFragment, ttsText, voiceId);
+                                    });
+                        }));
     }
 
-    private Uni<String> generateAdText(Prompt prompt, SoundFragment adFragment, AiAgent agent) {
-        String systemPrompt = buildAdSystemPrompt(prompt, adFragment, agent);
-
+    private Uni<String> generateAdText(Prompt prompt, String draft) {
         return Uni.createFrom().item(() -> {
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_3_5_HAIKU_LATEST)
                     .maxTokens(256)
-                    .system(systemPrompt)
-                    .addUserMessage("Generate a short, engaging radio ad intro for this advertisement. Keep it under 30 words.")
+                    .system(prompt.getPrompt())
+                    .addUserMessage(draft)
                     .build();
 
             Message response = getAnthropicClient().messages().create(params);
@@ -163,22 +169,10 @@ public class EventExecutor {
                     .filter(ContentBlock::isText)
                     .map(block -> block.asText().text())
                     .findFirst()
-                    .orElse("Check out " + adFragment.getTitle() + "!");
+                    .orElseThrow();
             LOGGER.info("Generated ad text: {}", text);
             return text;
         });
-    }
-
-    private String buildAdSystemPrompt(Prompt prompt, SoundFragment adFragment, AiAgent agent) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are ").append(agent.getName()).append(", a radio DJ.\n");
-        sb.append("You need to introduce an advertisement.\n");
-        sb.append("Advertisement: ").append(adFragment.getTitle()).append("\n");
-        if (adFragment.getDescription() != null) {
-            sb.append("Description: ").append(adFragment.getDescription()).append("\n");
-        }
-        sb.append("\nPrompt instructions:\n").append(prompt.getPrompt());
-        return sb.toString();
     }
 
     private Uni<Void> generateTtsAndQueue(RadioStation station, SoundFragment adFragment, String ttsText, String voiceId) {
@@ -238,20 +232,6 @@ public class EventExecutor {
         return queueService.addToQueue(station.getSlugName(), dto, uploadId)
                 .onItem().invoke(result -> LOGGER.info("Advertisement queued (no TTS) for station: {}", station.getSlugName()))
                 .replaceWithVoid();
-    }
-
-    private String resolveVoiceId(RadioStation station, AiAgent agent) {
-        if (station.getAiOverriding() != null && station.getAiOverriding().getPrimaryVoice() != null) {
-            return station.getAiOverriding().getPrimaryVoice();
-        }
-        if (agent.getPrimaryVoice() != null && !agent.getPrimaryVoice().isEmpty()) {
-            return agent.getPrimaryVoice().stream().findFirst().get().getId();
-        }
-        return config.getElevenLabsVoiceId();
-    }
-
-    private <T> T pickRandom(List<T> list) {
-        return list.get(ThreadLocalRandom.current().nextInt(list.size()));
     }
 
     private Uni<Void> executeActions(Event event, List<Action> actions) {

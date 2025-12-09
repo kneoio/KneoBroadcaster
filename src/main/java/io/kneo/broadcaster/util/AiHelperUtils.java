@@ -2,6 +2,8 @@ package io.kneo.broadcaster.util;
 
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.radiostation.AiOverriding;
+import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.core.localization.LanguageCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,5 +53,13 @@ public final class AiHelperUtils {
         }
 
         return preferences.get(0).getCode();
+    }
+
+    public static String resolvePrimaryVoiceId(RadioStation station, AiAgent agent) {
+        AiOverriding overriding = station.getAiOverriding();
+        if (overriding != null && overriding.getPrimaryVoice() != null) {
+            return overriding.getPrimaryVoice();
+        }
+        return agent.getPrimaryVoice().stream().findFirst().orElseThrow().getId();
     }
 }

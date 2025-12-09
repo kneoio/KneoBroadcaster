@@ -151,15 +151,13 @@ public class AirSupplier {
                     liveRadioStation.setSlugName(station.getSlugName());
                     String stationName = station.getLocalizedName().get(broadcastingLanguage);
                     liveRadioStation.setName(stationName);
-                    String primaryVoice;
+                    String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(station, agent);
                     String additionalInstruction;
                     AiOverriding overriding = station.getAiOverriding();
-                    if (overriding != null){
+                    if (overriding != null) {
                         liveRadioStation.setDjName(String.format("%s overridden as %s", agent.getName(), overriding.getName()));
-                        primaryVoice = overriding.getPrimaryVoice();
                         additionalInstruction = "\n\nAdditional instruction: " + overriding.getPrompt();
                     } else {
-                        primaryVoice = agent.getPrimaryVoice().stream().findAny().orElseThrow().getId();
                         liveRadioStation.setDjName(agent.getName());
                         additionalInstruction = "";
                     }

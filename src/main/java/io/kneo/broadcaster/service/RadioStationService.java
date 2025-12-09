@@ -22,7 +22,6 @@ import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
 import io.kneo.broadcaster.repository.RadioStationRepository;
-import io.kneo.broadcaster.service.scheduler.quartz.QuartzSchedulerService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -57,9 +56,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     BroadcasterConfig broadcasterConfig;
 
     RadioStationPool radiostationPool;
-
-    @Inject
-    private QuartzSchedulerService quartzSchedulerService;
 
     @Inject
     Provider<ListenerService> listenerService;
@@ -163,9 +159,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         }
 
         return saveOperation.chain(savedEntity -> {
-            quartzSchedulerService.removeForEntity(savedEntity);
-            quartzSchedulerService.scheduleEntity(savedEntity);
-
             ListenerDTO listenerDTO = new ListenerDTO();
             listenerDTO.setCountry(savedEntity.getCountry().name());
             listenerDTO.setUserId(user.getId());

@@ -163,6 +163,8 @@ public class AirSupplier {
                         liveRadioStation.setDjName(agent.getName());
                         additionalInstruction = "";
                     }
+
+                    
                     return fetchPrompt(station, agent, broadcastingLanguage, additionalInstruction).flatMap(tuple -> {
                         if (tuple == null) {
                             return Uni.createFrom().item(liveRadioStation);

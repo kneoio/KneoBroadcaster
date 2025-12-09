@@ -21,7 +21,6 @@ import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.model.scheduler.Task;
 import io.kneo.broadcaster.model.scheduler.TriggerType;
 import io.kneo.broadcaster.repository.EventRepository;
-import io.kneo.broadcaster.service.scheduler.quartz.QuartzSchedulerService;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -44,9 +43,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventService.class);
     private final EventRepository repository;
     private final RadioStationService radioStationService;
-
-    @Inject
-    private QuartzSchedulerService quartzSchedulerService;
 
     @Inject
     public EventService(UserService userService,
@@ -117,12 +113,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             saveOperation = repository.update(UUID.fromString(id), entity, user);
         }
 
-        return saveOperation.chain(savedEntity -> {
-            quartzSchedulerService.removeForEntity(savedEntity);
-            quartzSchedulerService.scheduleEntity(savedEntity);
-
-            return Uni.createFrom().item(savedEntity);
-        }).chain(this::mapToDTO);
+        return saveOperation.chain(this::mapToDTO);
     }
 
     public Uni<Integer> archive(String id, IUser user) {

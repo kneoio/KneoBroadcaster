@@ -261,8 +261,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                     List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
                         TaskDTO taskDTO = new TaskDTO();
                         task.setId(task.getId());
-                        taskDTO.setType(task.getType());
-                        taskDTO.setTarget(task.getTarget());
                         taskDTO.setTriggerType(task.getTriggerType());
 
                         if (task.getOnceTrigger() != null) {
@@ -368,9 +366,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
                     Task task = new Task();
                     task.setId(UUID.randomUUID());
-                    task.setType(taskDTO.getType());
-                    //TODO always default for now
-                    task.setTarget("default");
                     task.setTriggerType(taskDTO.getTriggerType());
 
                     if (taskDTO.getOnceTrigger() != null) {

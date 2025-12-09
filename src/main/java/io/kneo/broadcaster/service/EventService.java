@@ -165,7 +165,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setType(doc.getType().name());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
-            dto.setPrompts(mapActionsToDTOs(doc.getActions()));
+            dto.setActions(mapActionsToDTOs(doc.getActions()));
 
             if (doc.getScheduler() != null) {
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
@@ -261,7 +261,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             }
             doc.setScheduler(schedule);
         }
-        doc.setActions(mapDTOsToActions(dto.getPrompts()));
+        doc.setActions(mapDTOsToActions(dto.getActions()));
 
         return doc;
     }

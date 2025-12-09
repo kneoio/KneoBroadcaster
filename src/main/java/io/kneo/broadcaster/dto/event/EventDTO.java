@@ -28,6 +28,6 @@ public class EventDTO extends AbstractDTO {
     private String description;
     private ScheduleDTO schedule;
     private String priority;
-    private List<ScenePromptDTO> prompts;
+    private List<ScenePromptDTO> actions;
 
 }

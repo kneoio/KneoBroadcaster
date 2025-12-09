@@ -16,4 +16,5 @@ public class StagePlaylistDTO {
     private String artist;
     private List<UUID> genres;
     private List<UUID> labels;
+    private List<UUID> soundFragments;
 }

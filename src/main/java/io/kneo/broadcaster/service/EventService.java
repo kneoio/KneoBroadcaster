@@ -179,8 +179,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
                     List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
                         TaskDTO taskDTO = new TaskDTO();
                         taskDTO.setId(task.getId());
-                        taskDTO.setType(task.getType());
-                        taskDTO.setTarget(task.getTarget());
                         taskDTO.setTriggerType(task.getTriggerType());
                         dto.setTimeZone(schedule.getTimeZone().getId());
 
@@ -236,8 +234,6 @@ public class EventService extends AbstractService<Event, EventDTO> {
                 List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
                     Task task = new Task();
                     task.setId(UUID.randomUUID());
-                    task.setType(taskDTO.getType());
-                    task.setTarget("default");
                     task.setTriggerType(taskDTO.getTriggerType());
 
                     if (taskDTO.getTriggerType() == TriggerType.ONCE) {
@@ -311,8 +307,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
         dto.setTitle(stagePlaylist.getTitle());
         dto.setArtist(stagePlaylist.getArtist());
         dto.setGenres(stagePlaylist.getGenres());
-        dto.setLabels(stagePlaylist.getLabels());
-        return dto;
+        dto.setLabels(stagePlaylist.getLabels());`r`n        dto.setSoundFragments(stagePlaylist.getSoundFragments());`r`n        return dto;
     }
 
     private StagePlaylist mapDTOToStagePlaylist(StagePlaylistDTO dto) {
@@ -324,8 +319,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
         stagePlaylist.setTitle(dto.getTitle());
         stagePlaylist.setArtist(dto.getArtist());
         stagePlaylist.setGenres(dto.getGenres());
-        stagePlaylist.setLabels(dto.getLabels());
-        return stagePlaylist;
+        stagePlaylist.setLabels(dto.getLabels());`r`n        stagePlaylist.setSoundFragments(dto.getSoundFragments());`r`n        return stagePlaylist;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

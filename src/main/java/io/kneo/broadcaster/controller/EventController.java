@@ -23,12 +23,14 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -141,7 +143,7 @@ public class EventController extends AbstractSecuredController<Event, EventDTO> 
             EventDTO dto = rc.body().asJsonObject().mapTo(EventDTO.class);
             String id = rc.pathParam("id");
 
-            java.util.Set<jakarta.validation.ConstraintViolation<EventDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<EventDTO>> violations = validator.validate(dto);
             if (violations != null && !violations.isEmpty()) {
                 Map<String, List<String>> fieldErrors = new HashMap<>();
                 for (jakarta.validation.ConstraintViolation<EventDTO> v : violations) {

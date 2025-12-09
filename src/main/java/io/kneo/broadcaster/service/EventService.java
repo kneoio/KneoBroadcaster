@@ -164,7 +164,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setBrandId(tuple.getItem3().getId().toString());
-            dto.setBrand(tuple.getItem3().getSlugName());
+            //dto.setBrand(tuple.getItem3().getSlugName());
             dto.setType(doc.getType().name());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());

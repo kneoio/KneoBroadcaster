@@ -20,7 +20,7 @@ import java.util.List;
 @SuperBuilder
 @NoArgsConstructor
 public class EventDTO extends AbstractDTO {
-    private String brand;
+    //private String brand;
     private String brandId;
     @Pattern(regexp = "^[A-Za-z_]+/[A-Za-z_]+(?:/[A-Za-z_]+)?$", message = "Invalid timezone format")
     private String timeZone;

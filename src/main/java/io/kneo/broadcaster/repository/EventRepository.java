@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
@@ -27,6 +29,7 @@ import jakarta.inject.Inject;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -166,8 +169,9 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                 .onItem().transform(result -> result.iterator().next().getUUID("id"))
                                 .onItem().transformToUni(id ->
                                         insertRLSPermissions(tx, id, entityData, user)
-                                                .onItem().transform(ignored -> id)
-                                )
+                                        .onItem().transformToUni(ignored -> updateActionsForEvent(tx, id, event.getActions()))
+                                        .onItem().transform(ignored -> id)
+                        )
                 ).onItem().transformToUni(id -> findById(id, user, true));
             } catch (Exception e) {
                 LOGGER.error("Failed to prepare insert parameters for event, user: {}", user.getId(), e);
@@ -203,15 +207,17 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
 
-                            return client.preparedQuery(sql)
-                                    .execute(params)
-                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update event: {} by user: {}", id, user.getId(), throwable))
-                                    .onItem().transformToUni(rowSet -> {
-                                        if (rowSet.rowCount() == 0) {
-                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                        }
-                                        return findById(id, user, true);
-                                    });
+                            return client.withTransaction(tx ->
+                                    tx.preparedQuery(sql)
+                                            .execute(params)
+                                            .onFailure().invoke(throwable -> LOGGER.error("Failed to update event: {} by user: {}", id, user.getId(), throwable))
+                                            .onItem().transformToUni(rowSet -> {
+                                                if (rowSet.rowCount() == 0) {
+                                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                                }
+                                                return updateActionsForEvent(tx, id, event.getActions());
+                                            })
+                            ).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
             } catch (Exception e) {
                 LOGGER.error("Failed to prepare update parameters for event: {} by user: {}", id, user.getId(), e);
@@ -233,10 +239,13 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                     }
 
                     return client.withTransaction(tx -> {
+                        String deleteActionsSql = "DELETE FROM kneobroadcaster__event_actions WHERE event_id = $1";
                         String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
                         String deleteEntitySql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
 
-                        return tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id))
+                        return tx.preparedQuery(deleteActionsSql).execute(Tuple.of(id))
+                                .onItem().transformToUni(ignored ->
+                                        tx.preparedQuery(deleteRlsSql).execute(Tuple.of(id)))
                                 .onItem().transformToUni(ignored ->
                                         tx.preparedQuery(deleteEntitySql).execute(Tuple.of(id)))
                                 .onItem().transform(RowSet::rowCount);
@@ -282,10 +291,73 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
             }
         }
 
-        return Uni.createFrom().item(doc);
+        return getActionsForEvent(doc.getId())
+                .onItem().transform(actions -> {
+                    doc.setActions(actions);
+                    return doc;
+                });
     }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
+    }
+
+    public Uni<List<Action>> getActionsForEvent(UUID eventId) {
+        String sql = "SELECT prompt_id, action_type, rank, weight, active FROM kneobroadcaster__event_actions WHERE event_id = $1 ORDER BY rank ASC";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(eventId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> {
+                    Action action = new Action();
+                    action.setPromptId(row.getUUID("prompt_id"));
+                    String actionTypeStr = row.getString("action_type");
+                    if (actionTypeStr != null) {
+                        action.setActionType(ActionType.valueOf(actionTypeStr));
+                    }
+                    action.setRank(row.getInteger("rank"));
+                    action.setWeight(row.getBigDecimal("weight"));
+                    action.setActive(row.getBoolean("active"));
+                    return action;
+                })
+                .collect().asList();
+    }
+
+    public Uni<Void> updateActionsForEvent(io.vertx.mutiny.sqlclient.SqlClient tx, UUID eventId, List<Action> actions) {
+        String deleteSql = "DELETE FROM kneobroadcaster__event_actions WHERE event_id = $1";
+        if (actions == null || actions.isEmpty()) {
+            return tx.preparedQuery(deleteSql)
+                    .execute(Tuple.of(eventId))
+                    .replaceWithVoid();
+        }
+
+        List<Action> validActions = actions.stream()
+                .filter(a -> a != null && a.getPromptId() != null)
+                .toList();
+
+        if (validActions.isEmpty()) {
+            return tx.preparedQuery(deleteSql)
+                    .execute(Tuple.of(eventId))
+                    .replaceWithVoid();
+        }
+
+        String insertSql = "INSERT INTO kneobroadcaster__event_actions (event_id, prompt_id, action_type, rank, weight, active) VALUES ($1, $2, $3, $4, $5, $6)";
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(eventId))
+                .chain(() -> {
+                    List<Tuple> batches = new ArrayList<>();
+                    for (int i = 0; i < validActions.size(); i++) {
+                        Action action = validActions.get(i);
+                        batches.add(Tuple.of(
+                            eventId,
+                            action.getPromptId(),
+                            action.getActionType() != null ? action.getActionType().name() : null,
+                            action.getRank() != 0 ? action.getRank() : i,
+                            action.getWeight(),
+                            action.isActive()
+                        ));
+                    }
+                    return tx.preparedQuery(insertSql).executeBatch(batches);
+                })
+                .replaceWithVoid();
     }
 }

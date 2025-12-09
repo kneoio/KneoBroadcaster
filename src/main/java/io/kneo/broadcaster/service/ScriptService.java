@@ -5,11 +5,11 @@ import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptExportDTO;
+import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -301,7 +301,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         .chain(scenes -> {
                             List<UUID> promptIds = scenes.stream()
                                     .flatMap(scene -> scene.getPrompts() != null ? scene.getPrompts().stream() : java.util.stream.Stream.empty())
-                                    .map(ScenePrompt::getPromptId)
+                                    .map(Action::getPromptId)
                                     .distinct()
                                     .collect(Collectors.toList());
                             
@@ -375,11 +375,11 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return dto;
     }
 
-    private ScriptExportDTO.ScenePromptExportDTO mapPromptToExportDTO(ScenePrompt scenePrompt, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
+    private ScriptExportDTO.ScenePromptExportDTO mapPromptToExportDTO(Action action, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
         ScriptExportDTO.ScenePromptExportDTO dto = new ScriptExportDTO.ScenePromptExportDTO();
-        dto.setId(scenePrompt.getPromptId());
+        dto.setId(action.getPromptId());
         
-        Prompt prompt = promptMap.get(scenePrompt.getPromptId());
+        Prompt prompt = promptMap.get(action.getPromptId());
         if (prompt != null) {
             dto.setTitle(prompt.getTitle());
             if (extended) {
@@ -399,8 +399,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             }
         }
         
-        dto.setActive(scenePrompt.isActive());
-        dto.setWeight(scenePrompt.getWeight());
+        dto.setActive(action.isActive());
+        dto.setWeight(action.getWeight());
         return dto;
     }
 

@@ -24,7 +24,7 @@ import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.kneo.broadcaster.service.live.LiveStationWaiter;
+import io.kneo.broadcaster.service.live.AirSupplier;
 import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -69,7 +69,7 @@ public abstract class ChatService {
     @Inject
     protected ElevenLabsClient elevenLabsClient;
     @Inject
-    protected LiveStationWaiter waiter;
+    protected AirSupplier waiter;
 
     protected ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
         if (config != null) {

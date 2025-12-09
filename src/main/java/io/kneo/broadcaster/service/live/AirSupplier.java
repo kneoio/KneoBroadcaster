@@ -6,10 +6,10 @@ import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.aihelper.TtsDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
+import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -49,8 +49,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class LiveStationWaiter {
-    private static final Logger LOGGER = LoggerFactory.getLogger(LiveStationWaiter.class);
+public class AirSupplier {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AirSupplier.class);
     private static final int SCENE_START_SHIFT_MINUTES = 5;
 
     private final RadioStationPool radioStationPool;
@@ -67,7 +67,7 @@ public class LiveStationWaiter {
     private LocalDate lastReset = LocalDate.now();
 
     @Inject
-    public LiveStationWaiter(
+    public AirSupplier(
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
             ScriptService scriptService,
@@ -208,8 +208,8 @@ public class LiveStationWaiter {
                             if (isSceneActive(brandSlugName, zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
                                 List<UUID> promptIds = scene.getPrompts() != null ?
                                         scene.getPrompts().stream()
-                                                .filter(ScenePrompt::isActive)
-                                                .map(ScenePrompt::getPromptId)
+                                                .filter(Action::isActive)
+                                                .map(Action::getPromptId)
                                                 .toList() : List.of();
                                 allMasterPromptIds.addAll(promptIds);
                                 currentSceneTitle = scene.getTitle();

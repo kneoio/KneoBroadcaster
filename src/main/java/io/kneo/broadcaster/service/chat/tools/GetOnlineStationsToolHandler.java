@@ -7,7 +7,7 @@ import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.kneo.broadcaster.service.live.LiveStationWaiter;
+import io.kneo.broadcaster.service.live.AirSupplier;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -24,7 +24,7 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             AiHelperService aiHelperService,
-            LiveStationWaiter waiter,
+            AirSupplier waiter,
             Consumer<String> chunkHandler,
             String connectionId,
             List<MessageParam> conversationHistory,

@@ -1,11 +1,13 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.dto.event.EventEntryDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
+import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -163,6 +165,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setType(doc.getType().name());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
+            dto.setPrompts(mapActionsToDTOs(doc.getActions()));
 
             if (doc.getScheduler() != null) {
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
@@ -258,7 +261,40 @@ public class EventService extends AbstractService<Event, EventDTO> {
             }
             doc.setScheduler(schedule);
         }
+        doc.setActions(mapDTOsToActions(dto.getPrompts()));
+
         return doc;
+    }
+    private List<ScenePromptDTO> mapActionsToDTOs(List<Action> actions) {
+        if (actions == null) {
+            return null;
+        }
+        return actions.stream()
+                .map(action -> {
+                    ScenePromptDTO dto = new ScenePromptDTO();
+                    dto.setPromptId(action.getPromptId());
+                    dto.setRank(action.getRank());
+                    dto.setWeight(action.getWeight());
+                    dto.setActive(action.isActive());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<Action> mapDTOsToActions(List<ScenePromptDTO> dtos) {
+        if (dtos == null) {
+            return List.of();
+        }
+        return dtos.stream()
+                .map(dto -> {
+                    Action action = new Action();
+                    action.setPromptId(dto.getPromptId());
+                    action.setRank(dto.getRank());
+                    action.setWeight(dto.getWeight());
+                    action.setActive(dto.isActive());
+                    return action;
+                })
+                .collect(Collectors.toList());
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

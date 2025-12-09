@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -26,5 +27,6 @@ public class Event extends SecureDataEntity<UUID> implements Schedulable {
     private EventPriority priority;
     private Scheduler scheduler;
     private Integer archived;
+    private List<Action> actions;
 
 }

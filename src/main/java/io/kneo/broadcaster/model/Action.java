@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.cnst.ActionType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,8 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ScenePrompt {
+public class Action {
+    private ActionType actionType;
     private UUID promptId;
     private boolean active = true;
     private int rank = 0;

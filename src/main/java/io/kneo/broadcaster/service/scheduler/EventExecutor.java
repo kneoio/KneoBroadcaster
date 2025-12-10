@@ -26,6 +26,7 @@ import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.AiHelperUtils;
 import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
@@ -74,6 +75,9 @@ public class EventExecutor {
     @Inject
     BroadcasterConfig config;
 
+    @Inject
+    RadioStationPool radioStationPool;
+
     private AnthropicClient anthropicClient;
 
     private AnthropicClient getAnthropicClient() {
@@ -116,7 +120,12 @@ public class EventExecutor {
         UUID brandId = event.getBrandId();
 
         return radioStationService.getById(brandId, SuperUser.build())
-                .chain(station -> soundFragmentService.getByTypeAndBrand(fragmentType, brandId)
+                .chain(station -> {
+                    if (radioStationPool.getStation(station.getSlugName()).isEmpty()) {
+                        LOGGER.info("Station {} is offline, skipping event {}", station.getSlugName(), event.getId());
+                        return Uni.createFrom().voidItem();
+                    }
+                    return soundFragmentService.getByTypeAndBrand(fragmentType, brandId)
                         .chain(fragments -> {
                             if (fragments.isEmpty()) {
                                 LOGGER.warn("No {} fragments found for brand: {}", fragmentType, station.getSlugName());
@@ -138,7 +147,8 @@ public class EventExecutor {
 
                             Action selectedAction = Randomizator.pickRandom(activeActions);
                             return executeWithPrompt(station, fragment, selectedAction);
-                        }));
+                        });
+                });
     }
 
     private Uni<Void> executeWithPrompt(RadioStation station, SoundFragment fragment, Action action) {

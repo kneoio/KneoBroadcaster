@@ -19,6 +19,9 @@ public class SoundFragmentFilterDTO implements IFilterDTO {
     @NotEmpty(message = "Genres list cannot be empty when provided")
     private List<UUID> genres;
 
+    @NotEmpty(message = "Labels list cannot be empty when provided")
+    private List<UUID> labels;
+
     @NotEmpty(message = "Sources list cannot be empty when provided")
     private List<SourceType> sources;
 
@@ -35,6 +38,7 @@ public class SoundFragmentFilterDTO implements IFilterDTO {
     @Override
     public boolean hasAnyFilter() {
         return (genres != null && !genres.isEmpty()) ||
+               (labels != null && !labels.isEmpty()) ||
                (sources != null && !sources.isEmpty()) ||
                (types != null && !types.isEmpty()) ||
                (searchTerm != null && !searchTerm.trim().isEmpty());

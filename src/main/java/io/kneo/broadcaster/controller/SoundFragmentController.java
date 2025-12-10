@@ -425,14 +425,36 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
                     any = true;
                 }
             }
-            String sourceStr = json.getString("source");
-            if (sourceStr != null && !sourceStr.trim().isEmpty()) {
-                try {
-                    SourceType source = SourceType.valueOf(sourceStr);
-                    dto.setSources(List.of(source));
+            JsonArray s = json.getJsonArray("source");
+            if (s != null && !s.isEmpty()) {
+                List<SourceType> sources = new ArrayList<>();
+                for (Object o : s) {
+                    if (o instanceof String str) {
+                        try {
+                            sources.add(SourceType.valueOf(str));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+                if (!sources.isEmpty()) {
+                    dto.setSources(sources);
                     any = true;
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Invalid source value: " + sourceStr);
+                }
+            }
+            JsonArray l = json.getJsonArray("labels");
+            if (l != null && !l.isEmpty()) {
+                List<UUID> labels = new ArrayList<>();
+                for (Object o : l) {
+                    if (o instanceof String str) {
+                        try {
+                            labels.add(UUID.fromString(str));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+                if (!labels.isEmpty()) {
+                    dto.setLabels(labels);
+                    any = true;
                 }
             }
             JsonArray t = json.getJsonArray("type");

@@ -1,9 +1,7 @@
-package io.kneo.broadcaster.service.scheduler.job;
+package io.kneo.broadcaster.service.scheduler;
 
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.repository.EventRepository;
-import io.kneo.broadcaster.service.scheduler.EventExecutor;
-import io.kneo.broadcaster.service.scheduler.EventScheduleEvaluator;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

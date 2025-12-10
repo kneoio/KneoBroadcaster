@@ -8,7 +8,7 @@ import io.kneo.broadcaster.dto.dashboard.StatsDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
-import io.kneo.broadcaster.service.scheduler.job.EventTriggerJob;
+import io.kneo.broadcaster.service.scheduler.EventTriggerJob;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;

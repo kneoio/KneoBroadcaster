@@ -11,8 +11,11 @@ import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.WayOfSourcing;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -287,7 +290,7 @@ public class AirSupplier {
                             .flatMap(prompts -> {
                                 LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", station.getSlugName(), prompts.size());
                                 Random random = new Random();
-                                return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, randomizator.decideFragmentCount(station.getSlugName()))
+                                return fetchSongsForScene(station, finalActiveScene)
                                         .flatMap(songs -> {
                                             if (songs == null || songs.isEmpty()) {
                                                 LOGGER.error("Station '{}': No songs available for prompt generation", station.getSlugName());
@@ -326,6 +329,31 @@ public class AirSupplier {
                                         });
                             });
                 });
+    }
+
+    private Uni<List<SoundFragment>> fetchSongsForScene(RadioStation station, Scene scene) {
+        int quantity = randomizator.decideFragmentCount(station.getSlugName());
+        StagePlaylist stagePlaylist = scene.getStagePlaylist();
+
+        if (stagePlaylist == null) {
+            return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, quantity);
+        }
+
+        WayOfSourcing sourcing = stagePlaylist.getSourcing();
+
+        if (sourcing == WayOfSourcing.RANDOM) {
+            return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, quantity);
+        }
+
+        if (sourcing == WayOfSourcing.QUERY) {
+            return songSupplier.getNextSongByQuery(station.getId(), stagePlaylist, quantity);
+        }
+
+        if (sourcing == WayOfSourcing.STATIC_LIST) {
+            return songSupplier.getNextSongFromStaticList(stagePlaylist.getSoundFragments(), quantity);
+        }
+
+        throw new IllegalStateException("Unknown sourcing type: " + sourcing);
     }
 
     private boolean isSceneActive(String stationSlug, ZoneId zone, Scene scene, List<Scene> allScenes, LocalTime currentTime, int currentDayOfWeek) {

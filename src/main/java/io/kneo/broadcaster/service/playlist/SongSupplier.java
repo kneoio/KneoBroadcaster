@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.service.playlist;
 
+import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.util.BrandLogger;
@@ -156,5 +158,52 @@ public class SongSupplier {
 
     private void updateMemory(String brandName, PlaylistItemType fragmentType, List<SoundFragment> selected) {
         getMemory(brandName, fragmentType).updateLastSelected(selected);
+    }
+
+    public Uni<List<SoundFragment>> getNextSongByQuery(UUID brandId, StagePlaylist stagePlaylist, int quantity) {
+        SoundFragmentFilter filter = buildFilterFromStagePlaylist(stagePlaylist);
+        return repository.findByFilter(brandId, filter, quantity)
+                .map(fragments -> {
+                    if (fragments.isEmpty()) {
+                        LOGGER.warn("No fragments found for query filter, brandId: {}", brandId);
+                        return List.<SoundFragment>of();
+                    }
+                    List<SoundFragment> shuffled = new ArrayList<>(fragments);
+                    Collections.shuffle(shuffled, ThreadLocalRandom.current());
+                    if (quantity >= shuffled.size()) {
+                        return shuffled;
+                    }
+                    return shuffled.stream().limit(quantity).collect(Collectors.toList());
+                });
+    }
+
+    public Uni<List<SoundFragment>> getNextSongFromStaticList(List<UUID> soundFragmentIds, int quantity) {
+        if (soundFragmentIds == null || soundFragmentIds.isEmpty()) {
+            LOGGER.warn("Static list is empty or null");
+            return Uni.createFrom().item(List.of());
+        }
+        return repository.findByIds(soundFragmentIds)
+                .map(fragments -> {
+                    if (fragments.isEmpty()) {
+                        LOGGER.warn("No fragments found for static list IDs");
+                        return List.<SoundFragment>of();
+                    }
+                    List<SoundFragment> shuffled = new ArrayList<>(fragments);
+                    Collections.shuffle(shuffled, ThreadLocalRandom.current());
+                    if (quantity >= shuffled.size()) {
+                        return shuffled;
+                    }
+                    return shuffled.stream().limit(quantity).collect(Collectors.toList());
+                });
+    }
+
+    private SoundFragmentFilter buildFilterFromStagePlaylist(StagePlaylist stagePlaylist) {
+        SoundFragmentFilter filter = new SoundFragmentFilter();
+        filter.setGenre(stagePlaylist.getGenres());
+        filter.setLabels(stagePlaylist.getLabels());
+        filter.setType(stagePlaylist.getType());
+        filter.setSource(stagePlaylist.getSource());
+        filter.setSearchTerm(stagePlaylist.getSearchTerm());
+        return filter;
     }
 }

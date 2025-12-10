@@ -204,6 +204,27 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandSongs(brandId, type, limit, offset);
     }
 
+    public Uni<List<SoundFragment>> findByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+        String placeholders = ids.stream()
+                .map(id -> "'" + id.toString() + "'")
+                .collect(java.util.stream.Collectors.joining(","));
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
+                "WHERE t.id IN (" + placeholders + ") AND t.archived = 0";
+        return client.query(sql)
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false, false, false))
+                .concatenate()
+                .collect().asList();
+    }
+
+    public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findByFilter(brandId, filter, limit);
+    }
 
     public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();

@@ -25,6 +25,7 @@ import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.DraftFactory;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -80,6 +81,9 @@ public class EventExecutor {
     @Inject
     RadioStationPool radioStationPool;
 
+    @Inject
+    SongSupplier songSupplier;
+
     private AnthropicClient anthropicClient;
 
     private AnthropicClient getAnthropicClient() {
@@ -113,12 +117,6 @@ public class EventExecutor {
     private Uni<Void> executeScheduledEvent(Event event, PlaylistItemType fragmentType) {
         LOGGER.info("Executing {} event: {}", event.getType(), event.getId());
 
-        StagePlaylist playlist = event.getStagePlaylist();
-        if (playlist == null || playlist.getSourcing() != WayOfSourcing.RANDOM) {
-            LOGGER.warn("Event {} has no RANDOM sourcing, skipping", event.getId());
-            return Uni.createFrom().voidItem();
-        }
-
         UUID brandId = event.getBrandId();
 
         return radioStationService.getById(brandId, SuperUser.build())
@@ -135,10 +133,10 @@ public class EventExecutor {
                         LOGGER.info("Station {} has status {}, skipping event {}", station.getSlugName(), status, event.getId());
                         return Uni.createFrom().voidItem();
                     }
-                    return soundFragmentService.getByTypeAndBrand(fragmentType, brandId)
+                    return fetchFragmentsForEvent(station, event, fragmentType)
                         .chain(fragments -> {
                             if (fragments.isEmpty()) {
-                                LOGGER.warn("No {} fragments found for brand: {}", fragmentType, station.getSlugName());
+                                LOGGER.warn("No {} fragments found for event: {}", fragmentType, event.getId());
                                 return Uni.createFrom().voidItem();
                             }
 
@@ -159,6 +157,30 @@ public class EventExecutor {
                             return executeWithPrompt(station, fragment, selectedAction);
                         });
                 });
+    }
+
+    private Uni<List<SoundFragment>> fetchFragmentsForEvent(RadioStation station, Event event, PlaylistItemType fragmentType) {
+        StagePlaylist stagePlaylist = event.getStagePlaylist();
+
+        if (stagePlaylist == null) {
+            return soundFragmentService.getByTypeAndBrand(fragmentType, event.getBrandId());
+        }
+
+        WayOfSourcing sourcing = stagePlaylist.getSourcing();
+
+        if (sourcing == WayOfSourcing.RANDOM) {
+            return soundFragmentService.getByTypeAndBrand(fragmentType, event.getBrandId());
+        }
+
+        if (sourcing == WayOfSourcing.QUERY) {
+            return songSupplier.getNextSongByQuery(station.getId(), stagePlaylist, 10);
+        }
+
+        if (sourcing == WayOfSourcing.STATIC_LIST) {
+            return songSupplier.getNextSongFromStaticList(stagePlaylist.getSoundFragments(), 10);
+        }
+
+        throw new IllegalStateException("Unknown sourcing type: " + sourcing);
     }
 
     private Uni<Void> executeWithPrompt(RadioStation station, SoundFragment fragment, Action action) {

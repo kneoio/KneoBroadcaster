@@ -277,4 +277,28 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                             });
                 });
     }
+
+    public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
+        sql.append("JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ");
+        sql.append("WHERE bsf.brand_id = '").append(brandId).append("' AND t.archived = 0");
+
+        if (filter != null && filter.isActivated()) {
+            sql.append(buildFilterConditions(filter));
+        }
+
+        sql.append(" ORDER BY RANDOM()");
+
+        if (limit > 0) {
+            sql.append(" LIMIT ").append(limit);
+        }
+
+        return client.query(sql.toString())
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(row -> from(row, false, false, false))
+                .concatenate()
+                .collect().asList();
+    }
 }

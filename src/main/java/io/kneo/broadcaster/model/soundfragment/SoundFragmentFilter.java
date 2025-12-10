@@ -15,6 +15,7 @@ import java.util.UUID;
 public class SoundFragmentFilter {
     private boolean activated = false;
     private List<UUID> genre;
+    private List<UUID> labels;
     private List<SourceType> source;
     private List<PlaylistItemType> type;
     private String searchTerm;
@@ -28,6 +29,9 @@ public class SoundFragmentFilter {
 
     private boolean hasAnyFilter() {
         if (genre != null && !genre.isEmpty()) {
+            return true;
+        }
+        if (labels != null && !labels.isEmpty()) {
             return true;
         }
         if (source != null && !source.isEmpty()) {

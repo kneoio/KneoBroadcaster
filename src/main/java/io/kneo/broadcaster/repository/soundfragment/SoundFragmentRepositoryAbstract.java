@@ -168,6 +168,16 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
             conditions.append("))");
         }
 
+        if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
+            conditions.append(" AND EXISTS (SELECT 1 FROM kneobroadcaster__sound_fragment_labels sfl ")
+                    .append("WHERE sfl.id = t.id AND sfl.label_id IN (");
+            for (int i = 0; i < filter.getLabels().size(); i++) {
+                if (i > 0) conditions.append(", ");
+                conditions.append("'").append(filter.getLabels().get(i).toString()).append("'");
+            }
+            conditions.append("))");
+        }
+
         if (filter.getSource() != null && !filter.getSource().isEmpty()) {
             conditions.append(" AND t.source IN (");
             for (int i = 0; i < filter.getSource().size(); i++) {

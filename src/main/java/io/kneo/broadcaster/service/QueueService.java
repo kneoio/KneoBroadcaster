@@ -89,10 +89,10 @@ public class QueueService {
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else if (toQueueDTO.getMergingMethod() == MergingType.NOT_MIXED) {
-            LOGGER.info("[QueueService] Processing NOT_MIXED merging method for uploadId: {}", uploadId);
+            LOGGER.info("Processing NOT_MIXED merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
                     .chain(radioStation -> {
-                        LOGGER.info("[QueueService] Radio station found: {}, creating AudioMixingHandler", brandName);
+                        LOGGER.info("Stream found: {}, creating AudioMixingHandler", brandName);
                         AudioMixingHandler handler = createAudioMixingHandler();
                         return handler.handleConcatenationAndFeed(radioStation, toQueueDTO, ConcatenationType.DIRECT_CONCAT);
                     })
@@ -153,6 +153,21 @@ public class QueueService {
                     })
                     .onFailure().invoke(err -> {
                         LOGGER.error("[QueueService] SONG_CROSSFADE_SONG operation failed - uploadId: {}", uploadId, err);
+                        updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
+                    });
+        } else if (toQueueDTO.getMergingMethod() == MergingType.SONG_ONLY) {
+            LOGGER.info("[QueueService] Processing SONG_ONLY merging method for uploadId: {}", uploadId);
+            return getRadioStation(brandName)
+                    .chain(radioStation -> {
+                        LOGGER.info("[QueueService] Radio station found: {}, handling SONG_ONLY", brandName);
+                        return createAudioMixingHandler().handleSongOnly(radioStation, toQueueDTO);
+                    })
+                    .onItem().invoke(result -> {
+                        LOGGER.info("[QueueService] SONG_ONLY operation completed successfully - uploadId: {}", uploadId);
+                        updateProgress(uploadId, SSEProgressStatus.DONE, null);
+                    })
+                    .onFailure().invoke(err -> {
+                        LOGGER.error("[QueueService] SONG_ONLY operation failed - uploadId: {}", uploadId, err);
                         updateProgress(uploadId, SSEProgressStatus.ERROR, err.getMessage());
                     });
         } else {

@@ -23,8 +23,8 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioStationService;
-import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.live.DraftFactory;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.AiHelperUtils;
@@ -237,7 +237,7 @@ public class EventExecutor {
         soundFragments.put("song1", fragment.getId());
 
         AddToQueueDTO dto = new AddToQueueDTO();
-        dto.setMergingMethod(MergingType.NOT_MIXED);
+        dto.setMergingMethod(MergingType.SONG_ONLY);
         dto.setSoundFragments(soundFragments);
         dto.setPriority(EVENT_PRIORITY);
 

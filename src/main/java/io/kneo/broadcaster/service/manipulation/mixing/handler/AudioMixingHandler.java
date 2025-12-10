@@ -194,6 +194,35 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
+    public Uni<Boolean> handleSongOnly(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
+        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+        UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
+
+        LOGGER.info("Handling single song feed");
+
+        return soundFragmentService.getById(soundFragmentId, SuperUser.build())
+                .chain(soundFragment -> soundFragmentRepository.getFirstFile(soundFragment.getId())
+                        .chain(songMetadata -> songMetadata.materializeFileStream(tempBaseDir)
+                                .chain(tempPath -> {
+                                    SoundFragment fragment = new SoundFragment();
+                                    fragment.setId(soundFragment.getId());
+                                    fragment.setTitle(soundFragment.getTitle());
+                                    fragment.setArtist(soundFragment.getArtist());
+                                    fragment.setSource(soundFragment.getSource());
+                                    FileMetadata fileMetadata = new FileMetadata();
+                                    fileMetadata.setTemporaryFilePath(tempPath);
+                                    fragment.setFileMetadataList(List.of(fileMetadata));
+
+                                    return playlistManager.addFragmentToSlice(
+                                            fragment,
+                                            toQueueDTO.getPriority(),
+                                            radioStation.getBitRate(),
+                                            toQueueDTO.getMergingMethod(),
+                                            toQueueDTO
+                                    ).replaceWith(Boolean.TRUE);
+                                })));
+    }
+
     public Uni<Boolean> handleConcatenationAndFeed(RadioStation radioStation, AddToQueueDTO toQueueDTO, ConcatenationType concatType) {
         PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
         UUID songId1 = toQueueDTO.getSoundFragments().get("song1");

@@ -1,10 +1,12 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.event.EventDTO;
 import io.kneo.broadcaster.dto.event.EventEntryDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleFactory;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.cnst.EventPriority;
+import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.service.EventService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -93,6 +95,9 @@ public class EventController extends AbstractSecuredController<Event, EventDTO> 
                 .chain(user -> {
                     if ("new".equals(id)) {
                         EventDTO dto = new EventDTO();
+                        StagePlaylistDTO playlistDTO = new StagePlaylistDTO();
+                        playlistDTO.setSourcing(WayOfSourcing.RANDOM.toString());
+                        dto.setStagePlaylist(playlistDTO);
                         dto.setPriority(EventPriority.LOW.name());
                         dto.setSchedule(ScheduleFactory.createWorkdaySchedule(60));
                         return Uni.createFrom().item(Tuple2.of(dto, user));

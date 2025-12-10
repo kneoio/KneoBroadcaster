@@ -24,7 +24,4 @@ public interface HetznerConfig {
     @WithDefault("hel1.your-objectstorage.com")
     String getEndpoint();
 
-    @WithName("orphan.cleaning.disabled")
-    @WithDefault("true")
-    boolean isDeleteDisabled();
 }

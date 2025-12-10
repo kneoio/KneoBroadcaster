@@ -25,8 +25,8 @@ import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.DraftFactory;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.AiHelperUtils;
@@ -98,12 +98,6 @@ public class EventExecutor {
     public Uni<Void> execute(Event event) {
         LOGGER.info("Executing event: {} ({})", event.getDescription(), event.getId());
 
-        if (event.getType() == EventType.ADVERTISEMENT) {
-            return executeScheduledEvent(event, PlaylistItemType.ADVERTISEMENT);
-        }
-        if (event.getType() == EventType.REMINDER) {
-            return executeScheduledEvent(event, PlaylistItemType.SONG);
-        }
 
         List<Action> actions = event.getActions();
         if (actions == null || actions.isEmpty()) {
@@ -145,7 +139,7 @@ public class EventExecutor {
 
                             List<Action> activeActions = event.getActions().stream()
                                     .filter(Action::isActive)
-                                    .filter(a -> a.getActionType() == ActionType.RUN_PROMPT)
+                                    .filter(a -> a.getActionType() == ActionType.QUEUE_UP)
                                     .toList();
 
                             if (activeActions.isEmpty()) {
@@ -298,19 +292,19 @@ public class EventExecutor {
         ActionType type = action.getActionType();
         LOGGER.info("Executing action {} for event {}", type, event.getId());
 
-        if (type == ActionType.RUN_PROMPT) {
-            return executeRunPrompt(event, action);
+        if (type == ActionType.QUEUE_UP) {
+            if (event.getType() == EventType.ADVERTISEMENT) {
+                return executeScheduledEvent(event, PlaylistItemType.ADVERTISEMENT);
+            }
+            if (event.getType() == EventType.REMINDER) {
+                return executeScheduledEvent(event, PlaylistItemType.SONG);
+            }
         }
         if (type == ActionType.COMMAND_STOP_STREAM) {
             return executeStopStream(event, action);
         }
 
         LOGGER.warn("Unknown action type: {} for event: {}", type, event.getId());
-        return Uni.createFrom().voidItem();
-    }
-
-    private Uni<Void> executeRunPrompt(Event event, Action action) {
-        LOGGER.info("RUN_PROMPT action triggered for event: {}, promptId: {}", event.getId(), action.getPromptId());
         return Uni.createFrom().voidItem();
     }
 

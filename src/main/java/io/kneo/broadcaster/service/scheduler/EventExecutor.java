@@ -8,6 +8,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.Model;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
@@ -44,6 +45,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -121,8 +123,16 @@ public class EventExecutor {
 
         return radioStationService.getById(brandId, SuperUser.build())
                 .chain(station -> {
-                    if (radioStationPool.getStation(station.getSlugName()).isEmpty()) {
+                    Optional<RadioStation> stationOpt = radioStationPool.getStation(station.getSlugName());
+                    if (stationOpt.isEmpty()) {
                         LOGGER.info("Station {} is offline, skipping event {}", station.getSlugName(), event.getId());
+                        return Uni.createFrom().voidItem();
+                    }
+                    RadioStationStatus status = stationOpt.get().getStatus();
+                    if (status != RadioStationStatus.WARMING_UP && 
+                        status != RadioStationStatus.ON_LINE && 
+                        status != RadioStationStatus.QUEUE_SATURATED) {
+                        LOGGER.info("Station {} has status {}, skipping event {}", station.getSlugName(), status, event.getId());
                         return Uni.createFrom().voidItem();
                     }
                     return soundFragmentService.getByTypeAndBrand(fragmentType, brandId)

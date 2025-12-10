@@ -2,16 +2,19 @@ package io.kneo.broadcaster.service.dashboard;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.dto.dashboard.StatsDTO;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
+import io.kneo.broadcaster.service.scheduler.job.EventTriggerJob;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,6 +34,8 @@ public class DashboardService {
     @Inject
     ConfigurationStats configurationStats;
 
+    @Inject
+    EventTriggerJob eventTriggerJob;
 
     public Uni<StatsDTO> getInfo() {
         return Uni.createFrom().item(() -> {
@@ -60,8 +65,23 @@ public class DashboardService {
             stats.setStations(stationStats);
             stats.setFileMaintenanceStats(fileMaintenanceService.getStats());
             stats.setConfigurationStats(configurationStats);
+            stats.setSchedulerStats(buildSchedulerStats());
 
             return stats;
         });
+    }
+
+    private SchedulerStatsDTO buildSchedulerStats() {
+        SchedulerStatsDTO schedulerStats = new SchedulerStatsDTO();
+        schedulerStats.setSchedulerRunning(true);
+        schedulerStats.setSchedulerName("EventTriggerJob");
+        schedulerStats.setLastUpdated(LocalDateTime.now());
+        schedulerStats.setLastEventTick(eventTriggerJob.getLastTick());
+        schedulerStats.setTotalEventsChecked(eventTriggerJob.getTotalEventsChecked());
+        schedulerStats.setTotalEventsFired(eventTriggerJob.getTotalEventsFired());
+        schedulerStats.setTotalEventErrors(eventTriggerJob.getTotalErrors());
+        schedulerStats.setLastFiredEventId(eventTriggerJob.getLastFiredEventId());
+        schedulerStats.setLastFiredEventTime(eventTriggerJob.getLastFiredTime());
+        return schedulerStats;
     }
 }

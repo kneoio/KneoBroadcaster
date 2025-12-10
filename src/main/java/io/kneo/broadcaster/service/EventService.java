@@ -13,6 +13,8 @@ import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
@@ -299,6 +301,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
         dto.setArtist(stagePlaylist.getArtist());
         dto.setGenres(stagePlaylist.getGenres());
         dto.setLabels(stagePlaylist.getLabels());
+        dto.setTypes(stagePlaylist.getTypes() != null ? stagePlaylist.getTypes().stream().map(Enum::name).toList() : null);
+        dto.setSources(stagePlaylist.getSources() != null ? stagePlaylist.getSources().stream().map(Enum::name).toList() : null);
+        dto.setSearch(stagePlaylist.getSearch());
         dto.setSoundFragments(stagePlaylist.getSoundFragments());
         return dto;
     }
@@ -313,6 +318,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
         stagePlaylist.setArtist(dto.getArtist());
         stagePlaylist.setGenres(dto.getGenres());
         stagePlaylist.setLabels(dto.getLabels());
+        stagePlaylist.setTypes(dto.getTypes() != null ? dto.getTypes().stream().map(PlaylistItemType::valueOf).toList() : null);
+        stagePlaylist.setSources(dto.getSources() != null ? dto.getSources().stream().map(SourceType::valueOf).toList() : null);
+        stagePlaylist.setSearch(dto.getSearch());
         stagePlaylist.setSoundFragments(dto.getSoundFragments());
         return stagePlaylist;
     }

@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,5 +19,8 @@ public class StagePlaylist {
     private String artist;
     private List<UUID> genres;
     private List<UUID> labels;
+    private List<PlaylistItemType> types;
+    private List<SourceType> sources;
+    private String search;
     private List<UUID> soundFragments;
 }

@@ -286,7 +286,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
             try {
                 JsonObject scheduleData = scheduleJson.getJsonObject("scheduler");
                 if (scheduleData != null) {
-                    Scheduler schedule = mapper.treeToValue(mapper.valueToTree(scheduleData.getMap()), Scheduler.class);
+                    Scheduler schedule = mapper.convertValue(scheduleData.getMap(), Scheduler.class);
                     doc.setScheduler(schedule);
                 }
             } catch (Exception e) {
@@ -297,7 +297,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
         JsonObject stagePlaylistJson = row.getJsonObject("stage_playlist");
         if (stagePlaylistJson != null) {
             try {
-                StagePlaylist stagePlaylist = mapper.treeToValue(mapper.valueToTree(stagePlaylistJson.getMap()), StagePlaylist.class);
+                StagePlaylist stagePlaylist = mapper.convertValue(stagePlaylistJson.getMap(), StagePlaylist.class);
                 doc.setStagePlaylist(stagePlaylist);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse stage_playlist JSON for event: {}", row.getUUID("id"), e);

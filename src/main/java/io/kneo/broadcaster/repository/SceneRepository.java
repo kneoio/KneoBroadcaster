@@ -2,7 +2,9 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
+import io.vertx.core.json.JsonObject;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -135,8 +137,8 @@ public class SceneRepository extends AsyncRepository {
     public Uni<Scene> insert(Scene scene, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, talkativity, podcast_mode, weekdays) " +
-                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, talkativity, podcast_mode, weekdays, stage_playlist) " +
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
@@ -148,7 +150,8 @@ public class SceneRepository extends AsyncRepository {
                 .addBoolean(scene.isOneTimeRun())
                 .addDouble(scene.getTalkativity())
                 .addDouble(scene.getPodcastMode())
-                .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null);
+                .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
+                .addJsonObject(scene.getStagePlaylist() != null ? JsonObject.mapFrom(scene.getStagePlaylist()) : null);
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
                         .execute(params)
@@ -169,7 +172,7 @@ public class SceneRepository extends AsyncRepository {
                     }
                     OffsetDateTime nowTime = OffsetDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET title=$1, start_time=$2, one_time_run=$3, talkativity=$4, podcast_mode=$5, weekdays=$6, last_mod_user=$7, last_mod_date=$8 WHERE id=$9";
+                            " SET title=$1, start_time=$2, one_time_run=$3, talkativity=$4, podcast_mode=$5, weekdays=$6, stage_playlist=$7, last_mod_user=$8, last_mod_date=$9 WHERE id=$10";
                     Tuple params = Tuple.tuple()
                             .addString(scene.getTitle())
                             .addLocalTime(scene.getStartTime())
@@ -177,6 +180,7 @@ public class SceneRepository extends AsyncRepository {
                             .addDouble(scene.getTalkativity())
                             .addDouble(scene.getPodcastMode())
                             .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
+                            .addJsonObject(scene.getStagePlaylist() != null ? JsonObject.mapFrom(scene.getStagePlaylist()) : null)
                             .addLong(user.getId())
                             .addOffsetDateTime(nowTime)
                             .addUUID(id);
@@ -234,6 +238,15 @@ public class SceneRepository extends AsyncRepository {
                 weekdays.add((Integer) o);
             }
             doc.setWeekdays(weekdays);
+        }
+        JsonObject stagePlaylistJson = row.getJsonObject("stage_playlist");
+        if (stagePlaylistJson != null) {
+            try {
+                StagePlaylist stagePlaylist = mapper.convertValue(stagePlaylistJson.getMap(), StagePlaylist.class);
+                doc.setStagePlaylist(stagePlaylist);
+            } catch (Exception e) {
+                LOGGER.error("Failed to parse stage_playlist JSON for scene: {}", row.getUUID("id"), e);
+            }
         }
         return doc;
     }

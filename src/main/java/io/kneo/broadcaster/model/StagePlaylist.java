@@ -19,8 +19,8 @@ public class StagePlaylist {
     private String artist;
     private List<UUID> genres;
     private List<UUID> labels;
-    private List<PlaylistItemType> types;
-    private List<SourceType> sources;
-    private String search;
+    private List<PlaylistItemType> type;
+    private List<SourceType> source;
+    private String searchTerm;
     private List<UUID> soundFragments;
 }

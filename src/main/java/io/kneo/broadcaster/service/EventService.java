@@ -301,9 +301,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
         dto.setArtist(stagePlaylist.getArtist());
         dto.setGenres(stagePlaylist.getGenres());
         dto.setLabels(stagePlaylist.getLabels());
-        dto.setTypes(stagePlaylist.getTypes() != null ? stagePlaylist.getTypes().stream().map(Enum::name).toList() : null);
-        dto.setSources(stagePlaylist.getSources() != null ? stagePlaylist.getSources().stream().map(Enum::name).toList() : null);
-        dto.setSearch(stagePlaylist.getSearch());
+        dto.setType(stagePlaylist.getType() != null ? stagePlaylist.getType().stream().map(Enum::name).toList() : null);
+        dto.setSource(stagePlaylist.getSource() != null ? stagePlaylist.getSource().stream().map(Enum::name).toList() : null);
+        dto.setSearchTerm(stagePlaylist.getSearchTerm());
         dto.setSoundFragments(stagePlaylist.getSoundFragments());
         return dto;
     }
@@ -318,9 +318,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
         stagePlaylist.setArtist(dto.getArtist());
         stagePlaylist.setGenres(dto.getGenres());
         stagePlaylist.setLabels(dto.getLabels());
-        stagePlaylist.setTypes(dto.getTypes() != null ? dto.getTypes().stream().map(PlaylistItemType::valueOf).toList() : null);
-        stagePlaylist.setSources(dto.getSources() != null ? dto.getSources().stream().map(SourceType::valueOf).toList() : null);
-        stagePlaylist.setSearch(dto.getSearch());
+        stagePlaylist.setType(dto.getType() != null ? dto.getType().stream().map(PlaylistItemType::valueOf).toList() : null);
+        stagePlaylist.setSource(dto.getSource() != null ? dto.getSource().stream().map(SourceType::valueOf).toList() : null);
+        stagePlaylist.setSearchTerm(dto.getSearchTerm());
         stagePlaylist.setSoundFragments(dto.getSoundFragments());
         return stagePlaylist;
     }

@@ -48,7 +48,7 @@ import java.util.UUID;
 @ApplicationScoped
 public class EventExecutor {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventExecutor.class);
-    private static final int AD_PRIORITY = 9;
+    private static final int EVENT_PRIORITY = 9;
 
     @Inject
     SoundFragmentService soundFragmentService;
@@ -89,7 +89,10 @@ public class EventExecutor {
         LOGGER.info("Executing event: {} ({})", event.getDescription(), event.getId());
 
         if (event.getType() == EventType.ADVERTISEMENT) {
-            return executeAdvertisement(event);
+            return executeScheduledEvent(event, PlaylistItemType.ADVERTISEMENT);
+        }
+        if (event.getType() == EventType.REMINDER) {
+            return executeScheduledEvent(event, PlaylistItemType.SONG);
         }
 
         List<Action> actions = event.getActions();
@@ -101,27 +104,27 @@ public class EventExecutor {
         return executeActions(event, actions.stream().filter(Action::isActive).toList());
     }
 
-    private Uni<Void> executeAdvertisement(Event event) {
-        LOGGER.info("Executing ADVERTISEMENT event: {}", event.getId());
+    private Uni<Void> executeScheduledEvent(Event event, PlaylistItemType fragmentType) {
+        LOGGER.info("Executing {} event: {}", event.getType(), event.getId());
 
         StagePlaylist playlist = event.getStagePlaylist();
         if (playlist == null || playlist.getSourcing() != WayOfSourcing.RANDOM) {
-            LOGGER.warn("Advertisement event {} has no RANDOM sourcing, skipping", event.getId());
+            LOGGER.warn("Event {} has no RANDOM sourcing, skipping", event.getId());
             return Uni.createFrom().voidItem();
         }
 
         UUID brandId = event.getBrandId();
 
         return radioStationService.getById(brandId, SuperUser.build())
-                .chain(station -> soundFragmentService.getByTypeAndBrand(PlaylistItemType.ADVERTISEMENT, brandId)
-                        .chain(adFragments -> {
-                            if (adFragments.isEmpty()) {
-                                LOGGER.warn("No advertisement fragments found for brand: {}", station.getSlugName());
+                .chain(station -> soundFragmentService.getByTypeAndBrand(fragmentType, brandId)
+                        .chain(fragments -> {
+                            if (fragments.isEmpty()) {
+                                LOGGER.warn("No {} fragments found for brand: {}", fragmentType, station.getSlugName());
                                 return Uni.createFrom().voidItem();
                             }
 
-                            SoundFragment adFragment = Randomizator.pickRandom(adFragments);
-                            LOGGER.info("Selected ad fragment: {} - {}", adFragment.getTitle(), adFragment.getId());
+                            SoundFragment fragment = Randomizator.pickRandom(fragments);
+                            LOGGER.info("Selected {} fragment: {} - {}", fragmentType, fragment.getTitle(), fragment.getId());
 
                             List<Action> activeActions = event.getActions().stream()
                                     .filter(Action::isActive)
@@ -129,32 +132,32 @@ public class EventExecutor {
                                     .toList();
 
                             if (activeActions.isEmpty()) {
-                                LOGGER.info("No RUN_PROMPT actions, queuing ad without TTS");
-                                return queueAdWithoutTts(station, adFragment);
+                                LOGGER.info("No RUN_PROMPT actions, queuing fragment without TTS");
+                                return queueFragmentWithoutTts(station, fragment);
                             }
 
                             Action selectedAction = Randomizator.pickRandom(activeActions);
-                            return executeAdWithPrompt(station, adFragment, selectedAction);
+                            return executeWithPrompt(station, fragment, selectedAction);
                         }));
     }
 
-    private Uni<Void> executeAdWithPrompt(RadioStation station, SoundFragment adFragment, Action action) {
+    private Uni<Void> executeWithPrompt(RadioStation station, SoundFragment fragment, Action action) {
         UUID promptId = action.getPromptId();
 
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                         .chain(agent -> {
                             LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                            return draftFactory.createDraft(adFragment, agent, station, prompt.getDraftId(), broadcastingLanguage)
-                                    .chain(draft -> generateAdText(prompt, draft))
+                            return draftFactory.createDraft(fragment, agent, station, prompt.getDraftId(), broadcastingLanguage)
+                                    .chain(draft -> generateText(prompt, draft))
                                     .chain(ttsText -> {
                                         String voiceId = AiHelperUtils.resolvePrimaryVoiceId(station, agent);
-                                        return generateTtsAndQueue(station, adFragment, ttsText, voiceId);
+                                        return generateTtsAndQueue(station, fragment, ttsText, voiceId);
                                     });
                         }));
     }
 
-    private Uni<String> generateAdText(Prompt prompt, String draft) {
+    private Uni<String> generateText(Prompt prompt, String draft) {
         return Uni.createFrom().item(() -> {
             String userMessage = prompt.getPrompt() + "\n\nDraft input:\n" + draft;
 
@@ -171,12 +174,12 @@ public class EventExecutor {
                     .map(block -> block.asText().text())
                     .findFirst()
                     .orElseThrow();
-            LOGGER.info("Generated ad text: {}", text);
+            LOGGER.info("Generated text: {}", text);
             return text;
         });
     }
 
-    private Uni<Void> generateTtsAndQueue(RadioStation station, SoundFragment adFragment, String ttsText, String voiceId) {
+    private Uni<Void> generateTtsAndQueue(RadioStation station, SoundFragment fragment, String ttsText, String voiceId) {
         String uploadId = UUID.randomUUID().toString();
 
         return elevenLabsClient.textToSpeech(ttsText, voiceId, config.getElevenLabsModelId())
@@ -185,7 +188,7 @@ public class EventExecutor {
                         Path uploadsDir = Paths.get(config.getPathForExternalServiceUploads());
                         Files.createDirectories(uploadsDir);
 
-                        String fileName = "ad_tts_" + uploadId + ".mp3";
+                        String fileName = "event_tts_" + uploadId + ".mp3";
                         Path audioFilePath = uploadsDir.resolve(fileName);
                         Files.write(audioFilePath, audioBytes);
 
@@ -195,16 +198,16 @@ public class EventExecutor {
                         filePaths.put("audio1", audioFilePath.toAbsolutePath().toString());
 
                         Map<String, UUID> soundFragments = new HashMap<>();
-                        soundFragments.put("song1", adFragment.getId());
+                        soundFragments.put("song1", fragment.getId());
 
                         AddToQueueDTO dto = new AddToQueueDTO();
                         dto.setMergingMethod(MergingType.INTRO_SONG);
                         dto.setFilePaths(filePaths);
                         dto.setSoundFragments(soundFragments);
-                        dto.setPriority(AD_PRIORITY);
+                        dto.setPriority(EVENT_PRIORITY);
 
-                        LOGGER.info("Queuing advertisement for station: {}, fragment: {}, priority: {}",
-                                station.getSlugName(), adFragment.getTitle(), AD_PRIORITY);
+                        LOGGER.info("Queuing event for station: {}, fragment: {}, priority: {}",
+                                station.getSlugName(), fragment.getTitle(), EVENT_PRIORITY);
 
                         return queueService.addToQueue(station.getSlugName(), dto, uploadId);
                     } catch (IOException e) {
@@ -212,26 +215,26 @@ public class EventExecutor {
                         return Uni.createFrom().failure(e);
                     }
                 })
-                .onItem().invoke(result -> LOGGER.info("Advertisement queued successfully for station: {}", station.getSlugName()))
-                .onFailure().invoke(err -> LOGGER.error("Failed to queue advertisement for station: {}", station.getSlugName(), err))
+                .onItem().invoke(result -> LOGGER.info("Event queued successfully for station: {}", station.getSlugName()))
+                .onFailure().invoke(err -> LOGGER.error("Failed to queue event for station: {}", station.getSlugName(), err))
                 .replaceWithVoid();
     }
 
-    private Uni<Void> queueAdWithoutTts(RadioStation station, SoundFragment adFragment) {
+    private Uni<Void> queueFragmentWithoutTts(RadioStation station, SoundFragment fragment) {
         String uploadId = UUID.randomUUID().toString();
 
         Map<String, UUID> soundFragments = new HashMap<>();
-        soundFragments.put("song1", adFragment.getId());
+        soundFragments.put("song1", fragment.getId());
 
         AddToQueueDTO dto = new AddToQueueDTO();
         dto.setMergingMethod(MergingType.NOT_MIXED);
         dto.setSoundFragments(soundFragments);
-        dto.setPriority(AD_PRIORITY);
+        dto.setPriority(EVENT_PRIORITY);
 
-        LOGGER.info("Queuing advertisement (no TTS) for station: {}, fragment: {}", station.getSlugName(), adFragment.getTitle());
+        LOGGER.info("Queuing fragment (no TTS) for station: {}, fragment: {}", station.getSlugName(), fragment.getTitle());
 
         return queueService.addToQueue(station.getSlugName(), dto, uploadId)
-                .onItem().invoke(result -> LOGGER.info("Advertisement queued (no TTS) for station: {}", station.getSlugName()))
+                .onItem().invoke(result -> LOGGER.info("Fragment queued (no TTS) for station: {}", station.getSlugName()))
                 .replaceWithVoid();
     }
 

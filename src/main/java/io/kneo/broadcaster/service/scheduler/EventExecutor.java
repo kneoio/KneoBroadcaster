@@ -156,11 +156,12 @@ public class EventExecutor {
 
     private Uni<String> generateAdText(Prompt prompt, String draft) {
         return Uni.createFrom().item(() -> {
+            String userMessage = prompt.getPrompt() + "\n\nDraft input:\n" + draft;
+
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_3_5_HAIKU_LATEST)
                     .maxTokens(256)
-                    .system(prompt.getPrompt())
-                    .addUserMessage(draft)
+                    .addUserMessage(userMessage)
                     .build();
 
             Message response = getAnthropicClient().messages().create(params);

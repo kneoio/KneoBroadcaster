@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
@@ -21,4 +22,6 @@ public class Script extends SecureDataEntity<UUID> {
     private List<UUID> brands;
     private List<Scene> scenes;
     private LanguageCode languageCode;
+    private SceneTimingMode timingMode = SceneTimingMode.ABSOLUTE_TIME;
+    private List<ScriptVariable> requiredVariables;
 }

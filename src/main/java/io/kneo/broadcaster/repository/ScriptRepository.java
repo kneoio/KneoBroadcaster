@@ -1,8 +1,12 @@
 package io.kneo.broadcaster.repository;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.ScriptVariable;
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -14,6 +18,8 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -25,6 +31,7 @@ import jakarta.inject.Inject;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SCRIPT;
@@ -173,10 +180,15 @@ public class ScriptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, name, description, access_level, language_code) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, name, description, access_level, language_code, timing_mode, required_variables) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
+
+                JsonArray requiredVarsJson = null;
+                if (script.getRequiredVariables() != null && !script.getRequiredVariables().isEmpty()) {
+                    requiredVarsJson = new JsonArray(mapper.writeValueAsString(script.getRequiredVariables()));
+                }
 
                 Tuple params = Tuple.tuple()
                         .addLong(user.getId())
@@ -186,7 +198,9 @@ public class ScriptRepository extends AsyncRepository {
                         .addString(script.getName())
                         .addString(script.getDescription())
                         .addInteger(script.getAccessLevel())
-                        .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null);
+                        .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
+                        .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
+                        .addJsonArray(requiredVarsJson);
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -209,6 +223,12 @@ public class ScriptRepository extends AsyncRepository {
     public Uni<Script> update(UUID id, Script script, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
+                JsonArray requiredVarsJson = null;
+                if (script.getRequiredVariables() != null && !script.getRequiredVariables().isEmpty()) {
+                    requiredVarsJson = new JsonArray(mapper.writeValueAsString(script.getRequiredVariables()));
+                }
+                JsonArray finalRequiredVarsJson = requiredVarsJson;
+
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
                         .onItem().transformToUni(permissions -> {
                             if (!permissions[0]) {
@@ -218,8 +238,8 @@ public class ScriptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET name=$1, description=$2, language_code=$3, last_mod_user=$4, last_mod_date=$5 " +
-                                    "WHERE id=$6";
+                                    " SET name=$1, description=$2, language_code=$3, timing_mode=$4, last_mod_user=$5, last_mod_date=$6, required_variables=$7 " +
+                                    "WHERE id=$8";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
@@ -227,8 +247,10 @@ public class ScriptRepository extends AsyncRepository {
                                     .addString(script.getName())
                                     .addString(script.getDescription())
                                     .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
+                                    .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
+                                    .addJsonArray(finalRequiredVarsJson)
                                     .addUUID(id);
 
                             return client.withTransaction(tx ->
@@ -279,6 +301,10 @@ public class ScriptRepository extends AsyncRepository {
         if (lang != null) {
             doc.setLanguageCode(LanguageCode.valueOf(lang));
         }
+        String timingMode = row.getString("timing_mode");
+        if (timingMode != null) {
+            doc.setTimingMode(SceneTimingMode.valueOf(timingMode));
+        }
 
         Object[] arr = row.getArrayOfUUIDs("labels");
         if (arr != null && arr.length > 0) {
@@ -287,6 +313,16 @@ public class ScriptRepository extends AsyncRepository {
                 labels.add((UUID) o);
             }
             doc.setLabels(labels);
+        }
+
+        JsonArray requiredVarsJson = row.getJsonArray("required_variables");
+        if (requiredVarsJson != null && !requiredVarsJson.isEmpty()) {
+            try {
+                List<ScriptVariable> vars = mapper.readValue(requiredVarsJson.encode(), new TypeReference<>() {});
+                doc.setRequiredVariables(vars);
+            } catch (JsonProcessingException e) {
+                doc.setRequiredVariables(new ArrayList<>());
+            }
         }
         return doc;
     }
@@ -359,7 +395,7 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<List<BrandScript>> findForBrand(UUID brandId, final int limit, final int offset,
                                                 boolean includeArchived, IUser user) {
-        String sql = "SELECT t.*, bs.rank, bs.active, " +
+        String sql = "SELECT t.*, bs.rank, bs.active, bs.user_variables, " +
                 "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
                 "FROM " + entityData.getTableName() + " t " +
                 "JOIN kneobroadcaster__brand_scripts bs ON t.id = bs.script_id " +
@@ -410,6 +446,16 @@ public class ScriptRepository extends AsyncRepository {
         brandScript.setDefaultBrandId(brandId);
         brandScript.setRank(row.getInteger("rank"));
         brandScript.setActive(row.getBoolean("active"));
+
+        JsonObject userVarsJson = row.getJsonObject("user_variables");
+        if (userVarsJson != null && !userVarsJson.isEmpty()) {
+            try {
+                Map<String, Object> userVars = mapper.readValue(userVarsJson.encode(), new TypeReference<>() {});
+                brandScript.setUserVariables(userVars);
+            } catch (JsonProcessingException e) {
+                brandScript.setUserVariables(null);
+            }
+        }
         return brandScript;
     }
 
@@ -449,5 +495,44 @@ public class ScriptRepository extends AsyncRepository {
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    public Uni<Void> patchRequiredVariables(UUID scriptId, List<ScriptVariable> requiredVariables) {
+        String sql = "UPDATE " + entityData.getTableName() + " SET required_variables = $1 WHERE id = $2";
+        JsonArray jsonArray = null;
+        if (requiredVariables != null && !requiredVariables.isEmpty()) {
+            try {
+                jsonArray = new JsonArray(mapper.writeValueAsString(requiredVariables));
+            } catch (JsonProcessingException e) {
+                return Uni.createFrom().failure(e);
+            }
+        }
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(jsonArray, scriptId))
+                .replaceWithVoid();
+    }
+
+    public Uni<List<UUID>> findScriptIdsByDraftId(UUID draftId) {
+        String sql = "SELECT DISTINCT ss.script_id FROM mixpla_script_scenes ss " +
+                "JOIN mixpla__script_scene_actions ssa ON ssa.script_scene_id = ss.id " +
+                "JOIN mixpla_prompts p ON p.id = ssa.prompt_id " +
+                "WHERE p.draft_id = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(draftId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("script_id"))
+                .collect().asList();
+    }
+
+    public Uni<List<UUID>> findDraftIdsForScript(UUID scriptId) {
+        String sql = "SELECT DISTINCT p.draft_id FROM mixpla_script_scenes ss " +
+                "JOIN mixpla__script_scene_actions ssa ON ssa.script_scene_id = ss.id " +
+                "JOIN mixpla_prompts p ON p.id = ssa.prompt_id " +
+                "WHERE ss.script_id = $1 AND p.draft_id IS NOT NULL";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(scriptId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("draft_id"))
+                .collect().asList();
     }
 }

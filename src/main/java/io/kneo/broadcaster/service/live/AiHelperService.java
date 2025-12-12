@@ -15,6 +15,7 @@ import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -43,6 +44,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -320,50 +322,64 @@ public class AiHelperService {
 
                     for (BrandScript brandScript : scripts) {
                         List<Scene> scenes = brandScript.getScript().getScenes();
-                        for (Scene scene : scenes) {
-                            if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
-                                final LocalTime sceneStart = scene.getStartTime();
-                                final LocalTime sceneEnd = findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
-                                final int promptCount = scene.getPrompts() != null ? 
-                                    (int) scene.getPrompts().stream().filter(Action::isActive).count() : 0;
-                                final String nextSceneTitle = findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
-                                DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
-                                final LocalDateTime lastRequestTime;
-                                final String trackedDjName;
-                                if (requestInfo != null) {
-                                    lastRequestTime = requestInfo.requestTime();
-                                    trackedDjName = requestInfo.djName();
-                                } else {
-                                    lastRequestTime = null;
-                                    trackedDjName = null;
+                        boolean useRelativeTiming = brandScript.getScript().getTimingMode() == SceneTimingMode.RELATIVE_TO_STREAM_START;
+                        
+                        Scene activeScene = null;
+                        if (useRelativeTiming) {
+                            activeScene = findActiveSceneByDuration(station, scenes);
+                        } else {
+                            for (Scene scene : scenes) {
+                                if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
+                                    activeScene = scene;
+                                    break;
                                 }
-                                final AiOverriding overriding = station.getAiOverriding();
-                                if (overriding != null) {
-                                    return Uni.createFrom().item(() -> new AiDjStats(
-                                            scene.getId(),
-                                            scene.getTitle(),
-                                            sceneStart,
-                                            sceneEnd,
-                                            promptCount,
-                                            nextSceneTitle,
-                                            lastRequestTime,
-                                            overriding.getName(),
-                                            aiDjMessagesTracker.get(station.getSlugName())
-                                    ));
-                                } else {
-                                    // No AI overriding, use tracked DJ name
-                                    return Uni.createFrom().item(() -> new AiDjStats(
-                                            scene.getId(),
-                                            scene.getTitle(),
-                                            sceneStart,
-                                            sceneEnd,
-                                            promptCount,
-                                            nextSceneTitle,
-                                            lastRequestTime,
-                                            trackedDjName,
-                                            aiDjMessagesTracker.get(station.getSlugName())
-                                    ));
-                                }
+                            }
+                        }
+                        
+                        if (activeScene != null) {
+                            final Scene scene = activeScene;
+                            final LocalTime sceneStart = useRelativeTiming ? null : scene.getStartTime();
+                            final LocalTime sceneEnd = useRelativeTiming ? null : findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
+                            final int promptCount = scene.getPrompts() != null ? 
+                                (int) scene.getPrompts().stream().filter(Action::isActive).count() : 0;
+                            final String nextSceneTitle = useRelativeTiming ? 
+                                findNextSceneTitleByDuration(station, scene, scenes) : 
+                                findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
+                            DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
+                            final LocalDateTime lastRequestTime;
+                            final String trackedDjName;
+                            if (requestInfo != null) {
+                                lastRequestTime = requestInfo.requestTime();
+                                trackedDjName = requestInfo.djName();
+                            } else {
+                                lastRequestTime = null;
+                                trackedDjName = null;
+                            }
+                            final AiOverriding overriding = station.getAiOverriding();
+                            if (overriding != null) {
+                                return Uni.createFrom().item(() -> new AiDjStats(
+                                        scene.getId(),
+                                        scene.getTitle(),
+                                        sceneStart,
+                                        sceneEnd,
+                                        promptCount,
+                                        nextSceneTitle,
+                                        lastRequestTime,
+                                        overriding.getName(),
+                                        aiDjMessagesTracker.get(station.getSlugName())
+                                ));
+                            } else {
+                                return Uni.createFrom().item(() -> new AiDjStats(
+                                        scene.getId(),
+                                        scene.getTitle(),
+                                        sceneStart,
+                                        sceneEnd,
+                                        promptCount,
+                                        nextSceneTitle,
+                                        lastRequestTime,
+                                        trackedDjName,
+                                        aiDjMessagesTracker.get(station.getSlugName())
+                                ));
                             }
                         }
                     }
@@ -389,6 +405,51 @@ public class AiHelperService {
             }
         }
         return !sortedScenes.isEmpty() ? sortedScenes.get(0).getTitle() : null;
+    }
+
+    private Scene findActiveSceneByDuration(RadioStation station, List<Scene> scenes) {
+        LocalDateTime startTime = station.getStartTime();
+        if (startTime == null) {
+            LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());
+            return null;
+        }
+        
+        long elapsedSeconds = ChronoUnit.SECONDS.between(startTime, LocalDateTime.now());
+        
+        long cumulativeDuration = 0;
+        for (Scene scene : scenes) {
+            int sceneDuration = scene.getDurationSeconds();
+            if (elapsedSeconds < cumulativeDuration + sceneDuration) {
+                return scene;
+            }
+            cumulativeDuration += sceneDuration;
+        }
+        
+        return null;
+    }
+
+    private String findNextSceneTitleByDuration(RadioStation station, Scene currentScene, List<Scene> scenes) {
+        LocalDateTime startTime = station.getStartTime();
+        if (startTime == null) {
+            return null;
+        }
+        
+        long elapsedSeconds = ChronoUnit.SECONDS.between(startTime, LocalDateTime.now());
+        
+        long cumulativeDuration = 0;
+        boolean foundCurrent = false;
+        for (Scene scene : scenes) {
+            if (foundCurrent) {
+                return scene.getTitle();
+            }
+            int sceneDuration = scene.getDurationSeconds();
+            if (elapsedSeconds < cumulativeDuration + sceneDuration && scene.getId().equals(currentScene.getId())) {
+                foundCurrent = true;
+            }
+            cumulativeDuration += sceneDuration;
+        }
+        
+        return null;
     }
 
     public void addMessage(String brandName, AiDjStats.MessageType type, String message) {

@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
+import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
@@ -14,6 +15,7 @@ import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
+import io.kneo.broadcaster.model.radiostation.BrandScriptEntry;
 import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
@@ -203,7 +205,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
                 radiostationPool.getLiveStatus(doc.getSlugName()),
-                repository.getScriptIdsForBrand(doc.getId())
+                repository.getScriptEntriesForBrand(doc.getId())
         ).asTuple().map(tuple -> {
             RadioStationDTO dto = new RadioStationDTO();
             dto.setId(doc.getId());
@@ -298,7 +300,15 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 throw new RuntimeException(e);
             }
             dto.setArchived(doc.getArchived());
-            dto.setScripts(tuple.getItem4());
+            List<BrandScriptEntryDTO> scriptDTOs = tuple.getItem4().stream()
+                    .map(entry -> {
+                        BrandScriptEntryDTO scriptDTO = new BrandScriptEntryDTO();
+                        scriptDTO.setScriptId(entry.getScriptId());
+                        scriptDTO.setUserVariables(entry.getUserVariables());
+                        return scriptDTO;
+                    })
+                    .collect(Collectors.toList());
+            dto.setScripts(scriptDTOs);
             RadioStationStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
             if (liveStatus == RadioStationStatus.ON_LINE
@@ -395,7 +405,12 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             doc.setScheduler(schedule);
         }
 
-        doc.setScripts(dto.getScripts());
+        if (dto.getScripts() != null) {
+            List<BrandScriptEntry> scriptEntries = dto.getScripts().stream()
+                    .map(e -> new BrandScriptEntry(e.getScriptId(), e.getUserVariables()))
+                    .collect(Collectors.toList());
+            doc.setScripts(scriptEntries);
+        }
 
         return doc;
     }

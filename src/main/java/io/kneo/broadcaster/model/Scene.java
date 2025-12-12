@@ -18,6 +18,8 @@ public class Scene extends SecureDataEntity<UUID> {
     private List<Action> prompts;
     private StagePlaylist stagePlaylist;
     private LocalTime startTime;
+    private int durationSeconds;
+    private int seqNum;
     private Integer archived;
     private boolean oneTimeRun;
     private double talkativity = 0.5;

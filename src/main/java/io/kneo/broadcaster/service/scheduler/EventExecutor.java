@@ -184,7 +184,7 @@ public class EventExecutor {
                 .chain(prompt -> aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                         .chain(agent -> {
                             LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                            return draftFactory.createDraft(fragment, agent, station, prompt.getDraftId(), broadcastingLanguage)
+                            return draftFactory.createDraft(fragment, agent, station, prompt.getDraftId(), broadcastingLanguage, null)
                                     .chain(draft -> generateText(prompt, draft))
                                     .chain(ttsText -> {
                                         String voiceId = AiHelperUtils.resolvePrimaryVoiceId(station, agent);

@@ -74,10 +74,6 @@ public class PublicChatSessionManager {
         return session.email();
     }
 
-    public void invalidateSession(String token) {
-        sessions.remove(token);
-    }
-
     private void cleanupExpiredCodes() {
         verificationCodes.entrySet().removeIf(entry -> entry.getValue().isExpired());
     }

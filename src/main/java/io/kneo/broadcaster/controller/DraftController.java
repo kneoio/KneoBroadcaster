@@ -69,6 +69,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         String path = "/api/drafts";
         router.route(path + "*").handler(BodyHandler.create());
         router.post(path + "/test").handler(this::testDraft);  // Must be before POST /api/drafts
+        router.post(path + "/extract-variables").handler(this::extractVariables);
         router.post(path + "/translate/start").handler(this::translateStart);
         router.get(path + "/translate/stream").handler(this::translateStream);
         router.get(path).handler(this::getAll);
@@ -271,7 +272,35 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         }
     }
 
-    
+    private void extractVariables(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            JsonObject body = rc.body().asJsonObject();
+            String code = body.getString("code");
+
+            if (code == null || code.isBlank()) {
+                rc.response()
+                        .setStatusCode(200)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonArray().encode());
+                return;
+            }
+
+            var variables = service.extractVariables(code);
+            JsonArray result = new JsonArray(variables.stream()
+                    .map(JsonObject::mapFrom)
+                    .toList());
+
+            rc.response()
+                    .setStatusCode(200)
+                    .putHeader("Content-Type", "application/json")
+                    .end(result.encode());
+
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid request: " + e.getMessage()));
+        }
+    }
 
     // --- SSE based translation flow ---
     private void translateStart(RoutingContext rc) {

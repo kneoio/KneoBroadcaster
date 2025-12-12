@@ -70,7 +70,8 @@ public class DraftFactory {
             AiAgent agent,
             RadioStation station,
             UUID draftId,
-            LanguageCode selectedLanguage
+            LanguageCode selectedLanguage,
+            Map<String, Object> userVariables
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
@@ -103,7 +104,8 @@ public class DraftFactory {
                                 profile,
                                 genres,
                                 listeners,
-                                selectedLanguage
+                                selectedLanguage,
+                                userVariables
                         );
                     } else {
                         String msg = String.format("No draft template found for language=%s. Fallbacks are disabled.", selectedLanguage);
@@ -118,7 +120,8 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             RadioStation station,
-            LanguageCode selectedLanguage
+            LanguageCode selectedLanguage,
+            Map<String, Object> userVariables
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
@@ -148,7 +151,8 @@ public class DraftFactory {
                             profile,
                             genres,
                             listeners,
-                            selectedLanguage
+                            selectedLanguage,
+                            userVariables
                     );
                 });
     }
@@ -182,7 +186,8 @@ public class DraftFactory {
             Profile profile,
             List<String> genres,
             List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners,
-            LanguageCode selectedLanguage
+            LanguageCode selectedLanguage,
+            Map<String, Object> userVariables
     ) {
         String countryIso = station.getCountry().getIsoCode();
         Map<String, Object> data = new HashMap<>();
@@ -220,6 +225,10 @@ public class DraftFactory {
         data.put("perplexity", new PerpelxitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
+
+        if (userVariables != null && !userVariables.isEmpty()) {
+            data.putAll(userVariables);
+        }
 
         return groovyEngine.render(template, data).trim();
     }

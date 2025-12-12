@@ -11,7 +11,9 @@ import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.ScriptVariable;
 import io.kneo.broadcaster.repository.ScriptRepository;
+import io.kneo.broadcaster.util.ScriptVariableExtractor;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -23,6 +25,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -100,20 +103,25 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     public Uni<ScriptDTO> upsert(String id, ScriptDTO dto, IUser user) {
         assert repository != null;
         assert scriptSceneService != null;
-        Script entity = buildEntity(dto);
         
-        if (id == null) {
-            return repository.insert(entity, user)
-                    .chain(script -> processScenes(script.getId(), dto.getScenes(), user)
-                            .replaceWith(script))
-                    .chain(script -> mapToDTO(script, user));
-        } else {
-            UUID scriptId = UUID.fromString(id);
-            return repository.update(scriptId, entity, user)
-                    .chain(script -> processScenes(scriptId, dto.getScenes(), user)
-                            .replaceWith(script))
-                    .chain(script -> mapToDTO(script, user));
-        }
+        return extractRequiredVariables(dto.getScenes())
+                .chain(requiredVariables -> {
+                    Script entity = buildEntity(dto);
+                    entity.setRequiredVariables(requiredVariables);
+                    
+                    if (id == null) {
+                        return repository.insert(entity, user)
+                                .chain(script -> processScenes(script.getId(), dto.getScenes(), user)
+                                        .replaceWith(script))
+                                .chain(script -> mapToDTO(script, user));
+                    } else {
+                        UUID scriptId = UUID.fromString(id);
+                        return repository.update(scriptId, entity, user)
+                                .chain(script -> processScenes(scriptId, dto.getScenes(), user)
+                                        .replaceWith(script))
+                                .chain(script -> mapToDTO(script, user));
+                    }
+                });
     }
 
     public Uni<Integer> archive(String id, IUser user) {
@@ -146,7 +154,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setLanguageCode(script.getLanguageCode());
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
+            dto.setTimingMode(script.getTimingMode());
             dto.setScenes(tuple.getItem3());
+            dto.setRequiredVariables(script.getRequiredVariables());
             return dto;
         });
     }
@@ -156,9 +166,57 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setLanguageCode(dto.getLanguageCode());
+        entity.setTimingMode(dto.getTimingMode());
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
         return entity;
+    }
+
+    private Uni<List<ScriptVariable>> extractRequiredVariables(List<SceneDTO> scenes) {
+        if (scenes == null || scenes.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<UUID> draftIds = scenes.stream()
+                .filter(scene -> scene.getPrompts() != null)
+                .flatMap(scene -> scene.getPrompts().stream())
+                .map(ScenePromptDTO::getPromptId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (draftIds.isEmpty()) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        List<Uni<Draft>> draftUnis = draftIds.stream()
+                .map(promptId -> {
+                    assert promptService != null;
+                    return promptService.getById(promptId, SuperUser.build())
+                            .chain(prompt -> {
+                                if (prompt.getDraftId() == null) {
+                                    return Uni.createFrom().nullItem();
+                                }
+                                assert draftService != null;
+                                return draftService.getById(prompt.getDraftId(), SuperUser.build());
+                            })
+                            .onFailure().recoverWithNull();
+                })
+                .collect(Collectors.toList());
+
+        return Uni.join().all(draftUnis).andFailFast()
+                .map(drafts -> {
+                    Map<String, ScriptVariable> aggregated = new LinkedHashMap<>();
+                    for (Draft draft : drafts) {
+                        if (draft != null && draft.getContent() != null) {
+                            List<ScriptVariable> vars = ScriptVariableExtractor.extract(draft.getContent());
+                            for (ScriptVariable var : vars) {
+                                aggregated.putIfAbsent(var.getName(), var);
+                            }
+                        }
+                    }
+                    return new ArrayList<>(aggregated.values());
+                });
     }
 
     public Uni<ScriptDTO> updateAccessLevel(String id, Integer accessLevel, IUser user) {
@@ -504,7 +562,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         if (exportDTO.getDraft() != null) {
             prompt.setDraftId(exportDTO.getDraft().getId());
         }
-        
+
+        assert promptService != null;
         return promptService.insert(prompt, user);
     }
 
@@ -524,7 +583,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     .collect(Collectors.toList());
             dto.setPrompts(promptDTOs);
         }
-        
+
+        assert scriptSceneService != null;
         return scriptSceneService.upsert(null, scriptId, dto, user)
                 .map(savedDTO -> {
                     Scene scene = new Scene();
@@ -542,4 +602,38 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         dto.setWeight(promptDTO.getWeight() != null ? promptDTO.getWeight() : java.math.BigDecimal.valueOf(0.5));
         return dto;
     }
+/*
+    public Uni<Void> updateRequiredVariablesForScript(UUID scriptId) {
+        assert repository != null;
+        return repository.findDraftIdsForScript(scriptId)
+                .chain(draftIds -> {
+                    if (draftIds.isEmpty()) {
+                        return repository.patchRequiredVariables(scriptId, List.of());
+                    }
+                    assert draftService != null;
+                    return draftService.getByIds(draftIds)
+                            .chain(drafts -> {
+                                List<ScriptVariable> variables = drafts.stream()
+                                        .map(Draft::getContent)
+                                        .filter(Objects::nonNull)
+                                        .flatMap(content -> ScriptVariableExtractor.extract(content).stream())
+                                        .distinct()
+                                        .toList();
+                                return repository.patchRequiredVariables(scriptId, variables);
+                            });
+                });
+    }
+
+    public Uni<Void> updateRequiredVariablesForDraft(UUID draftId) {
+        return repository.findScriptIdsByDraftId(draftId)
+                .chain(scriptIds -> {
+                    if (scriptIds.isEmpty()) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    List<Uni<Void>> updates = scriptIds.stream()
+                            .map(this::updateRequiredVariablesForScript)
+                            .toList();
+                    return Uni.join().all(updates).andFailFast().replaceWithVoid();
+                });
+    }*/
 }

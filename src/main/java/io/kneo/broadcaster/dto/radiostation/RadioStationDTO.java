@@ -70,6 +70,6 @@ public class RadioStationDTO extends AbstractDTO {
     private Integer archived;
     @NotNull
     @NotEmpty
-    private List<UUID> scripts;
+    private List<BrandScriptEntryDTO> scripts;
 
 }

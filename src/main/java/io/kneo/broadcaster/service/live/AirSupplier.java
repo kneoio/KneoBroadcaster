@@ -10,14 +10,15 @@ import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.StagePlaylist;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.ScriptService;
@@ -38,9 +39,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -205,27 +208,56 @@ public class AirSupplier {
                     List<UUID> allMasterPromptIds = new ArrayList<>();
                     String currentSceneTitle = null;
                     Scene activeScene = null;
+                    Map<String, Object> activeUserVariables = null;
+                    boolean oneTimeStream = false;
                     for (BrandScript brandScript : brandScripts) {
                         List<Scene> scenes = brandScript.getScript().getScenes();
-                        for (Scene scene : scenes) {
-                            if (isSceneActive(brandSlugName, zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
-                                List<UUID> promptIds = scene.getPrompts() != null ?
-                                        scene.getPrompts().stream()
+                        boolean useRelativeTiming = brandScript.getScript().getTimingMode() == SceneTimingMode.RELATIVE_TO_STREAM_START;
+                        
+                        if (useRelativeTiming) {
+                            oneTimeStream = true;
+                            Scene relativeScene = findActiveSceneByDuration(station, scenes);
+                            if (relativeScene != null) {
+                                List<UUID> promptIds = relativeScene.getPrompts() != null ?
+                                        relativeScene.getPrompts().stream()
                                                 .filter(Action::isActive)
                                                 .map(Action::getPromptId)
                                                 .toList() : List.of();
                                 allMasterPromptIds.addAll(promptIds);
-                                currentSceneTitle = scene.getTitle();
-                                activeScene = scene;
-                                LOGGER.debug("Station '{}': Active scene '{}' found with {} prompts",
-                                        brandSlugName, scene.getTitle(), promptIds.size());
+                                currentSceneTitle = relativeScene.getTitle();
+                                activeScene = relativeScene;
+                                activeUserVariables = brandScript.getUserVariables();
+                                LOGGER.debug("Station '{}': Active scene '{}' found (relative timing) with {} prompts",
+                                        brandSlugName, relativeScene.getTitle(), promptIds.size());
+                            }
+                        } else {
+                            for (Scene scene : scenes) {
+                                if (isSceneActive(brandSlugName, zone, scene, scenes, stationCurrentTime, currentDayOfWeek)) {
+                                    List<UUID> promptIds = scene.getPrompts() != null ?
+                                            scene.getPrompts().stream()
+                                                    .filter(Action::isActive)
+                                                    .map(Action::getPromptId)
+                                                    .toList() : List.of();
+                                    allMasterPromptIds.addAll(promptIds);
+                                    currentSceneTitle = scene.getTitle();
+                                    activeScene = scene;
+                                    activeUserVariables = brandScript.getUserVariables();
+                                    LOGGER.debug("Station '{}': Active scene '{}' found with {} prompts",
+                                            brandSlugName, scene.getTitle(), promptIds.size());
+                                }
                             }
                         }
                     }
 
                     if (activeScene == null) {
-                        LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", station.getSlugName(), stationCurrentTime, currentDayOfWeek);
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + stationCurrentTime + ")");
+                        if (oneTimeStream) {
+                            LOGGER.info("Station '{}': All scenes completed in relative timing mode. Setting status to OFF_LINE.", station.getSlugName());
+                            station.setStatus(RadioStationStatus.OFF_LINE);
+                            addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Stream completed - all scenes played");
+                        } else {
+                            LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", station.getSlugName(), stationCurrentTime, currentDayOfWeek);
+                            addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + stationCurrentTime + ")");
+                        }
                         return Uni.createFrom().item(() -> null);
                     }
 
@@ -237,7 +269,7 @@ public class AirSupplier {
                     }
 
                     BrandLogger.logActivity(brandSlugName, "decision", "effectiveTalkativity : %s", effectiveTalkativity);
-                    if (!activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
+                    if (!oneTimeStream && !activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
                         addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "mixing ...");
                         jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
                         return Uni.createFrom().item(() -> null);
@@ -286,6 +318,7 @@ public class AirSupplier {
 
                     String finalCurrentSceneTitle = currentSceneTitle;
                     Scene finalActiveScene = activeScene;
+                    Map<String, Object> finalUserVariables = activeUserVariables;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
                                 LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", station.getSlugName(), prompts.size());
@@ -308,7 +341,8 @@ public class AirSupplier {
                                                                 agent,
                                                                 station,
                                                                 selectedPrompt.getDraftId(),
-                                                                broadcastingLanguage
+                                                                broadcastingLanguage,
+                                                                finalUserVariables
                                                         ).map(draft -> {
                                                             return new SongPromptDTO(
                                                                     song.getId(),
@@ -395,6 +429,32 @@ public class AirSupplier {
             used.add(scene.getId());
         }
         return true;
+    }
+
+    private Scene findActiveSceneByDuration(RadioStation station, List<Scene> scenes) {
+        LocalDateTime startTime = station.getStartTime();
+        if (startTime == null) {
+            LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());
+            return null;
+        }
+        
+        long elapsedSeconds = ChronoUnit.SECONDS.between(startTime, LocalDateTime.now());
+        LOGGER.debug("Station '{}': Elapsed time since stream start: {} seconds", station.getSlugName(), elapsedSeconds);
+        
+        long cumulativeDuration = 0;
+        for (Scene scene : scenes) {
+            int sceneDuration = scene.getDurationSeconds();
+            if (elapsedSeconds < cumulativeDuration + sceneDuration) {
+                LOGGER.debug("Station '{}': Scene '{}' is active (elapsed: {}s, scene range: {}-{}s)",
+                        station.getSlugName(), scene.getTitle(), elapsedSeconds, cumulativeDuration, cumulativeDuration + sceneDuration);
+                return scene;
+            }
+            cumulativeDuration += sceneDuration;
+        }
+        
+        LOGGER.info("Station '{}': All scenes completed (elapsed: {}s, total duration: {}s). Stream should stop.",
+                station.getSlugName(), elapsedSeconds, cumulativeDuration);
+        return null;
     }
 
     private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, List<Scene> scenes) {

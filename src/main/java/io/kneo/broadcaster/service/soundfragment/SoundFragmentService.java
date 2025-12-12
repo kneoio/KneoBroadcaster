@@ -52,7 +52,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private final RadioStationService radioStationService;
     private final LocalFileCleanupService localFileCleanupService;
     private final io.kneo.broadcaster.service.RefService refService;
-    private final BrandSoundFragmentUpdateService brandSoundFragmentUpdateService;
     private String uploadDir;
     Validator validator;
 
@@ -62,7 +61,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.repository = null;
         this.radioStationService = null;
         this.refService = null;
-        this.brandSoundFragmentUpdateService = null;
     }
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
@@ -101,15 +99,13 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 Validator validator,
                                 SoundFragmentRepository repository,
                                 BroadcasterConfig config,
-                                io.kneo.broadcaster.service.RefService refService,
-                                BrandSoundFragmentUpdateService brandSoundFragmentUpdateService) {
+                                io.kneo.broadcaster.service.RefService refService) {
         super(userService);
         this.localFileCleanupService = localFileCleanupService;
         this.validator = validator;
         this.repository = repository;
         this.radioStationService = radioStationService;
         this.refService = refService;
-        this.brandSoundFragmentUpdateService = brandSoundFragmentUpdateService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
 

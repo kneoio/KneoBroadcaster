@@ -424,7 +424,7 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> findByUserId(Long userId) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE user_id = $1 AND archived = 0";
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE user_id = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(userId))
                 .onItem().transformToUni(rows -> {

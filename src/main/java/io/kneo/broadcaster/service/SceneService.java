@@ -110,6 +110,8 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setScriptId(doc.getScriptId());
             dto.setStartTime(doc.getStartTime());
+            dto.setDurationSeconds(doc.getDurationSeconds());
+            dto.setSeqNum(doc.getSeqNum());
             dto.setOneTimeRun(doc.isOneTimeRun());
             dto.setTalkativity(doc.getTalkativity());
             dto.setPodcastMode(doc.getPodcastMode());
@@ -140,6 +142,8 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         Scene entity = new Scene();
         entity.setTitle(dto.getTitle());
         entity.setStartTime(dto.getStartTime());
+        entity.setDurationSeconds(dto.getDurationSeconds());
+        entity.setSeqNum(dto.getSeqNum());
         entity.setOneTimeRun(dto.isOneTimeRun());
         entity.setWeekdays(dto.getWeekdays());
         entity.setTalkativity(dto.getTalkativity());

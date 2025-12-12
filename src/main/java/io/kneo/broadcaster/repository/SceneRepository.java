@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
-import io.vertx.core.json.JsonObject;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
@@ -15,6 +14,7 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
@@ -46,7 +46,7 @@ public class SceneRepository extends AsyncRepository {
         if (!includeArchived) {
             sql += " AND t.archived = 0";
         }
-        sql += " ORDER BY t.script_id ASC, t.start_time ";
+        sql += " ORDER BY t.script_id ASC, t.seq_num ASC, t.start_time ";
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
@@ -75,7 +75,7 @@ public class SceneRepository extends AsyncRepository {
         if (!includeArchived) {
             sql += " AND t.archived = 0";
         }
-        sql += " ORDER BY t.start_time ";
+        sql += " ORDER BY t.seq_num ASC, t.start_time ";
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
@@ -137,8 +137,8 @@ public class SceneRepository extends AsyncRepository {
     public Uni<Scene> insert(Scene scene, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, one_time_run, talkativity, podcast_mode, weekdays, stage_playlist) " +
-                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, duration_seconds, seq_num, one_time_run, talkativity, podcast_mode, weekdays, stage_playlist) " +
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
@@ -147,6 +147,8 @@ public class SceneRepository extends AsyncRepository {
                 .addUUID(scene.getScriptId())
                 .addString(scene.getTitle())
                 .addLocalTime(scene.getStartTime())
+                .addInteger(scene.getDurationSeconds())
+                .addInteger(scene.getSeqNum())
                 .addBoolean(scene.isOneTimeRun())
                 .addDouble(scene.getTalkativity())
                 .addDouble(scene.getPodcastMode())
@@ -172,10 +174,12 @@ public class SceneRepository extends AsyncRepository {
                     }
                     OffsetDateTime nowTime = OffsetDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET title=$1, start_time=$2, one_time_run=$3, talkativity=$4, podcast_mode=$5, weekdays=$6, stage_playlist=$7, last_mod_user=$8, last_mod_date=$9 WHERE id=$10";
+                            " SET title=$1, start_time=$2, duration_seconds=$3, seq_num=$4, one_time_run=$5, talkativity=$6, podcast_mode=$7, weekdays=$8, stage_playlist=$9, last_mod_user=$10, last_mod_date=$11 WHERE id=$12";
                     Tuple params = Tuple.tuple()
                             .addString(scene.getTitle())
                             .addLocalTime(scene.getStartTime())
+                            .addInteger(scene.getDurationSeconds())
+                            .addInteger(scene.getSeqNum())
                             .addBoolean(scene.isOneTimeRun())
                             .addDouble(scene.getTalkativity())
                             .addDouble(scene.getPodcastMode())
@@ -226,6 +230,9 @@ public class SceneRepository extends AsyncRepository {
         doc.setTitle(row.getString("title"));
         doc.setArchived(row.getInteger("archived"));
         doc.setStartTime(row.getLocalTime("start_time"));
+        doc.setDurationSeconds(row.getInteger("duration_seconds"));
+        Integer seqNum = row.getInteger("seq_num");
+        if (seqNum != null) doc.setSeqNum(seqNum);
         doc.setOneTimeRun(row.getBoolean("one_time_run"));
         Double talk = row.getDouble("talkativity");
         if (talk != null) doc.setTalkativity(talk);

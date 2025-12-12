@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.radiostation.AiOverriding;
+import io.kneo.broadcaster.model.radiostation.BrandScriptEntry;
 import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
 import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
@@ -464,22 +465,26 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 
-    private Uni<Void> insertBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId, List<UUID> scriptIds) {
-        if (scriptIds == null || scriptIds.isEmpty()) {
-            LOGGER.warn("insertBrandScripts called with null or empty scriptIds for brand {}", brandId);
+    private Uni<Void> insertBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId, List<BrandScriptEntry> scriptEntries) {
+        if (scriptEntries == null || scriptEntries.isEmpty()) {
+            LOGGER.warn("insertBrandScripts called with null or empty scriptEntries for brand {}", brandId);
             return Uni.createFrom().voidItem();
         }
 
-        LOGGER.info("Inserting {} scripts for brand {}: {}", scriptIds.size(), brandId, scriptIds);
-        String sql = "INSERT INTO kneobroadcaster__brand_scripts (brand_id, script_id, rank, active) VALUES ($1, $2, $3, $4)";
+        LOGGER.info("Inserting {} scripts for brand {}", scriptEntries.size(), brandId);
+        String sql = "INSERT INTO kneobroadcaster__brand_scripts (brand_id, script_id, rank, active, user_variables) VALUES ($1, $2, $3, $4, $5)";
         
-        List<Uni<Void>> insertOps = scriptIds.stream()
-                .map(scriptId -> {
-                    LOGGER.debug("Inserting script {} for brand {}", scriptId, brandId);
+        List<Uni<Void>> insertOps = scriptEntries.stream()
+                .map(entry -> {
+                    LOGGER.debug("Inserting script {} for brand {}", entry.getScriptId(), brandId);
+                    JsonObject userVarsJson = null;
+                    if (entry.getUserVariables() != null && !entry.getUserVariables().isEmpty()) {
+                        userVarsJson = new JsonObject(entry.getUserVariables());
+                    }
                     return tx.preparedQuery(sql)
-                            .execute(Tuple.of(brandId, scriptId, 10, true))
-                            .onItem().invoke(() -> LOGGER.info("Successfully inserted script {} for brand {}", scriptId, brandId))
-                            .onFailure().invoke(t -> LOGGER.error("Failed to insert script {} for brand {}", scriptId, brandId, t))
+                            .execute(Tuple.of(brandId, entry.getScriptId(), 10, true, userVarsJson))
+                            .onItem().invoke(() -> LOGGER.info("Successfully inserted script {} for brand {}", entry.getScriptId(), brandId))
+                            .onFailure().invoke(t -> LOGGER.error("Failed to insert script {} for brand {}", entry.getScriptId(), brandId, t))
                             .replaceWithVoid();
                 })
                 .toList();
@@ -497,12 +502,20 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .replaceWithVoid();
     }
 
-    public Uni<List<UUID>> getScriptIdsForBrand(UUID brandId) {
-        String sql = "SELECT script_id FROM kneobroadcaster__brand_scripts WHERE brand_id = $1 ORDER BY rank";
+    public Uni<List<BrandScriptEntry>> getScriptEntriesForBrand(UUID brandId) {
+        String sql = "SELECT script_id, user_variables FROM kneobroadcaster__brand_scripts WHERE brand_id = $1 ORDER BY rank";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(brandId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("script_id"))
+                .onItem().transform(row -> {
+                    BrandScriptEntry entry = new BrandScriptEntry();
+                    entry.setScriptId(row.getUUID("script_id"));
+                    JsonObject userVarsJson = row.getJsonObject("user_variables");
+                    if (userVarsJson != null) {
+                        entry.setUserVariables(userVarsJson.getMap());
+                    }
+                    return entry;
+                })
                 .collect().asList();
     }
 

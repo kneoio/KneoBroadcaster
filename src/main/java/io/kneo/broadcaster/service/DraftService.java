@@ -4,10 +4,13 @@ import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.ScriptVariable;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
 import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.util.ScriptVariableExtractor;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -29,17 +32,19 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DraftService.class);
 
     private final DraftRepository repository;
+    private final ScriptRepository scriptRepository;
     private final DraftFactory draftFactory;
     private final SoundFragmentService soundFragmentService;
     private final AiAgentService aiAgentService;
     private final RadioStationService radioStationService;
 
     @Inject
-    public DraftService(UserService userService, DraftRepository repository, DraftFactory draftFactory,
-                        SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
-                        RadioStationService radioStationService) {
+    public DraftService(UserService userService, DraftRepository repository, ScriptRepository scriptRepository,
+                        DraftFactory draftFactory, SoundFragmentService soundFragmentService, 
+                        AiAgentService aiAgentService, RadioStationService radioStationService) {
         super(userService);
         this.repository = repository;
+        this.scriptRepository = scriptRepository;
         this.draftFactory = draftFactory;
         this.soundFragmentService = soundFragmentService;
         this.aiAgentService = aiAgentService;
@@ -84,6 +89,10 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                         .collect(Collectors.toList()));
     }
 
+    public Uni<List<Draft>> getByIds(List<UUID> ids) {
+        return getByIds(ids, SuperUser.build());
+    }
+
     @Override
     public Uni<Integer> delete(String id, IUser user) {
         return repository.archive(UUID.fromString(id), user);
@@ -99,7 +108,10 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         Uni<Draft> saveOperation = (id == null)
                 ? repository.insert(entity, user)
                 : repository.update(UUID.fromString(id), entity, user);
-        return saveOperation.chain(this::mapToDTO);
+        return saveOperation
+                .chain(savedDraft -> updateScriptsRequiredVariables(savedDraft.getId())
+                        .onItem().transform(v -> savedDraft))
+                .chain(this::mapToDTO);
     }
 
     public Uni<Draft> insert(Draft entity, IUser user) {
@@ -149,7 +161,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         doc.setContent(dto.getContent());
         doc.setDescription(dto.getDescription());
         doc.setLanguageCode(dto.getLanguageCode());
-        doc.setArchived(dto.getArchived() != null ? dto.getArchived() : 0);
+        doc.setArchived(dto.getArchived());
         doc.setEnabled(dto.isEnabled());
         doc.setMaster(dto.isMaster());
         doc.setLocked(dto.isLocked());
@@ -169,7 +181,8 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                                             song,
                                             agent,
                                             station,
-                                            selectedLanguage
+                                            selectedLanguage,
+                                            dto.getUserVariables()
                                     );
                                 })
                         )
@@ -184,7 +197,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         }
 
         if (preferences.size() == 1) {
-            return preferences.get(0).getCode();
+            return preferences.getFirst().getCode();
         }
 
         double totalWeight = preferences.stream()
@@ -193,7 +206,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
 
         if (totalWeight <= 0) {
             LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
-            return preferences.get(0).getCode();
+            return preferences.getFirst().getCode();
         }
 
         Random random = new Random();
@@ -206,6 +219,45 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             }
         }
 
-        return preferences.get(0).getCode();
+        return preferences.getFirst().getCode();
+    }
+
+    private Uni<Void> updateScriptsRequiredVariables(UUID draftId) {
+        return scriptRepository.findScriptIdsByDraftId(draftId)
+                .chain(scriptIds -> {
+                    if (scriptIds.isEmpty()) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    List<Uni<Void>> updates = scriptIds.stream()
+                            .map(this::updateScriptRequiredVariables)
+                            .toList();
+                    return Uni.join().all(updates).andFailFast().replaceWithVoid();
+                });
+    }
+
+    private Uni<Void> updateScriptRequiredVariables(UUID scriptId) {
+        return scriptRepository.findDraftIdsForScript(scriptId)
+                .chain(draftIds -> {
+                    if (draftIds.isEmpty()) {
+                        return scriptRepository.patchRequiredVariables(scriptId, List.of());
+                    }
+                    return getByIds(draftIds)
+                            .chain(drafts -> {
+                                List<ScriptVariable> allVariables = drafts.stream()
+                                        .map(Draft::getContent)
+                                        .filter(java.util.Objects::nonNull)
+                                        .flatMap(content -> ScriptVariableExtractor.extract(content).stream())
+                                        .distinct()
+                                        .toList();
+                                return scriptRepository.patchRequiredVariables(scriptId, allVariables);
+                            });
+                });
+    }
+
+    public List<ScriptVariable> extractVariables(String code) {
+        if (code == null || code.isBlank()) {
+            return List.of();
+        }
+        return ScriptVariableExtractor.extract(code);
     }
 }

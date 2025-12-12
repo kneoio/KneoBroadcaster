@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Getter
@@ -22,4 +23,5 @@ public class DraftTestReqDTO {
     private LanguageCode languageCode;
     @NotNull
     private String code;
+    private Map<String, Object> userVariables;
 }

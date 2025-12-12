@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -16,6 +17,7 @@ public class BrandScript {
     private boolean active;
     private Script script;
     private List<UUID> representedInBrands;
+    private Map<String, Object> userVariables;
 
     @Override
     public boolean equals(Object o) {

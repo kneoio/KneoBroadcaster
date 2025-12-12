@@ -178,6 +178,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                                         if (listenerType == ListenerType.OWNER) {
                                                             existingListener.setListenerType(ListenerType.OWNER);
                                                         }
+                                                        existingListener.setArchived(0);
                                                         return repository.update(existingListener.getId(), existingListener, stationIds, user);
                                                     } else {
                                                         listener.setUserId(existingUser.getId());

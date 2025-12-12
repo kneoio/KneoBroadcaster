@@ -18,6 +18,8 @@ import java.util.UUID;
 public class ScriptDTO extends AbstractDTO {
     @NotBlank
     private String name;
+    private String slugName;
+    private UUID defaultProfileId;
     @NotBlank
     private String description;
     private Integer accessLevel = 0;

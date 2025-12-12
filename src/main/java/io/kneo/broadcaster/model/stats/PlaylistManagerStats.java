@@ -28,7 +28,7 @@ public class PlaylistManagerStats {
     HlsPlaylistConfig hlsPlaylistConfig;
 
     public PlaylistManagerStats(PlaylistManager playlistManager, int duration) {
-        this.brand = playlistManager.getBrand();
+        this.brand = playlistManager.getBrandSlug();
         this.livePlaylist = mapList(playlistManager.getPrioritizedQueue(), LiveSongSource.PRIORITIZED);
         this.queued = mapList(playlistManager.getObtainedByHlsPlaylist(), LiveSongSource.QUEUED);
         this.duration = duration;

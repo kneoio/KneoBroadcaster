@@ -3,9 +3,9 @@ package io.kneo.broadcaster.service.manipulation.mixing.handler;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -62,15 +62,15 @@ public class AudioMixingHandler extends MixingHandlerBase {
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
     }
 
-    public Uni<Boolean> handleSongIntroSong(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
-        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+    public Uni<Boolean> handleSongIntroSong(Brand brand, AddToQueueDTO toQueueDTO) {
+        PlaylistManager playlistManager = brand.getStreamManager().getPlaylistManager();
         UUID soundFragmentId1 = toQueueDTO.getSoundFragments().get("song1");
         String introSongPath = toQueueDTO.getFilePaths().get("audio1");
         UUID soundFragmentId2 = toQueueDTO.getSoundFragments().get("song2");
         MixingProfile settings = MixingProfile.randomProfile(12345L);
         LOGGER.info("Applied Mixing sis {}", settings.description);
 
-        return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(brand.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
                     return soundFragmentService.getById(soundFragmentId1, SuperUser.build())
                             .chain(soundFragment1 -> {
@@ -115,10 +115,10 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                             fragment2.setFileMetadataList(List.of(fileMetadata2));
 
                                                                                             return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
-                                                                                                            radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                                                                                                            brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                                                                                                     .chain(() ->
                                                                                                             playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
-                                                                                                                    radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
+                                                                                                                    brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
                                                                                         });
                                                                             });
                                                                 });
@@ -128,8 +128,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
-    public Uni<Boolean> handleIntroSongIntroSong(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
-        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+    public Uni<Boolean> handleIntroSongIntroSong(Brand brand, AddToQueueDTO toQueueDTO) {
+        PlaylistManager playlistManager = brand.getStreamManager().getPlaylistManager();
         String part1 = toQueueDTO.getFilePaths().get("audio1");           // intro1
         UUID part2 = toQueueDTO.getSoundFragments().get("song1");         // song
         String part3 = toQueueDTO.getFilePaths().get("audio2");           // intro2
@@ -137,7 +137,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
         MixingProfile settings = MixingProfile.randomProfile(12345L);
         LOGGER.info("Applied Mixing isis {}", settings.description);
 
-        return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(brand.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
                     return soundFragmentService.getById(part2, SuperUser.build())
                             .chain(soundFragment1 -> {
@@ -180,10 +180,10 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                                 fragment2.setFileMetadataList(List.of(fileMetadata2));
 
                                                                                                 return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
-                                                                                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                                                                                                                brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                                                                                                         .chain(() ->
                                                                                                                 playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
-                                                                                                                        radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
+                                                                                                                        brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
                                                                                             });
                                                                                 });
                                                                     });
@@ -194,8 +194,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 });
     }
 
-    public Uni<Boolean> handleSongOnly(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
-        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+    public Uni<Boolean> handleSongOnly(Brand brand, AddToQueueDTO toQueueDTO) {
+        PlaylistManager playlistManager = brand.getStreamManager().getPlaylistManager();
         UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
 
         LOGGER.info("Handling single song feed");
@@ -216,15 +216,15 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                     return playlistManager.addFragmentToSlice(
                                             fragment,
                                             toQueueDTO.getPriority(),
-                                            radioStation.getBitRate(),
+                                            brand.getBitRate(),
                                             toQueueDTO.getMergingMethod(),
                                             toQueueDTO
                                     ).replaceWith(Boolean.TRUE);
                                 })));
     }
 
-    public Uni<Boolean> handleConcatenationAndFeed(RadioStation radioStation, AddToQueueDTO toQueueDTO, ConcatenationType concatType) {
-        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+    public Uni<Boolean> handleConcatenationAndFeed(Brand brand, AddToQueueDTO toQueueDTO, ConcatenationType concatType) {
+        PlaylistManager playlistManager = brand.getStreamManager().getPlaylistManager();
         UUID songId1 = toQueueDTO.getSoundFragments().get("song1");
         UUID songId2 = toQueueDTO.getSoundFragments().get("song2");
 
@@ -267,7 +267,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                 return playlistManager.addFragmentToSlice(
                                                                                         crossfadeFragment,
                                                                                         toQueueDTO.getPriority(),
-                                                                                        radioStation.getBitRate(),
+                                                                                        brand.getBitRate(),
                                                                                         toQueueDTO.getMergingMethod(),
                                                                                         toQueueDTO
                                                                                 ).replaceWith(Boolean.TRUE);

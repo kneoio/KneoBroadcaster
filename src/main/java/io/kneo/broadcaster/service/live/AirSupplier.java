@@ -12,12 +12,12 @@ import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.PromptService;
@@ -129,7 +129,7 @@ public class AirSupplier {
         });
     }
 
-    private Uni<LiveRadioStationDTO> buildLiveRadioStation(RadioStation station) {
+    private Uni<LiveRadioStationDTO> buildLiveRadioStation(Brand station) {
         LiveRadioStationDTO liveRadioStation = new LiveRadioStationDTO();
         PlaylistManager playlistManager = station.getStreamManager().getPlaylistManager();
         int queueSize = playlistManager.getPrioritizedQueue().size();
@@ -196,7 +196,7 @@ public class AirSupplier {
                 });
     }
 
-    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(RadioStation station, AiAgent agent, LanguageCode broadcastingLanguage, String additionalInstruction) {
+    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(Brand station, AiAgent agent, LanguageCode broadcastingLanguage, String additionalInstruction) {
         return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
                 .flatMap(brandScripts -> {
                     String brandSlugName = station.getSlugName();
@@ -365,7 +365,7 @@ public class AirSupplier {
                 });
     }
 
-    private Uni<List<SoundFragment>> fetchSongsForScene(RadioStation station, Scene scene) {
+    private Uni<List<SoundFragment>> fetchSongsForScene(Brand station, Scene scene) {
         int quantity = randomizator.decideFragmentCount(station.getSlugName());
         StagePlaylist stagePlaylist = scene.getStagePlaylist();
 
@@ -431,7 +431,7 @@ public class AirSupplier {
         return true;
     }
 
-    private Scene findActiveSceneByDuration(RadioStation station, List<Scene> scenes) {
+    private Scene findActiveSceneByDuration(Brand station, List<Scene> scenes) {
         LocalDateTime startTime = station.getStartTime();
         if (startTime == null) {
             LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());

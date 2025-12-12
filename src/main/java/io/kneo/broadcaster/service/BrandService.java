@@ -4,26 +4,23 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
+import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
+import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
 import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
+import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.brand.BrandScriptEntry;
+import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
-import io.kneo.broadcaster.model.radiostation.BrandScriptEntry;
-import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.model.scheduler.OnceTrigger;
-import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
-import io.kneo.broadcaster.model.scheduler.Task;
-import io.kneo.broadcaster.model.scheduler.TimeWindowTrigger;
-import io.kneo.broadcaster.repository.RadioStationRepository;
+import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -50,10 +47,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class RadioStationService extends AbstractService<RadioStation, RadioStationDTO> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationService.class);
+public class BrandService extends AbstractService<Brand, BrandDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BrandService.class);
 
-    private final RadioStationRepository repository;
+    private final BrandRepository repository;
 
     BroadcasterConfig broadcasterConfig;
 
@@ -63,9 +60,12 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     Provider<ListenerService> listenerService;
 
     @Inject
-    public RadioStationService(
+    OneTimeStreamService oneTimeStreamService;
+
+    @Inject
+    public BrandService(
             UserService userService,
-            RadioStationRepository repository,
+            BrandRepository repository,
             RadioStationPool radiostationPool,
             BroadcasterConfig broadcasterConfig
     ) {
@@ -75,14 +75,14 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         this.broadcasterConfig = broadcasterConfig;
     }
 
-    public Uni<List<RadioStationDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
+    public Uni<List<BrandDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
         assert repository != null;
         return repository.getAll(limit, offset, false, user)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     } else {
-                        List<Uni<RadioStationDTO>> unis = list.stream()
+                        List<Uni<BrandDTO>> unis = list.stream()
                                 .map(this::mapToDTO)
                                 .collect(Collectors.toList());
                         return Uni.join().all(unis).andFailFast();
@@ -90,14 +90,14 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 });
     }
 
-    public Uni<List<RadioStationDTO>> getAllDTOFiltered(final int limit, final int offset, final IUser user, final String country, final String query) {
+    public Uni<List<BrandDTO>> getAllDTOFiltered(final int limit, final int offset, final IUser user, final String country, final String query) {
         assert repository != null;
         return repository.getAllFiltered(limit, offset, false, user, country, query)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     } else {
-                        List<Uni<RadioStationDTO>> unis = list.stream()
+                        List<Uni<BrandDTO>> unis = list.stream()
                                 .map(this::mapToDTO)
                                 .collect(Collectors.toList());
                         return Uni.join().all(unis).andFailFast();
@@ -110,23 +110,31 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         return repository.getAllCount(user, false);
     }
 
-    public Uni<List<RadioStation>> getAll(final int limit, final int offset) {
+    public Uni<Void> runOneTimeStream(OneTimeStreamRunReqDTO dto, IUser user) {
+        return oneTimeStreamService.runOneTimeStream(dto, user);
+    }
+
+    public Uni<Integer> deleteTemporaryBrands(List<String> excludedSlugNames) {
+        return repository.deleteTemporaryBrands(excludedSlugNames);
+    }
+
+    public Uni<List<Brand>> getAll(final int limit, final int offset) {
         return repository.getAll(limit, offset, false, SuperUser.build());
     }
 
-    public Uni<List<RadioStation>> getAll(final int limit, final int offset, IUser user) {
+    public Uni<List<Brand>> getAll(final int limit, final int offset, IUser user) {
         return repository.getAll(limit, offset, false, user);
     }
 
-    public Uni<RadioStation> getById(UUID id, IUser user) {
+    public Uni<Brand> getById(UUID id, IUser user) {
         return repository.findById(id, user, true);
     }
 
-    public Uni<RadioStation> getBySlugName(String name) {
+    public Uni<Brand> getBySlugName(String name) {
         return repository.getBySlugName(name);
     }
 
-    public Uni<RadioStation> getBySlugName(String name, IUser user) {
+    public Uni<Brand> getBySlugName(String name, IUser user) {
         return repository.getBySlugName(name, user, false);
     }
 
@@ -137,7 +145,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
     }
 
     @Override
-    public Uni<RadioStationDTO> getDTO(UUID id, IUser user, LanguageCode language) {
+    public Uni<BrandDTO> getDTO(UUID id, IUser user, LanguageCode language) {
         assert repository != null;
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
@@ -146,13 +154,13 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
        return repository.findLastAccessTimeByStationName(stationName);
     }
 
-    public Uni<RadioStationDTO> upsert(String id, RadioStationDTO dto, IUser user, LanguageCode code) {
+    public Uni<BrandDTO> upsert(String id, BrandDTO dto, IUser user, LanguageCode code) {
         assert repository != null;
         LOGGER.info("Upserting radio station with DTO scripts: {}", dto.getScripts());
-        RadioStation entity = buildEntity(dto);
+        Brand entity = buildEntity(dto);
         LOGGER.info("Built entity with scripts: {}", entity.getScripts());
 
-        Uni<RadioStation> saveOperation;
+        Uni<Brand> saveOperation;
         if (id == null) {
             entity.setPopularityRate(5);
             saveOperation = repository.insert(entity, user);
@@ -200,21 +208,21 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
                 });
     }
 
-    private Uni<RadioStationDTO> mapToDTO(RadioStation doc) {
+    private Uni<BrandDTO> mapToDTO(Brand doc) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
                 radiostationPool.getLiveStatus(doc.getSlugName()),
                 repository.getScriptEntriesForBrand(doc.getId())
         ).asTuple().map(tuple -> {
-            RadioStationDTO dto = new RadioStationDTO();
+            BrandDTO dto = new BrandDTO();
             dto.setId(doc.getId());
             dto.setAuthor(tuple.getItem1());
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setLocalizedName(doc.getLocalizedName());
-            dto.setCountry(doc.getCountry().name());
+            dto.setCountry(doc.getCountry() != null ? doc.getCountry().name() : null);
             dto.setColor(doc.getColor());
             dto.setTimeZone(doc.getTimeZone().getId());
             dto.setDescription(doc.getDescription());
@@ -223,8 +231,10 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             dto.setBitRate(doc.getBitRate());
             dto.setAiAgentId(doc.getAiAgentId());
             dto.setProfileId(doc.getProfileId());
+            dto.setOneTimeStreamPolicy(doc.getOneTimeStreamPolicy());
             dto.setSubmissionPolicy(doc.getSubmissionPolicy());
             dto.setMessagingPolicy(doc.getMessagingPolicy());
+            dto.setIsTemporary(doc.getIsTemporary());
             dto.setPopularityRate(doc.getPopularityRate());
 
             if (doc.getAiOverriding() != null) {
@@ -326,11 +336,12 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         });
     }
 
-    private RadioStation buildEntity(RadioStationDTO dto) {
-        RadioStation doc = new RadioStation();
+    private Brand buildEntity(BrandDTO dto) {
+        Brand doc = new Brand();
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setCountry(CountryCode.fromString(dto.getCountry()));
         doc.setArchived(dto.getArchived());
+        doc.setIsTemporary(dto.getIsTemporary() != null ? dto.getIsTemporary() : 0);
         doc.setManagedBy(dto.getManagedBy());
         doc.setColor(dto.getColor());
         doc.setDescription(dto.getDescription());
@@ -340,6 +351,7 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         doc.setBitRate(dto.getBitRate());
         doc.setAiAgentId(dto.getAiAgentId());
         doc.setProfileId(dto.getProfileId());
+        doc.setOneTimeStreamPolicy(dto.getOneTimeStreamPolicy());
         doc.setSubmissionPolicy(dto.getSubmissionPolicy());
         doc.setMessagingPolicy(dto.getMessagingPolicy());
         //doc.setPopularityRate(dto.getPopularityRate());  //cannot be changed from UI
@@ -360,51 +372,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
             doc.setProfileOverriding(profile);
         }
 
-        if (dto.getSchedule() != null) {
-            Scheduler schedule = new Scheduler();
-            ScheduleDTO scheduleDTO = dto.getSchedule();
-            schedule.setEnabled(scheduleDTO.isEnabled());
-            schedule.setTimeZone(doc.getTimeZone());
-            if (scheduleDTO.getTasks() != null && !scheduleDTO.getTasks().isEmpty()) {
-                List<Task> tasks = scheduleDTO.getTasks().stream().map(taskDTO -> {
-                    Task task = new Task();
-                    task.setId(UUID.randomUUID());
-                    task.setTriggerType(taskDTO.getTriggerType());
-
-                    if (taskDTO.getOnceTrigger() != null) {
-                        OnceTrigger onceTrigger = new OnceTrigger();
-                        OnceTriggerDTO onceTriggerDTO = taskDTO.getOnceTrigger();
-                        onceTrigger.setStartTime(normalizeTimeString(onceTriggerDTO.getStartTime()));
-                        onceTrigger.setDuration(onceTriggerDTO.getDuration());
-                        onceTrigger.setWeekdays(onceTriggerDTO.getWeekdays());
-                        task.setOnceTrigger(onceTrigger);
-                    }
-
-                    if (taskDTO.getTimeWindowTrigger() != null) {
-                        TimeWindowTrigger timeWindowTrigger = new TimeWindowTrigger();
-                        TimeWindowTriggerDTO timeWindowTriggerDTO = taskDTO.getTimeWindowTrigger();
-                        timeWindowTrigger.setStartTime(normalizeTimeString(timeWindowTriggerDTO.getStartTime()));
-                        timeWindowTrigger.setEndTime(normalizeTimeString(timeWindowTriggerDTO.getEndTime()));
-                        timeWindowTrigger.setWeekdays(timeWindowTriggerDTO.getWeekdays());
-                        task.setTimeWindowTrigger(timeWindowTrigger);
-                    }
-
-                    if (taskDTO.getPeriodicTrigger() != null) {
-                        PeriodicTrigger periodicTrigger = new PeriodicTrigger();
-                        PeriodicTriggerDTO periodicTriggerDTO = taskDTO.getPeriodicTrigger();
-                        periodicTrigger.setStartTime(normalizeTimeString(periodicTriggerDTO.getStartTime()));
-                        periodicTrigger.setEndTime(normalizeTimeString(periodicTriggerDTO.getEndTime()));
-                        periodicTrigger.setInterval(periodicTriggerDTO.getInterval());
-                        periodicTrigger.setWeekdays(periodicTriggerDTO.getWeekdays());
-                        task.setPeriodicTrigger(periodicTrigger);
-                    }
-                    return task;
-                }).collect(Collectors.toList());
-                schedule.setTasks(tasks);
-            }
-            doc.setScheduler(schedule);
-        }
-
         if (dto.getScripts() != null) {
             List<BrandScriptEntry> scriptEntries = dto.getScripts().stream()
                     .map(e -> new BrandScriptEntry(e.getScriptId(), e.getUserVariables()))
@@ -413,13 +380,6 @@ public class RadioStationService extends AbstractService<RadioStation, RadioStat
         }
 
         return doc;
-    }
-
-    private String normalizeTimeString(String timeString) {
-        if ("24:00".equals(timeString)) {
-            return "00:00";
-        }
-        return timeString;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.server;
 
 import io.kneo.broadcaster.controller.AiAgentController;
 import io.kneo.broadcaster.controller.AiHelperController;
+import io.kneo.broadcaster.controller.BrandController;
 import io.kneo.broadcaster.controller.ChatController;
 import io.kneo.broadcaster.controller.DashboardController;
 import io.kneo.broadcaster.controller.DraftController;
@@ -13,7 +14,6 @@ import io.kneo.broadcaster.controller.PromptController;
 import io.kneo.broadcaster.controller.PublicChatController;
 import io.kneo.broadcaster.controller.QueueController;
 import io.kneo.broadcaster.controller.RadioController;
-import io.kneo.broadcaster.controller.RadioStationController;
 import io.kneo.broadcaster.controller.RefController;
 import io.kneo.broadcaster.controller.SceneController;
 import io.kneo.broadcaster.controller.ScriptController;
@@ -59,7 +59,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
     QueueController queueController;
 
     @Inject
-    RadioStationController radioStationController;
+    BrandController brandController;
 
     @Inject
     ListenerController listenerController;
@@ -113,7 +113,7 @@ public class KneoBroadcasterApplicationInit extends AbstractApplicationInit {
         dashboardController.setupRoutes(router);
         radioController.setupRoutes(router);
         queueController.setupRoutes(router);
-        radioStationController.setupRoutes(router);
+        brandController.setupRoutes(router);
         listenerController.setupRoutes(router);
         eventController.setupRoutes(router);
         genreController.setupRoutes(router);

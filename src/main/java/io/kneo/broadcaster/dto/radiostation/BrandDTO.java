@@ -26,7 +26,7 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class RadioStationDTO extends AbstractDTO {
+public class BrandDTO extends AbstractDTO {
     @NotNull(message = "Localized name is required")
     @ValidLocalizedName(
             minLength = 1,
@@ -59,8 +59,10 @@ public class RadioStationDTO extends AbstractDTO {
     private ScheduleDTO schedule;
     private boolean aiControlAllowed;
     private RadioStationStatus status = RadioStationStatus.OFF_LINE;
-    private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
+    private SubmissionPolicy oneTimeStreamPolicy = SubmissionPolicy.NOT_ALLOWED;
+    private SubmissionPolicy submissionPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
+    private Integer isTemporary = 0;
     private UUID aiAgentId;
     private UUID profileId;
     private boolean aiOverridingEnabled;

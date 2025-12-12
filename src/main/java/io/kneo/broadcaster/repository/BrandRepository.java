@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.brand.BrandScriptEntry;
+import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
-import io.kneo.broadcaster.model.radiostation.BrandScriptEntry;
-import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
@@ -41,17 +42,17 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.B
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.RADIO_STATION;
 
 @ApplicationScoped
-public class RadioStationRepository extends AsyncRepository implements SchedulableRepository<RadioStation> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationRepository.class);
+public class BrandRepository extends AsyncRepository implements SchedulableRepository<Brand> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BrandRepository.class);
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(RADIO_STATION);
     private static final EntityData brandStats = KneoBroadcasterNameResolver.create().getEntityNames(BRAND_STATS);
 
     @Inject
-    public RadioStationRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
+    public BrandRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<RadioStation>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
+    public Uni<List<Brand>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
@@ -73,7 +74,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .collect().asList();
     }
 
-    public Uni<List<RadioStation>> getAllFiltered(int limit, int offset, boolean includeArchived, final IUser user, String country, String query) {
+    public Uni<List<Brand>> getAllFiltered(int limit, int offset, boolean includeArchived, final IUser user, String country, String query) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(entityData.getTableName()).append(" t, ")
            .append(entityData.getRlsName()).append(" rls ")
@@ -127,7 +128,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<RadioStation> findById(UUID id, IUser user, boolean includeArchived) {
+    public Uni<Brand> findById(UUID id, IUser user, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
@@ -149,7 +150,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<RadioStation> getBySlugName(String name) {
+    public Uni<Brand> getBySlugName(String name) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE slug_name = $1";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(name))
@@ -163,7 +164,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<RadioStation> getBySlugName(String name, IUser user, boolean includeArchived) {
+    public Uni<Brand> getBySlugName(String name, IUser user, boolean includeArchived) {
         String sql = "SELECT theTable.*, rls.* " +
                 "FROM %s theTable " +
                 "JOIN %s rls ON theTable.id = rls.entity_id " +
@@ -185,12 +186,12 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
-    public Uni<RadioStation> insert(RadioStation station, IUser user) {
+    public Uni<Brand> insert(Brand station, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, submission_policy, messaging_policy, title_font, popularity_rate) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, scheduler, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, one_time_stream_policy, submission_policy, messaging_policy, title_font, popularity_rate, is_temporary) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
                 JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -201,7 +202,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addOffsetDateTime(now)
                         .addLong(user.getId())
                         .addOffsetDateTime(now)
-                        .addString(station.getCountry().name())
+                        .addString(station.getCountry() != null ? station.getCountry().name() : null)
                         .addString(station.getTimeZone().getId())
                         .addString(station.getManagedBy().name())
                         .addString(station.getColor())
@@ -214,10 +215,12 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                         .addString(station.getDescription())
                         .addUUID(station.getProfileId())
                         .addUUID(station.getAiAgentId())
+                        .addString(station.getOneTimeStreamPolicy().name())
                         .addString(station.getSubmissionPolicy().name())
                         .addString(station.getMessagingPolicy().name())
                         .addString(station.getTitleFont())
-                        .addDouble(station.getPopularityRate());
+                        .addDouble(station.getPopularityRate())
+                        .addInteger(station.getIsTemporary());
 
                 return client.withTransaction(tx ->
                                 tx.preparedQuery(sql)
@@ -244,7 +247,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         });
     }
 
-    public Uni<RadioStation> update(UUID id, RadioStation station, IUser user) {
+    public Uni<Brand> update(UUID id, Brand station, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
@@ -255,8 +258,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, ai_overriding=$7, profile_overriding=$8, " +
-                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, submission_policy=$14, messaging_policy=$15, title_font=$16, last_mod_user=$17, last_mod_date=$18 " +
-                                    "WHERE id=$19";
+                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, one_time_stream_policy=$14::one_time_stream_policy, submission_policy=$15, messaging_policy=$16, title_font=$17, is_temporary=$18, last_mod_user=$19, last_mod_date=$20 " +
+                                    "WHERE id=$21";
 
                             OffsetDateTime now = OffsetDateTime.now();
                             JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
@@ -276,9 +279,11 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                                     .addString(station.getDescription())
                                     .addUUID(station.getProfileId())
                                     .addUUID(station.getAiAgentId())
-                                    .addString(station.getSubmissionPolicy().name())
-                                    .addString(station.getMessagingPolicy().name())
+                                    .addString(station.getOneTimeStreamPolicy() != null ? station.getOneTimeStreamPolicy().name() : SubmissionPolicy.NOT_ALLOWED.name())
+                                    .addString(station.getSubmissionPolicy() != null ? station.getSubmissionPolicy().name() : SubmissionPolicy.NOT_ALLOWED.name())
+                                    .addString(station.getMessagingPolicy() != null ? station.getMessagingPolicy().name() : SubmissionPolicy.REVIEW_REQUIRED.name())
                                     .addString(station.getTitleFont())
+                                    .addInteger(station.getIsTemporary() != null ? station.getIsTemporary() : 0)
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
                                     .addUUID(id);
@@ -310,8 +315,8 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
         });
     }
 
-    private RadioStation from(Row row) {
-        RadioStation doc = new RadioStation();
+    private Brand from(Row row) {
+        Brand doc = new Brand();
         setDefaultFields(doc, row);
 
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
@@ -324,11 +329,14 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
 
         doc.setSlugName(row.getString("slug_name"));
         doc.setArchived(row.getInteger("archived"));
-        doc.setCountry(CountryCode.valueOf(row.getString("country")));
+        doc.setIsTemporary(row.getInteger("is_temporary"));
+        String country = row.getString("country");
+        doc.setCountry(country != null ? CountryCode.valueOf(country) : null);
         doc.setManagedBy(ManagedBy.valueOf(row.getString("managing_mode")));
         doc.setTimeZone(java.time.ZoneId.of(row.getString("time_zone")));
         doc.setColor(row.getString("color"));
         doc.setDescription(row.getString("description"));
+        doc.setOneTimeStreamPolicy(SubmissionPolicy.valueOf(row.getString("one_time_stream_policy")));
         doc.setSubmissionPolicy(SubmissionPolicy.valueOf(row.getString("submission_policy")));
         doc.setMessagingPolicy(SubmissionPolicy.valueOf(row.getString("messaging_policy")));
         doc.setTitleFont(row.getString("title_font"));
@@ -419,6 +427,50 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
                 });
     }
 
+    public Uni<Integer> deleteTemporaryBrands(List<String> excludedSlugNames) {
+        StringBuilder where = new StringBuilder();
+        where.append("is_temporary = 1");
+
+        Tuple params = Tuple.tuple();
+        if (excludedSlugNames != null && !excludedSlugNames.isEmpty()) {
+            where.append(" AND slug_name NOT IN (");
+            for (int i = 0; i < excludedSlugNames.size(); i++) {
+                if (i > 0) {
+                    where.append(",");
+                }
+                where.append("$").append(i + 1);
+                params.addString(excludedSlugNames.get(i));
+            }
+            where.append(")");
+        }
+
+        String selectIdsSql = "SELECT id FROM " + entityData.getTableName() + " WHERE " + where;
+
+        return client.preparedQuery(selectIdsSql)
+                .execute(params)
+                .onItem().transformToUni(rows -> {
+                    List<UUID> ids = new ArrayList<>();
+                    rows.forEach(row -> ids.add(row.getUUID("id")));
+
+                    if (ids.isEmpty()) {
+                        return Uni.createFrom().item(0);
+                    }
+
+                    UUID[] idArray = ids.toArray(new UUID[0]);
+                    Tuple idParam = Tuple.of((Object) idArray);
+
+                    return client.withTransaction(tx -> {
+                        String deleteRelationsSql = "DELETE FROM kneobroadcaster__brand_sound_fragments WHERE brand_id = ANY($1)";
+                        String deleteBrandsSql = "DELETE FROM " + entityData.getTableName() + " WHERE id = ANY($1)";
+
+                        return tx.preparedQuery(deleteRelationsSql)
+                                .execute(idParam)
+                                .onItem().transformToUni(ignored -> tx.preparedQuery(deleteBrandsSql).execute(idParam))
+                                .onItem().transform(RowSet::rowCount);
+                    });
+                });
+    }
+
     public Uni<Void> upsertStationAccessWithCountAndGeo(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent, String ipAddress, String countryCode) {
         String sql = "INSERT INTO " + brandStats.getTableName() +
                 " (station_name, access_count, last_access_time, user_agent, ip_address, country_code) " +
@@ -448,7 +500,7 @@ public class RadioStationRepository extends AsyncRepository implements Schedulab
     }
 
     @Override
-    public Uni<List<RadioStation>> findActiveScheduled() {
+    public Uni<List<Brand>> findActiveScheduled() {
         String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
                 "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
                 "WHERE t.archived = 0 AND t.scheduler IS NOT NULL AND rls.reader = $1";

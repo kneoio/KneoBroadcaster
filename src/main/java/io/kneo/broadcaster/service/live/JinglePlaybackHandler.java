@@ -3,8 +3,8 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -62,7 +62,7 @@ public class JinglePlaybackHandler {
         this.aiAgentService = aiAgentService;
     }
 
-    public void handleJinglePlayback(RadioStation station, Scene scene) {
+    public void handleJinglePlayback(Brand station, Scene scene) {
         LOGGER.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
                 station.getSlugName(), scene.getTalkativity());
 
@@ -75,7 +75,7 @@ public class JinglePlaybackHandler {
         }
     }
 
-    private void handleJingleAndSong(RadioStation station) {
+    private void handleJingleAndSong(Brand station) {
         Uni.combine().all()
                 .unis(
                         soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, station.getId()),
@@ -115,7 +115,7 @@ public class JinglePlaybackHandler {
                 );
     }
 
-    private void handleTwoSongs(RadioStation station) {
+    private void handleTwoSongs(Brand station) {
         songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, 2)
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribe().with(
@@ -142,7 +142,7 @@ public class JinglePlaybackHandler {
                 );
     }
 
-    private void concatenate(RadioStation station, AddToQueueDTO queueDTO, String type) {
+    private void concatenate(Brand station, AddToQueueDTO queueDTO, String type) {
         try {
             AudioMixingHandler handler = new AudioMixingHandler(
                     broadcasterConfig,

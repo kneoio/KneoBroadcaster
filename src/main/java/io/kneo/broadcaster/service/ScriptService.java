@@ -5,12 +5,14 @@ import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptExportDTO;
+import io.kneo.broadcaster.dto.filter.ScriptFilterDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.ScriptFilter;
 import io.kneo.broadcaster.model.ScriptVariable;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.util.ScriptVariableExtractor;
@@ -20,6 +22,7 @@ import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
+import io.kneo.core.util.WebHelper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -57,8 +60,13 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
+        return getAll(limit, offset, user, null);
+    }
+
+    public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user, final ScriptFilterDTO filterDTO) {
         assert repository != null;
-        return repository.getAll(limit, offset, false, user)
+        ScriptFilter filter = toFilter(filterDTO);
+        return repository.getAll(limit, offset, false, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -70,9 +78,29 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 });
     }
 
+    private ScriptFilter toFilter(ScriptFilterDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+
+        ScriptFilter filter = new ScriptFilter();
+        filter.setActivated(dto.isActivated());
+        filter.setLabels(dto.getLabels());
+        filter.setTimingMode(dto.getTimingMode());
+        filter.setLanguageCode(dto.getLanguageCode());
+        filter.setSearchTerm(dto.getSearchTerm());
+
+        return filter;
+    }
+
     public Uni<Integer> getAllCount(final IUser user) {
+        return getAllCount(user, null);
+    }
+
+    public Uni<Integer> getAllCount(final IUser user, final ScriptFilterDTO filterDTO) {
         assert repository != null;
-        return repository.getAllCount(user, false);
+        ScriptFilter filter = toFilter(filterDTO);
+        return repository.getAllCount(user, false, filter);
     }
 
     public Uni<List<ScriptDTO>> getAllShared(final int limit, final int offset, final IUser user) {
@@ -149,6 +177,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(script.getLastModifiedDate());
             dto.setName(script.getName());
+            dto.setSlugName(script.getSlugName());
+            dto.setDefaultProfileId(script.getDefaultProfileId());
             dto.setDescription(script.getDescription());
             dto.setAccessLevel(script.getAccessLevel());
             dto.setLanguageCode(script.getLanguageCode());
@@ -164,6 +194,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private Script buildEntity(ScriptDTO dto) {
         Script entity = new Script();
         entity.setName(dto.getName());
+        entity.setSlugName(WebHelper.generateSlug(dto.getName()));
+        entity.setDefaultProfileId(dto.getDefaultProfileId());
         entity.setDescription(dto.getDescription());
         entity.setLanguageCode(dto.getLanguageCode());
         entity.setTimingMode(dto.getTimingMode());
@@ -469,6 +501,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         
         Script script = new Script();
         script.setName(importDTO.getName());
+        script.setSlugName(WebHelper.generateSlug(importDTO.getName()));
         script.setDescription(importDTO.getDescription());
         script.setAccessLevel(0);
         script.setLabels(importDTO.getLabels());
@@ -602,38 +635,4 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         dto.setWeight(promptDTO.getWeight() != null ? promptDTO.getWeight() : java.math.BigDecimal.valueOf(0.5));
         return dto;
     }
-/*
-    public Uni<Void> updateRequiredVariablesForScript(UUID scriptId) {
-        assert repository != null;
-        return repository.findDraftIdsForScript(scriptId)
-                .chain(draftIds -> {
-                    if (draftIds.isEmpty()) {
-                        return repository.patchRequiredVariables(scriptId, List.of());
-                    }
-                    assert draftService != null;
-                    return draftService.getByIds(draftIds)
-                            .chain(drafts -> {
-                                List<ScriptVariable> variables = drafts.stream()
-                                        .map(Draft::getContent)
-                                        .filter(Objects::nonNull)
-                                        .flatMap(content -> ScriptVariableExtractor.extract(content).stream())
-                                        .distinct()
-                                        .toList();
-                                return repository.patchRequiredVariables(scriptId, variables);
-                            });
-                });
-    }
-
-    public Uni<Void> updateRequiredVariablesForDraft(UUID draftId) {
-        return repository.findScriptIdsByDraftId(draftId)
-                .chain(scriptIds -> {
-                    if (scriptIds.isEmpty()) {
-                        return Uni.createFrom().voidItem();
-                    }
-                    List<Uni<Void>> updates = scriptIds.stream()
-                            .map(this::updateRequiredVariablesForScript)
-                            .toList();
-                    return Uni.join().all(updates).andFailFast().replaceWithVoid();
-                });
-    }*/
 }

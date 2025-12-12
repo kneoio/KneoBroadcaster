@@ -7,9 +7,9 @@ import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.Voice;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
-import io.kneo.broadcaster.model.radiostation.ProfileOverriding;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.DraftService;
@@ -68,7 +68,7 @@ public class DraftFactory {
     public Uni<String> createDraft(
             SoundFragment song,
             AiAgent agent,
-            RadioStation station,
+            Brand station,
             UUID draftId,
             LanguageCode selectedLanguage,
             Map<String, Object> userVariables
@@ -119,7 +119,7 @@ public class DraftFactory {
             String code,
             SoundFragment song,
             AiAgent agent,
-            RadioStation station,
+            Brand station,
             LanguageCode selectedLanguage,
             Map<String, Object> userVariables
     ) {
@@ -182,7 +182,7 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             AiAgent copilot,
-            RadioStation station,
+            Brand station,
             Profile profile,
             List<String> genres,
             List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners,

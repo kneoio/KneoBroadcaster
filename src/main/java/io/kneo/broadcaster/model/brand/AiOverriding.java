@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.radiostation;
+package io.kneo.broadcaster.model.brand;
 
 import lombok.Getter;
 import lombok.Setter;

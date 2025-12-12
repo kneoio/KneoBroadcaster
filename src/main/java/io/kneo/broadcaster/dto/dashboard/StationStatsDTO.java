@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.dto.dashboard;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.service.stream.HLSSongStats;
 import lombok.Getter;
@@ -32,7 +32,7 @@ public class StationStatsDTO {
     @Getter
     private List<CountryStatsDTO> listenersByCountry;
     @Getter
-    private List<RadioStation.StatusChangeRecord> statusHistory = new LinkedList<>();
+    private List<Brand.StatusChangeRecord> statusHistory = new LinkedList<>();
     @Getter
     private AiDjStats aiDjStats;
 }

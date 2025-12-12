@@ -1,10 +1,11 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
+import io.kneo.broadcaster.dto.radiostation.BrandDTO;
+import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -38,19 +39,19 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class RadioStationController extends AbstractSecuredController<RadioStation, RadioStationDTO> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationController.class);
+public class BrandController extends AbstractSecuredController<Brand, BrandDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BrandController.class);
 
-    private RadioStationService service;
+    private BrandService service;
 
     private Validator validator;
 
-    public RadioStationController() {
+    public BrandController() {
         super(null);
     }
 
     @Inject
-    public RadioStationController(UserService userService, RadioStationService service, Validator validator) {
+    public BrandController(UserService userService, BrandService service, Validator validator) {
         super(userService);
         this.service = service;
         this.validator = validator;
@@ -61,9 +62,52 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
+        router.post(path + "/one-time-stream/run").handler(this::runOneTimeStream);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
+    }
+
+    private void runOneTimeStream(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) {
+                return;
+            }
+
+            OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
+
+            Set<jakarta.validation.ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(dto);
+            if (violations != null && !violations.isEmpty()) {
+                Map<String, List<String>> fieldErrors = new HashMap<>();
+                for (jakarta.validation.ConstraintViolation<OneTimeStreamRunReqDTO> v : violations) {
+                    String field = v.getPropertyPath().toString();
+                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                }
+
+                String detail = fieldErrors.entrySet().stream()
+                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                        .collect(Collectors.joining(", "));
+
+                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                return;
+            }
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.runOneTimeStream(dto, user))
+                    .subscribe().with(
+                            ignored -> rc.response().setStatusCode(204).end(),
+                            throwable -> {
+                                LOGGER.error("Failed to run one-time stream", throwable);
+                                rc.fail(throwable);
+                            }
+                    );
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
     }
 
     private void getAll(RoutingContext rc) {
@@ -76,7 +120,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                         service.getAllDTO(size, (page - 1) * size, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<RadioStationDTO> dtoEntries = new View<>(tuple.getItem2(),
+                    View<BrandDTO> dtoEntries = new View<>(tuple.getItem2(),
                             tuple.getItem1(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem1(), size),
                             size);
@@ -101,7 +145,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
         getContextUser(rc, false, true)
                 .chain(user -> {
                     if ("new".equals(id)) {
-                        RadioStationDTO dto = new RadioStationDTO();
+                        BrandDTO dto = new BrandDTO();
                         dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
                         dto.getLocalizedName().put(LanguageCode.en, "");
                         dto.setManagedBy(ManagedBy.MIX);
@@ -114,7 +158,7 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
                 })
                 .subscribe().with(
                         tuple -> {
-                            RadioStationDTO doc = tuple.getItem1();
+                            BrandDTO doc = tuple.getItem1();
                             FormPage page = new FormPage();
                             page.addPayload(PayloadType.DOC_DATA, doc);
                             page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
@@ -134,12 +178,12 @@ public class RadioStationController extends AbstractSecuredController<RadioStati
             }
 
             String id = rc.pathParam("id");
-            RadioStationDTO dto = rc.body().asJsonObject().mapTo(RadioStationDTO.class);
+            BrandDTO dto = rc.body().asJsonObject().mapTo(BrandDTO.class);
 
-            Set<jakarta.validation.ConstraintViolation<RadioStationDTO>> violations = validator.validate(dto);
+            Set<jakarta.validation.ConstraintViolation<BrandDTO>> violations = validator.validate(dto);
             if (violations != null && !violations.isEmpty()) {
                 Map<String, List<String>> fieldErrors = new HashMap<>();
-                for (jakarta.validation.ConstraintViolation<RadioStationDTO> v : violations) {
+                for (jakarta.validation.ConstraintViolation<BrandDTO> v : violations) {
                     String field = v.getPropertyPath().toString();
                     fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
                 }

@@ -8,12 +8,12 @@ import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
@@ -63,7 +63,7 @@ public class RadioService {
     AiAgentService aiAgentService;
 
     @Inject
-    RadioStationService radioStationService;
+    BrandService brandService;
 
     @Inject
     AnimationService animationService;
@@ -93,7 +93,7 @@ public class RadioService {
 
     private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d", "malucra");
 
-    public Uni<RadioStation> initializeStation(String brand) {
+    public Uni<Brand> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
                 .onFailure().invoke(failure -> {
@@ -111,7 +111,7 @@ public class RadioService {
                 });
     }
 
-    public Uni<RadioStation> stopStation(String brand) {
+    public Uni<Brand> stopStation(String brand) {
         LOGGER.info("Stop brand: {}", brand);
         return radioStationPool.stopAndRemove(brand)
                 .onFailure().invoke(failure ->
@@ -124,7 +124,7 @@ public class RadioService {
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
                 )
-                .onItem().transform(RadioStation::getStreamManager)
+                .onItem().transform(Brand::getStreamManager)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.PLAYLIST_NOT_AVAILABLE)
                 );
@@ -132,20 +132,20 @@ public class RadioService {
 
     public Uni<RadioStationStatusDTO> getStatus(String brand) {
         return getStreamManager(brand)
-                .onItem().transform(IStreamManager::getRadioStation)
+                .onItem().transform(IStreamManager::getBrand)
                 .chain(v -> toStatusDTO(v, true));
     }
 
     public Uni<List<RadioStationStatusDTO>> getStations() {
         return Uni.combine().all().unis(
                 getOnlineStations(),
-                radioStationService.getAll(1000, 0)
+                brandService.getAll(1000, 0)
         ).asTuple().chain(tuple -> {
-            List<RadioStation> onlineStations = tuple.getItem1();
-            List<RadioStation> allStations = tuple.getItem2();
+            List<Brand> onlineStations = tuple.getItem1();
+            List<Brand> allStations = tuple.getItem2();
 
             List<String> onlineBrands = onlineStations.stream()
-                    .map(RadioStation::getSlugName)
+                    .map(Brand::getSlugName)
                     .toList();
 
             List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
@@ -184,13 +184,13 @@ public class RadioService {
     public Uni<List<RadioStationStatusDTO>> getAllStations(Boolean onlineOnly) {
         return Uni.combine().all().unis(
                 getOnlineStations(),
-                radioStationService.getAll(1000, 0)
+                brandService.getAll(1000, 0)
         ).asTuple().chain(tuple -> {
-            List<RadioStation> onlineStations = tuple.getItem1();
-            List<RadioStation> allStations = tuple.getItem2();
+            List<Brand> onlineStations = tuple.getItem1();
+            List<Brand> allStations = tuple.getItem2();
 
             List<String> onlineBrands = onlineStations.stream()
-                    .map(RadioStation::getSlugName)
+                    .map(Brand::getSlugName)
                     .toList();
 
             if (onlineOnly != null && onlineOnly) {
@@ -205,7 +205,7 @@ public class RadioService {
             } else {
                 List<Uni<RadioStationStatusDTO>> allStatusUnis = allStations.stream()
                         .map(station -> {
-                            RadioStation onlineStation = onlineStations.stream()
+                            Brand onlineStation = onlineStations.stream()
                                     .filter(os -> os.getSlugName().equals(station.getSlugName()))
                                     .findFirst()
                                     .orElse(null);
@@ -224,7 +224,7 @@ public class RadioService {
     }
 
     public Uni<RadioStationStatusDTO> getStation(String slugName) {
-        return radioStationService.getBySlugName(slugName)
+        return brandService.getBySlugName(slugName)
                 .chain(station -> {
                     if (station == null) {
                         return Uni.createFrom().nullItem();
@@ -234,10 +234,10 @@ public class RadioService {
                                     radioStationPool.get(station.getSlugName()),
                                     soundFragmentService.getBrandSoundFragmentsCount(slugName, null)
                             ).asTuple().chain(tuple -> {
-                                RadioStation onlineStation = tuple.getItem1();
+                                Brand onlineStation = tuple.getItem1();
                                 Integer availableSongs = tuple.getItem2();
 
-                                RadioStation stationToUse = onlineStation != null ? onlineStation : station;
+                                Brand stationToUse = onlineStation != null ? onlineStation : station;
                                 String currentStatus = onlineStation != null ?
                                         (onlineStation.getStatus() != null ? onlineStation.getStatus().name() : RadioStationStatus.OFF_LINE.name()) :
                                         RadioStationStatus.OFF_LINE.name();
@@ -255,7 +255,7 @@ public class RadioService {
     }
 
     public Uni<SubmissionDTO> submit(String brand, SubmissionDTO dto, String ipHeader, String userAgent) {
-        return radioStationService.getBySlugName(brand)
+        return brandService.getBySlugName(brand)
                 .chain(radioStation -> registerContributor(dto.getEmail(), brand)
                         .chain(contributorUser -> {
                             String[] ipCountry = GeolocationService.parseIPHeader(ipHeader);
@@ -292,7 +292,7 @@ public class RadioService {
                 );
     }
 
-    private Uni<SubmissionDTO> processSubmission(RadioStation radioStation, SubmissionDTO dto, IUser user) {
+    private Uni<SubmissionDTO> processSubmission(Brand brand, SubmissionDTO dto, IUser user) {
                     SoundFragment entity = buildEntity(dto);
                     entity.setSource(SourceType.CONTRIBUTION);
                     List<FileMetadata> fileMetadataList = new ArrayList<>();
@@ -337,7 +337,7 @@ public class RadioService {
 
                     entity.setFileMetadataList(fileMetadataList);
 
-                    return soundFragmentRepository.insert(entity, List.of(radioStation.getId()), user)
+                    return soundFragmentRepository.insert(entity, List.of(brand.getId()), user)
                             .chain(doc -> moveFilesForNewEntity(doc, fileMetadataList, user)
                                     .chain(moved -> createContributionAndAgreement(moved, dto)
                                             .replaceWith(moved)))
@@ -443,26 +443,26 @@ public class RadioService {
                         .build());
     }
 
-    public Uni<RadioStationStatusDTO> toStatusDTO(RadioStation radioStation, boolean includeAnimation) {
-        if (radioStation == null) {
+    public Uni<RadioStationStatusDTO> toStatusDTO(Brand brand, boolean includeAnimation) {
+        if (brand == null) {
             return Uni.createFrom().nullItem();
         }
 
-        String stationName = radioStation.getLocalizedName()
-                .getOrDefault(radioStation.getCountry().getPreferredLanguage(), radioStation.getSlugName());
-        String slugName = radioStation.getSlugName();
-        String managedByType = radioStation.getManagedBy().toString();
-        String currentStatus = radioStation.getStatus() != null ?
-                radioStation.getStatus().name() : RadioStationStatus.OFF_LINE.name();
-        String agentStatus = radioStation.getAiAgentStatus() != null ?
-                radioStation.getAiAgentStatus().name() : AiAgentStatus.UNDEFINED.name();
-        String stationCountryCode = radioStation.getCountry().name();
+        String stationName = brand.getLocalizedName()
+                .getOrDefault(brand.getCountry().getPreferredLanguage(), brand.getSlugName());
+        String slugName = brand.getSlugName();
+        String managedByType = brand.getManagedBy().toString();
+        String currentStatus = brand.getStatus() != null ?
+                brand.getStatus().name() : RadioStationStatus.OFF_LINE.name();
+        String agentStatus = brand.getAiAgentStatus() != null ?
+                brand.getAiAgentStatus().name() : AiAgentStatus.UNDEFINED.name();
+        String stationCountryCode = brand.getCountry().name();
 
-        if (radioStation.getAiAgentId() != null) {
-            return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+        if (brand.getAiAgentId() != null) {
+            return aiAgentService.getById(brand.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                     .onItem().transform(aiAgent -> {
                         LanguageCode selectedLang = selectLanguageByWeight(aiAgent);
-                        AiOverriding overriddenAiDj = radioStation.getAiOverriding();
+                        AiOverriding overriddenAiDj = brand.getAiOverriding();
                         String djName = (overriddenAiDj != null && overriddenAiDj.getName() != null)
                                 ? overriddenAiDj.getName()
                                 : aiAgent.getName();
@@ -475,11 +475,11 @@ public class RadioService {
                                 agentStatus,
                                 currentStatus,
                                 stationCountryCode,
-                                radioStation.getColor(),
-                                radioStation.getDescription(),
+                                brand.getColor(),
+                                brand.getDescription(),
                                 0,
-                                radioStation.getSubmissionPolicy(),
-                                radioStation.getMessagingPolicy(),
+                                brand.getSubmissionPolicy(),
+                                brand.getMessagingPolicy(),
                                 includeAnimation ? animationService.generateRandomAnimation() : null
                         );
                     })
@@ -492,11 +492,11 @@ public class RadioService {
                             agentStatus,
                             currentStatus,
                             stationCountryCode,
-                            radioStation.getColor(),
-                            radioStation.getDescription(),
+                            brand.getColor(),
+                            brand.getDescription(),
                             0,
-                            radioStation.getSubmissionPolicy(),
-                            radioStation.getMessagingPolicy(),
+                            brand.getSubmissionPolicy(),
+                            brand.getMessagingPolicy(),
                             includeAnimation ? animationService.generateRandomAnimation() : null
                     ));
         }
@@ -510,11 +510,11 @@ public class RadioService {
                 agentStatus,
                 currentStatus,
                 stationCountryCode,
-                radioStation.getColor(),
-                radioStation.getDescription(),
+                brand.getColor(),
+                brand.getDescription(),
                 0,
-                radioStation.getSubmissionPolicy(),
-                radioStation.getMessagingPolicy(),
+                brand.getSubmissionPolicy(),
+                brand.getMessagingPolicy(),
                 includeAnimation ? animationService.generateRandomAnimation() : null
         ));
     }
@@ -523,8 +523,8 @@ public class RadioService {
         return soundFragmentService.rateSoundFragmentByAction(brand, fragmentId, action, previousAction, SuperUser.build());
     }
 
-    private Uni<List<RadioStation>> getOnlineStations() {
-        Collection<RadioStation> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
+    private Uni<List<Brand>> getOnlineStations() {
+        Collection<Brand> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
         return Uni.createFrom().item(new ArrayList<>(onlineStationsSnapshot));
     }
 

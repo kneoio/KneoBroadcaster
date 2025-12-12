@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.stats;
 
-import io.kneo.broadcaster.repository.RadioStationRepository;
+import io.kneo.broadcaster.repository.BrandRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -26,7 +26,7 @@ public class StatsAccumulator implements IStatsService {
     private final ConcurrentHashMap<String, ConcurrentHashMap<String, ConcurrentHashMap<String, Boolean>>> countryListeners = new ConcurrentHashMap<>();
 
     @Inject
-    RadioStationRepository radioStationRepository;
+    BrandRepository brandRepository;
 
     public void recordAccess(String stationName, String userAgent, String ipAddress, String countryCode) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -111,7 +111,7 @@ public class StatsAccumulator implements IStatsService {
     private Uni<Void> flushStationStats(String stationName, Long count, String userAgent, String ipAddress, String countryCode, OffsetDateTime lastAccess) {
         String dbCountryCode = "UNKNOWN".equals(countryCode) ? null : countryCode;
 
-        return radioStationRepository.upsertStationAccessWithCountAndGeo(
+        return brandRepository.upsertStationAccessWithCountAndGeo(
                 stationName,
                 count,
                 lastAccess,

@@ -5,7 +5,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
-import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.util.BrandLogger;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,7 +28,7 @@ public class SongSupplier {
     private static final int CACHE_TTL_MINUTES = 5;
 
     private final SoundFragmentRepository repository;
-    private final RadioStationService radioStationService;
+    private final BrandService brandService;
     private final Map<String, Map<PlaylistItemType, List<SupplierSongMemory>>> brandPlaylistMemory = new ConcurrentHashMap<>();
     private final Map<String, CachedBrandData> brandCache = new ConcurrentHashMap<>();
 
@@ -48,9 +48,9 @@ public class SongSupplier {
         }
     }
 
-    public SongSupplier(SoundFragmentRepository repository, RadioStationService radioStationService) {
+    public SongSupplier(SoundFragmentRepository repository, BrandService brandService) {
         this.repository = repository;
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
     }
 
     private SupplierSongMemory getMemory(String brandName, PlaylistItemType fragmentType) {
@@ -131,7 +131,7 @@ public class SongSupplier {
             return Uni.createFrom().item(cached.fragments);
         }
 
-        return radioStationService.getBySlugName(brandName)
+        return brandService.getBySlugName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         BrandLogger.logActivity(brandName, "brand_not_found", "Brand not found");

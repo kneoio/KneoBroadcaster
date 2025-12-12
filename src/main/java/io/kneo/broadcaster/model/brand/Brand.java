@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.model.radiostation;
+package io.kneo.broadcaster.model.brand;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
@@ -25,13 +25,14 @@ import java.util.UUID;
 @Setter
 @Getter
 @NoArgsConstructor
-public class RadioStation extends SecureDataEntity<UUID> implements Schedulable {
+public class Brand extends SecureDataEntity<UUID> implements Schedulable {
 
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private IStreamManager streamManager;
     private String slugName;
     private ZoneId timeZone;
     private Integer archived;
+    private Integer isTemporary = 0;
     private CountryCode country;
     private long bitRate;
     private ManagedBy managedBy = ManagedBy.ITSELF;
@@ -44,7 +45,8 @@ public class RadioStation extends SecureDataEntity<UUID> implements Schedulable 
     private UUID profileId;
     private AiOverriding aiOverriding;
     private ProfileOverriding profileOverriding;
-    private SubmissionPolicy submissionPolicy = SubmissionPolicy.REVIEW_REQUIRED;
+    private SubmissionPolicy oneTimeStreamPolicy = SubmissionPolicy.NOT_ALLOWED;
+    private SubmissionPolicy submissionPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private List<Label> labelList;
     private List<BrandScriptEntry> scripts;

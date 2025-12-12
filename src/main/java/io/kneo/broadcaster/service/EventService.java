@@ -11,12 +11,12 @@ import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.StagePlaylist;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.scheduler.OnceTrigger;
 import io.kneo.broadcaster.model.scheduler.PeriodicTrigger;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
@@ -44,16 +44,16 @@ import java.util.stream.Collectors;
 public class EventService extends AbstractService<Event, EventDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventService.class);
     private final EventRepository repository;
-    private final RadioStationService radioStationService;
+    private final BrandService brandService;
 
     @Inject
     public EventService(UserService userService,
                         EventRepository repository,
-                        RadioStationService radioStationService
+                        BrandService brandService
     ) {
         super(userService);
         this.repository = repository;
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
     }
 
     public Uni<List<EventEntryDTO>> getAll(final int limit, final int offset, final IUser user) {
@@ -130,9 +130,9 @@ public class EventService extends AbstractService<Event, EventDTO> {
     }
 
     private Uni<EventEntryDTO> mapToEntryDTO(Event doc) {
-        assert radioStationService != null;
-        return radioStationService.getById(doc.getBrandId(), SuperUser.build())
-                .onItem().transform(RadioStation::getSlugName)
+        assert brandService != null;
+        return brandService.getById(doc.getBrandId(), SuperUser.build())
+                .onItem().transform(Brand::getSlugName)
                 .onFailure().recoverWithItem("Unknown Brand")
                 .map(brand -> new EventEntryDTO(
                         doc.getId(),
@@ -144,11 +144,11 @@ public class EventService extends AbstractService<Event, EventDTO> {
     }
 
     private Uni<EventDTO> mapToDTO(Event doc) {
-        assert radioStationService != null;
+        assert brandService != null;
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                radioStationService.getById(doc.getBrandId(), SuperUser.build())
+                brandService.getById(doc.getBrandId(), SuperUser.build())
         ).asTuple().map(tuple -> {
             EventDTO dto = new EventDTO();
             dto.setId(doc.getId());

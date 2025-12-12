@@ -14,16 +14,16 @@ import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.StagePlaylist;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.AiAgentService;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
-import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -61,7 +61,7 @@ public class EventExecutor {
     PromptService promptService;
 
     @Inject
-    RadioStationService radioStationService;
+    BrandService brandService;
 
     @Inject
     QueueService queueService;
@@ -113,9 +113,9 @@ public class EventExecutor {
 
         UUID brandId = event.getBrandId();
 
-        return radioStationService.getById(brandId, SuperUser.build())
+        return brandService.getById(brandId, SuperUser.build())
                 .chain(station -> {
-                    Optional<RadioStation> stationOpt = radioStationPool.getStation(station.getSlugName());
+                    Optional<Brand> stationOpt = radioStationPool.getStation(station.getSlugName());
                     if (stationOpt.isEmpty()) {
                         LOGGER.info("Station {} is offline, skipping event {}", station.getSlugName(), event.getId());
                         return Uni.createFrom().voidItem();
@@ -153,7 +153,7 @@ public class EventExecutor {
                 });
     }
 
-    private Uni<List<SoundFragment>> fetchFragmentsForEvent(RadioStation station, Event event, PlaylistItemType fragmentType) {
+    private Uni<List<SoundFragment>> fetchFragmentsForEvent(Brand station, Event event, PlaylistItemType fragmentType) {
         StagePlaylist stagePlaylist = event.getStagePlaylist();
 
         if (stagePlaylist == null) {
@@ -177,7 +177,7 @@ public class EventExecutor {
         throw new IllegalStateException("Unknown sourcing type: " + sourcing);
     }
 
-    private Uni<Void> executeWithPrompt(RadioStation station, SoundFragment fragment, Action action) {
+    private Uni<Void> executeWithPrompt(Brand station, SoundFragment fragment, Action action) {
         UUID promptId = action.getPromptId();
 
         return promptService.getById(promptId, SuperUser.build())
@@ -215,7 +215,7 @@ public class EventExecutor {
         });
     }
 
-    private Uni<Void> generateTtsAndQueue(RadioStation station, SoundFragment fragment, String ttsText, String voiceId) {
+    private Uni<Void> generateTtsAndQueue(Brand station, SoundFragment fragment, String ttsText, String voiceId) {
         String uploadId = UUID.randomUUID().toString();
 
         return elevenLabsClient.textToSpeech(ttsText, voiceId, config.getElevenLabsModelId())
@@ -256,7 +256,7 @@ public class EventExecutor {
                 .replaceWithVoid();
     }
 
-    private Uni<Void> queueFragmentWithoutTts(RadioStation station, SoundFragment fragment) {
+    private Uni<Void> queueFragmentWithoutTts(Brand station, SoundFragment fragment) {
         String uploadId = UUID.randomUUID().toString();
 
         Map<String, UUID> soundFragments = new HashMap<>();

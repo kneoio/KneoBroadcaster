@@ -15,6 +15,8 @@ import java.util.UUID;
 @NoArgsConstructor
 public class Script extends SecureDataEntity<UUID> {
     private String name;
+    private String slugName;
+    private UUID defaultProfileId;
     private String description;
     private Integer accessLevel = 0;
     private Integer archived;

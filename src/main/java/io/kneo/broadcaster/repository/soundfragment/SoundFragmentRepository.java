@@ -452,6 +452,21 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandSongs(brandId, fragmentType, 200, 0);
     }
 
+    public Uni<Integer> copyBrandSoundFragments(UUID sourceBrandId, UUID targetBrandId) {
+        String sql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) " +
+                "SELECT $2, src.sound_fragment_id, 0, NULL " +
+                "FROM kneobroadcaster__brand_sound_fragments src " +
+                "WHERE src.brand_id = $1 " +
+                "AND NOT EXISTS (" +
+                "  SELECT 1 FROM kneobroadcaster__brand_sound_fragments tgt " +
+                "  WHERE tgt.brand_id = $2 AND tgt.sound_fragment_id = src.sound_fragment_id" +
+                ")";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(sourceBrandId, targetBrandId))
+                .onItem().transform(RowSet::rowCount);
+    }
+
     public Uni<Integer> updateRatedByBrandCount(UUID brandId, UUID soundFragmentId, int delta, IUser user) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.updateRatedByBrandCount(brandId, soundFragmentId, delta, user);

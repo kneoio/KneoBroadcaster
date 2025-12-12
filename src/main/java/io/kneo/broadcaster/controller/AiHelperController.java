@@ -41,7 +41,7 @@ public class AiHelperController {
 
 
     private void getLiveRadioStations(RoutingContext rc) {
-        String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").get(0);
+        String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").getFirst();
         if (statusesParam == null || statusesParam.trim().isEmpty()) {
             rc.response()
                     .setStatusCode(400)
@@ -136,7 +136,7 @@ public class AiHelperController {
 
     private void getAllStations(RoutingContext rc) {
         try {
-            String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").get(0);
+            String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").getFirst();
             List<RadioStationStatus> statuses = null;
             if (statusesParam != null && !statusesParam.trim().isEmpty()) {
                 statuses = Arrays.stream(statusesParam.split(","))
@@ -146,24 +146,24 @@ public class AiHelperController {
                         .collect(Collectors.toList());
             }
 
-            String country = rc.queryParam("country").isEmpty() ? null : rc.queryParam("country").get(0);
+            String country = rc.queryParam("country").isEmpty() ? null : rc.queryParam("country").getFirst();
             if (country != null) {
                 country = country.trim();
                 if (country.isEmpty()) country = null;
             }
 
-            String djLangParam = rc.queryParam("djLanguage").isEmpty() ? null : rc.queryParam("djLanguage").get(0);
+            String djLangParam = rc.queryParam("djLanguage").isEmpty() ? null : rc.queryParam("djLanguage").getFirst();
             if (djLangParam == null) {
-                djLangParam = rc.queryParam("djlanguage").isEmpty() ? null : rc.queryParam("djlanguage").get(0);
+                djLangParam = rc.queryParam("djlanguage").isEmpty() ? null : rc.queryParam("djlanguage").getFirst();
             }
             LanguageCode djLanguage = null;
             if (djLangParam != null && !djLangParam.trim().isEmpty()) {
                 djLanguage = LanguageCode.valueOf(djLangParam.trim().toLowerCase());
             }
 
-            String query = rc.queryParam("q").isEmpty() ? null : rc.queryParam("q").get(0);
+            String query = rc.queryParam("q").isEmpty() ? null : rc.queryParam("q").getFirst();
             if (query == null) {
-                query = rc.queryParam("search").isEmpty() ? null : rc.queryParam("search").get(0);
+                query = rc.queryParam("search").isEmpty() ? null : rc.queryParam("search").getFirst();
             }
             if (query != null) {
                 query = query.trim();
@@ -202,7 +202,7 @@ public class AiHelperController {
             return;
         }
 
-        String keyword = rc.queryParam("keyword").isEmpty() ? null : rc.queryParam("keyword").get(0);
+        String keyword = rc.queryParam("keyword").isEmpty() ? null : rc.queryParam("keyword").getFirst();
         if (keyword == null || keyword.trim().isEmpty()) {
             rc.response()
                     .setStatusCode(400)
@@ -213,13 +213,13 @@ public class AiHelperController {
 
         try {
             Integer limit = null;
-            String limitParam = rc.queryParam("limit").isEmpty() ? null : rc.queryParam("limit").get(0);
+            String limitParam = rc.queryParam("limit").isEmpty() ? null : rc.queryParam("limit").getFirst();
             if (limitParam != null && !limitParam.trim().isEmpty()) {
                 limit = Integer.parseInt(limitParam.trim());
             }
 
             Integer offset = null;
-            String offsetParam = rc.queryParam("offset").isEmpty() ? null : rc.queryParam("offset").get(0);
+            String offsetParam = rc.queryParam("offset").isEmpty() ? null : rc.queryParam("offset").getFirst();
             if (offsetParam != null && !offsetParam.trim().isEmpty()) {
                 offset = Integer.parseInt(offsetParam.trim());
             }

@@ -7,15 +7,16 @@ import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
-import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.BrandService;
+import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.service.maintenance.LocalFileCleanupService;
 import io.kneo.broadcaster.util.BrandLogger;
 import io.kneo.broadcaster.util.FileSecurityUtils;
@@ -49,9 +50,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentService.class);
 
     private final SoundFragmentRepository repository;
-    private final RadioStationService radioStationService;
+    private final BrandService brandService;
     private final LocalFileCleanupService localFileCleanupService;
-    private final io.kneo.broadcaster.service.RefService refService;
+    private final RefService refService;
     private String uploadDir;
     Validator validator;
 
@@ -59,15 +60,15 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         super(userService);
         this.localFileCleanupService = null;
         this.repository = null;
-        this.radioStationService = null;
+        this.brandService = null;
         this.refService = null;
     }
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
         assert repository != null;
-        assert radioStationService != null;
+        assert brandService != null;
 
-        return radioStationService.getBySlugName(brandName)
+        return brandService.getBySlugName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
@@ -94,7 +95,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     @Inject
     public SoundFragmentService(UserService userService,
-                                RadioStationService radioStationService,
+                                BrandService brandService,
                                 LocalFileCleanupService localFileCleanupService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
@@ -104,7 +105,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.localFileCleanupService = localFileCleanupService;
         this.validator = validator;
         this.repository = repository;
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
         this.refService = refService;
         uploadDir = config.getPathUploads() + "/sound-fragments-controller";
     }
@@ -178,7 +179,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
     }
 
     public Uni<SoundFragmentDTO> getDTOTemplate(IUser user, LanguageCode code) {
-        return radioStationService.getAll(10, 0, user)
+        return brandService.getAll(10, 0, user)
                 .onItem().transform(userRadioStations -> {
                     SoundFragmentDTO dto = new SoundFragmentDTO();
                     dto.setAuthor(user.getUserName());
@@ -188,7 +189,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     dto.setType(PlaylistItemType.SONG);
 
                     List<UUID> stationIds = userRadioStations.stream()
-                            .map(RadioStation::getId)
+                            .map(Brand::getId)
                             .collect(Collectors.toList());
                     dto.setRepresentedInBrands(stationIds);
 
@@ -203,9 +204,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, SoundFragmentFilterDTO filterDTO, IUser user) {
         assert repository != null;
-        assert radioStationService != null;
+        assert brandService != null;
 
-        return radioStationService.getBySlugName(brandName)
+        return brandService.getBySlugName(brandName)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
@@ -251,7 +252,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         BrandLogger.logActivity(brand, "count_request",
                 "Requesting fragment count for brand with filter: %s for user: %s", filterStatus, user.getUserName());
 
-        return radioStationService.getBySlugName(brand)
+        return brandService.getBySlugName(brand)
                 .onItem().transformToUni(radioStation -> {
                     if (radioStation == null) {
                         BrandLogger.logActivity(brand, "brand_not_found",
@@ -466,14 +467,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             return Uni.createFrom().item(new ArrayList<>());
         }
 
-        List<Uni<RadioStation>> stationUnis = brandNames.stream()
-                .map(radioStationService::getBySlugName)
+        List<Uni<Brand>> stationUnis = brandNames.stream()
+                .map(brandService::getBySlugName)
                 .collect(Collectors.toList());
 
         return Uni.join().all(stationUnis).andFailFast()
                 .map(stations -> stations.stream()
                         .filter(Objects::nonNull)
-                        .map(RadioStation::getId)
+                        .map(Brand::getId)
                         .collect(Collectors.toList()));
     }
 
@@ -592,8 +593,8 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             return Uni.createFrom().nullItem();
         }
         
-        assert radioStationService != null;
-        return radioStationService.getBySlugName(brandSlug)
+        assert brandService != null;
+        return brandService.getBySlugName(brandSlug)
                 .map(station -> station != null ? station.getId() : null)
                 .onFailure().recoverWithItem(err -> {
                     LOGGER.warn("Failed to resolve brandSlug: {}", brandSlug, err);

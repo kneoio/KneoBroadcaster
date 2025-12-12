@@ -71,7 +71,7 @@ public class ProfileService extends AbstractService<Profile, ProfileDTO> {
 
     @Override
     public Uni<Integer> delete(String id, IUser user) {
-        return repository.delete(UUID.fromString(id), user);
+        return repository.archive(UUID.fromString(id), user);
     }
 
 

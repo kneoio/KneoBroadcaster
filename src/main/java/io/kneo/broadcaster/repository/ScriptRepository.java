@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.ScriptFilter;
 import io.kneo.broadcaster.model.ScriptVariable;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
@@ -46,6 +47,10 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
+        return getAll(limit, offset, includeArchived, user, null);
+    }
+
+    public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final ScriptFilter filter) {
         String sql = """
             SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
             FROM %s t
@@ -57,10 +62,22 @@ public class ScriptRepository extends AsyncRepository {
             sql += " AND t.archived = 0";
         }
 
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
         sql += " ORDER BY t.last_mod_date DESC";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(filter.getSearchTerm().trim()))
+                    .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                    .onItem().transform(this::from)
+                    .collect().asList();
         }
 
         return client.query(sql)
@@ -71,6 +88,10 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
+        return getAllCount(user, includeArchived, null);
+    }
+
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, ScriptFilter filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
@@ -78,9 +99,49 @@ public class ScriptRepository extends AsyncRepository {
             sql += " AND t.archived = 0";
         }
 
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(filter.getSearchTerm().trim()))
+                    .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+        }
+
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    private String buildFilterConditions(ScriptFilter filter) {
+        StringBuilder conditions = new StringBuilder();
+
+        if (filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            conditions.append(" AND (");
+            conditions.append("t.name ILIKE '%' || $1 || '%' ");
+            conditions.append("OR t.description ILIKE '%' || $1 || '%'");
+            conditions.append(")");
+        }
+
+        if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
+            conditions.append(" AND EXISTS (SELECT 1 FROM mixpla_script_labels sl2 WHERE sl2.script_id = t.id AND sl2.label_id IN (");
+            for (int i = 0; i < filter.getLabels().size(); i++) {
+                if (i > 0) conditions.append(", ");
+                conditions.append("'").append(filter.getLabels().get(i).toString()).append("'");
+            }
+            conditions.append("))");
+        }
+
+        if (filter.getTimingMode() != null) {
+            conditions.append(" AND t.timing_mode = '").append(filter.getTimingMode().name()).append("'");
+        }
+
+        if (filter.getLanguageCode() != null) {
+            conditions.append(" AND t.language_code = '").append(filter.getLanguageCode().name()).append("'");
+        }
+
+        return conditions.toString();
     }
 
     public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user) {
@@ -180,8 +241,8 @@ public class ScriptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, name, description, access_level, language_code, timing_mode, required_variables) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id";
+                        " (author, reg_date, last_mod_user, last_mod_date, name, slug_name, default_profile_id, description, access_level, language_code, timing_mode, required_variables) " +
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
 
@@ -196,6 +257,8 @@ public class ScriptRepository extends AsyncRepository {
                         .addLong(user.getId())
                         .addOffsetDateTime(now)
                         .addString(script.getName())
+                        .addString(script.getSlugName())
+                        .addUUID(script.getDefaultProfileId())
                         .addString(script.getDescription())
                         .addInteger(script.getAccessLevel())
                         .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
@@ -238,13 +301,15 @@ public class ScriptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET name=$1, description=$2, language_code=$3, timing_mode=$4, last_mod_user=$5, last_mod_date=$6, required_variables=$7 " +
-                                    "WHERE id=$8";
+                                    " SET name=$1, slug_name=$2, default_profile_id=$3, description=$4, language_code=$5, timing_mode=$6, last_mod_user=$7, last_mod_date=$8, required_variables=$9 " +
+                                    "WHERE id=$10";
 
                             OffsetDateTime now = OffsetDateTime.now();
 
                             Tuple params = Tuple.tuple()
                                     .addString(script.getName())
+                                    .addString(script.getSlugName())
+                                    .addUUID(script.getDefaultProfileId())
                                     .addString(script.getDescription())
                                     .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
                                     .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
@@ -294,6 +359,8 @@ public class ScriptRepository extends AsyncRepository {
         Script doc = new Script();
         setDefaultFields(doc, row);
         doc.setName(row.getString("name"));
+        doc.setSlugName(row.getString("slug_name"));
+        doc.setDefaultProfileId(row.getUUID("default_profile_id"));
         doc.setDescription(row.getString("description"));
         doc.setAccessLevel(row.getInteger("access_level"));
         doc.setArchived(row.getInteger("archived"));

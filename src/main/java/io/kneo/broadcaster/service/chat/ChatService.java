@@ -15,14 +15,14 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.Voice;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.MessageType;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.ChatRepository;
 import io.kneo.broadcaster.service.AiAgentService;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
-import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
 import io.kneo.broadcaster.util.ResourceUtil;
@@ -57,7 +57,7 @@ public abstract class ChatService {
     protected final ConcurrentHashMap<String, String> assistantNameByConnectionId = new ConcurrentHashMap<>();
     
     @Inject
-    protected RadioStationService radioStationService;
+    protected BrandService brandService;
     @Inject
     protected AiAgentService aiAgentService;
     @Inject
@@ -143,7 +143,7 @@ public abstract class ChatService {
 
         chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
 
-        Uni<RadioStation> stationUni = radioStationService.getBySlugName(slugName, SuperUser.build()); //I still dont knw shou we use superuser here
+        Uni<Brand> stationUni = brandService.getBySlugName(slugName, SuperUser.build()); //I still dont knw shou we use superuser here
 
         return stationUni.flatMap(station -> {
             String radioStationName = station != null && station.getLocalizedName() != null

@@ -42,7 +42,7 @@ public class Mp3Streamer {
 
 
     public Multi<Buffer> stream(PlaylistManager playlistManager) {
-        String brand = playlistManager.getBrand();
+        String brand = playlistManager.getBrandSlug();
         return activeStreams.computeIfAbsent(brand, b -> createSharedStream(playlistManager));
     }
 
@@ -75,7 +75,7 @@ public class Mp3Streamer {
                 } finally {
                     emitter.complete();
                 }
-            }, "mp3-stream-" + playlistManager.getBrand());
+            }, "mp3-stream-" + playlistManager.getBrandSlug());
             t.start();
             emitter.onTermination(t::interrupt);
         }).broadcast().toAllSubscribers().map(b -> (Buffer) b);

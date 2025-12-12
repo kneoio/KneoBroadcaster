@@ -7,8 +7,8 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ListenerType;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.dto.document.UserDTO;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     private final ListenersRepository repository;
     private final Validator validator;
-    private RadioStationService radioStationService;
+    private BrandService brandService;
 
     protected ListenerService() {
         super();
@@ -48,11 +48,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     @Inject
     public ListenerService(UserService userService,
-                           RadioStationService radioStationService,
+                           BrandService brandService,
                            Validator validator,
                            ListenersRepository repository) {
         super(userService);
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
         this.validator = validator;
         this.repository = repository;
     }
@@ -88,7 +88,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<ListenerDTO> getDTOTemplate(IUser user, LanguageCode code) {
-        return radioStationService.getAll(10, 0, user)
+        return brandService.getAll(10, 0, user)
                 .onItem().transform(userRadioStations -> {
                     ListenerDTO dto = new ListenerDTO();
                     dto.setAuthor(user.getUserName());
@@ -97,7 +97,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     dto.getNickName().put(LanguageCode.en, "");
 
                     List<UUID> stationIds = userRadioStations.stream()
-                            .map(RadioStation::getId)
+                            .map(Brand::getId)
                             .collect(Collectors.toList());
                     dto.setListenerOf(stationIds);
 
@@ -114,7 +114,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     public Uni<List<BrandListenerDTO>> getBrandListeners(String brandName, int limit, final int offset, IUser user, ListenerFilterDTO filterDTO) {
         assert repository != null;
-        assert radioStationService != null;
+        assert brandService != null;
 
         ListenerFilter filter = toFilter(filterDTO);
         return repository.findForBrand(brandName, limit, offset, user, false, filter)
@@ -138,9 +138,9 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     }
 
     public Uni<ListenerDTO> upsertWithStationSlug(String id, ListenerDTO dto, String stationSlug, ListenerType listenerType, IUser user) {
-        assert radioStationService != null;
+        assert brandService != null;
         assert repository != null;
-        return radioStationService.getBySlugName(stationSlug)
+        return brandService.getBySlugName(stationSlug)
                 .chain(station -> {
                     if (station == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Station not found: " + stationSlug));
@@ -310,7 +310,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
     public Uni<ListenerAiDTO> getAiBrandListenerByTelegramName(String telegramName) {
         assert repository != null;
-        assert radioStationService != null;
+        assert brandService != null;
         return repository.findByTelegramName(telegramName)
                 .onItem().transformToUni(listener -> {
                     if (listener == null) {
@@ -330,7 +330,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                 }
 
                                 List<Uni<List<String>>> brandUnis = brandIds.stream()
-                                        .map(brandId -> radioStationService.getDTO(brandId, SuperUser.build(), LanguageCode.en)
+                                        .map(brandId -> brandService.getDTO(brandId, SuperUser.build(), LanguageCode.en)
                                                 .onItem().transform(rsDto -> {
                                                     if (rsDto == null) return null;
                                                     List<String> entry = new ArrayList<>();

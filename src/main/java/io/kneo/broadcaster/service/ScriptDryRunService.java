@@ -9,8 +9,8 @@ import io.kneo.broadcaster.model.JobState;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LlmType;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.live.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
@@ -43,14 +43,14 @@ public class ScriptDryRunService {
     private final SceneService sceneService;
     private final PromptService promptService;
     private final DraftService draftService;
-    private final RadioStationService radioStationService;
+    private final BrandService brandService;
     private final SoundFragmentService soundFragmentService;
     private final AiAgentService aiAgentService;
     private final DraftFactory draftFactory;
 
     public record SseEvent(String type, JsonObject data) {}
     private record ProcessContext(List<SceneDTO> scenes,
-                                  RadioStation station, AiAgent agent, IUser user,
+                                  Brand station, AiAgent agent, IUser user,
                                   StringBuilder scenarioBuilder, LlmType llmType,
                                   String agentName) {}
 
@@ -60,7 +60,7 @@ public class ScriptDryRunService {
     @Inject
     public ScriptDryRunService(AgentClient agentClient, ScriptService scriptService, 
                                SceneService sceneService, PromptService promptService,
-                               DraftService draftService, RadioStationService radioStationService,
+                               DraftService draftService, BrandService brandService,
                                SoundFragmentService soundFragmentService, AiAgentService aiAgentService,
                                DraftFactory draftFactory) {
         this.agentClient = agentClient;
@@ -68,7 +68,7 @@ public class ScriptDryRunService {
         this.sceneService = sceneService;
         this.promptService = promptService;
         this.draftService = draftService;
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
         this.soundFragmentService = soundFragmentService;
         this.aiAgentService = aiAgentService;
         this.draftFactory = draftFactory;
@@ -135,7 +135,7 @@ public class ScriptDryRunService {
                                 return scenes;
                             });
                 })
-                .chain(scenes -> radioStationService.getById(stationId, SuperUser.build())
+                .chain(scenes -> brandService.getById(stationId, SuperUser.build())
                         .chain(station -> {
                             if (station.getAiAgentId() == null) {
                                 return Uni.createFrom().item(new ProcessContext(scenes, station, null, user, scenarioBuilder, LlmType.OPENAI, "Default"));

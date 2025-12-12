@@ -36,19 +36,19 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     private final DraftFactory draftFactory;
     private final SoundFragmentService soundFragmentService;
     private final AiAgentService aiAgentService;
-    private final RadioStationService radioStationService;
+    private final BrandService brandService;
 
     @Inject
     public DraftService(UserService userService, DraftRepository repository, ScriptRepository scriptRepository,
                         DraftFactory draftFactory, SoundFragmentService soundFragmentService, 
-                        AiAgentService aiAgentService, RadioStationService radioStationService) {
+                        AiAgentService aiAgentService, BrandService brandService) {
         super(userService);
         this.repository = repository;
         this.scriptRepository = scriptRepository;
         this.draftFactory = draftFactory;
         this.soundFragmentService = soundFragmentService;
         this.aiAgentService = aiAgentService;
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
     }
 
     public Uni<List<Draft>> getAll() {
@@ -171,7 +171,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
     }
 
     public Uni<String> testDraft(DraftTestReqDTO dto, IUser user) {
-        return radioStationService.getById(dto.getStationId(), user)
+        return brandService.getById(dto.getStationId(), user)
                 .chain(station -> soundFragmentService.getById(dto.getSongId(), user)
                         .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
                                 .chain(agent -> {

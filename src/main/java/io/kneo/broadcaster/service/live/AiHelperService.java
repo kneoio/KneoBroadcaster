@@ -9,19 +9,19 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
-import io.kneo.broadcaster.dto.radiostation.RadioStationDTO;
+import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
-import io.kneo.broadcaster.model.radiostation.AiOverriding;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.AiAgentService;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.PromptService;
-import io.kneo.broadcaster.service.RadioStationService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -67,7 +67,7 @@ public class AiHelperService {
     private LocalDate lastReset = LocalDate.now();
 
     private final RadioStationPool radioStationPool;
-    private final RadioStationService radioStationService;
+    private final BrandService brandService;
     private final ListenerService listenerService;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
@@ -93,7 +93,7 @@ public class AiHelperService {
             SongSupplier songSupplier,
             DraftFactory draftFactory,
             JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator,
-            io.kneo.broadcaster.service.RadioStationService radioStationService,
+            BrandService brandService,
             io.kneo.broadcaster.service.ListenerService listenerService,
             io.kneo.broadcaster.service.soundfragment.SoundFragmentService soundFragmentService,
             io.kneo.broadcaster.service.RefService refService
@@ -106,7 +106,7 @@ public class AiHelperService {
         this.draftFactory = draftFactory;
         this.jinglePlaybackHandler = jinglePlaybackHandler;
         this.randomizator = randomizator;
-        this.radioStationService = radioStationService;
+        this.brandService = brandService;
         this.listenerService = listenerService;
         this.soundFragmentService = soundFragmentService;
         this.refService = refService;
@@ -117,7 +117,7 @@ public class AiHelperService {
     }
 
     public Uni<AvailableStationsAiDTO> getAllStations(List<RadioStationStatus> statuses, String country, LanguageCode djLanguage, String query) {
-        return radioStationService.getAllDTOFiltered(1000, 0, SuperUser.build(), country, query)
+        return brandService.getAllDTOFiltered(1000, 0, SuperUser.build(), country, query)
                 .flatMap(stations -> {
                     if (stations == null || stations.isEmpty()) {
                         AvailableStationsAiDTO container = new AvailableStationsAiDTO();
@@ -216,18 +216,18 @@ public class AiHelperService {
                 });
     }
 
-    private RadioStationAiDTO toRadioStationAiDTO(RadioStationDTO radioStationDTO, AiAgent agent) {
+    private RadioStationAiDTO toRadioStationAiDTO(BrandDTO brandDTO, AiAgent agent) {
         RadioStationAiDTO b = new RadioStationAiDTO();
-        b.setLocalizedName(radioStationDTO.getLocalizedName());
-        b.setSlugName(radioStationDTO.getSlugName());
-        b.setCountry(radioStationDTO.getCountry());
-        b.setHlsUrl(radioStationDTO.getHlsUrl());
-        b.setMp3Url(radioStationDTO.getMp3Url());
-        b.setMixplaUrl(radioStationDTO.getMixplaUrl());
-        b.setTimeZone(radioStationDTO.getTimeZone());
-        b.setDescription(radioStationDTO.getDescription());
-        b.setBitRate(radioStationDTO.getBitRate());
-        b.setRadioStationStatus(radioStationDTO.getStatus());
+        b.setLocalizedName(brandDTO.getLocalizedName());
+        b.setSlugName(brandDTO.getSlugName());
+        b.setCountry(brandDTO.getCountry());
+        b.setHlsUrl(brandDTO.getHlsUrl());
+        b.setMp3Url(brandDTO.getMp3Url());
+        b.setMixplaUrl(brandDTO.getMixplaUrl());
+        b.setTimeZone(brandDTO.getTimeZone());
+        b.setDescription(brandDTO.getDescription());
+        b.setBitRate(brandDTO.getBitRate());
+        b.setRadioStationStatus(brandDTO.getStatus());
         if (agent != null) {
             b.setDjName(agent.getName());
             List<LanguageCode> langs = agent.getPreferredLang().stream()
@@ -237,8 +237,8 @@ public class AiHelperService {
             b.setAiAgentLang(langs);
         }
 
-        if (radioStationDTO.isAiOverridingEnabled()){
-                AiOverridingDTO aiOverriding = radioStationDTO.getAiOverriding();
+        if (brandDTO.isAiOverridingEnabled()){
+                AiOverridingDTO aiOverriding = brandDTO.getAiOverriding();
                 b.setOverriddenDjName(aiOverriding.getName());
                 b.setAdditionalUserInstruction(aiOverriding.getPrompt());
         }
@@ -310,7 +310,7 @@ public class AiHelperService {
         return null;
     }
 
-    public Uni<AiDjStats> getAiDjStats(RadioStation station) {
+    public Uni<AiDjStats> getAiDjStats(Brand station) {
         return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
                 .flatMap(scripts -> {
                     if (scripts.isEmpty()) {
@@ -407,7 +407,7 @@ public class AiHelperService {
         return !sortedScenes.isEmpty() ? sortedScenes.get(0).getTitle() : null;
     }
 
-    private Scene findActiveSceneByDuration(RadioStation station, List<Scene> scenes) {
+    private Scene findActiveSceneByDuration(Brand station, List<Scene> scenes) {
         LocalDateTime startTime = station.getStartTime();
         if (startTime == null) {
             LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());
@@ -428,7 +428,7 @@ public class AiHelperService {
         return null;
     }
 
-    private String findNextSceneTitleByDuration(RadioStation station, Scene currentScene, List<Scene> scenes) {
+    private String findNextSceneTitleByDuration(Brand station, Scene currentScene, List<Scene> scenes) {
         LocalDateTime startTime = station.getStartTime();
         if (startTime == null) {
             return null;

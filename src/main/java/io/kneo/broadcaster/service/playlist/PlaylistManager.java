@@ -6,11 +6,11 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -63,14 +63,14 @@ public class PlaylistManager {
             );
 
     @Getter
-    private final String brand;
+    private final String brandSlug;
     private final UUID brandId;
     private final SoundFragmentService soundFragmentService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final AudioSegmentationService segmentationService;
     private final SongSupplier songSupplier;
     private final BrandSoundFragmentUpdateService brandSoundFragmentUpdateService;
-    private final RadioStation radioStation;
+    private final Brand brand;
     private final String tempBaseDir;
     private volatile long lastStarvingFeedTime = 0;
     private final int segmentDuration;
@@ -89,15 +89,15 @@ public class PlaylistManager {
     ) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
         this.segmentationService = streamManager.getSegmentationService();
-        this.radioStation = streamManager.getRadioStation();
+        this.brand = streamManager.getBrand();
         this.songSupplier = songSupplier;
         this.brandSoundFragmentUpdateService = brandSoundFragmentUpdateService;
         this.aiHelperService = aiHelperService;
-        this.brand = radioStation.getSlugName();
-        this.brandId = radioStation.getId();
+        this.brandSlug = brand.getSlugName();
+        this.brandId = brand.getId();
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
-        LOGGER.info("Created PlaylistManager for brand: {}", brand);
+        LOGGER.info("Created PlaylistManager for brand: {}", brandSlug);
     }
 
     public void startSelfManaging() {
@@ -130,14 +130,14 @@ public class PlaylistManager {
         int remaining = Math.max(0, REGULAR_BUFFER_MAX - regularQueue.size());
 
         if (remaining == 0) {
-            LOGGER.debug("Skipping addFragments - regular buffer at cap {} for brand {}", REGULAR_BUFFER_MAX, brand);
+            LOGGER.debug("Skipping addFragments - regular buffer at cap {} for brand {}", REGULAR_BUFFER_MAX, brandSlug);
             return;
         }
 
         int quantityToFetch = Math.min(remaining, maxQuantity);
-        LOGGER.info("Adding {} fragments for brand {}", quantityToFetch, brand);
+        LOGGER.info("Adding {} fragments for brand {}", quantityToFetch, brandSlug);
 
-        songSupplier.getBrandSongs(brand, PlaylistItemType.SONG, quantityToFetch)
+        songSupplier.getBrandSongs(brandSlug, PlaylistItemType.SONG, quantityToFetch)
                 .onItem().transformToMulti(soundFragments ->
                         Multi.createFrom().iterable(soundFragments)
                 )
@@ -157,7 +157,7 @@ public class PlaylistManager {
                                             .onItem().transform(tempFilePath -> fetchedMetadata);
                                 })
                                 .chain(materializedMetadata ->
-                                        addFragmentToSlice(fragment, materializedMetadata, radioStation.getBitRate()));
+                                        addFragmentToSlice(fragment, materializedMetadata, brand.getBitRate()));
                     } catch (Exception e) {
                         LOGGER.warn("Skipping fragment due to metadata error: {}", e.getMessage());
                         return Uni.createFrom().item(false);
@@ -166,11 +166,11 @@ public class PlaylistManager {
                 .collect().asList()
                 .subscribe().with(
                         processedItems -> {
-                            LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brand);
+                            LOGGER.info("Successfully processed and added {} fragments for brand {}.", processedItems.size(), brandSlug);
                         },
                         error -> {
-                            LOGGER.error("Error during the processing of fragments for brand {}: {}", brand, error.getMessage(), error);
-                            radioStation.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                            LOGGER.error("Error during the processing of fragments for brand {}: {}", brandSlug, error.getMessage(), error);
+                            brand.setStatus(RadioStationStatus.SYSTEM_ERROR);
                         }
                 );
     }
@@ -210,14 +210,14 @@ public class PlaylistManager {
                                     try {
                                         obtainedByHlsPlaylist.clear();
                                         LOGGER.warn("Priority {} triggered immediate interruption. Cleared active playlist for brand {}",
-                                                queueDTO.getPriority(), brand);
+                                                queueDTO.getPriority(), brandSlug);
                                     } finally {
                                         slicedFragmentsLock.writeLock().unlock();
                                     }
                                 }
                                 
                                 aiHelperService.addMessage(
-                                    brand,
+                                        brandSlug,
                                     AiDjStats.MessageType.INFO,
                                     String.format("Sound fragment '%s' with higher priority (%s)",
                                             soundFragment.getTitle(), queueDTO.getPriority())
@@ -225,14 +225,14 @@ public class PlaylistManager {
                             }
                             
                             prioritizedQueue.add(liveSoundFragment);
-                            LOGGER.info("Added submit fragment for brand {}: {}", brand, metadata.getTemporaryFilePath());
+                            LOGGER.info("Added submit fragment for brand {}: {}", brandSlug, metadata.getTemporaryFilePath());
                         } else {
                             if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
-                                LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);
+                                LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brandSlug);
                                 return Uni.createFrom().item(false);
                             }
                             regularQueue.add(liveSoundFragment);
-                            LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, metadata.getFileOriginalName());
+                            LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brandSlug, metadata.getFileOriginalName());
                         }
                         //memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId()).subscribe().asCompletionStage();
                         return Uni.createFrom().item(true);
@@ -261,14 +261,14 @@ public class PlaylistManager {
 
                     if (isAiDjSubmit) {
                         prioritizedQueue.add(liveSoundFragment);
-                        LOGGER.info("Added AI submit fragment for brand {}: {}", brand, materializedMetadata.getFileOriginalName());
+                        LOGGER.info("Added AI submit fragment for brand {}: {}", brandSlug, materializedMetadata.getFileOriginalName());
                     } else {
                         if (regularQueue.size() >= REGULAR_BUFFER_MAX) {
-                            LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brand);
+                            LOGGER.debug("Refusing to add regular fragment; buffer full ({}). Brand: {}", REGULAR_BUFFER_MAX, brandSlug);
                             return Uni.createFrom().item(false);
                         }
                         regularQueue.add(liveSoundFragment);
-                        LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brand, materializedMetadata.getFileOriginalName());
+                        LOGGER.info("Added and sliced fragment from metadata for brand {}: {}", brandSlug, materializedMetadata.getFileOriginalName());
                     }
                     //memoryService.commitHistory(brand, liveSoundFragment.getSoundFragmentId()).subscribe().asCompletionStage();
                     return Uni.createFrom().item(true);
@@ -307,13 +307,13 @@ public class PlaylistManager {
                                 },
                                 error -> LOGGER.error("Failed to update played count: {}", error.getMessage(), error)
                         );
-                LOGGER.info(">>> moveFragmentToProcessedList START for brand {} fragment {}", brand, fragmentToPlay.getMetadata());
+                LOGGER.info(">>> moveFragmentToProcessedList START for brand {} fragment {}", brandSlug, fragmentToPlay.getMetadata());
                 fragmentsForMp3.add(fragmentToPlay);
                 while (fragmentsForMp3.size() > 2) {
                     fragmentsForMp3.removeFirst();
                 }
 
-                LOGGER.info("Queued fragment for brand={} id={}", brand, fragmentToPlay.getSoundFragmentId());
+                LOGGER.info("Queued fragment for brand={} id={}", brandSlug, fragmentToPlay.getSoundFragmentId());
                 if (obtainedByHlsPlaylist.size() > PROCESSED_QUEUE_MAX_SIZE) {
                     LiveSoundFragment removed = obtainedByHlsPlaylist.poll();
                     LOGGER.debug("Removed oldest fragment from processed queue: {}",

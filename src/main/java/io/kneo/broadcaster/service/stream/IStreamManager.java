@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.stream;
 
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
@@ -17,9 +17,9 @@ public interface IStreamManager {
 
     void shutdown();
 
-    RadioStation getRadioStation();
+    Brand getBrand();
 
-    void setRadioStation(RadioStation radioStation);
+    void setBrand(Brand brand);
 
     SoundFragmentService getSoundFragmentService();
 

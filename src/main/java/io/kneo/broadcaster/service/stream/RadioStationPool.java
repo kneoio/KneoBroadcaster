@@ -4,9 +4,9 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
-import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -20,17 +20,19 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
 public class RadioStationPool {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationPool.class);
-    private final ConcurrentHashMap<String, RadioStation> pool = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Brand> pool = new ConcurrentHashMap<>();
 
     @Inject
-    RadioStationService radioStationService;
+    BrandService brandService;
 
     @Inject
     BroadcasterConfig broadcasterConfig;
@@ -59,12 +61,12 @@ public class RadioStationPool {
     @Inject
     private SongSupplier songSupplier;
 
-    public Uni<RadioStation> initializeStation(String brandName) {
+    public Uni<Brand> initializeStation(String brandName) {
         LOGGER.info("Attempting to initialize station for brand: {}", brandName);
 
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(bn -> {
-                    RadioStation stationAlreadyActive = pool.get(bn);
+                    Brand stationAlreadyActive = pool.get(bn);
                     if (stationAlreadyActive != null &&
                             (stationAlreadyActive.getStatus() == RadioStationStatus.ON_LINE ||
                                     stationAlreadyActive.getStatus() == RadioStationStatus.WARMING_UP)) {
@@ -72,11 +74,11 @@ public class RadioStationPool {
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
 
-                    return radioStationService.getBySlugName(bn)
+                    return brandService.getBySlugName(bn)
                             .onItem().transformToUni(stationFromDb -> {
                                 if (stationFromDb == null) {
                                     LOGGER.warn("Station with brandName {} not found in database. Cannot initialize.", bn);
-                                    RadioStation staleStation = pool.remove(bn);
+                                    Brand staleStation = pool.remove(bn);
                                     if (staleStation != null && staleStation.getStreamManager() != null) {
                                         LOGGER.info("Shutting down playlist for stale pooled station {} (not found in DB).", bn);
                                         staleStation.getStreamManager().shutdown();
@@ -84,7 +86,7 @@ public class RadioStationPool {
                                     return Uni.createFrom().failure(new RuntimeException("Station not found in DB: " + bn));
                                 }
 
-                                RadioStation finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
+                                Brand finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
                                     if (currentInPool != null &&
                                             (currentInPool.getStatus() == RadioStationStatus.ON_LINE ||
                                                     currentInPool.getStatus() == RadioStationStatus.WARMING_UP)) {
@@ -111,7 +113,7 @@ public class RadioStationPool {
                                             aiHelperService
                                     );
                                     stationFromDb.setStreamManager(newPlaylist);
-                                    newPlaylist.setRadioStation(stationFromDb);
+                                    newPlaylist.setBrand(stationFromDb);
                                     newPlaylist.initialize();
 
                                     LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP/WAITING.", key);
@@ -123,12 +125,12 @@ public class RadioStationPool {
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
-    public Uni<RadioStation> updateStationConfig(String brandName, RadioStation updatedStation) {
+    public Uni<Brand> updateStationConfig(String brandName, Brand updatedStation) {
         LOGGER.info("Hot-updating configuration for station: {}", brandName);
 
         return Uni.createFrom().item(brandName)
                 .onItem().transform(bn -> {
-                    RadioStation currentStation = pool.get(bn);
+                    Brand currentStation = pool.get(bn);
                     if (currentStation == null) {
                         LOGGER.warn("Station {} not found in pool during config update", bn);
                         return null;
@@ -136,7 +138,7 @@ public class RadioStationPool {
 
                     RadioStationStatus currentStatus = currentStation.getStatus();
                     AiAgentStatus currentAiStatus = currentStation.getAiAgentStatus();
-                    List<RadioStation.StatusChangeRecord> currentHistory = currentStation.getStatusHistory();
+                    List<Brand.StatusChangeRecord> currentHistory = currentStation.getStatusHistory();
                     boolean currentAiControlAllowed = currentStation.isAiControlAllowed();
                     IStreamManager currentPlaylist = currentStation.getStreamManager();
 
@@ -149,7 +151,7 @@ public class RadioStationPool {
                     currentStation.setStreamManager(currentPlaylist);
 
                     if (currentPlaylist != null) {
-                        currentPlaylist.setRadioStation(currentStation);
+                        currentPlaylist.setBrand(currentStation);
                     }
 
                     LOGGER.info("Station {} configuration updated without downtime", bn);
@@ -157,7 +159,7 @@ public class RadioStationPool {
                 });
     }
 
-    private void updatePersistentFields(RadioStation doc, RadioStation updated) {
+    private void updatePersistentFields(Brand doc, Brand updated) {
         doc.setLocalizedName(updated.getLocalizedName());
         doc.setSlugName(updated.getSlugName());
         doc.setTimeZone(updated.getTimeZone());
@@ -177,42 +179,46 @@ public class RadioStationPool {
         doc.setLastModifiedDate(updated.getLastModifiedDate());
     }
 
-    public Uni<RadioStation> get(String brandName) {
-        RadioStation radioStation = pool.get(brandName);
-        return Uni.createFrom().item(radioStation);
+    public Uni<Brand> get(String brandName) {
+        Brand brand = pool.get(brandName);
+        return Uni.createFrom().item(brand);
     }
 
-    public Uni<RadioStation> stopAndRemove(String brandName) {
+    public Uni<Brand> stopAndRemove(String brandName) {
         LOGGER.info("Attempting to stop and remove station: {}", brandName);
-        RadioStation radioStation = pool.remove(brandName);
+        Brand brand = pool.remove(brandName);
 
-        if (radioStation != null) {
+        if (brand != null) {
             LOGGER.info("Station {} found in pool and removed. Shutting down its playlist.", brandName);
-            if (radioStation.getStreamManager() != null) {
-                radioStation.getStreamManager().shutdown();
+            if (brand.getStreamManager() != null) {
+                brand.getStreamManager().shutdown();
             }
-            radioStation.setStatus(RadioStationStatus.OFF_LINE);
-            return Uni.createFrom().item(radioStation);
+            brand.setStatus(RadioStationStatus.OFF_LINE);
+            return Uni.createFrom().item(brand);
         } else {
             LOGGER.warn("Station {} not found in pool during stopAndRemove.", brandName);
             return Uni.createFrom().nullItem();
         }
     }
 
-    public Collection<RadioStation> getOnlineStationsSnapshot() {
+    public Collection<Brand> getOnlineStationsSnapshot() {
         return new ArrayList<>(pool.values());
     }
 
-    public Optional<RadioStation> getStation(String slugName) {
+    public Set<String> getActiveSlugNamesSnapshot() {
+        return new HashSet<>(pool.keySet());
+    }
+
+    public Optional<Brand> getStation(String slugName) {
         return Optional.ofNullable(pool.get(slugName));
     }
 
     public Uni<BroadcastingStats> getLiveStatus(String name) {
         BroadcastingStats stats = new BroadcastingStats();
-        RadioStation radioStation = pool.get(name);
-        if (radioStation != null) {
-            stats.setStatus(radioStation.getStatus());
-            stats.setAiControlAllowed(radioStation.isAiControlAllowed());
+        Brand brand = pool.get(name);
+        if (brand != null) {
+            stats.setStatus(brand.getStatus());
+            stats.setAiControlAllowed(brand.isAiControlAllowed());
         } else {
             stats.setStatus(RadioStationStatus.OFF_LINE);
             stats.setAiControlAllowed(false);

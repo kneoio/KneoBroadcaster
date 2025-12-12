@@ -4,7 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -48,8 +48,8 @@ public class IntroSongHandler {
         this.tempBaseDir = config.getPathUploads() + "/audio-processing";
     }
 
-    public Uni<Boolean> handle(RadioStation radioStation, AddToQueueDTO toQueueDTO) {
-        PlaylistManager playlistManager = radioStation.getStreamManager().getPlaylistManager();
+    public Uni<Boolean> handle(Brand brand, AddToQueueDTO toQueueDTO) {
+        PlaylistManager playlistManager = brand.getStreamManager().getPlaylistManager();
         UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
         String ttsFilePath = toQueueDTO.getFilePaths().get("audio1");
 
@@ -58,18 +58,18 @@ public class IntroSongHandler {
                     return repository.getFirstFile(soundFragment.getId())
                             .chain(songMetadata -> {
                                 if (ttsFilePath != null) {
-                                    return handleWithTtsFile(radioStation, toQueueDTO, soundFragment, songMetadata, ttsFilePath, playlistManager);
+                                    return handleWithTtsFile(brand, toQueueDTO, soundFragment, songMetadata, ttsFilePath, playlistManager);
                                 } else {
-                                    return handleWithoutTtsFile(radioStation, toQueueDTO, soundFragment, playlistManager);
+                                    return handleWithoutTtsFile(brand, toQueueDTO, soundFragment, playlistManager);
                                 }
                             });
                 });
     }
 
-    private Uni<Boolean> handleWithTtsFile(RadioStation radioStation, AddToQueueDTO toQueueDTO,
+    private Uni<Boolean> handleWithTtsFile(Brand brand, AddToQueueDTO toQueueDTO,
                                            SoundFragment soundFragment, FileMetadata songMetadata, String ttsFilePath,
                                            PlaylistManager playlistManager) {
-        return aiAgentService.getById(radioStation.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(brand.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(aiAgent -> {
                     double gainValue = 1.0;
 
@@ -93,9 +93,9 @@ public class IntroSongHandler {
                                 return mergedMetadata;
                             })
                             .chain(updatedMetadata -> {
-                                updateRadioStationStatus(radioStation);
+                                updateRadioStationStatus(brand);
                                 return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                                radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                                                brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                                         .onItem().invoke(result -> {
                                             if (result) {
                                                 LOGGER.info("Added merged song to queue: {}", soundFragment.getTitle());
@@ -105,11 +105,11 @@ public class IntroSongHandler {
                 });
     }
 
-    private Uni<Boolean> handleWithoutTtsFile(RadioStation radioStation, AddToQueueDTO toQueueDTO,
+    private Uni<Boolean> handleWithoutTtsFile(Brand brand, AddToQueueDTO toQueueDTO,
                                               SoundFragment soundFragment, PlaylistManager playlistManager) {
-        updateRadioStationStatus(radioStation);
+        updateRadioStationStatus(brand);
         return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                        radioStation.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                        brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
                 .onItem().invoke(result -> {
                     if (result) {
                         LOGGER.info("Added song to queue: {}", soundFragment.getTitle());
@@ -117,8 +117,8 @@ public class IntroSongHandler {
                 });
     }
 
-    private void updateRadioStationStatus(RadioStation radioStation) {
-        radioStation.setAiAgentStatus(AiAgentStatus.CONTROLLING);
-        radioStation.setLastAgentContactAt(System.currentTimeMillis());
+    private void updateRadioStationStatus(Brand brand) {
+        brand.setAiAgentStatus(AiAgentStatus.CONTROLLING);
+        brand.setLastAgentContactAt(System.currentTimeMillis());
     }
 }

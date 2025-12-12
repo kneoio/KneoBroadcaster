@@ -2,7 +2,9 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
+import io.kneo.broadcaster.dto.filter.ScriptFilterDTO;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.service.ScriptDryRunService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.util.BrandScriptUpdateService;
@@ -18,6 +20,7 @@ import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -83,11 +86,12 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        ScriptFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllCount(user),
-                        service.getAll(size, (page - 1) * size, user)
+                        service.getAllCount(user, filter),
+                        service.getAll(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<ScriptDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -102,6 +106,71 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
                 );
+    }
+
+    private ScriptFilterDTO parseFilterDTO(RoutingContext rc) {
+        String filterParam = rc.request().getParam("filter");
+        if (filterParam == null || filterParam.trim().isEmpty()) {
+            return null;
+        }
+
+        ScriptFilterDTO dto = new ScriptFilterDTO();
+        boolean any = false;
+        try {
+            JsonObject json = new JsonObject(filterParam);
+
+            JsonArray l = json.getJsonArray("labels");
+            if (l != null && !l.isEmpty()) {
+                List<UUID> labels = new ArrayList<>();
+                for (Object o : l) {
+                    if (o instanceof String str) {
+                        try {
+                            labels.add(UUID.fromString(str));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+                if (!labels.isEmpty()) {
+                    dto.setLabels(labels);
+                    any = true;
+                }
+            }
+
+            String timingMode = json.getString("timingMode");
+            if (timingMode != null && !timingMode.trim().isEmpty()) {
+                try {
+                    dto.setTimingMode(SceneTimingMode.valueOf(timingMode));
+                    any = true;
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+
+            String languageCode = json.getString("language");
+            if (languageCode != null && !languageCode.trim().isEmpty()) {
+                try {
+                    dto.setLanguageCode(LanguageCode.valueOf(languageCode));
+                    any = true;
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+
+            String searchTerm = json.getString("searchTerm");
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                dto.setSearchTerm(searchTerm.trim());
+                any = true;
+            }
+
+            if (json.containsKey("activated")) {
+                dto.setActivated(json.getBoolean("activated", false));
+                any = true;
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid filter JSON format: " + e.getMessage(), e);
+        }
+
+        return any ? dto : null;
     }
 
     private void getAllShared(RoutingContext rc) {

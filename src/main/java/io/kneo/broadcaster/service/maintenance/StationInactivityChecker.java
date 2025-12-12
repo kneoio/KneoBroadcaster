@@ -2,8 +2,8 @@ package io.kneo.broadcaster.service.maintenance;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
-import io.kneo.broadcaster.service.RadioStationService;
+import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.BrandLogger;
 import io.quarkus.runtime.ShutdownEvent;
@@ -41,7 +41,7 @@ public class StationInactivityChecker {
     );
 
     @Inject
-    RadioStationService radioStationService;
+    BrandService brandService;
 
     @Inject
     RadioStationPool radioStationPool;
@@ -110,14 +110,14 @@ public class StationInactivityChecker {
                 .toUni()
                 .replaceWithVoid()
                 .chain(() -> {
-                    Collection<RadioStation> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
+                    Collection<Brand> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
 
                     return Multi.createFrom().iterable(currentOnlineStations)
                             .onItem().transformToUni(radioStation -> {
                                 String slug = radioStation.getSlugName();
                                 RadioStationStatus currentStatus = radioStation.getStatus();
 
-                                return radioStationService.findLastAccessTimeByStationName(slug)
+                                return brandService.findLastAccessTimeByStationName(slug)
                                         .onItem().transformToUni(lastAccessTime -> {
                                             if (lastAccessTime != null) {
                                                 Instant lastAccessInstant = lastAccessTime.toInstant();

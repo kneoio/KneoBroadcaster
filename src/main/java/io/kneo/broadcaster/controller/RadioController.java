@@ -70,6 +70,7 @@ public class RadioController {
         router.route(HttpMethod.PATCH, "/radio/:brand/:id/rating").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::rateFragment);
         router.route(HttpMethod.POST, "/radio/alexa/skill").handler(jsonBodyHandler).handler(this::getSkill);
 
+
         router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)
                 .handler(this::validateMixplaAccess)

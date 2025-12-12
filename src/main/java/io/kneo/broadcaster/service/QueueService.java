@@ -4,7 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.SSEProgressStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.dto.queue.SSEProgressDTO;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -192,7 +192,7 @@ public class QueueService {
         }
     }
 
-    private Uni<RadioStation> getRadioStation(String brand) {
+    private Uni<Brand> getRadioStation(String brand) {
         LOGGER.debug("[QueueService] Looking up radio station for brand: {}", brand);
         return radioStationPool.get(brand)
                 .onItem().transform(v -> {

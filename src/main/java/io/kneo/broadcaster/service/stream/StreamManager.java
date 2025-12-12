@@ -3,9 +3,9 @@ package io.kneo.broadcaster.service.stream;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
@@ -44,7 +44,7 @@ public class StreamManager implements IStreamManager {
 
     @Getter
     @Setter
-    private RadioStation radioStation;
+    private Brand brand;
     @Getter
     private PlaylistManager playlistManager;
     private final BroadcasterConfig broadcasterConfig;
@@ -90,8 +90,8 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void initialize() {
-        this.radioStation.setStatus(RadioStationStatus.WARMING_UP);
-        LOGGER.info("New broadcast initialized for {}", radioStation.getSlugName());
+        this.brand.setStatus(RadioStationStatus.WARMING_UP);
+        LOGGER.info("New broadcast initialized for {}", brand.getSlugName());
 
         playlistManager = new PlaylistManager(
                 config,
@@ -101,18 +101,18 @@ public class StreamManager implements IStreamManager {
                 updateService,
                 aiHelperService
         );
-        if (radioStation.getManagedBy() == ManagedBy.ITSELF) {
+        if (brand.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();
         }
 
         Cancellable feeder = segmentFeederTimer.getTicker().subscribe().with(
                 timestamp -> executorService.submit(this::feedSegments),
-                error -> LOGGER.error("Feeder subscription error for {}: {}", radioStation.getSlugName(), error.getMessage(), error)
+                error -> LOGGER.error("Feeder subscription error for {}: {}", brand.getSlugName(), error.getMessage(), error)
         );
 
         Cancellable slider = sliderTimer.getTicker().subscribe().with(
                 timestamp -> executorService.submit(this::slideWindow),
-                error -> LOGGER.error("Slider subscription error for {}: {}", radioStation.getSlugName(), error.getMessage(), error)
+                error -> LOGGER.error("Slider subscription error for {}: {}", brand.getSlugName(), error.getMessage(), error)
         );
 
         timerSubscriptions.put("feeder", feeder);
@@ -124,7 +124,7 @@ public class StreamManager implements IStreamManager {
             for (int i = 0; i < SEGMENTS_TO_DRIP_PER_FEED_CALL; i++) {
                 if (liveSegments.size() >= maxVisibleSegments * 2) {
                     System.out.printf("feedSegments Debug: [DRIP] liveSegments buffer for %s is full or at limit (%d/%d). Pausing drip-feed for this call.%n",
-                            radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments * 2);
+                            brand.getSlugName(), liveSegments.size(), maxVisibleSegments * 2);
                     break;
                 }
                 HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
@@ -142,7 +142,7 @@ public class StreamManager implements IStreamManager {
                         final long[] lastSeqInBatch = {-1L};
 
                         boolean isFirst = true;
-                        for (HlsSegment segment : fragment.getSegments().get(radioStation.getBitRate())) {
+                        for (HlsSegment segment : fragment.getSegments().get(brand.getBitRate())) {
                             long seq = currentSequence.getAndIncrement();
                             if (firstSeqInBatch[0] == -1L) {
                                 firstSeqInBatch[0] = seq;
@@ -209,8 +209,8 @@ public class StreamManager implements IStreamManager {
                 .append(ZonedDateTime.now(ZONE_ID).format(DateTimeFormatter.ISO_INSTANT))
                 .append("\n");
 
-        String currentRadioSlugForPath = (this.radioStation != null && this.radioStation.getSlugName() != null)
-                ? this.radioStation.getSlugName() : "default_station_path";
+        String currentRadioSlugForPath = (this.brand != null && this.brand.getSlugName() != null)
+                ? this.brand.getSlugName() : "default_station_path";
 
 
         liveSegments.tailMap(firstSequenceInWindow).entrySet().stream()
@@ -270,7 +270,7 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void shutdown() {
-        LOGGER.info("Shutting down StreamManager for: {}", radioStation.getSlugName());
+        LOGGER.info("Shutting down StreamManager for: {}", brand.getSlugName());
         timerSubscriptions.forEach((key, subscription) -> {
             if (subscription != null) {
                 subscription.cancel();
@@ -281,9 +281,9 @@ public class StreamManager implements IStreamManager {
         currentSequence.set(0);
         liveSegments.clear();
         pendingFragmentSegmentsQueue.clear();
-        LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", radioStation.getSlugName());
-        if (radioStation != null) {
-            radioStation.setStatus(RadioStationStatus.OFF_LINE);
+        LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", brand.getSlugName());
+        if (brand != null) {
+            brand.setStatus(RadioStationStatus.OFF_LINE);
         }
     }
 

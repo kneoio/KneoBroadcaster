@@ -4,7 +4,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import io.kneo.broadcaster.model.radiostation.RadioStation;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.service.RadioService;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
@@ -52,12 +52,12 @@ public class RadioStationControlToolHandler extends BaseToolHandler {
         String actionText = action.equals("start") ? "Starting" : "Stopping";
         handler.sendProcessingChunk(chunkHandler, connectionId, actionText + " station: " + brand);
 
-        Uni<RadioStation> operationUni = action.equals("start") 
+        Uni<Brand> operationUni = action.equals("start")
                 ? radioService.initializeStation(brand)
                 : radioService.stopStation(brand);
 
         return operationUni
-                .flatMap((RadioStation station) -> {
+                .flatMap((Brand station) -> {
                     String resultMessage = station != null 
                             ? "Station '" + brand + "' " + action + "ed successfully"
                             : "Failed to " + action + " station '" + brand + "'";

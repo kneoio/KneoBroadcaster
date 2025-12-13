@@ -54,6 +54,11 @@ public class TemporaryBrandCleanupService {
 
     private void performCleanup(Long tick) {
         List<String> activeSlugs = List.copyOf(radioStationPool.getActiveSlugNamesSnapshot());
+        LOGGER.info("Temporary brand cleanup (tick: {}) - Active slugs in pool (will be excluded): {}", tick, activeSlugs);
+        
+        // TODO: Temporarily disabled deletion for debugging FK constraint issues
+        LOGGER.info("Temporary brand cleanup SKIPPED - deletion temporarily disabled for debugging");
+        /*
         brandService.deleteTemporaryBrands(activeSlugs)
                 .subscribe().with(
                         deletedCount -> {
@@ -63,5 +68,6 @@ public class TemporaryBrandCleanupService {
                         },
                         error -> LOGGER.error("Temporary brand cleanup failed (tick: {})", tick, error)
                 );
+        */
     }
 }

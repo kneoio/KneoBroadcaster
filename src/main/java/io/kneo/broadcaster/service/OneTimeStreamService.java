@@ -15,6 +15,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Provider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +26,7 @@ import java.util.Map;
 
 @ApplicationScoped
 public class OneTimeStreamService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStreamService.class);
 
     @Inject
     BrandRepository brandRepository;
@@ -42,13 +45,24 @@ public class OneTimeStreamService {
                 .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
                         .chain(script -> {
                             Brand oneTimeBrand = buildOneTimeBrand(sourceBrand, script, dto);
+                            LOGGER.info("OneTimeStream: Creating temporary brand with slugName={}, sourceBrandId={}", 
+                                    oneTimeBrand.getSlugName(), sourceBrand.getId());
                             return brandRepository.insert(oneTimeBrand, user);
                         })
+                        .onItem().invoke(savedBrand -> LOGGER.info("OneTimeStream: Brand inserted successfully - id={}, slugName={}", 
+                                savedBrand.getId(), savedBrand.getSlugName()))
+                        .onFailure().invoke(error -> LOGGER.error("OneTimeStream: Failed to insert brand: {}", error.getMessage(), error))
                         .chain(savedBrand -> {
+                            LOGGER.info("OneTimeStream: Copying sound fragments from sourceBrand={} to targetBrand={}", 
+                                    sourceBrand.getId(), savedBrand.getId());
                             return soundFragmentRepository.copyBrandSoundFragments(sourceBrand.getId(), savedBrand.getId())
+                                    .onItem().invoke(count -> LOGGER.info("OneTimeStream: Copied {} sound fragment links", count))
                                     .replaceWith(savedBrand);
                         })
-                        .chain(savedBrand -> radioService.get().initializeStation(savedBrand.getSlugName()).replaceWithVoid())
+                        .chain(savedBrand -> {
+                            LOGGER.info("OneTimeStream: Initializing station for slugName={}", savedBrand.getSlugName());
+                            return radioService.get().initializeStation(savedBrand.getSlugName()).replaceWithVoid();
+                        })
                 );
     }
 

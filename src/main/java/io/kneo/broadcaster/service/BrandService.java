@@ -107,9 +107,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         return oneTimeStreamService.runOneTimeStream(dto, user);
     }
 
-    public Uni<Integer> deleteTemporaryBrands(List<String> excludedSlugNames) {
-        return repository.deleteTemporaryBrands(excludedSlugNames);
-    }
 
     public Uni<List<Brand>> getAll(final int limit, final int offset) {
         return repository.getAll(limit, offset, false, SuperUser.build());
@@ -199,6 +196,11 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                         return repository.archive(UUID.fromString(id), user);
                     }
                 });
+    }
+
+    public Uni<Integer> archive(UUID id) {
+        assert repository != null;
+        return repository.archive(id, SuperUser.build());
     }
 
     private Uni<BrandDTO> mapToDTO(Brand doc) {

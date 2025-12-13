@@ -32,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
@@ -54,6 +53,8 @@ public class BrandRepository extends AsyncRepository {
     public Uni<List<Brand>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        sql += " AND t.is_temporary = 0";
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
@@ -117,6 +118,8 @@ public class BrandRepository extends AsyncRepository {
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+
+        sql += " AND t.is_temporary = 0";
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
@@ -409,49 +412,6 @@ public class BrandRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<Integer> deleteTemporaryBrands(List<String> excludedSlugNames) {
-        StringBuilder where = new StringBuilder();
-        where.append("is_temporary = 1");
-
-        Tuple params = Tuple.tuple();
-        if (excludedSlugNames != null && !excludedSlugNames.isEmpty()) {
-            where.append(" AND slug_name NOT IN (");
-            for (int i = 0; i < excludedSlugNames.size(); i++) {
-                if (i > 0) {
-                    where.append(",");
-                }
-                where.append("$").append(i + 1);
-                params.addString(excludedSlugNames.get(i));
-            }
-            where.append(")");
-        }
-
-        String selectIdsSql = "SELECT id FROM " + entityData.getTableName() + " WHERE " + where;
-
-        return client.preparedQuery(selectIdsSql)
-                .execute(params)
-                .onItem().transformToUni(rows -> {
-                    List<UUID> ids = new ArrayList<>();
-                    rows.forEach(row -> ids.add(row.getUUID("id")));
-
-                    if (ids.isEmpty()) {
-                        return Uni.createFrom().item(0);
-                    }
-
-                    UUID[] idArray = ids.toArray(new UUID[0]);
-                    Tuple idParam = Tuple.of((Object) idArray);
-
-                    return client.withTransaction(tx -> {
-                        String deleteRelationsSql = "DELETE FROM kneobroadcaster__brand_sound_fragments WHERE brand_id = ANY($1)";
-                        String deleteBrandsSql = "DELETE FROM " + entityData.getTableName() + " WHERE id = ANY($1)";
-
-                        return tx.preparedQuery(deleteRelationsSql)
-                                .execute(idParam)
-                                .onItem().transformToUni(ignored -> tx.preparedQuery(deleteBrandsSql).execute(idParam))
-                                .onItem().transform(RowSet::rowCount);
-                    });
-                });
-    }
 
     public Uni<Void> upsertStationAccessWithCountAndGeo(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent, String ipAddress, String countryCode) {
         String sql = "INSERT INTO " + brandStats.getTableName() +

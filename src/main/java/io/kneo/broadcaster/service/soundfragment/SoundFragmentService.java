@@ -374,12 +374,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                 });
     }
 
-    public Uni<Integer> getSearchCount(String searchTerm, final IUser user, final SoundFragmentFilterDTO filterDTO) {
-        assert repository != null;
-        SoundFragmentFilter filter = toFilter(filterDTO);
-        return repository.getSearchCount(searchTerm, false, user, filter);
-    }
-
     public Uni<LocalFileCleanupService.CleanupStats> getLocalFileCleanupStats() {
         return Uni.createFrom().item(localFileCleanupService.getStats());
     }

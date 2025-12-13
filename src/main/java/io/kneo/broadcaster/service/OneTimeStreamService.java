@@ -76,11 +76,12 @@ public class OneTimeStreamService {
         doc.setManagedBy(sourceBrand.getManagedBy());
         doc.setTimeZone(sourceBrand.getTimeZone());
         doc.setColor(WebHelper.generateRandomBrightColor());
+        doc.setPopularityRate(5);
         doc.setAiAgentId(sourceBrand.getAiAgentId());
         doc.setProfileId(script.getDefaultProfileId() != null ? script.getDefaultProfileId() : sourceBrand.getProfileId());
         doc.setAiOverriding(sourceBrand.getAiOverriding());
         doc.setBitRate(sourceBrand.getBitRate());
-
+        doc.setCountry(sourceBrand.getCountry());
         doc.setOneTimeStreamPolicy(SubmissionPolicy.NOT_ALLOWED);
         doc.setSubmissionPolicy(SubmissionPolicy.NOT_ALLOWED);
         doc.setMessagingPolicy(SubmissionPolicy.NOT_ALLOWED);

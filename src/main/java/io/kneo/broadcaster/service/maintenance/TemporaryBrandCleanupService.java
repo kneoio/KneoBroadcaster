@@ -4,6 +4,7 @@ import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 
 @ApplicationScoped
 public class TemporaryBrandCleanupService {
@@ -53,21 +55,29 @@ public class TemporaryBrandCleanupService {
     }
 
     private void performCleanup(Long tick) {
-        List<String> activeSlugs = List.copyOf(radioStationPool.getActiveSlugNamesSnapshot());
+        Set<String> activeSlugs = radioStationPool.getActiveSlugNamesSnapshot();
         LOGGER.info("Temporary brand cleanup (tick: {}) - Active slugs in pool (will be excluded): {}", tick, activeSlugs);
         
-        // TODO: Temporarily disabled deletion for debugging FK constraint issues
-        LOGGER.info("Temporary brand cleanup SKIPPED - deletion temporarily disabled for debugging");
-        /*
-        brandService.deleteTemporaryBrands(activeSlugs)
+        brandService.getAll(1000, 0)
+                .onItem().transformToUni(brands -> {
+                    List<Uni<Integer>> archiveOps = brands.stream()
+                            .filter(b -> b.getIsTemporary() == 1 && b.getArchived() == 0)
+                            .filter(b -> !activeSlugs.contains(b.getSlugName()))
+                            .map(b -> brandService.archive(b.getId()))
+                            .toList();
+                    if (archiveOps.isEmpty()) {
+                        return Uni.createFrom().item(0);
+                    }
+                    return Uni.join().all(archiveOps).andFailFast()
+                            .onItem().transform(results -> results.size());
+                })
                 .subscribe().with(
-                        deletedCount -> {
-                            if (deletedCount != null && deletedCount > 0) {
-                                LOGGER.info("Temporary brand cleanup (tick: {}) deleted {} brands", tick, deletedCount);
+                        archivedCount -> {
+                            if (archivedCount != null && archivedCount > 0) {
+                                LOGGER.info("Temporary brand cleanup (tick: {}) archived {} brands", tick, archivedCount);
                             }
                         },
                         error -> LOGGER.error("Temporary brand cleanup failed (tick: {})", tick, error)
                 );
-        */
     }
 }

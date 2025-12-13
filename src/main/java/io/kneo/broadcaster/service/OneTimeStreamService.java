@@ -66,6 +66,7 @@ public class OneTimeStreamService {
         doc.setAiAgentId(sourceBrand.getAiAgentId());
         doc.setProfileId(script.getDefaultProfileId() != null ? script.getDefaultProfileId() : sourceBrand.getProfileId());
         doc.setAiOverriding(sourceBrand.getAiOverriding());
+        doc.setBitRate(sourceBrand.getBitRate());
         Scheduler scheduler = new Scheduler();
         scheduler.setEnabled(false);
         doc.setScheduler(scheduler);

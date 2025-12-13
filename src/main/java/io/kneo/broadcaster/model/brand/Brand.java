@@ -4,8 +4,6 @@ import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
-import io.kneo.broadcaster.model.scheduler.Schedulable;
-import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -25,7 +23,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @NoArgsConstructor
-public class Brand extends SecureDataEntity<UUID> implements Schedulable {
+public class Brand extends SecureDataEntity<UUID> {
 
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private IStreamManager streamManager;
@@ -40,7 +38,6 @@ public class Brand extends SecureDataEntity<UUID> implements Schedulable {
     private String description;
     private String titleFont;
     private double popularityRate;
-    private Scheduler scheduler;
     private UUID aiAgentId;
     private UUID profileId;
     private AiOverriding aiOverriding;

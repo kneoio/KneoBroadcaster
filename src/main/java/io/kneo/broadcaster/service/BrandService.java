@@ -254,46 +254,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             }
 
             ScheduleDTO scheduleDTO = new ScheduleDTO();
-           /* Scheduler schedule = doc.getScheduler();
-            scheduleDTO.setEnabled(schedule.isEnabled());
-            if (schedule.isEnabled()) {
-                if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
-                    List<TaskDTO> taskDTOs = schedule.getTasks().stream().map(task -> {
-                        TaskDTO taskDTO = new TaskDTO();
-                        task.setId(task.getId());
-                        taskDTO.setTriggerType(task.getTriggerType());
-
-                        if (task.getOnceTrigger() != null) {
-                            OnceTriggerDTO onceTriggerDTO = new OnceTriggerDTO();
-                            onceTriggerDTO.setStartTime(task.getOnceTrigger().getStartTime());
-                            onceTriggerDTO.setDuration(task.getOnceTrigger().getDuration());
-                            onceTriggerDTO.setWeekdays(task.getOnceTrigger().getWeekdays());
-                            taskDTO.setOnceTrigger(onceTriggerDTO);
-                        }
-
-                        if (task.getTimeWindowTrigger() != null) {
-                            TimeWindowTriggerDTO timeWindowTriggerDTO = new TimeWindowTriggerDTO();
-                            timeWindowTriggerDTO.setStartTime(task.getTimeWindowTrigger().getStartTime());
-                            timeWindowTriggerDTO.setEndTime(task.getTimeWindowTrigger().getEndTime());
-                            timeWindowTriggerDTO.setWeekdays(task.getTimeWindowTrigger().getWeekdays());
-                            taskDTO.setTimeWindowTrigger(timeWindowTriggerDTO);
-                        }
-
-                        if (task.getPeriodicTrigger() != null) {
-                            PeriodicTriggerDTO periodicTriggerDTO = new PeriodicTriggerDTO();
-                            periodicTriggerDTO.setStartTime(task.getPeriodicTrigger().getStartTime());
-                            periodicTriggerDTO.setEndTime(task.getPeriodicTrigger().getEndTime());
-                            periodicTriggerDTO.setInterval(task.getPeriodicTrigger().getInterval());
-                            periodicTriggerDTO.setWeekdays(task.getPeriodicTrigger().getWeekdays());
-                            taskDTO.setPeriodicTrigger(periodicTriggerDTO);
-                        }
-                        return taskDTO;
-                    }).collect(Collectors.toList());
-
-                    scheduleDTO.setTasks(taskDTOs);
-                }
-            }*/
-
             dto.setSchedule(scheduleDTO);
 
             try {

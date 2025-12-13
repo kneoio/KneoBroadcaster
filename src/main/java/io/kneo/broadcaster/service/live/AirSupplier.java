@@ -98,7 +98,7 @@ public class AirSupplier {
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
                         .filter(station -> statuses.contains(station.getStatus()))
-                        .filter(station -> !station.getScheduler().isEnabled() || station.isAiControlAllowed())
+                        .filter(Brand::isAiControlAllowed)
                         .collect(Collectors.toList())
         ).flatMap(stations -> {
             stations.forEach(station -> clearDashboardMessages(station.getSlugName()));

@@ -169,7 +169,6 @@ public class RadioStationPool {
         doc.setManagedBy(updated.getManagedBy());
         doc.setColor(updated.getColor());
         doc.setDescription(updated.getDescription());
-        doc.setScheduler(updated.getScheduler());
         doc.setAiAgentId(updated.getAiAgentId());
         doc.setProfileId(updated.getProfileId());
         doc.setLabelList(updated.getLabelList());

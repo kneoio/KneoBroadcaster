@@ -5,7 +5,6 @@ import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
-import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
@@ -67,9 +66,6 @@ public class OneTimeStreamService {
         doc.setProfileId(script.getDefaultProfileId() != null ? script.getDefaultProfileId() : sourceBrand.getProfileId());
         doc.setAiOverriding(sourceBrand.getAiOverriding());
         doc.setBitRate(sourceBrand.getBitRate());
-        Scheduler scheduler = new Scheduler();
-        scheduler.setEnabled(false);
-        doc.setScheduler(scheduler);
 
         doc.setOneTimeStreamPolicy(SubmissionPolicy.NOT_ALLOWED);
         doc.setSubmissionPolicy(SubmissionPolicy.NOT_ALLOWED);

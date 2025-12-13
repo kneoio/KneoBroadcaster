@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -40,7 +41,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.SOUND_FRAGMENT;
@@ -55,7 +55,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     private final SoundFragmentFileHandler fileHandler;
     private final SoundFragmentQueryBuilder queryBuilder;
     private final SoundFragmentBrandAssociationHandler brandHandler;
-
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public SoundFragmentRepository() {
         super();
@@ -196,8 +196,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     public Uni<List<SoundFragment>> getBrandSongsRandomPage(UUID brandId, PlaylistItemType type) {
         int limit = 200;
-        int offset = ThreadLocalRandom.current().nextInt(0, 20) * limit;
-
+        int offset = secureRandom.nextInt(20) * limit;
         SoundFragmentBrandRepository brandRepository =
                 new SoundFragmentBrandRepository(client, mapper, rlsRepository);
 

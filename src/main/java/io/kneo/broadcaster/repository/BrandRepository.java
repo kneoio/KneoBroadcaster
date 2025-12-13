@@ -54,7 +54,7 @@ public class BrandRepository extends AsyncRepository {
         String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
-        sql += " AND t.is_temporary = 0";
+      //  sql += " AND t.is_temporary = 0";
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
@@ -119,7 +119,7 @@ public class BrandRepository extends AsyncRepository {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
-        sql += " AND t.is_temporary = 0";
+       // sql += " AND t.is_temporary = 0";
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";

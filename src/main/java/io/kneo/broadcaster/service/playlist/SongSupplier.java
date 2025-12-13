@@ -12,6 +12,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -31,6 +31,7 @@ public class SongSupplier {
     private final BrandService brandService;
     private final Map<String, Map<PlaylistItemType, List<SupplierSongMemory>>> brandPlaylistMemory = new ConcurrentHashMap<>();
     private final Map<String, CachedBrandData> brandCache = new ConcurrentHashMap<>();
+    private final SecureRandom secureRandom = new SecureRandom();
 
     private static class CachedBrandData {
         final UUID brandId;
@@ -66,7 +67,7 @@ public class SongSupplier {
                     if (unplayed.isEmpty()) return List.of();
 
                     List<SoundFragment> shuffled = new ArrayList<>(unplayed);
-                    Collections.shuffle(shuffled, ThreadLocalRandom.current());
+                    Collections.shuffle(shuffled, secureRandom);
 
                     List<SoundFragment> selected = shuffled.stream()
                             .limit(quantity)
@@ -90,8 +91,7 @@ public class SongSupplier {
                         selected = unplayed;
                     } else {
                         List<SoundFragment> shuffled = new ArrayList<>(unplayed);
-                        //Collections.shuffle(shuffled, new SecureRandom());
-                        Collections.shuffle(shuffled, ThreadLocalRandom.current());
+                        Collections.shuffle(shuffled, secureRandom);
                         selected = shuffled.stream()
                                 .limit(quantity)
                                 .collect(Collectors.toList());
@@ -148,7 +148,7 @@ public class SongSupplier {
                                 return Uni.createFrom().item(fragments);
                             })
                             .map(fragments -> {
-                                Collections.shuffle(fragments);
+                                Collections.shuffle(fragments, secureRandom);
                                 brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));
                                 return fragments;
                             });
@@ -169,7 +169,7 @@ public class SongSupplier {
                         return List.<SoundFragment>of();
                     }
                     List<SoundFragment> shuffled = new ArrayList<>(fragments);
-                    Collections.shuffle(shuffled, ThreadLocalRandom.current());
+                    Collections.shuffle(shuffled, secureRandom);
                     if (quantity >= shuffled.size()) {
                         return shuffled;
                     }
@@ -189,7 +189,7 @@ public class SongSupplier {
                         return List.<SoundFragment>of();
                     }
                     List<SoundFragment> shuffled = new ArrayList<>(fragments);
-                    Collections.shuffle(shuffled, ThreadLocalRandom.current());
+                    Collections.shuffle(shuffled, secureRandom);
                     if (quantity >= shuffled.size()) {
                         return shuffled;
                     }

@@ -258,7 +258,7 @@ public class BrandRepository extends AsyncRepository implements SchedulableRepos
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, scheduler=$6, ai_overriding=$7, profile_overriding=$8, " +
-                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, one_time_stream_policy=$14::one_time_stream_policy, submission_policy=$15, messaging_policy=$16, title_font=$17, is_temporary=$18, last_mod_user=$19, last_mod_date=$20 " +
+                                    "bit_rate=$9, slug_name=$10, description=$11, profile_id=$12, ai_agent_id=$13, one_time_stream_policy=$14::submission_policy, submission_policy=$15, messaging_policy=$16, title_font=$17, is_temporary=$18, last_mod_user=$19, last_mod_date=$20 " +
                                     "WHERE id=$21";
 
                             OffsetDateTime now = OffsetDateTime.now();
@@ -279,9 +279,9 @@ public class BrandRepository extends AsyncRepository implements SchedulableRepos
                                     .addString(station.getDescription())
                                     .addUUID(station.getProfileId())
                                     .addUUID(station.getAiAgentId())
-                                    .addString(station.getOneTimeStreamPolicy() != null ? station.getOneTimeStreamPolicy().name() : SubmissionPolicy.NOT_ALLOWED.name())
-                                    .addString(station.getSubmissionPolicy() != null ? station.getSubmissionPolicy().name() : SubmissionPolicy.NOT_ALLOWED.name())
-                                    .addString(station.getMessagingPolicy() != null ? station.getMessagingPolicy().name() : SubmissionPolicy.REVIEW_REQUIRED.name())
+                                    .addString(station.getOneTimeStreamPolicy().name())
+                                    .addString(station.getSubmissionPolicy().name())
+                                    .addString(station.getMessagingPolicy().name())
                                     .addString(station.getTitleFont())
                                     .addInteger(station.getIsTemporary() != null ? station.getIsTemporary() : 0)
                                     .addLong(user.getId())

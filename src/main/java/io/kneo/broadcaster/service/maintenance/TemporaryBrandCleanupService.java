@@ -54,7 +54,6 @@ public class TemporaryBrandCleanupService {
 
     private void performCleanup(Long tick) {
         List<String> activeSlugs = List.copyOf(radioStationPool.getActiveSlugNamesSnapshot());
-
         brandService.deleteTemporaryBrands(activeSlugs)
                 .subscribe().with(
                         deletedCount -> {

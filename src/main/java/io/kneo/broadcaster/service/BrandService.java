@@ -8,18 +8,12 @@ import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
-import io.kneo.broadcaster.dto.scheduler.OnceTriggerDTO;
-import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
-import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
-import io.kneo.broadcaster.dto.scheduler.TaskDTO;
-import io.kneo.broadcaster.dto.scheduler.TimeWindowTriggerDTO;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.scheduler.Scheduler;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -258,7 +252,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                 dto.setProfileOverridingEnabled(false);
             }
 
-            ScheduleDTO scheduleDTO = new ScheduleDTO();
+           /* ScheduleDTO scheduleDTO = new ScheduleDTO();
             Scheduler schedule = doc.getScheduler();
             scheduleDTO.setEnabled(schedule.isEnabled());
             if (schedule.isEnabled()) {
@@ -297,9 +291,9 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
 
                     scheduleDTO.setTasks(taskDTOs);
                 }
-            }
+            }*/
 
-            dto.setSchedule(scheduleDTO);
+            //dto.setSchedule(scheduleDTO);
 
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));

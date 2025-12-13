@@ -24,6 +24,6 @@ public class Script extends SecureDataEntity<UUID> {
     private List<UUID> brands;
     private List<Scene> scenes;
     private LanguageCode languageCode;
-    private SceneTimingMode timingMode = SceneTimingMode.ABSOLUTE_TIME;
+    private SceneTimingMode timingMode;
     private List<ScriptVariable> requiredVariables;
 }

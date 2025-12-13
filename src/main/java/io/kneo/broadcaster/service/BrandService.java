@@ -219,6 +219,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             dto.setColor(doc.getColor());
             dto.setTimeZone(doc.getTimeZone().getId());
             dto.setDescription(doc.getDescription());
+            dto.setTitleFont(doc.getTitleFont());
             dto.setSlugName(doc.getSlugName());
             dto.setManagedBy(doc.getManagedBy());
             dto.setBitRate(doc.getBitRate());

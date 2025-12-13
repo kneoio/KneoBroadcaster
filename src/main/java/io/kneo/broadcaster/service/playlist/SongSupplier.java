@@ -57,7 +57,7 @@ public class SongSupplier {
         return brandPlaylistMemory
                 .computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(fragmentType, k -> new ArrayList<>(List.of(new SupplierSongMemory())))
-                .get(0);
+                .getFirst();
     }
 
     public Uni<List<SoundFragment>> getBrandSongs(String brandName, PlaylistItemType fragmentType, int quantity) {

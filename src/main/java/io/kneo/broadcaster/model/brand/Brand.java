@@ -53,7 +53,6 @@ public class Brand extends SecureDataEntity<UUID> {
     private RadioStationStatus status;
     private AiAgentStatus aiAgentStatus;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
-    private boolean aiControlAllowed;
     private Long lastAgentContactAt;
     private LocalDateTime startTime;
 

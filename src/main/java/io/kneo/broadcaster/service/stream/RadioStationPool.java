@@ -139,7 +139,6 @@ public class RadioStationPool {
                     RadioStationStatus currentStatus = currentStation.getStatus();
                     AiAgentStatus currentAiStatus = currentStation.getAiAgentStatus();
                     List<Brand.StatusChangeRecord> currentHistory = currentStation.getStatusHistory();
-                    boolean currentAiControlAllowed = currentStation.isAiControlAllowed();
                     IStreamManager currentPlaylist = currentStation.getStreamManager();
 
                     updatePersistentFields(currentStation, updatedStation);
@@ -147,7 +146,6 @@ public class RadioStationPool {
                     currentStation.setStatus(currentStatus);
                     currentStation.setAiAgentStatus(currentAiStatus);
                     currentStation.setStatusHistory(currentHistory);
-                    currentStation.setAiControlAllowed(currentAiControlAllowed);
                     currentStation.setStreamManager(currentPlaylist);
 
                     if (currentPlaylist != null) {
@@ -217,7 +215,6 @@ public class RadioStationPool {
         Brand brand = pool.get(name);
         if (brand != null) {
             stats.setStatus(brand.getStatus());
-            stats.setAiControlAllowed(brand.isAiControlAllowed());
         } else {
             stats.setStatus(RadioStationStatus.OFF_LINE);
             stats.setAiControlAllowed(false);

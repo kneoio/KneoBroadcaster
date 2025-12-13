@@ -144,7 +144,7 @@ public class PlaylistManager {
                 .onItem().call(fragment -> {
                     try {
                         List<FileMetadata> metadataList = fragment.getFileMetadataList();
-                        FileMetadata metadata = metadataList.get(0);
+                        FileMetadata metadata = metadataList.getFirst();
 
                         return soundFragmentService.getFileBySlugName(
                                         fragment.getId(),
@@ -178,7 +178,7 @@ public class PlaylistManager {
     public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType, AddToQueueDTO queueDTO) {
         try {
             List<FileMetadata> metadataList = soundFragment.getFileMetadataList();
-            FileMetadata metadata = metadataList.get(0);
+            FileMetadata metadata = metadataList.getFirst();
             LiveSoundFragment liveSoundFragment = new LiveSoundFragment();
             SongMetadata songMetadata = new SongMetadata(soundFragment.getTitle(), soundFragment.getArtist());
             songMetadata.setMergingType(mergingType);

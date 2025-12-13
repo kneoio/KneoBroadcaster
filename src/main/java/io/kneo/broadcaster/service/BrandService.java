@@ -8,13 +8,11 @@ import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
-import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ListenerType;
-import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -253,9 +251,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                 dto.setProfileOverridingEnabled(false);
             }
 
-            ScheduleDTO scheduleDTO = new ScheduleDTO();
-            dto.setSchedule(scheduleDTO);
-
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
                 dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
@@ -276,17 +271,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             dto.setScripts(scriptDTOs);
             RadioStationStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
-            if (liveStatus == RadioStationStatus.ON_LINE
-                    || liveStatus == RadioStationStatus.WARMING_UP
-                    || liveStatus == RadioStationStatus.QUEUE_SATURATED) {
-                if (dto.getSchedule().isEnabled()) {
-                    dto.setAiControlAllowed(tuple.getItem3().isAiControlAllowed());
-                } else {
-                    if (doc.getManagedBy() != ManagedBy.ITSELF) {
-                        dto.setAiControlAllowed(true);
-                    }
-                }
-            }
             return dto;
         });
     }

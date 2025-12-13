@@ -8,6 +8,7 @@ import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
+import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
@@ -252,8 +253,8 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                 dto.setProfileOverridingEnabled(false);
             }
 
-           /* ScheduleDTO scheduleDTO = new ScheduleDTO();
-            Scheduler schedule = doc.getScheduler();
+            ScheduleDTO scheduleDTO = new ScheduleDTO();
+           /* Scheduler schedule = doc.getScheduler();
             scheduleDTO.setEnabled(schedule.isEnabled());
             if (schedule.isEnabled()) {
                 if (schedule.getTasks() != null && !schedule.getTasks().isEmpty()) {
@@ -293,7 +294,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                 }
             }*/
 
-            //dto.setSchedule(scheduleDTO);
+            dto.setSchedule(scheduleDTO);
 
             try {
                 dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));

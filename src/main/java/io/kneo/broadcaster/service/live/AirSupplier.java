@@ -13,12 +13,12 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.brand.AiOverriding;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.ScriptService;
@@ -128,9 +128,9 @@ public class AirSupplier {
         });
     }
 
-    private Uni<LiveRadioStationDTO> buildLiveRadioStation(Brand station) {
+    private Uni<LiveRadioStationDTO> buildLiveRadioStation(IStream stream) {
         LiveRadioStationDTO liveRadioStation = new LiveRadioStationDTO();
-        PlaylistManager playlistManager = station.getStreamManager().getPlaylistManager();
+        PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
         int queueSize = playlistManager.getPrioritizedQueue().size();
         int queuedDurationSec = playlistManager.getPrioritizedQueue().stream()
                 .flatMap(f -> f.getSegments().values().stream())
@@ -141,24 +141,24 @@ public class AirSupplier {
             double queuedDurationInMinutes = queuedDurationSec / 60.0;
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
             LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s ({} min)",
-                    station.getSlugName(), queueSize, queuedDurationSec, String.format("%.1f", queuedDurationInMinutes));
-            addMessage(station.getSlugName(), AiDjStats.MessageType.INFO,
+                    stream.getSlugName(), queueSize, queuedDurationSec, String.format("%.1f", queuedDurationInMinutes));
+            addMessage(stream.getSlugName(), AiDjStats.MessageType.INFO,
                     String.format("The playlist is saturated (size %s, duration %.1f min)", queueSize, queuedDurationInMinutes));
 
             return Uni.createFrom().item(() -> null);
         } else {
-            liveRadioStation.setRadioStationStatus(station.getStatus());
+            liveRadioStation.setRadioStationStatus(stream.getStatus());
         }
 
-        return aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+        return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
                     LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                    liveRadioStation.setSlugName(station.getSlugName());
-                    String stationName = station.getLocalizedName().get(broadcastingLanguage);
+                    liveRadioStation.setSlugName(stream.getSlugName());
+                    String stationName = stream.getLocalizedName().get(broadcastingLanguage);
                     liveRadioStation.setName(stationName);
-                    String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(station, agent);
+                    String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(stream, agent);
                     String additionalInstruction;
-                    AiOverriding overriding = station.getAiOverriding();
+                    AiOverriding overriding = stream.getAiOverriding();
                     if (overriding != null) {
                         liveRadioStation.setDjName(String.format("%s overridden as %s", agent.getName(), overriding.getName()));
                         additionalInstruction = "\n\nAdditional instruction: " + overriding.getPrompt();
@@ -168,7 +168,7 @@ public class AirSupplier {
                     }
 
                     
-                    return fetchPrompt(station, agent, broadcastingLanguage, additionalInstruction).flatMap(tuple -> {
+                    return fetchPrompt(stream, agent, broadcastingLanguage, additionalInstruction).flatMap(tuple -> {
                         if (tuple == null) {
                             return Uni.createFrom().item(liveRadioStation);
                         }
@@ -182,7 +182,7 @@ public class AirSupplier {
 
                         return aiAgentService.getDTO(copilotId, SuperUser.build(), LanguageCode.en)
                                 .map(copilot -> {
-                                    String secondaryVoice = copilot.getPrimaryVoice().get(0).getId();
+                                    String secondaryVoice = copilot.getPrimaryVoice().getFirst().getId();
                                     String secondaryVoiceName = copilot.getName();
                                     liveRadioStation.setTts(new TtsDTO(
                                             primaryVoice,
@@ -195,11 +195,11 @@ public class AirSupplier {
                 });
     }
 
-    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(Brand station, AiAgent agent, LanguageCode broadcastingLanguage, String additionalInstruction) {
-        return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
+    private Uni<Tuple2<List<SongPromptDTO>, String>> fetchPrompt(IStream stream, AiAgent agent, LanguageCode broadcastingLanguage, String additionalInstruction) {
+        return scriptService.getAllScriptsForBrandWithScenes(stream.getId(), SuperUser.build())
                 .flatMap(brandScripts -> {
-                    String brandSlugName = station.getSlugName();
-                    ZoneId zone = station.getTimeZone();
+                    String brandSlugName = stream.getSlugName();
+                    ZoneId zone = stream.getTimeZone();
                     ZonedDateTime now = ZonedDateTime.now(zone);
                     LocalTime stationCurrentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
@@ -215,7 +215,7 @@ public class AirSupplier {
                         
                         if (useRelativeTiming) {
                             oneTimeStream = true;
-                            Scene relativeScene = findActiveSceneByDuration(station, scenes);
+                            Scene relativeScene = findActiveSceneByDuration(stream, scenes);
                             if (relativeScene != null) {
                                 List<UUID> promptIds = relativeScene.getPrompts() != null ?
                                         relativeScene.getPrompts().stream()
@@ -248,20 +248,20 @@ public class AirSupplier {
                         }
                     }
 
-                    if (activeScene == null) {
+                    if ( activeScene == null) {
                         if (oneTimeStream) {
-                            LOGGER.info("Station '{}': All scenes completed in relative timing mode. Setting status to OFF_LINE.", station.getSlugName());
-                            station.setStatus(RadioStationStatus.OFF_LINE);
-                            addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "Stream completed - all scenes played");
+                            LOGGER.info("Station '{}': All scenes completed in relative timing mode. Setting status to OFF_LINE.", stream.getSlugName());
+                            stream.setStatus(RadioStationStatus.OFF_LINE);
+                            addMessage(stream.getSlugName(), AiDjStats.MessageType.INFO, "Stream completed - all scenes played");
                         } else {
-                            LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", station.getSlugName(), stationCurrentTime, currentDayOfWeek);
-                            addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + stationCurrentTime + ")");
+                            LOGGER.warn("Station '{}' skipped: No active scene found for current time {} (day {})", stream.getSlugName(), stationCurrentTime, currentDayOfWeek);
+                            addMessage(stream.getSlugName(), AiDjStats.MessageType.WARNING, "No active scene found (time:" + stationCurrentTime + ")");
                         }
                         return Uni.createFrom().item(() -> null);
                     }
 
                     double effectiveTalkativity = activeScene.getTalkativity();
-                    double rate = station.getPopularityRate();
+                    double rate = stream.getPopularityRate();
                     if (rate < 4.0) {
                         double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
                         effectiveTalkativity = Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
@@ -269,32 +269,32 @@ public class AirSupplier {
 
                     BrandLogger.logActivity(brandSlugName, "decision", "effectiveTalkativity : %s", effectiveTalkativity);
                     if (!oneTimeStream && !activeScene.isOneTimeRun() && AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "mixing ...");
-                        jinglePlaybackHandler.handleJinglePlayback(station, activeScene);
+                        addMessage(stream.getSlugName(), AiDjStats.MessageType.INFO, "mixing ...");
+                        jinglePlaybackHandler.handleJinglePlayback(stream, activeScene);
                         return Uni.createFrom().item(() -> null);
                     } else {
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.INFO, "DJ is curating ...");
+                        addMessage(stream.getSlugName(), AiDjStats.MessageType.INFO, "DJ is curating ...");
                     }
 
                     if (allMasterPromptIds.isEmpty()) {
                         LOGGER.warn("Station '{}' skipped: Active scene '{}' has no prompts configured",
-                                station.getSlugName(), currentSceneTitle);
-                        addMessage(station.getSlugName(), AiDjStats.MessageType.WARNING,
+                                stream.getSlugName(), currentSceneTitle);
+                        addMessage(stream.getSlugName(), AiDjStats.MessageType.WARNING,
                                 String.format("Active scene '%s' has no prompts", currentSceneTitle));
                         return Uni.createFrom().item(() -> null);
                     }
 
                     LOGGER.debug("Station '{}': Found {} master prompt IDs in active scene, DJ language: {}",
-                            station.getSlugName(), allMasterPromptIds.size(), broadcastingLanguage);
+                            stream.getSlugName(), allMasterPromptIds.size(), broadcastingLanguage);
 
                     List<Uni<Prompt>> promptUnis = allMasterPromptIds.stream()
                             .map(masterId -> promptService.getById(masterId, SuperUser.build())
                                     .flatMap(masterPrompt -> {
                                         LOGGER.debug("Station '{}': Master prompt ID={}, title={}",
-                                                station.getSlugName(), masterId, masterPrompt.getTitle());
+                                                stream.getSlugName(), masterId, masterPrompt.getTitle());
 
                                         if (masterPrompt.getLanguageCode() == broadcastingLanguage) {
-                                            LOGGER.debug("Station '{}': Using master prompt directly (language matches)", station.getSlugName());
+                                            LOGGER.debug("Station '{}': Using master prompt directly (language matches)", stream.getSlugName());
                                             return Uni.createFrom().item(masterPrompt);
                                         }
 
@@ -302,17 +302,17 @@ public class AirSupplier {
                                                 .map(translatedPrompt -> {
                                                     if (translatedPrompt != null) {
                                                         LOGGER.debug("Station '{}': Found translation ID={}, title={}",
-                                                                station.getSlugName(), translatedPrompt.getId(), translatedPrompt.getTitle());
+                                                                stream.getSlugName(), translatedPrompt.getId(), translatedPrompt.getTitle());
                                                         return translatedPrompt;
                                                     } else {
                                                         LOGGER.warn("Station '{}': No translation found for master ID={} in language={}, falling back to master (language={})",
-                                                                station.getSlugName(), masterId, broadcastingLanguage, masterPrompt.getLanguageCode());
+                                                                stream.getSlugName(), masterId, broadcastingLanguage, masterPrompt.getLanguageCode());
                                                         return masterPrompt;
                                                     }
                                                 });
                                     })
                                     .onFailure().invoke(t -> LOGGER.error("Station '{}': Failed to fetch prompt for master ID={}: {}",
-                                            station.getSlugName(), masterId, t.getMessage(), t)))
+                                            stream.getSlugName(), masterId, t.getMessage(), t)))
                             .collect(Collectors.toList());
 
                     String finalCurrentSceneTitle = currentSceneTitle;
@@ -320,12 +320,12 @@ public class AirSupplier {
                     Map<String, Object> finalUserVariables = activeUserVariables;
                     return Uni.join().all(promptUnis).andFailFast()
                             .flatMap(prompts -> {
-                                LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", station.getSlugName(), prompts.size());
+                                LOGGER.debug("Station '{}': Received {} prompts from Uni.join()", stream.getSlugName(), prompts.size());
                                 Random random = new Random();
-                                return fetchSongsForScene(station, finalActiveScene)
+                                return fetchSongsForScene(stream, finalActiveScene)
                                         .flatMap(songs -> {
                                             if (songs == null || songs.isEmpty()) {
-                                                LOGGER.error("Station '{}': No songs available for prompt generation", station.getSlugName());
+                                                LOGGER.error("Station '{}': No songs available for prompt generation", stream.getSlugName());
                                                 return Uni.createFrom().item(Tuple2.of(List.<SongPromptDTO>of(), finalCurrentSceneTitle));
                                             }
 
@@ -333,12 +333,12 @@ public class AirSupplier {
                                                     .map(song -> {
                                                         Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
                                                         LOGGER.debug("Station '{}': Selected prompt '{}' for song '{}'",
-                                                                station.getSlugName(), selectedPrompt.getTitle(), song.getTitle());
+                                                                stream.getSlugName(), selectedPrompt.getTitle(), song.getTitle());
 
                                                         return draftFactory.createDraft(
                                                                 song,
                                                                 agent,
-                                                                station,
+                                                                stream,
                                                                 selectedPrompt.getDraftId(),
                                                                 broadcastingLanguage,
                                                                 finalUserVariables
@@ -364,22 +364,22 @@ public class AirSupplier {
                 });
     }
 
-    private Uni<List<SoundFragment>> fetchSongsForScene(Brand station, Scene scene) {
-        int quantity = randomizator.decideFragmentCount(station.getSlugName());
+    private Uni<List<SoundFragment>> fetchSongsForScene(IStream stream, Scene scene) {
+        int quantity = randomizator.decideFragmentCount(stream.getSlugName());
         StagePlaylist stagePlaylist = scene.getStagePlaylist();
 
-        if (stagePlaylist == null) {
-            return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, quantity);
+        if (stagePlaylist == null) {  //TODO it should be always there, later remove the condition
+            return songSupplier.getNextSong(stream.getSlugName(), PlaylistItemType.SONG, quantity);
         }
 
         WayOfSourcing sourcing = stagePlaylist.getSourcing();
 
         if (sourcing == WayOfSourcing.RANDOM) {
-            return songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, quantity);
+            return songSupplier.getNextSong(stream.getSlugName(), PlaylistItemType.SONG, quantity);
         }
 
         if (sourcing == WayOfSourcing.QUERY) {
-            return songSupplier.getNextSongByQuery(station.getId(), stagePlaylist, quantity);
+            return songSupplier.getNextSongByQuery(stream.getId(), stagePlaylist, quantity);
         }
 
         if (sourcing == WayOfSourcing.STATIC_LIST) {
@@ -430,29 +430,29 @@ public class AirSupplier {
         return true;
     }
 
-    private Scene findActiveSceneByDuration(Brand station, List<Scene> scenes) {
-        LocalDateTime startTime = station.getStartTime();
+    private Scene findActiveSceneByDuration(IStream stream, List<Scene> scenes) {
+        LocalDateTime startTime = stream.getStartTime();
         if (startTime == null) {
-            LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());
+            LOGGER.warn("Station '{}': No start time set for relative timing mode", stream.getSlugName());
             return null;
         }
         
         long elapsedSeconds = ChronoUnit.SECONDS.between(startTime, LocalDateTime.now());
-        LOGGER.debug("Station '{}': Elapsed time since stream start: {} seconds", station.getSlugName(), elapsedSeconds);
+        LOGGER.debug("Station '{}': Elapsed time since stream start: {} seconds", stream.getSlugName(), elapsedSeconds);
         
         long cumulativeDuration = 0;
         for (Scene scene : scenes) {
             int sceneDuration = scene.getDurationSeconds();
             if (elapsedSeconds < cumulativeDuration + sceneDuration) {
                 LOGGER.debug("Station '{}': Scene '{}' is active (elapsed: {}s, scene range: {}-{}s)",
-                        station.getSlugName(), scene.getTitle(), elapsedSeconds, cumulativeDuration, cumulativeDuration + sceneDuration);
+                        stream.getSlugName(), scene.getTitle(), elapsedSeconds, cumulativeDuration, cumulativeDuration + sceneDuration);
                 return scene;
             }
             cumulativeDuration += sceneDuration;
         }
         
         LOGGER.info("Station '{}': All scenes completed (elapsed: {}s, total duration: {}s). Stream should stop.",
-                station.getSlugName(), elapsedSeconds, cumulativeDuration);
+                stream.getSlugName(), elapsedSeconds, cumulativeDuration);
         return null;
     }
 

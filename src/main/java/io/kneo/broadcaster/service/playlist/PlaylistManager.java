@@ -6,13 +6,13 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStats;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
@@ -68,9 +68,9 @@ public class PlaylistManager {
     private final SoundFragmentService soundFragmentService;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final AudioSegmentationService segmentationService;
-    private final SongSupplier songSupplier;
+    private final ISupplier songSupplier;
     private final BrandSoundFragmentUpdateService brandSoundFragmentUpdateService;
-    private final Brand brand;
+    private final IStream brand;
     private final String tempBaseDir;
     private volatile long lastStarvingFeedTime = 0;
     private final int segmentDuration;
@@ -83,13 +83,13 @@ public class PlaylistManager {
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
                            BroadcasterConfig broadcasterConfig,
                            IStreamManager streamManager,
-                           SongSupplier songSupplier,
+                           ISupplier songSupplier,
                            BrandSoundFragmentUpdateService brandSoundFragmentUpdateService,
                            AiHelperService aiHelperService
     ) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
         this.segmentationService = streamManager.getSegmentationService();
-        this.brand = streamManager.getBrand();
+        this.brand = streamManager.getStream();
         this.songSupplier = songSupplier;
         this.brandSoundFragmentUpdateService = brandSoundFragmentUpdateService;
         this.aiHelperService = aiHelperService;

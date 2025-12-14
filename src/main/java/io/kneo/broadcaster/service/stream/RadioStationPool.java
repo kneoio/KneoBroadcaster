@@ -2,11 +2,12 @@ package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
+import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.service.BrandService;
+import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -21,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class RadioStationPool {
     private static final Logger LOGGER = LoggerFactory.getLogger(RadioStationPool.class);
-    private final ConcurrentHashMap<String, Brand> pool = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, IStream> pool = new ConcurrentHashMap<>();
 
     @Inject
     BrandService brandService;
@@ -61,12 +61,15 @@ public class RadioStationPool {
     @Inject
     private SongSupplier songSupplier;
 
-    public Uni<Brand> initializeStation(String brandName) {
+    @Inject
+    private OneTimeStreamService oneTimeStreamService;
+
+    public Uni<IStream> initializeStation(String brandName) {
         LOGGER.info("Attempting to initialize station for brand: {}", brandName);
 
         return Uni.createFrom().item(brandName)
                 .onItem().transformToUni(bn -> {
-                    Brand stationAlreadyActive = pool.get(bn);
+                    IStream stationAlreadyActive = pool.get(bn);
                     if (stationAlreadyActive != null &&
                             (stationAlreadyActive.getStatus() == RadioStationStatus.ON_LINE ||
                                     stationAlreadyActive.getStatus() == RadioStationStatus.WARMING_UP)) {
@@ -78,7 +81,7 @@ public class RadioStationPool {
                             .onItem().transformToUni(stationFromDb -> {
                                 if (stationFromDb == null) {
                                     LOGGER.warn("Station with brandName {} not found in database. Cannot initialize.", bn);
-                                    Brand staleStation = pool.remove(bn);
+                                    IStream staleStation = pool.remove(bn);
                                     if (staleStation != null && staleStation.getStreamManager() != null) {
                                         LOGGER.info("Shutting down playlist for stale pooled station {} (not found in DB).", bn);
                                         staleStation.getStreamManager().shutdown();
@@ -86,7 +89,7 @@ public class RadioStationPool {
                                     return Uni.createFrom().failure(new RuntimeException("Station not found in DB: " + bn));
                                 }
 
-                                Brand finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
+                                IStream finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
                                     if (currentInPool != null &&
                                             (currentInPool.getStatus() == RadioStationStatus.ON_LINE ||
                                                     currentInPool.getStatus() == RadioStationStatus.WARMING_UP)) {
@@ -113,7 +116,7 @@ public class RadioStationPool {
                                             aiHelperService
                                     );
                                     stationFromDb.setStreamManager(newPlaylist);
-                                    newPlaylist.setBrand(stationFromDb);
+                                    newPlaylist.setStream(stationFromDb);
                                     newPlaylist.initialize();
 
                                     LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP/WAITING.", key);
@@ -125,65 +128,65 @@ public class RadioStationPool {
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
-    public Uni<Brand> updateStationConfig(String brandName, Brand updatedStation) {
-        LOGGER.info("Hot-updating configuration for station: {}", brandName);
-
-        return Uni.createFrom().item(brandName)
-                .onItem().transform(bn -> {
-                    Brand currentStation = pool.get(bn);
-                    if (currentStation == null) {
-                        LOGGER.warn("Station {} not found in pool during config update", bn);
-                        return null;
+    public Uni<IStream> initializeStream(OneTimeStream oneTimeStream) {
+        return Uni.createFrom().item(oneTimeStream)
+                .onItem().transformToUni(ots -> {
+                    IStream stationAlreadyActive = pool.get(ots.getSlugName());
+                    if (stationAlreadyActive != null &&
+                            (stationAlreadyActive.getStatus() == RadioStationStatus.ON_LINE ||
+                                    stationAlreadyActive.getStatus() == RadioStationStatus.WARMING_UP)) {
+                        LOGGER.info("Stream {} already active (status: {}). Returning existing instance.", ots.getSlugName(), stationAlreadyActive.getStatus());
+                        return Uni.createFrom().item(stationAlreadyActive);
                     }
 
-                    RadioStationStatus currentStatus = currentStation.getStatus();
-                    AiAgentStatus currentAiStatus = currentStation.getAiAgentStatus();
-                    List<Brand.StatusChangeRecord> currentHistory = currentStation.getStatusHistory();
-                    IStreamManager currentPlaylist = currentStation.getStreamManager();
+                    return oneTimeStreamService.getBySlugName(ots)
+                            .onItem().transformToUni(stream -> {
 
-                    updatePersistentFields(currentStation, updatedStation);
+                                IStream finalStationToUse = pool.compute(ots.getSlugName(), (key, currentInPool) -> {
+                                    if (currentInPool != null &&
+                                            (currentInPool.getStatus() == RadioStationStatus.ON_LINE ||
+                                                    currentInPool.getStatus() == RadioStationStatus.WARMING_UP)) {
+                                        LOGGER.info("Stream {} was concurrently initialized and is active in pool. Using that instance.", key);
+                                        return currentInPool;
+                                    }
 
-                    currentStation.setStatus(currentStatus);
-                    currentStation.setAiAgentStatus(currentAiStatus);
-                    currentStation.setStatusHistory(currentHistory);
-                    currentStation.setStreamManager(currentPlaylist);
+                                    if (currentInPool != null && currentInPool.getStreamManager() != null) {
+                                        LOGGER.info("Shutting down stream of existing non-active station {} (status: {}) before replacing.", key, currentInPool.getStatus());
+                                        currentInPool.getStreamManager().shutdown();
+                                    }
 
-                    if (currentPlaylist != null) {
-                        currentPlaylist.setBrand(currentStation);
-                    }
-
-                    LOGGER.info("Station {} configuration updated without downtime", bn);
-                    return currentStation;
-                });
+                                    LOGGER.info("RadioStationPool: Creating new StreamManager instance for stream {}.", key);
+                                    feederTimer.setDurationSec(config.getSegmentDuration());
+                                    StreamManager streamManager = new StreamManager(
+                                            sliderTimer,
+                                            feederTimer,
+                                            broadcasterConfig,
+                                            config,
+                                            soundFragmentService,
+                                            segmentationService,
+                                            songSupplier,
+                                            updateService,
+                                            aiHelperService
+                                    );
+                                    streamManager.setStream(ots);
+                                    streamManager.initialize();
+                                    LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP.", key);
+                                    return stream;
+                                });
+                                return Uni.createFrom().item(finalStationToUse);
+                            });
+                })
+                .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize stream {}: {}", oneTimeStream.getSlugName(), failure.getMessage(), failure));
     }
 
-    private void updatePersistentFields(Brand doc, Brand updated) {
-        doc.setLocalizedName(updated.getLocalizedName());
-        doc.setSlugName(updated.getSlugName());
-        doc.setTimeZone(updated.getTimeZone());
-        doc.setArchived(updated.getArchived());
-        doc.setCountry(updated.getCountry());
-        doc.setBitRate(updated.getBitRate());
-        doc.setManagedBy(updated.getManagedBy());
-        doc.setColor(updated.getColor());
-        doc.setDescription(updated.getDescription());
-        doc.setAiAgentId(updated.getAiAgentId());
-        doc.setProfileId(updated.getProfileId());
-        doc.setLabelList(updated.getLabelList());
-        doc.setAuthor(updated.getAuthor());
-        doc.setLastModifier(updated.getLastModifier());
-        doc.setRegDate(updated.getRegDate());
-        doc.setLastModifiedDate(updated.getLastModifiedDate());
+    public Uni<IStream> get(String brandName) {
+        IStream stream = pool.get(brandName);
+        return Uni.createFrom().item(stream);
     }
 
-    public Uni<Brand> get(String brandName) {
-        Brand brand = pool.get(brandName);
-        return Uni.createFrom().item(brand);
-    }
-
-    public Uni<Brand> stopAndRemove(String brandName) {
+    public Uni<IStream> stopAndRemove(String brandName) {
         LOGGER.info("Attempting to stop and remove station: {}", brandName);
-        Brand brand = pool.remove(brandName);
+        IStream brand = pool.remove(brandName);
 
         if (brand != null) {
             LOGGER.info("Station {} found in pool and removed. Shutting down its playlist.", brandName);
@@ -198,7 +201,7 @@ public class RadioStationPool {
         }
     }
 
-    public Collection<Brand> getOnlineStationsSnapshot() {
+    public Collection<IStream> getOnlineStationsSnapshot() {
         return new ArrayList<>(pool.values());
     }
 
@@ -206,13 +209,13 @@ public class RadioStationPool {
         return new HashSet<>(pool.keySet());
     }
 
-    public Optional<Brand> getStation(String slugName) {
+    public Optional<IStream> getStation(String slugName) {
         return Optional.ofNullable(pool.get(slugName));
     }
 
     public Uni<BroadcastingStats> getLiveStatus(String name) {
         BroadcastingStats stats = new BroadcastingStats();
-        Brand brand = pool.get(name);
+        IStream brand = pool.get(name);
         if (brand != null) {
             stats.setStatus(brand.getStatus());
         } else {

@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -23,7 +24,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @NoArgsConstructor
-public class Brand extends SecureDataEntity<UUID> {
+public class Brand extends SecureDataEntity<UUID> implements IStream {
 
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private IStreamManager streamManager;
@@ -69,6 +70,11 @@ public class Brand extends SecureDataEntity<UUID> {
             statusHistory.add(record);
             this.status = newStatus;
         }
+    }
+
+    @Override
+    public void setLastAgentContactAt(long l) {
+
     }
 
     public String toString() {

@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.dashboard;
 
 import io.kneo.broadcaster.dto.dashboard.CountryStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
-import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
@@ -36,8 +36,8 @@ public class StationDashboardService {
                     if (optionalStation.isEmpty()) {
                         return Uni.createFrom().item(Optional.empty());
                     }
-                    Brand station = optionalStation.get();
-                    StationStatsDTO stats = createStationStats(brand, station);
+                    IStream stream = optionalStation.get();
+                    StationStatsDTO stats = createStationStats(brand, stream);
                     
                     // Get country stats from in-memory accumulator
                     List<CountryStatsDTO> countryStats = statsAccumulator.getCountryStats(brand).entrySet().stream()
@@ -47,7 +47,7 @@ public class StationDashboardService {
                             .collect(Collectors.toList());
                     stats.setListenersByCountry(countryStats);
                     
-                    return aiHelperService.getAiDjStats(station)
+                    return aiHelperService.getAiDjStats(stream)
                             .onFailure().recoverWithItem(() -> null)
                             .map(aiDjStats -> {
                                 stats.setAiDjStats(aiDjStats);
@@ -56,7 +56,7 @@ public class StationDashboardService {
                 });
     }
 
-    private StationStatsDTO createStationStats(String brand, Brand station) {
+    private StationStatsDTO createStationStats(String brand, IStream station) {
         StationStatsDTO stationStats = new StationStatsDTO();
         stationStats.setBrandName(brand);
         stationStats.setStatus(station.getStatus());

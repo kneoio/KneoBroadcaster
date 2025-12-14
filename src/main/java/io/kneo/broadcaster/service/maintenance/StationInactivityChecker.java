@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.maintenance;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.BrandLogger;
@@ -110,7 +110,7 @@ public class StationInactivityChecker {
                 .toUni()
                 .replaceWithVoid()
                 .chain(() -> {
-                    Collection<Brand> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
+                    Collection<IStream> currentOnlineStations = radioStationPool.getOnlineStationsSnapshot();
 
                     return Multi.createFrom().iterable(currentOnlineStations)
                             .onItem().transformToUni(radioStation -> {

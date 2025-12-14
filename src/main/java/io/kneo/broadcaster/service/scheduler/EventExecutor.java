@@ -20,6 +20,7 @@ import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.PromptService;
@@ -115,7 +116,7 @@ public class EventExecutor {
 
         return brandService.getById(brandId, SuperUser.build())
                 .chain(station -> {
-                    Optional<Brand> stationOpt = radioStationPool.getStation(station.getSlugName());
+                    Optional<IStream> stationOpt = radioStationPool.getStation(station.getSlugName());
                     if (stationOpt.isEmpty()) {
                         LOGGER.info("Station {} is offline, skipping event {}", station.getSlugName(), event.getId());
                         return Uni.createFrom().voidItem();

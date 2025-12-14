@@ -3,9 +3,9 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -62,24 +62,24 @@ public class JinglePlaybackHandler {
         this.aiAgentService = aiAgentService;
     }
 
-    public void handleJinglePlayback(Brand station, Scene scene) {
+    public void handleJinglePlayback(IStream stream, Scene scene) {
         LOGGER.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
-                station.getSlugName(), scene.getTalkativity());
+                stream.getSlugName(), scene.getTalkativity());
 
         boolean useJingle = Math.random() < 0.7;
 
         if (useJingle) {
-            handleJingleAndSong(station);
+            handleJingleAndSong(stream);
         } else {
-            handleTwoSongs(station);
+            handleTwoSongs(stream);
         }
     }
 
-    private void handleJingleAndSong(Brand station) {
+    private void handleJingleAndSong(IStream stream) {
         Uni.combine().all()
                 .unis(
-                        soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, station.getId()),
-                        songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, 1)
+                        soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId()),
+                        songSupplier.getNextSong(stream.getSlugName(), PlaylistItemType.SONG, 1)
                 )
                 .asTuple()
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
@@ -89,7 +89,7 @@ public class JinglePlaybackHandler {
                             List<SoundFragment> songs = tuple.getItem2();
 
                             if (jingles.isEmpty()) {
-                                LOGGER.warn("Station '{}': No jingles available for playback", station.getSlugName());
+                                LOGGER.warn("Station '{}': No jingles available for playback", stream.getSlugName());
                                 return;
                             }
 
@@ -97,7 +97,7 @@ public class JinglePlaybackHandler {
                             SoundFragment selectedSong = songs.get(0);
 
                             LOGGER.info("Station '{}': Concatenating jingle '{}' with song '{}'",
-                                    station.getSlugName(), selectedJingle.getTitle(), selectedSong.getTitle());
+                                    stream.getSlugName(), selectedJingle.getTitle(), selectedSong.getTitle());
 
                             AddToQueueDTO queueDTO = new AddToQueueDTO();
                             queueDTO.setMergingMethod(MergingType.FILLER_JINGLE);
@@ -108,15 +108,15 @@ public class JinglePlaybackHandler {
                             soundFragments.put("song2", selectedSong.getId());
                             queueDTO.setSoundFragments(soundFragments);
 
-                            concatenate(station, queueDTO, "jingle + song");
+                            concatenate(stream, queueDTO, "jingle + song");
                         },
                         failure -> LOGGER.error("Station '{}': Failed to fetch jingles/songs: {}",
-                                station.getSlugName(), failure.getMessage(), failure)
+                                stream.getSlugName(), failure.getMessage(), failure)
                 );
     }
 
-    private void handleTwoSongs(Brand station) {
-        songSupplier.getNextSong(station.getSlugName(), PlaylistItemType.SONG, 2)
+    private void handleTwoSongs(IStream stream) {
+        songSupplier.getNextSong(stream.getSlugName(), PlaylistItemType.SONG, 2)
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribe().with(
                         songs -> {
@@ -124,7 +124,7 @@ public class JinglePlaybackHandler {
                             SoundFragment firstSong = songs.get(0);
                             SoundFragment secondSong = songs.get(1);
 
-                            BrandLogger.logActivity(station.getSlugName(), "handle_two_songs", " %s + %s", firstSong.getTitle(), secondSong.getTitle());
+                            BrandLogger.logActivity(stream.getSlugName(), "handle_two_songs", " %s + %s", firstSong.getTitle(), secondSong.getTitle());
 
                             AddToQueueDTO queueDTO = new AddToQueueDTO();
                             queueDTO.setMergingMethod(MergingType.SONG_CROSSFADE_SONG);
@@ -135,14 +135,14 @@ public class JinglePlaybackHandler {
                             soundFragments.put("song2", secondSong.getId());
                             queueDTO.setSoundFragments(soundFragments);
 
-                            concatenate(station, queueDTO, "song + crossfade + song");
+                            concatenate(stream, queueDTO, "song + crossfade + song");
                         },
                         failure -> LOGGER.error("Station '{}': Failed to fetch songs: {}",
-                                station.getSlugName(), failure.getMessage(), failure)
+                                stream.getSlugName(), failure.getMessage(), failure)
                 );
     }
 
-    private void concatenate(Brand station, AddToQueueDTO queueDTO, String type) {
+    private void concatenate(IStream stream, AddToQueueDTO queueDTO, String type) {
         try {
             AudioMixingHandler handler = new AudioMixingHandler(
                     broadcasterConfig,
@@ -153,16 +153,16 @@ public class JinglePlaybackHandler {
                     fFmpegProvider
             );
 
-            handler.handleConcatenationAndFeed(station, queueDTO, ConcatenationType.CROSSFADE)
+            handler.handleConcatenationAndFeed(stream, queueDTO, ConcatenationType.CROSSFADE)
                     .subscribe().with(
                             success -> LOGGER.info("Station '{}': Successfully queued {} concatenation",
-                                    station.getSlugName(), type),
+                                    stream.getSlugName(), type),
                             failure -> LOGGER.error("Station '{}': Failed to concatenate {}: {}",
-                                    station.getSlugName(), type, failure.getMessage(), failure)
+                                    stream.getSlugName(), type, failure.getMessage(), failure)
                     );
         } catch (IOException | AudioMergeException e) {
             LOGGER.error("Station '{}': Failed to create AudioMixingHandler: {}",
-                    station.getSlugName(), e.getMessage(), e);
+                    stream.getSlugName(), e.getMessage(), e);
         }
     }
 }

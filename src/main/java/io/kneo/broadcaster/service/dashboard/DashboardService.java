@@ -5,8 +5,8 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.dto.dashboard.StatsDTO;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
 import io.kneo.broadcaster.service.scheduler.EventTriggerJob;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -40,7 +40,7 @@ public class DashboardService {
     public Uni<StatsDTO> getInfo() {
         return Uni.createFrom().item(() -> {
             StatsDTO stats = new StatsDTO();
-            Collection<Brand> stations = radioStationPool.getOnlineStationsSnapshot();
+            Collection<IStream> stations = radioStationPool.getOnlineStationsSnapshot();
 
             stats.setTotalStations(stations.size());
             stats.setMinimumSegments(config.getMinSegments());

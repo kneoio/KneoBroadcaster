@@ -69,7 +69,7 @@ public class TemporaryBrandCleanupService {
                         return Uni.createFrom().item(0);
                     }
                     return Uni.join().all(archiveOps).andFailFast()
-                            .onItem().transform(results -> results.size());
+                            .onItem().transform(List::size);
                 })
                 .subscribe().with(
                         archivedCount -> {

@@ -11,6 +11,7 @@ import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ListenerService;
@@ -68,7 +69,7 @@ public class DraftFactory {
     public Uni<String> createDraft(
             SoundFragment song,
             AiAgent agent,
-            Brand station,
+            IStream stream,
             UUID draftId,
             LanguageCode selectedLanguage,
             Map<String, Object> userVariables
@@ -79,11 +80,11 @@ public class DraftFactory {
         
         return Uni.combine().all()
                 .unis(
-                        getDraftTemplate(draftId, station.getSlugName(), selectedLanguage),
-                        profileService.getById(station.getProfileId()),
+                        getDraftTemplate(draftId, stream.getSlugName(), selectedLanguage),
+                        profileService.getById(stream.getProfileId()),
                         resolveGenreNames(song, selectedLanguage),
                         copilotUni,
-                        listenerService.getBrandListeners(station.getSlugName(), 500, 0, SuperUser.build(), null)
+                        listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null)
                 )
                 .asTuple()
                 .emitOn(getDefaultWorkerPool())
@@ -100,7 +101,7 @@ public class DraftFactory {
                                 song,
                                 agent,
                                 copilot,
-                                station,
+                                stream,
                                 profile,
                                 genres,
                                 listeners,
@@ -182,14 +183,14 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             AiAgent copilot,
-            Brand station,
+            IStream stream,
             Profile profile,
             List<String> genres,
             List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners,
             LanguageCode selectedLanguage,
             Map<String, Object> userVariables
     ) {
-        String countryIso = station.getCountry().getIsoCode();
+        String countryIso = stream.getCountry().getIsoCode();
         Map<String, Object> data = new HashMap<>();
         data.put("songTitle", song.getTitle());
         data.put("songArtist", song.getArtist());
@@ -198,11 +199,11 @@ public class DraftFactory {
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
         data.put("listeners", listeners);
-        String brand = station.getLocalizedName().get(selectedLanguage);
+        String brand = stream.getLocalizedName().get(selectedLanguage);
         if (brand == null) {
-            brand = station.getLocalizedName().values().iterator().next();
+            brand = stream.getLocalizedName().values().iterator().next();
         }
-        AiOverriding overriddenAiDj = station.getAiOverriding();
+        AiOverriding overriddenAiDj = stream.getAiOverriding();
         if (overriddenAiDj != null){
             data.put("djName", overriddenAiDj.getName());
             data.put("djVoiceId", overriddenAiDj.getPrimaryVoice());
@@ -210,7 +211,7 @@ public class DraftFactory {
             data.put("djName", agent.getName());
             data.put("djVoiceId", agent.getPrimaryVoice().stream().findAny().orElseThrow().getId());
         }
-        ProfileOverriding overriddenProfile = station.getProfileOverriding();
+        ProfileOverriding overriddenProfile = stream.getProfileOverriding();
         if (overriddenProfile != null){
             data.put("profileName", overriddenProfile.getName());
             data.put("profileDescription", overriddenProfile.getDescription());
@@ -219,7 +220,7 @@ public class DraftFactory {
             data.put("profileDescription", profile.getDescription());
         }
         data.put("stationBrand", brand);
-        data.put("country", station.getCountry());
+        data.put("country", stream.getCountry());
         data.put("language", selectedLanguage);
         data.put("random", random);
         data.put("perplexity", new PerpelxitySearchHelper(perplexityApiClient));

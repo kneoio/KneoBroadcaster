@@ -16,21 +16,18 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.ListenerService;
-import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.service.ScriptService;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.kneo.broadcaster.service.stream.HLSSongStats;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.StreamManagerStats;
-import io.kneo.broadcaster.util.Randomizator;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
@@ -71,11 +68,6 @@ public class AiHelperService {
     private final ListenerService listenerService;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
-    private final PromptService promptService;
-    private final SongSupplier songSupplier;
-    private final DraftFactory draftFactory;
-    private final JinglePlaybackHandler jinglePlaybackHandler;
-    private final Randomizator randomizator;
     private final SoundFragmentService soundFragmentService;
     private final RefService refService;
 
@@ -89,10 +81,6 @@ public class AiHelperService {
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
             ScriptService scriptService,
-            PromptService promptService,
-            SongSupplier songSupplier,
-            DraftFactory draftFactory,
-            JinglePlaybackHandler jinglePlaybackHandler, Randomizator randomizator,
             BrandService brandService,
             io.kneo.broadcaster.service.ListenerService listenerService,
             io.kneo.broadcaster.service.soundfragment.SoundFragmentService soundFragmentService,
@@ -101,11 +89,6 @@ public class AiHelperService {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
-        this.promptService = promptService;
-        this.songSupplier = songSupplier;
-        this.draftFactory = draftFactory;
-        this.jinglePlaybackHandler = jinglePlaybackHandler;
-        this.randomizator = randomizator;
         this.brandService = brandService;
         this.listenerService = listenerService;
         this.soundFragmentService = soundFragmentService;
@@ -310,13 +293,13 @@ public class AiHelperService {
         return null;
     }
 
-    public Uni<AiDjStats> getAiDjStats(Brand station) {
-        return scriptService.getAllScriptsForBrandWithScenes(station.getId(), SuperUser.build())
+    public Uni<AiDjStats> getAiDjStats(IStream stream) {
+        return scriptService.getAllScriptsForBrandWithScenes(stream.getId(), SuperUser.build())
                 .flatMap(scripts -> {
                     if (scripts.isEmpty()) {
                         return Uni.createFrom().item(() -> null);
                     }
-                    ZonedDateTime now = ZonedDateTime.now(station.getTimeZone());
+                    ZonedDateTime now = ZonedDateTime.now(stream.getTimeZone());
                     LocalTime currentTime = now.toLocalTime();
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
@@ -326,10 +309,10 @@ public class AiHelperService {
                         
                         Scene activeScene = null;
                         if (useRelativeTiming) {
-                            activeScene = findActiveSceneByDuration(station, scenes);
+                            activeScene = findActiveSceneByDuration(stream, scenes);
                         } else {
                             for (Scene scene : scenes) {
-                                if (isSceneActive(station.getSlugName(), station.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
+                                if (isSceneActive(stream.getSlugName(), stream.getTimeZone(), scene, scenes, currentTime, currentDayOfWeek)) {
                                     activeScene = scene;
                                     break;
                                 }
@@ -339,13 +322,13 @@ public class AiHelperService {
                         if (activeScene != null) {
                             final Scene scene = activeScene;
                             final LocalTime sceneStart = useRelativeTiming ? null : scene.getStartTime();
-                            final LocalTime sceneEnd = useRelativeTiming ? null : findNextSceneStartTime(station.getSlugName(), currentDayOfWeek, scene, scenes);
+                            final LocalTime sceneEnd = useRelativeTiming ? null : findNextSceneStartTime(stream.getSlugName(), currentDayOfWeek, scene, scenes);
                             final int promptCount = scene.getPrompts() != null ? 
                                 (int) scene.getPrompts().stream().filter(Action::isActive).count() : 0;
                             final String nextSceneTitle = useRelativeTiming ? 
-                                findNextSceneTitleByDuration(station, scene, scenes) : 
-                                findNextSceneTitle(station.getSlugName(), currentDayOfWeek, scene, scenes);
-                            DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(station.getSlugName());
+                                findNextSceneTitleByDuration(stream, scene, scenes) :
+                                findNextSceneTitle(stream.getSlugName(), currentDayOfWeek, scene, scenes);
+                            DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(stream.getSlugName());
                             final LocalDateTime lastRequestTime;
                             final String trackedDjName;
                             if (requestInfo != null) {
@@ -355,7 +338,7 @@ public class AiHelperService {
                                 lastRequestTime = null;
                                 trackedDjName = null;
                             }
-                            final AiOverriding overriding = station.getAiOverriding();
+                            final AiOverriding overriding = stream.getAiOverriding();
                             if (overriding != null) {
                                 return Uni.createFrom().item(() -> new AiDjStats(
                                         scene.getId(),
@@ -366,7 +349,7 @@ public class AiHelperService {
                                         nextSceneTitle,
                                         lastRequestTime,
                                         overriding.getName(),
-                                        aiDjMessagesTracker.get(station.getSlugName())
+                                        aiDjMessagesTracker.get(stream.getSlugName())
                                 ));
                             } else {
                                 return Uni.createFrom().item(() -> new AiDjStats(
@@ -378,7 +361,7 @@ public class AiHelperService {
                                         nextSceneTitle,
                                         lastRequestTime,
                                         trackedDjName,
-                                        aiDjMessagesTracker.get(station.getSlugName())
+                                        aiDjMessagesTracker.get(stream.getSlugName())
                                 ));
                             }
                         }
@@ -404,10 +387,10 @@ public class AiHelperService {
                 return scene.getTitle();
             }
         }
-        return !sortedScenes.isEmpty() ? sortedScenes.get(0).getTitle() : null;
+        return !sortedScenes.isEmpty() ? sortedScenes.getFirst().getTitle() : null;
     }
 
-    private Scene findActiveSceneByDuration(Brand station, List<Scene> scenes) {
+    private Scene findActiveSceneByDuration(IStream station, List<Scene> scenes) {
         LocalDateTime startTime = station.getStartTime();
         if (startTime == null) {
             LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());
@@ -428,8 +411,8 @@ public class AiHelperService {
         return null;
     }
 
-    private String findNextSceneTitleByDuration(Brand station, Scene currentScene, List<Scene> scenes) {
-        LocalDateTime startTime = station.getStartTime();
+    private String findNextSceneTitleByDuration(IStream stream, Scene currentScene, List<Scene> scenes) {
+        LocalDateTime startTime = stream.getStartTime();
         if (startTime == null) {
             return null;
         }

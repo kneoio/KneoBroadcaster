@@ -15,6 +15,8 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
@@ -90,10 +92,27 @@ public class RadioService {
     @Inject
     UserService userService;
 
-
     private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d", "malucra");
 
-    public Uni<Brand> initializeStation(String brand) {
+    public Uni<IStream> initializeOneTimeStream(OneTimeStream oneTimeStream) {
+        String streamSlugName = oneTimeStream.getSlugName();
+        return radioStationPool.initializeStream(oneTimeStream)
+                .onFailure().invoke(failure -> {
+                    LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
+                    radioStationPool.get(streamSlugName)
+                            .subscribe().with(
+                                    station -> {
+                                        if (station != null) {
+                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                            LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
+                                        }
+                                    },
+                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
+                            );
+                });
+    }
+
+    public Uni<IStream> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);
         return radioStationPool.initializeStation(brand)
                 .onFailure().invoke(failure -> {
@@ -111,7 +130,7 @@ public class RadioService {
                 });
     }
 
-    public Uni<Brand> stopStation(String brand) {
+    public Uni<IStream> stopStation(String brand) {
         LOGGER.info("Stop brand: {}", brand);
         return radioStationPool.stopAndRemove(brand)
                 .onFailure().invoke(failure ->
@@ -124,7 +143,7 @@ public class RadioService {
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE)
                 )
-                .onItem().transform(Brand::getStreamManager)
+                .onItem().transform(IStream::getStreamManager)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.PLAYLIST_NOT_AVAILABLE)
                 );
@@ -132,7 +151,7 @@ public class RadioService {
 
     public Uni<RadioStationStatusDTO> getStatus(String brand) {
         return getStreamManager(brand)
-                .onItem().transform(IStreamManager::getBrand)
+                .onItem().transform(IStreamManager::getStream)
                 .chain(v -> toStatusDTO(v, true));
     }
 
@@ -141,11 +160,11 @@ public class RadioService {
                 getOnlineStations(),
                 brandService.getAll(1000, 0)
         ).asTuple().chain(tuple -> {
-            List<Brand> onlineStations = tuple.getItem1();
+            List<IStream> onlineStations = tuple.getItem1();
             List<Brand> allStations = tuple.getItem2();
 
             List<String> onlineBrands = onlineStations.stream()
-                    .map(Brand::getSlugName)
+                    .map(IStream::getSlugName)
                     .toList();
 
             List<Uni<RadioStationStatusDTO>> onlineStatusUnis = onlineStations.stream()
@@ -186,11 +205,11 @@ public class RadioService {
                 getOnlineStations(),
                 brandService.getAll(1000, 0)
         ).asTuple().chain(tuple -> {
-            List<Brand> onlineStations = tuple.getItem1();
+            List<IStream> onlineStations = tuple.getItem1();
             List<Brand> allStations = tuple.getItem2();
 
             List<String> onlineBrands = onlineStations.stream()
-                    .map(Brand::getSlugName)
+                    .map(IStream::getSlugName)
                     .toList();
 
             if (onlineOnly != null && onlineOnly) {
@@ -205,7 +224,7 @@ public class RadioService {
             } else {
                 List<Uni<RadioStationStatusDTO>> allStatusUnis = allStations.stream()
                         .map(station -> {
-                            Brand onlineStation = onlineStations.stream()
+                            IStream onlineStation = onlineStations.stream()
                                     .filter(os -> os.getSlugName().equals(station.getSlugName()))
                                     .findFirst()
                                     .orElse(null);
@@ -234,10 +253,10 @@ public class RadioService {
                                     radioStationPool.get(station.getSlugName()),
                                     soundFragmentService.getBrandSoundFragmentsCount(slugName, null)
                             ).asTuple().chain(tuple -> {
-                                Brand onlineStation = tuple.getItem1();
+                                IStream onlineStation = tuple.getItem1();
                                 Integer availableSongs = tuple.getItem2();
 
-                                Brand stationToUse = onlineStation != null ? onlineStation : station;
+                                IStream stationToUse = onlineStation != null ? onlineStation : station;
                                 String currentStatus = onlineStation != null ?
                                         (onlineStation.getStatus() != null ? onlineStation.getStatus().name() : RadioStationStatus.OFF_LINE.name()) :
                                         RadioStationStatus.OFF_LINE.name();
@@ -443,7 +462,7 @@ public class RadioService {
                         .build());
     }
 
-    public Uni<RadioStationStatusDTO> toStatusDTO(Brand brand, boolean includeAnimation) {
+    public Uni<RadioStationStatusDTO> toStatusDTO(IStream brand, boolean includeAnimation) {
         if (brand == null) {
             return Uni.createFrom().nullItem();
         }
@@ -523,8 +542,8 @@ public class RadioService {
         return soundFragmentService.rateSoundFragmentByAction(brand, fragmentId, action, previousAction, SuperUser.build());
     }
 
-    private Uni<List<Brand>> getOnlineStations() {
-        Collection<Brand> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
+    private Uni<List<IStream>> getOnlineStations() {
+        Collection<IStream> onlineStationsSnapshot = radioStationPool.getOnlineStationsSnapshot();
         return Uni.createFrom().item(new ArrayList<>(onlineStationsSnapshot));
     }
 

@@ -3,7 +3,7 @@ package io.kneo.broadcaster.util;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
-import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.core.localization.LanguageCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +31,7 @@ public final class AiHelperUtils {
         }
 
         if (preferences.size() == 1) {
-            return preferences.get(0).getCode();
+            return preferences.getFirst().getCode();
         }
 
         double totalWeight = preferences.stream()
@@ -40,7 +40,7 @@ public final class AiHelperUtils {
 
         if (totalWeight <= 0) {
             LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
-            return preferences.get(0).getCode();
+            return preferences.getFirst().getCode();
         }
 
         double randomValue = new Random().nextDouble() * totalWeight;
@@ -52,11 +52,11 @@ public final class AiHelperUtils {
             }
         }
 
-        return preferences.get(0).getCode();
+        return preferences.getFirst().getCode();
     }
 
-    public static String resolvePrimaryVoiceId(Brand station, AiAgent agent) {
-        AiOverriding overriding = station.getAiOverriding();
+    public static String resolvePrimaryVoiceId(IStream currentStream, AiAgent agent) {
+        AiOverriding overriding = currentStream.getAiOverriding();
         if (overriding != null && overriding.getPrimaryVoice() != null) {
             return overriding.getPrimaryVoice();
         }

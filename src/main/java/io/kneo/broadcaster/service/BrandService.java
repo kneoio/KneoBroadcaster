@@ -13,6 +13,7 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ListenerType;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -141,7 +142,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
     }
 
     public Uni<OffsetDateTime> findLastAccessTimeByStationName(String stationName) {
-       return repository.findLastAccessTimeByStationName(stationName);
+        return repository.findLastAccessTimeByStationName(stationName);
     }
 
     public Uni<BrandDTO> upsert(String id, BrandDTO dto, IUser user, LanguageCode code) {
@@ -171,11 +172,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                     .onFailure().invoke(t -> LOGGER.error("Failed to ensure owner listener for station: {}", savedEntity.getSlugName(), t))
                     .onItem().ignore().andContinueWithNull()
                     .chain(() -> {
-                        if (radiostationPool.getStation(savedEntity.getSlugName()).isPresent()) {
-                            return radiostationPool.updateStationConfig(savedEntity.getSlugName(), savedEntity);
-                        } else {
-                            return Uni.createFrom().item(savedEntity);
-                        }
+                        return Uni.createFrom().item(savedEntity);
                     });
         }).chain(this::mapToDTO);
     }
@@ -203,7 +200,8 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         return repository.archive(id, SuperUser.build());
     }
 
-    private Uni<BrandDTO> mapToDTO(Brand doc) {
+    private Uni<BrandDTO> mapToDTO(IStream stream) {
+        Brand doc = (Brand) stream;
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),

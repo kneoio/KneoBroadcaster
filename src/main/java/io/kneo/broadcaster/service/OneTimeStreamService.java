@@ -4,10 +4,10 @@ import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
-import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.repository.BrandRepository;
+import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
-import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.util.WebHelper;
@@ -35,7 +35,7 @@ public class OneTimeStreamService {
     ScriptRepository scriptRepository;
 
     @Inject
-    SoundFragmentRepository soundFragmentRepository;
+    OneTimeStreamRepository oneTimeStreamRepository;
 
     @Inject
     Provider<RadioService> radioService;
@@ -43,31 +43,18 @@ public class OneTimeStreamService {
     public Uni<Void> runOneTimeStream(OneTimeStreamRunReqDTO dto, IUser user) {
         return brandRepository.findById(dto.getBrandId(), user, true)
                 .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
-                        .chain(script -> {
-                            Brand oneTimeBrand = buildOneTimeBrand(sourceBrand, script, dto);
-                            LOGGER.info("OneTimeStream: Creating temporary brand with slugName={}, sourceBrandId={}", 
-                                    oneTimeBrand.getSlugName(), sourceBrand.getId());
-                            return brandRepository.insert(oneTimeBrand, user);
-                        })
-                        .onItem().invoke(savedBrand -> LOGGER.info("OneTimeStream: Brand inserted successfully - id={}, slugName={}", 
-                                savedBrand.getId(), savedBrand.getSlugName()))
-                        .onFailure().invoke(error -> LOGGER.error("OneTimeStream: Failed to insert brand: {}", error.getMessage(), error))
-                        .chain(savedBrand -> {
-                            LOGGER.info("OneTimeStream: Copying sound fragments from sourceBrand={} to targetBrand={}", 
-                                    sourceBrand.getId(), savedBrand.getId());
-                            return soundFragmentRepository.copyBrandSoundFragments(sourceBrand.getId(), savedBrand.getId())
-                                    .onItem().invoke(count -> LOGGER.info("OneTimeStream: Copied {} sound fragment links", count))
-                                    .replaceWith(savedBrand);
-                        })
-                        .chain(savedBrand -> {
-                            LOGGER.info("OneTimeStream: Initializing station for slugName={}", savedBrand.getSlugName());
-                            return radioService.get().initializeStation(savedBrand.getSlugName()).replaceWithVoid();
+                        .chain(script -> Uni.createFrom().item(
+                                buildOneTimeStream(sourceBrand, script, dto)
+                        ))
+                        .chain(s -> {
+                            LOGGER.info("OneTimeStream: Initializing stream slugName={}", s);
+                            return radioService.get().initializeOneTimeStream(s).replaceWithVoid();
                         })
                 );
     }
 
-    private Brand buildOneTimeBrand(Brand sourceBrand, Script script, OneTimeStreamRunReqDTO dto) {
-        Brand doc = new Brand();
+    private OneTimeStream buildOneTimeStream(Brand sourceBrand, Script script, OneTimeStreamRunReqDTO dto) {
+        OneTimeStream doc = new OneTimeStream();
 
         String displayName = buildOneTimeDisplayName(script, dto.getUserVariables());
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
@@ -82,15 +69,11 @@ public class OneTimeStreamService {
         doc.setAiOverriding(sourceBrand.getAiOverriding());
         doc.setBitRate(sourceBrand.getBitRate());
         doc.setCountry(sourceBrand.getCountry());
-        doc.setOneTimeStreamPolicy(SubmissionPolicy.NOT_ALLOWED);
-        doc.setSubmissionPolicy(SubmissionPolicy.NOT_ALLOWED);
-        doc.setMessagingPolicy(SubmissionPolicy.NOT_ALLOWED);
-        doc.setIsTemporary(1);
         doc.setSlugName(
                 WebHelper.generateSlug(displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF)))
         );
         doc.setScripts(List.of(new BrandScriptEntry(dto.getScriptId(), dto.getUserVariables())));
-
+        oneTimeStreamRepository.insert(doc);
         return doc;
     }
 
@@ -115,7 +98,10 @@ public class OneTimeStreamService {
                         }
                     });
         }
-
         return String.join(" ", parts);
+    }
+
+    public Uni<OneTimeStream> getBySlugName(OneTimeStream ots) {
+        return oneTimeStreamRepository.getBySlugName(ots.getSlugName());
     }
 }

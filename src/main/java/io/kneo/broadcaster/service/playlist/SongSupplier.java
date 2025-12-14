@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class SongSupplier {
+public class SongSupplier implements ISupplier {
     private static final Logger LOGGER = LoggerFactory.getLogger(SongSupplier.class);
     private static final int CACHE_TTL_MINUTES = 5;
 

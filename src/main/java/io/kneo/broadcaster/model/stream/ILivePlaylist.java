@@ -17,13 +17,11 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
-public interface IStream {
+public interface ILivePlaylist {
 
     UUID getId();
 
     String getSlugName();
-
-    String getSourceBrandName();
 
     EnumMap<LanguageCode, String> getLocalizedName();
 

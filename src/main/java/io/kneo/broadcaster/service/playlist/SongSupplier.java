@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.playlist;
 
-import io.kneo.broadcaster.model.StagePlaylist;
+import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
@@ -160,8 +160,8 @@ public class SongSupplier implements ISupplier {
         getMemory(brandName, fragmentType).updateLastSelected(selected);
     }
 
-    public Uni<List<SoundFragment>> getNextSongByQuery(UUID brandId, StagePlaylist stagePlaylist, int quantity) {
-        SoundFragmentFilter filter = buildFilterFromStagePlaylist(stagePlaylist);
+    public Uni<List<SoundFragment>> getNextSongByQuery(UUID brandId, PlaylistRequest playlistRequest, int quantity) {
+        SoundFragmentFilter filter = buildFilterFromStagePlaylist(playlistRequest);
         return repository.findByFilter(brandId, filter, quantity)
                 .map(fragments -> {
                     if (fragments.isEmpty()) {
@@ -197,13 +197,13 @@ public class SongSupplier implements ISupplier {
                 });
     }
 
-    private SoundFragmentFilter buildFilterFromStagePlaylist(StagePlaylist stagePlaylist) {
+    private SoundFragmentFilter buildFilterFromStagePlaylist(PlaylistRequest playlistRequest) {
         SoundFragmentFilter filter = new SoundFragmentFilter();
-        filter.setGenre(stagePlaylist.getGenres());
-        filter.setLabels(stagePlaylist.getLabels());
-        filter.setType(stagePlaylist.getType());
-        filter.setSource(stagePlaylist.getSource());
-        filter.setSearchTerm(stagePlaylist.getSearchTerm());
+        filter.setGenre(playlistRequest.getGenres());
+        filter.setLabels(playlistRequest.getLabels());
+        filter.setType(playlistRequest.getType());
+        filter.setSource(playlistRequest.getSource());
+        filter.setSearchTerm(playlistRequest.getSearchTerm());
         return filter;
     }
 }

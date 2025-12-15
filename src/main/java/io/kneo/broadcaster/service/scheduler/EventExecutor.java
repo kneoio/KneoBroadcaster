@@ -12,8 +12,8 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Prompt;
-import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -155,24 +155,24 @@ public class EventExecutor {
     }
 
     private Uni<List<SoundFragment>> fetchFragmentsForEvent(Brand station, Event event, PlaylistItemType fragmentType) {
-        StagePlaylist stagePlaylist = event.getStagePlaylist();
+        PlaylistRequest playlistRequest = event.getPlaylistRequest();
 
-        if (stagePlaylist == null) {
+        if (playlistRequest == null) {
             return soundFragmentService.getByTypeAndBrand(fragmentType, event.getBrandId());
         }
 
-        WayOfSourcing sourcing = stagePlaylist.getSourcing();
+        WayOfSourcing sourcing = playlistRequest.getSourcing();
 
         if (sourcing == WayOfSourcing.RANDOM) {
             return soundFragmentService.getByTypeAndBrand(fragmentType, event.getBrandId());
         }
 
         if (sourcing == WayOfSourcing.QUERY) {
-            return songSupplier.getNextSongByQuery(station.getId(), stagePlaylist, 10);
+            return songSupplier.getNextSongByQuery(station.getId(), playlistRequest, 10);
         }
 
         if (sourcing == WayOfSourcing.STATIC_LIST) {
-            return songSupplier.getNextSongFromStaticList(stagePlaylist.getSoundFragments(), 10);
+            return songSupplier.getNextSongFromStaticList(playlistRequest.getSoundFragments(), 10);
         }
 
         throw new IllegalStateException("Unknown sourcing type: " + sourcing);

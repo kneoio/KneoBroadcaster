@@ -13,7 +13,7 @@ import java.util.UUID;
 @Setter
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class StagePlaylist {
+public class PlaylistRequest {
     private WayOfSourcing sourcing;
     private String title;
     private String artist;

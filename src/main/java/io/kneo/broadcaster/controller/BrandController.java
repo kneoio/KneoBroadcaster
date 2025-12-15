@@ -2,7 +2,6 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
-import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.service.BrandService;
@@ -62,52 +61,9 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
         router.route(path + "*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
-        router.post(path + "/one-time-stream/run").handler(this::runOneTimeStream);
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
-    }
-
-    private void runOneTimeStream(RoutingContext rc) {
-        try {
-            if (!validateJsonBody(rc)) {
-                return;
-            }
-
-            OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
-
-            Set<jakarta.validation.ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(dto);
-            if (violations != null && !violations.isEmpty()) {
-                Map<String, List<String>> fieldErrors = new HashMap<>();
-                for (jakarta.validation.ConstraintViolation<OneTimeStreamRunReqDTO> v : violations) {
-                    String field = v.getPropertyPath().toString();
-                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
-                }
-
-                String detail = fieldErrors.entrySet().stream()
-                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
-                        .collect(Collectors.joining(", "));
-
-                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
-                return;
-            }
-
-            getContextUser(rc, false, true)
-                    .chain(user -> service.runOneTimeStream(dto, user))
-                    .subscribe().with(
-                            ignored -> rc.response().setStatusCode(204).end(),
-                            throwable -> {
-                                LOGGER.error("Failed to run one-time stream", throwable);
-                                rc.fail(throwable);
-                            }
-                    );
-        } catch (Exception e) {
-            if (e instanceof IllegalArgumentException) {
-                rc.fail(400, e);
-            } else {
-                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
-            }
-        }
     }
 
     private void getAll(RoutingContext rc) {

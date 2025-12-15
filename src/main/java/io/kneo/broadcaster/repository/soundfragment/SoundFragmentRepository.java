@@ -230,11 +230,11 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         final List<FileMetadata> originalFiles = doc.getFileMetadataList();
 
         final List<FileMetadata> filesToProcess = (originalFiles != null && !originalFiles.isEmpty())
-                ? List.of(originalFiles.get(0))
+                ? List.of(originalFiles.getFirst())
                 : null;
 
-        if (filesToProcess != null && !filesToProcess.isEmpty()) {
-            FileMetadata meta = filesToProcess.get(0);
+        if (filesToProcess != null) {
+            FileMetadata meta = filesToProcess.getFirst();
             Path filePath = meta.getFilePath();
             if (filePath == null) {
                 throw new IllegalArgumentException("File metadata contains an entry with a null file path.");

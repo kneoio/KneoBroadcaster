@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.StagePlaylist;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -153,7 +153,7 @@ public class SceneRepository extends AsyncRepository {
                 .addDouble(scene.getTalkativity())
                 .addDouble(scene.getPodcastMode())
                 .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
-                .addJsonObject(scene.getStagePlaylist() != null ? JsonObject.mapFrom(scene.getStagePlaylist()) : null);
+                .addJsonObject(scene.getPlaylistRequest() != null ? JsonObject.mapFrom(scene.getPlaylistRequest()) : null);
         return client.withTransaction(tx ->
                 tx.preparedQuery(sql)
                         .execute(params)
@@ -184,7 +184,7 @@ public class SceneRepository extends AsyncRepository {
                             .addDouble(scene.getTalkativity())
                             .addDouble(scene.getPodcastMode())
                             .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
-                            .addJsonObject(scene.getStagePlaylist() != null ? JsonObject.mapFrom(scene.getStagePlaylist()) : null)
+                            .addJsonObject(scene.getPlaylistRequest() != null ? JsonObject.mapFrom(scene.getPlaylistRequest()) : null)
                             .addLong(user.getId())
                             .addOffsetDateTime(nowTime)
                             .addUUID(id);
@@ -249,8 +249,8 @@ public class SceneRepository extends AsyncRepository {
         JsonObject stagePlaylistJson = row.getJsonObject("stage_playlist");
         if (stagePlaylistJson != null) {
             try {
-                StagePlaylist stagePlaylist = mapper.convertValue(stagePlaylistJson.getMap(), StagePlaylist.class);
-                doc.setStagePlaylist(stagePlaylist);
+                PlaylistRequest playlistRequest = mapper.convertValue(stagePlaylistJson.getMap(), PlaylistRequest.class);
+                doc.setPlaylistRequest(playlistRequest);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse stage_playlist JSON for scene: {}", row.getUUID("id"), e);
             }

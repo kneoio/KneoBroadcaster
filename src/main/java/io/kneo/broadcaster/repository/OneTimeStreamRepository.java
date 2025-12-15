@@ -4,8 +4,11 @@ import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @ApplicationScoped
 public class OneTimeStreamRepository {
@@ -16,7 +19,27 @@ public class OneTimeStreamRepository {
         return Uni.createFrom().item(inMemoryRepository.get(slugName));
     }
 
+    public Uni<OneTimeStream> findById(UUID id) {
+        return Uni.createFrom().item(
+                inMemoryRepository.values().stream()
+                        .filter(s -> s.getId() != null && s.getId().equals(id))
+                        .findFirst()
+                        .orElse(null)
+        );
+    }
+
     public void insert(OneTimeStream doc) {
         inMemoryRepository.put(doc.getSlugName(), doc);
+    }
+
+    public Uni<List<OneTimeStream>> getAll(int limit, int offset) {
+        List<OneTimeStream> all = new ArrayList<>(inMemoryRepository.values());
+        int fromIndex = Math.min(offset, all.size());
+        int toIndex = Math.min(offset + limit, all.size());
+        return Uni.createFrom().item(all.subList(fromIndex, toIndex));
+    }
+
+    public Uni<Integer> getAllCount() {
+        return Uni.createFrom().item(inMemoryRepository.size());
     }
 }

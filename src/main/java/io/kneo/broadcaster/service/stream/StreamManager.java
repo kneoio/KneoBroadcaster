@@ -69,20 +69,21 @@ public class StreamManager implements IStreamManager {
     private final AiHelperService aiHelperService;
 
     public StreamManager(
+            HlsPlaylistConfig config,
+            BroadcasterConfig broadcasterConfig,
             SliderTimer sliderTimer,
             SegmentFeederTimer segmentFeederTimer,
-            BroadcasterConfig broadcasterConfig,
-            HlsPlaylistConfig config,
             SoundFragmentService soundFragmentService,
             AudioSegmentationService segmentationService,
             SongSupplier songSupplier,
             BrandSoundFragmentUpdateService updateService,
             AiHelperService aiHelperService
     ) {
+        this.config = config;
         this.sliderTimer = sliderTimer;
+        segmentFeederTimer.setDurationSec(config.getSegmentDuration());
         this.segmentFeederTimer = segmentFeederTimer;
         this.broadcasterConfig = broadcasterConfig;
-        this.config = config;
         this.soundFragmentService = soundFragmentService;
         this.segmentationService = segmentationService;
         this.songSupplier = songSupplier;

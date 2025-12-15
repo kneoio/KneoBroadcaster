@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
-import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
@@ -32,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.EnumMap;
@@ -52,9 +51,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
 
     @Inject
     Provider<ListenerService> listenerService;
-
-    @Inject
-    OneTimeStreamService oneTimeStreamService;
 
     @Inject
     public BrandService(
@@ -103,11 +99,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         assert repository != null;
         return repository.getAllCount(user, false);
     }
-
-    public Uni<Void> runOneTimeStream(OneTimeStreamRunReqDTO dto, IUser user) {
-        return oneTimeStreamService.runOneTimeStream(dto, user);
-    }
-
 
     public Uni<List<Brand>> getAll(final int limit, final int offset) {
         return repository.getAll(limit, offset, false, SuperUser.build());
@@ -253,10 +244,10 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             }
 
             try {
-                dto.setHlsUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8"));
-                dto.setIceCastUrl(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast"));
-                dto.setMp3Url(new URL(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.mp3"));
-                dto.setMixplaUrl(new URL("https://player.mixpla.io/?radio=" + dto.getSlugName()));
+                dto.setHlsUrl(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8").toURL());
+                dto.setIceCastUrl(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast").toURL());
+                dto.setMp3Url(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.mp3").toURL());
+                dto.setMixplaUrl(URI.create("https://player.mixpla.io/?radio=" + dto.getSlugName()).toURL());
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }

@@ -16,7 +16,6 @@ import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
-import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
@@ -93,24 +92,6 @@ public class RadioService {
     UserService userService;
 
     private static final List<String> FEATURED_STATIONS = List.of("sacana","bratan","aye-ayes-ear","lumisonic", "v-o-i-d", "malucra");
-
-    public Uni<IStream> initializeOneTimeStream(OneTimeStream oneTimeStream) {
-        String streamSlugName = oneTimeStream.getSlugName();
-        return radioStationPool.initializeStream(oneTimeStream)
-                .onFailure().invoke(failure -> {
-                    LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
-                    radioStationPool.get(streamSlugName)
-                            .subscribe().with(
-                                    station -> {
-                                        if (station != null) {
-                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
-                                            LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
-                                        }
-                                    },
-                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
-                            );
-                });
-    }
 
     public Uni<IStream> initializeStation(String brand) {
         LOGGER.info("Initializing station for brand: {}", brand);

@@ -38,7 +38,7 @@ public class RadioStationPool {
     BroadcasterConfig broadcasterConfig;
 
     @Inject
-    HlsPlaylistConfig config;
+    HlsPlaylistConfig hlsPlaylistConfig;
 
     @Inject
     SoundFragmentService soundFragmentService;
@@ -101,23 +101,21 @@ public class RadioStationPool {
                                         LOGGER.info("Shutting down playlist of existing non-active station {} (status: {}) before replacing.", key, currentInPool.getStatus());
                                         currentInPool.getStreamManager().shutdown();
                                     }
-
                                     LOGGER.info("RadioStationPool: Creating new StreamManager instance for station {}.", key);
-                                    feederTimer.setDurationSec(config.getSegmentDuration());
-                                    StreamManager newPlaylist = new StreamManager(
+                                    StreamManager streamManager = new StreamManager(
+                                            hlsPlaylistConfig,
+                                            broadcasterConfig,
                                             sliderTimer,
                                             feederTimer,
-                                            broadcasterConfig,
-                                            config,
                                             soundFragmentService,
                                             segmentationService,
                                             songSupplier,
                                             updateService,
                                             aiHelperService
                                     );
-                                    stationFromDb.setStreamManager(newPlaylist);
-                                    newPlaylist.setStream(stationFromDb);
-                                    newPlaylist.initialize();
+                                    stationFromDb.setStreamManager(streamManager);
+                                    streamManager.setStream(stationFromDb);
+                                    streamManager.initialize();
 
                                     LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP/WAITING.", key);
                                     return stationFromDb;
@@ -139,7 +137,7 @@ public class RadioStationPool {
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
 
-                    return oneTimeStreamService.getBySlugName(ots)
+                    return oneTimeStreamService.getBySlugName(ots.getSlugName())
                             .onItem().transformToUni(stream -> {
 
                                 IStream finalStationToUse = pool.compute(ots.getSlugName(), (key, currentInPool) -> {
@@ -156,12 +154,11 @@ public class RadioStationPool {
                                     }
 
                                     LOGGER.info("RadioStationPool: Creating new StreamManager instance for stream {}.", key);
-                                    feederTimer.setDurationSec(config.getSegmentDuration());
                                     StreamManager streamManager = new StreamManager(
+                                            hlsPlaylistConfig,
+                                            broadcasterConfig,
                                             sliderTimer,
                                             feederTimer,
-                                            broadcasterConfig,
-                                            config,
                                             soundFragmentService,
                                             segmentationService,
                                             songSupplier,

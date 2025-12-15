@@ -25,7 +25,7 @@ public class Event extends SecureDataEntity<UUID> implements Schedulable {
     private EventType type;
     private String description;
     private EventPriority priority;
-    private StagePlaylist stagePlaylist;
+    private PlaylistRequest playlistRequest;
     private Scheduler scheduler;
     private Integer archived;
     private List<Action> actions;

@@ -10,7 +10,7 @@ import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.StagePlaylist;
+import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -162,7 +162,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
             dto.setActions(mapActionsToDTOs(doc.getActions()));
-            dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getStagePlaylist()));
+            dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getPlaylistRequest()));
 
             if (doc.getScheduler() != null) {
                 ScheduleDTO scheduleDTO = new ScheduleDTO();
@@ -255,7 +255,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             doc.setScheduler(schedule);
         }
         doc.setActions(mapDTOsToActions(dto.getActions()));
-        doc.setStagePlaylist(mapDTOToStagePlaylist(dto.getStagePlaylist()));
+        doc.setPlaylistRequest(mapDTOToStagePlaylist(dto.getStagePlaylist()));
 
         return doc;
     }
@@ -291,38 +291,38 @@ public class EventService extends AbstractService<Event, EventDTO> {
                 .collect(Collectors.toList());
     }
 
-    private StagePlaylistDTO mapStagePlaylistToDTO(StagePlaylist stagePlaylist) {
-        if (stagePlaylist == null) {
+    private StagePlaylistDTO mapStagePlaylistToDTO(PlaylistRequest playlistRequest) {
+        if (playlistRequest == null) {
             return null;
         }
         StagePlaylistDTO dto = new StagePlaylistDTO();
-        dto.setSourcing(stagePlaylist.getSourcing() != null ? stagePlaylist.getSourcing().name() : null);
-        dto.setTitle(stagePlaylist.getTitle());
-        dto.setArtist(stagePlaylist.getArtist());
-        dto.setGenres(stagePlaylist.getGenres());
-        dto.setLabels(stagePlaylist.getLabels());
-        dto.setType(stagePlaylist.getType() != null ? stagePlaylist.getType().stream().map(Enum::name).toList() : null);
-        dto.setSource(stagePlaylist.getSource() != null ? stagePlaylist.getSource().stream().map(Enum::name).toList() : null);
-        dto.setSearchTerm(stagePlaylist.getSearchTerm());
-        dto.setSoundFragments(stagePlaylist.getSoundFragments());
+        dto.setSourcing(playlistRequest.getSourcing() != null ? playlistRequest.getSourcing().name() : null);
+        dto.setTitle(playlistRequest.getTitle());
+        dto.setArtist(playlistRequest.getArtist());
+        dto.setGenres(playlistRequest.getGenres());
+        dto.setLabels(playlistRequest.getLabels());
+        dto.setType(playlistRequest.getType() != null ? playlistRequest.getType().stream().map(Enum::name).toList() : null);
+        dto.setSource(playlistRequest.getSource() != null ? playlistRequest.getSource().stream().map(Enum::name).toList() : null);
+        dto.setSearchTerm(playlistRequest.getSearchTerm());
+        dto.setSoundFragments(playlistRequest.getSoundFragments());
         return dto;
     }
 
-    private StagePlaylist mapDTOToStagePlaylist(StagePlaylistDTO dto) {
+    private PlaylistRequest mapDTOToStagePlaylist(StagePlaylistDTO dto) {
         if (dto == null) {
             return null;
         }
-        StagePlaylist stagePlaylist = new StagePlaylist();
-        stagePlaylist.setSourcing(dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null);
-        stagePlaylist.setTitle(dto.getTitle());
-        stagePlaylist.setArtist(dto.getArtist());
-        stagePlaylist.setGenres(dto.getGenres());
-        stagePlaylist.setLabels(dto.getLabels());
-        stagePlaylist.setType(dto.getType() != null ? dto.getType().stream().map(PlaylistItemType::valueOf).toList() : null);
-        stagePlaylist.setSource(dto.getSource() != null ? dto.getSource().stream().map(SourceType::valueOf).toList() : null);
-        stagePlaylist.setSearchTerm(dto.getSearchTerm());
-        stagePlaylist.setSoundFragments(dto.getSoundFragments());
-        return stagePlaylist;
+        PlaylistRequest playlistRequest = new PlaylistRequest();
+        playlistRequest.setSourcing(dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null);
+        playlistRequest.setTitle(dto.getTitle());
+        playlistRequest.setArtist(dto.getArtist());
+        playlistRequest.setGenres(dto.getGenres());
+        playlistRequest.setLabels(dto.getLabels());
+        playlistRequest.setType(dto.getType() != null ? dto.getType().stream().map(PlaylistItemType::valueOf).toList() : null);
+        playlistRequest.setSource(dto.getSource() != null ? dto.getSource().stream().map(SourceType::valueOf).toList() : null);
+        playlistRequest.setSearchTerm(dto.getSearchTerm());
+        playlistRequest.setSoundFragments(dto.getSoundFragments());
+        return playlistRequest;
     }
 
     public Uni<List<DocumentAccessDTO>> getDocumentAccess(UUID documentId, IUser user) {

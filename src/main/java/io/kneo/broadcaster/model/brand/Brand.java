@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
@@ -57,6 +58,11 @@ public class Brand extends SecureDataEntity<UUID> implements IStream {
     private Long lastAgentContactAt;
     private LocalDateTime startTime;
 
+    @Override
+    public String getSourceBrandName() {
+        return slugName;
+    }
+
     public void setStatus(RadioStationStatus newStatus) {
         if (this.status != newStatus) {
             StatusChangeRecord record = new StatusChangeRecord(
@@ -81,7 +87,4 @@ public class Brand extends SecureDataEntity<UUID> implements IStream {
         return String.format("id: %s, slug: %s", getId(), slugName);
     }
 
-    public record StatusChangeRecord(LocalDateTime timestamp, RadioStationStatus oldStatus,
-                                     RadioStationStatus newStatus) {
-    }
 }

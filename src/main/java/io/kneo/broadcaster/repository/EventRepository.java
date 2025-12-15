@@ -3,7 +3,7 @@ package io.kneo.broadcaster.repository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.StagePlaylist;
+import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -162,7 +162,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                         .addString(event.getPriority().name())
                         .addInteger(0)
                         .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())))
-                        .addJsonObject(event.getStagePlaylist() != null ? JsonObject.mapFrom(event.getStagePlaylist()) : null);
+                        .addJsonObject(event.getPlaylistRequest() != null ? JsonObject.mapFrom(event.getPlaylistRequest()) : null);
 
                 return client.withTransaction(tx ->
                         tx.preparedQuery(sql)
@@ -205,7 +205,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                     .addString(event.getDescription())
                                     .addString(event.getPriority().name())
                                     .addJsonObject(JsonObject.of("scheduler", JsonObject.mapFrom(event.getScheduler())))
-                                    .addJsonObject(event.getStagePlaylist() != null ? JsonObject.mapFrom(event.getStagePlaylist()) : null)
+                                    .addJsonObject(event.getPlaylistRequest() != null ? JsonObject.mapFrom(event.getPlaylistRequest()) : null)
                                     .addLong(user.getId())
                                     .addLocalDateTime(nowTime)
                                     .addUUID(id);
@@ -297,8 +297,8 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
         JsonObject stagePlaylistJson = row.getJsonObject("stage_playlist");
         if (stagePlaylistJson != null) {
             try {
-                StagePlaylist stagePlaylist = mapper.convertValue(stagePlaylistJson.getMap(), StagePlaylist.class);
-                doc.setStagePlaylist(stagePlaylist);
+                PlaylistRequest playlistRequest = mapper.convertValue(stagePlaylistJson.getMap(), PlaylistRequest.class);
+                doc.setPlaylistRequest(playlistRequest);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse stage_playlist JSON for event: {}", row.getUUID("id"), e);
             }

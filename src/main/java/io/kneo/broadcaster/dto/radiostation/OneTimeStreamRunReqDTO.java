@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,4 +19,6 @@ public class OneTimeStreamRunReqDTO {
     private UUID scriptId;
     @NotNull
     private Map<String, Object> userVariables;
+    @NotNull
+    private StreamScheduleDTO schedule;
 }

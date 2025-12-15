@@ -137,7 +137,7 @@ public class PlaylistManager {
         int quantityToFetch = Math.min(remaining, maxQuantity);
         LOGGER.info("Adding {} fragments for brand {}", quantityToFetch, brandSlug);
 
-        songSupplier.getBrandSongs(brandSlug, PlaylistItemType.SONG, quantityToFetch)
+        songSupplier.getBrandSongs(brand.getSourceBrandName(), PlaylistItemType.SONG, quantityToFetch)
                 .onItem().transformToMulti(soundFragments ->
                         Multi.createFrom().iterable(soundFragments)
                 )

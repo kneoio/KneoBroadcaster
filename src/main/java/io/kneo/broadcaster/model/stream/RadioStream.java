@@ -55,12 +55,17 @@ public class RadioStream implements IStream {
     }
 
     @Override
+    public String getSourceBrandName() {
+        return slugName;
+    }
+
+    @Override
     public AiAgentStatus getAiAgentStatus() {
         return null;
     }
 
     @Override
-    public List<Brand.StatusChangeRecord> getStatusHistory() {
+    public List<StatusChangeRecord> getStatusHistory() {
         return List.of();
     }
 
@@ -70,7 +75,7 @@ public class RadioStream implements IStream {
     }
 
     @Override
-    public void setStatusHistory(List<Brand.StatusChangeRecord> currentHistory) {
+    public void setStatusHistory(List<StatusChangeRecord> currentHistory) {
 
     }
 

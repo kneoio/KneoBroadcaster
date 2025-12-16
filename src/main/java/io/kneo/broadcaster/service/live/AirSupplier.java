@@ -38,11 +38,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -166,7 +164,7 @@ public class AirSupplier {
                         additionalInstruction = "";
                     }
 
-                    
+
                     return fetchPrompt(stream, agent, broadcastingLanguage, additionalInstruction).flatMap(tuple -> {
                         if (tuple == null) {
                             return Uni.createFrom().item(liveRadioStation);
@@ -222,12 +220,11 @@ public class AirSupplier {
                     BrandScript brandScript = brandScripts.get(new Random().nextInt(brandScripts.size()));
 
                     List<Scene> scenes = brandScript.getScript().getScenes();
-                    boolean useRelativeTiming =
-                            brandScript.getScript().getTimingMode() == SceneTimingMode.RELATIVE_TO_STREAM_START;
+                    boolean useRelativeTiming = brandScript.getScript().getTimingMode() == SceneTimingMode.RELATIVE_TO_STREAM_START;
 
                     if (useRelativeTiming) {
                         oneTimeStream = true;
-                        Scene relativeScene = findActiveSceneByDuration(stream, scenes);
+                        Scene relativeScene = stream.findActiveScene(scenes);
                         if (relativeScene != null) {
                             List<UUID> promptIds = relativeScene.getPrompts() != null
                                     ? relativeScene.getPrompts().stream()
@@ -331,65 +328,107 @@ public class AirSupplier {
                     Scene currentScene = activeScene;
                     Map<String, Object> finalUserVariables = activeUserVariables;
 
-                    return Uni.join().all(promptUnis).andFailFast()
-                            .flatMap(prompts ->
-                                    fetchSongsForScene(stream, currentScene)
-                                            .flatMap(songs -> {
-                                                if (songs == null || songs.isEmpty()) {
-                                                    return Uni.createFrom().item(
-                                                            Tuple2.of(
-                                                                    List.of(),
-                                                                    finalCurrentSceneTitle
-                                                            )
-                                                    );
-                                                }
+                    if (useRelativeTiming) {
+                        List<SoundFragment> songs = stream.getNextScheduledSongs(currentScene, 1);
 
-                                                Random random = new Random();
+                        if (songs.isEmpty()) {
+                            addMessage(stream.getSlugName(), AiDjStats.MessageType.INFO,
+                                    String.format("No more scheduled songs for scene '%s'", finalCurrentSceneTitle));
+                            return Uni.createFrom().item(() -> null);
+                        }
 
-                                                List<Uni<SongPromptDTO>> songPromptUnis =
-                                                        songs.stream()
-                                                                .map(song -> {
-                                                                    Prompt selectedPrompt =
-                                                                            prompts.get(
-                                                                                    random.nextInt(
-                                                                                            prompts.size()
-                                                                                    )
-                                                                            );
-                                                                    return draftFactory
-                                                                            .createDraft(
-                                                                                    song,
-                                                                                    agent,
-                                                                                    stream,
-                                                                                    selectedPrompt.getDraftId(),
-                                                                                    broadcastingLanguage,
-                                                                                    finalUserVariables
-                                                                            )
-                                                                            .map(draft ->
-                                                                                    new SongPromptDTO(
-                                                                                            song.getId(),
-                                                                                            draft,
-                                                                                            selectedPrompt.getPrompt()
-                                                                                                    + additionalInstruction,
-                                                                                            selectedPrompt.getPromptType(),
-                                                                                            agent.getLlmType(),
-                                                                                            agent.getSearchEngineType(),
-                                                                                            currentScene.getStartTime(),
-                                                                                            currentScene.isOneTimeRun(),
-                                                                                            selectedPrompt.isPodcast()
-                                                                                    )
-                                                                            );
-                                                                })
-                                                                .toList();
+                        return Uni.join().all(promptUnis).andFailFast()
+                                .flatMap(prompts -> {
+                                    Random random = new Random();
+                                    List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
+                                            .map(song -> {
+                                                Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                                                return draftFactory.createDraft(
+                                                                song,
+                                                                agent,
+                                                                stream,
+                                                                selectedPrompt.getDraftId(),
+                                                                broadcastingLanguage,
+                                                                finalUserVariables
+                                                        )
+                                                        .map(draft -> new SongPromptDTO(
+                                                                song.getId(),
+                                                                draft,
+                                                                selectedPrompt.getPrompt() + additionalInstruction,
+                                                                selectedPrompt.getPromptType(),
+                                                                agent.getLlmType(),
+                                                                agent.getSearchEngineType(),
+                                                                currentScene.getStartTime(),
+                                                                currentScene.isOneTimeRun(),
+                                                                selectedPrompt.isPodcast()
+                                                        ));
+                                            })
+                                            .toList();
 
-                                                return Uni.join().all(songPromptUnis).andFailFast()
-                                                        .map(result ->
+                                    return Uni.join().all(songPromptUnis).andFailFast()
+                                            .map(result -> Tuple2.of(result, finalCurrentSceneTitle));
+                                });
+                    } else {
+                        return Uni.join().all(promptUnis).andFailFast()
+                                .flatMap(prompts ->
+                                        fetchSongsForScene(stream, currentScene)
+                                                .flatMap(songs -> {
+                                                    if (songs == null || songs.isEmpty()) {
+                                                        return Uni.createFrom().item(
                                                                 Tuple2.of(
-                                                                        result,
+                                                                        List.of(),
                                                                         finalCurrentSceneTitle
                                                                 )
                                                         );
-                                            })
-                            );
+                                                    }
+
+                                                    Random random = new Random();
+
+                                                    List<Uni<SongPromptDTO>> songPromptUnis =
+                                                            songs.stream()
+                                                                    .map(song -> {
+                                                                        Prompt selectedPrompt =
+                                                                                prompts.get(
+                                                                                        random.nextInt(
+                                                                                                prompts.size()
+                                                                                        )
+                                                                                );
+                                                                        return draftFactory
+                                                                                .createDraft(
+                                                                                        song,
+                                                                                        agent,
+                                                                                        stream,
+                                                                                        selectedPrompt.getDraftId(),
+                                                                                        broadcastingLanguage,
+                                                                                        finalUserVariables
+                                                                                )
+                                                                                .map(draft ->
+                                                                                        new SongPromptDTO(
+                                                                                                song.getId(),
+                                                                                                draft,
+                                                                                                selectedPrompt.getPrompt()
+                                                                                                        + additionalInstruction,
+                                                                                                selectedPrompt.getPromptType(),
+                                                                                                agent.getLlmType(),
+                                                                                                agent.getSearchEngineType(),
+                                                                                                currentScene.getStartTime(),
+                                                                                                currentScene.isOneTimeRun(),
+                                                                                                selectedPrompt.isPodcast()
+                                                                                        )
+                                                                                );
+                                                                    })
+                                                                    .toList();
+
+                                                    return Uni.join().all(songPromptUnis).andFailFast()
+                                                            .map(result ->
+                                                                    Tuple2.of(
+                                                                            result,
+                                                                            finalCurrentSceneTitle
+                                                                    )
+                                                            );
+                                                })
+                                );
+                    }
                 });
     }
 
@@ -458,32 +497,6 @@ public class AirSupplier {
             used.add(scene.getId());
         }
         return true;
-    }
-
-    private Scene findActiveSceneByDuration(IStream stream, List<Scene> scenes) {
-        LocalDateTime startTime = stream.getStartTime();
-        if (startTime == null) {
-            LOGGER.warn("Station '{}': No start time set for relative timing mode", stream.getSlugName());
-            return null;
-        }
-        
-        long elapsedSeconds = ChronoUnit.SECONDS.between(startTime, LocalDateTime.now());
-        LOGGER.debug("Station '{}': Elapsed time since stream start: {} seconds", stream.getSlugName(), elapsedSeconds);
-        
-        long cumulativeDuration = 0;
-        for (Scene scene : scenes) {
-            int sceneDuration = scene.getDurationSeconds();
-            if (elapsedSeconds < cumulativeDuration + sceneDuration) {
-                LOGGER.debug("Station '{}': Scene '{}' is active (elapsed: {}s, scene range: {}-{}s)",
-                        stream.getSlugName(), scene.getTitle(), elapsedSeconds, cumulativeDuration, cumulativeDuration + sceneDuration);
-                return scene;
-            }
-            cumulativeDuration += sceneDuration;
-        }
-        
-        LOGGER.info("Station '{}': All scenes completed (elapsed: {}s, total duration: {}s). Stream should stop.",
-                stream.getSlugName(), elapsedSeconds, cumulativeDuration);
-        return null;
     }
 
     private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, List<Scene> scenes) {

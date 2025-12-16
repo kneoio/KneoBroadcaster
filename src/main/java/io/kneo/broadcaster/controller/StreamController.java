@@ -4,14 +4,17 @@ import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.OneTimeStreamService;
-import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.controller.AbstractSecuredController;
+import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
+import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -24,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +39,6 @@ import java.util.stream.Collectors;
 public class StreamController extends AbstractSecuredController<IStream, OneTimeStreamDTO> {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamController.class);
 
-    private RadioStationPool radioStationPool;
     private OneTimeStreamService oneTimeStreamService;
     private Validator validator;
 
@@ -44,9 +47,8 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     }
 
     @Inject
-    public StreamController(UserService userService, RadioStationPool radioStationPool, OneTimeStreamService oneTimeStreamService, Validator validator) {
+    public StreamController(UserService userService, OneTimeStreamService oneTimeStreamService, Validator validator) {
         super(userService);
-        this.radioStationPool = radioStationPool;
         this.oneTimeStreamService = oneTimeStreamService;
         this.validator = validator;
     }
@@ -55,8 +57,8 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         String path = "/api/streams";
         router.route(path + "/*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
-        router.get(path + "/id/:id").handler(this::getById);
-        router.get(path + "/:slugName").handler(this::getBySlugName);
+        //router.get(path + "/slug/:slugName").handler(this::getBySlugName);
+        router.get(path + "/:id").handler(this::getById);
         router.post(path + "/schedule/:brandId/:scriptId").handler(this::buildSchedule);
         router.post(path + "/run").handler(this::runOneTimeStream);
     }
@@ -90,26 +92,37 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     }
 
     private void getById(RoutingContext rc) {
-        UUID id = UUID.fromString(rc.pathParam("id"));
+        String id = rc.pathParam("id");
+        LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
-        oneTimeStreamService.getById(id)
+        getContextUser(rc, false, true)
+                .chain(user -> {
+                    if ("new".equals(id)) {
+                        OneTimeStreamDTO dto = new OneTimeStreamDTO();
+                        dto.setLocalizedName(new EnumMap<>(LanguageCode.class));
+                        dto.getLocalizedName().put(LanguageCode.en, "");
+                        dto.setBitRate(128000);
+                        return Uni.createFrom().item(Tuple2.of(dto, user));
+                    }
+                    return oneTimeStreamService.getDTO(UUID.fromString(id), user, languageCode)
+                            .map(doc -> Tuple2.of(doc, user));
+                })
                 .subscribe().with(
-                        stream -> {
-                            if (stream == null) {
-                                rc.response().setStatusCode(404).end();
-                            } else {
-                                OneTimeStreamDTO dto = oneTimeStreamService.getDTO(stream);
-                                rc.response().setStatusCode(200).end(JsonObject.mapFrom(dto).encode());
-                            }
+                        tuple -> {
+                            OneTimeStreamDTO doc = tuple.getItem1();
+                            FormPage page = new FormPage();
+                            page.addPayload(PayloadType.DOC_DATA, doc);
+                            page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
                         },
                         throwable -> {
-                            LOGGER.error("Failed to get stream by id: {}", id, throwable);
+                            LOGGER.error("Failed to get radio station by id: {}", id, throwable);
                             rc.fail(throwable);
                         }
                 );
     }
 
-    private void getBySlugName(RoutingContext rc) {
+  /*  private void getBySlugName(RoutingContext rc) {
         String slugName = rc.pathParam("slugName");
 
         oneTimeStreamService.getBySlugName(slugName)
@@ -127,7 +140,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
                             rc.fail(throwable);
                         }
                 );
-    }
+    }*/
 
     private void buildSchedule(RoutingContext rc) {
         UUID brandId = UUID.fromString(rc.pathParam("brandId"));
@@ -154,6 +167,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
             }
 
             OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
+            LanguageCode languageCode = LanguageCode.valueOf(rc.request().getParam("lang", LanguageCode.en.name()));
 
             Set<ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(dto);
             if (violations != null && !violations.isEmpty()) {
@@ -178,9 +192,13 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
             }
 
             getContextUser(rc, false, true)
-                    .chain(user -> oneTimeStreamService.run(dto, user))
+                    .chain(user -> oneTimeStreamService.run(dto, user)
+                            .chain(stream -> oneTimeStreamService.getDTO(stream.getId(), user, languageCode)))
                     .subscribe().with(
-                            ignored -> rc.response().setStatusCode(204).end(),
+                            streamDto -> rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .setStatusCode(200)
+                                    .end(JsonObject.mapFrom(streamDto).encode()),
                             throwable -> {
                                 LOGGER.error("Failed to run one-time stream", throwable);
                                 rc.fail(throwable);

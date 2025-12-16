@@ -2,6 +2,7 @@ package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
+import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
@@ -9,15 +10,19 @@ import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.util.WebHelper;
 import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -28,6 +33,7 @@ import java.util.UUID;
 @Setter
 @Getter
 public class OneTimeStream extends AbstractStream {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStream.class);
     private UUID id;
     private String slugName;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
@@ -51,6 +57,7 @@ public class OneTimeStream extends AbstractStream {
     private List<BrandScriptEntry> scripts;
     private AiAgentStatus aiAgentStatus;
     private StreamScheduleDTO schedule;
+    private StreamSchedule streamSchedule;
 
     public OneTimeStream(Brand sourceBrand, Script script, Map<String, Object> userVariables) {
         this.script = script;
@@ -94,7 +101,6 @@ public class OneTimeStream extends AbstractStream {
     public SubmissionPolicy getMessagingPolicy() {
         return SubmissionPolicy.NOT_ALLOWED;
     }
-
 
     @Override
     public void setAiAgentId(UUID aiAgentId) {
@@ -140,5 +146,61 @@ public class OneTimeStream extends AbstractStream {
                     });
         }
         return String.join(" ", parts);
+    }
+
+    @Override
+    public Scene findActiveScene(List<Scene> scenes) {
+        LocalDateTime streamStartTime = getStartTime();
+        if (streamStartTime == null) {
+            LOGGER.warn("Station '{}': No start time set for relative timing mode", slugName);
+            return null;
+        }
+
+        long elapsedSeconds = ChronoUnit.SECONDS.between(streamStartTime, LocalDateTime.now());
+        LOGGER.debug("Station '{}': Elapsed time since stream start: {} seconds", slugName, elapsedSeconds);
+
+        long cumulativeDuration = 0;
+        for (Scene scene : scenes) {
+            int sceneDuration = scene.getDurationSeconds();
+            if (elapsedSeconds < cumulativeDuration + sceneDuration) {
+                LOGGER.debug("Station '{}': Scene '{}' is active (elapsed: {}s, scene range: {}-{}s)",
+                        slugName, scene.getTitle(), elapsedSeconds, cumulativeDuration, cumulativeDuration + sceneDuration);
+                return scene;
+            }
+            cumulativeDuration += sceneDuration;
+        }
+
+        LOGGER.info("Station '{}': All scenes completed (elapsed: {}s, total duration: {}s). Stream should stop.",
+                slugName, elapsedSeconds, cumulativeDuration);
+        return null;
+    }
+
+    @Override
+    public List<SoundFragment> getNextScheduledSongs(Scene scene, int count) {
+        if (streamSchedule == null || scene == null) {
+            LOGGER.warn("Station '{}': No stream schedule or scene provided", slugName);
+            return List.of();
+        }
+
+        SceneScheduleEntry sceneEntry = streamSchedule.getSceneSchedules().stream()
+                .filter(s -> s.getSceneId().equals(scene.getId()))
+                .findFirst()
+                .orElse(null);
+
+        if (sceneEntry == null) {
+            LOGGER.warn("Station '{}': Scene '{}' not found in schedule", slugName, scene.getTitle());
+            return List.of();
+        }
+
+        List<SoundFragment> songs = sceneEntry.getSongs().stream()
+                .filter(s -> !s.isPlayed())
+                .limit(count)
+                .peek(ScheduledSongEntry::markAsPlayed)
+                .map(ScheduledSongEntry::getSoundFragment)
+                .toList();
+
+        LOGGER.debug("Station '{}': Retrieved {} scheduled songs for scene '{}'",
+                slugName, songs.size(), scene.getTitle());
+        return songs;
     }
 }

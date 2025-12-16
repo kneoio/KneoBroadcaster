@@ -24,6 +24,16 @@ public class StreamScheduleDTO {
         private LocalDateTime scheduledEndTime;
         private int durationSeconds;
         private List<ScheduledSongDTO> songs;
+
+        private String sourcing;
+        private String playlistTitle;
+        private String artist;
+        private List<java.util.UUID> genres;
+        private List<java.util.UUID> labels;
+        private List<String> playlistItemTypes;
+        private List<String> sourceTypes;
+        private String searchTerm;
+        private List<java.util.UUID> soundFragments;
     }
 
     @Setter

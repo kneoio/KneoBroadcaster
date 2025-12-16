@@ -5,7 +5,6 @@ import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
 import io.kneo.broadcaster.model.stream.IStream;
-import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -126,7 +125,7 @@ public class RadioStationPool {
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
-    public Uni<IStream> initializeStream(OneTimeStream oneTimeStream) {
+    public Uni<IStream> initializeStream(IStream oneTimeStream) {
         return Uni.createFrom().item(oneTimeStream)
                 .onItem().transformToUni(ots -> {
                     IStream stationAlreadyActive = pool.get(ots.getSlugName());

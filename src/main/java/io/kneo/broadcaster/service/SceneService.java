@@ -114,7 +114,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setSeqNum(doc.getSeqNum());
             dto.setOneTimeRun(doc.isOneTimeRun());
             dto.setTalkativity(doc.getTalkativity());
-            //dto.setPodcastMode(doc.getPodcastMode());
+            dto.setPodcastMode(doc.getPodcastMode());
             dto.setWeekdays(doc.getWeekdays());
             dto.setPrompts(includePrompts ? mapScenePromptsToDTOs(doc.getPrompts()) : null);
             dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getPlaylistRequest()));

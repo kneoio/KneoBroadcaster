@@ -2,10 +2,13 @@ package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
+import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.net.URL;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -13,12 +16,21 @@ import java.util.UUID;
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class OneTimeStreamRunReqDTO {
+    private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     @NotNull
     private UUID brandId;
+    @NotNull
+    private UUID aiAgentId;
+    @NotNull
+    private UUID profileId;
     @NotNull
     private UUID scriptId;
     @NotNull
     private Map<String, Object> userVariables;
     @NotNull
     private StreamScheduleDTO schedule;
+    private long bitRate;
+
+    private URL hlsUrl;
+    private URL mixplaUrl;
 }

@@ -4,10 +4,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
-import io.kneo.broadcaster.model.Script;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
-import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
@@ -17,6 +14,7 @@ import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.ScheduleSongSupplier;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -55,12 +53,16 @@ public class OneTimeStreamService {
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
-                    } else {
-                        List<OneTimeStreamDTO> dtos = list.stream()
-                                .map(this::mapToDTO)
-                                .collect(Collectors.toList());
-                        return Uni.createFrom().item(dtos);
                     }
+                    return Uni.combine().all().unis(
+                            list.stream()
+                                    .map(this::mapToDTO)
+                                    .toList()
+                    ).with(items ->
+                            items.stream()
+                                    .map(OneTimeStreamDTO.class::cast)
+                                    .toList()
+                    );
                 });
     }
 
@@ -72,11 +74,13 @@ public class OneTimeStreamService {
         return oneTimeStreamRepository.findById(id);
     }
 
-    public OneTimeStreamDTO getDTO(OneTimeStream entity) {
-        return mapToDTO(entity);
+    // fix return type
+    public Uni<OneTimeStreamDTO> getDTO(UUID id, IUser user, LanguageCode language) {
+        return oneTimeStreamRepository.findById(id)
+                .chain(this::mapToDTO);
     }
 
-    private OneTimeStreamDTO mapToDTO(OneTimeStream entity) {
+    private Uni<OneTimeStreamDTO> mapToDTO(OneTimeStream entity) {
         OneTimeStreamDTO dto = new OneTimeStreamDTO();
         dto.setId(entity.getId());
         dto.setSlugName(entity.getSlugName());
@@ -86,54 +90,48 @@ public class OneTimeStreamService {
         dto.setBaseBrandId(entity.getBaseBrandId());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setExpiresAt(entity.getExpiresAt());
-        return dto;
+        return Uni.createFrom().item(dto);
     }
 
-    public Uni<Void> run(OneTimeStreamRunReqDTO dto, IUser user) {
+    public Uni<OneTimeStream> run(OneTimeStreamRunReqDTO dto, IUser user) {
         return brandRepository.findById(dto.getBrandId(), user, true)
                 .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
-                        .chain(script -> Uni.createFrom().item(
-                                prepaerOneTimeStream(sourceBrand, script, dto)
-                        ))
-                        .chain(s -> {
-                            LOGGER.info("OneTimeStream: Initializing stream slugName={}", s);
-                            return initializeOneTimeStream(s).replaceWithVoid();
+                        .chain(script -> {
+                            OneTimeStream stream = new OneTimeStream(sourceBrand, script, dto.getUserVariables());
+                            stream.setId(UUID.randomUUID());
+                            stream.setScripts(List.of(new BrandScriptEntry(dto.getScriptId(), dto.getUserVariables())));
+                            stream.setSourceBrand(sourceBrand);
+                            stream.setSchedule(dto.getSchedule());
+                            oneTimeStreamRepository.insert(stream);
+                            return Uni.createFrom().item(stream);
+                        })
+                        .chain(stream -> {
+                            LOGGER.info("OneTimeStream: Initializing stream slugName={}", stream.getSlugName());
+                            String streamSlugName = stream.getSlugName();
+                            return radioStationPool.initializeStream(stream)
+                                    .onFailure().invoke(failure -> {
+                                        LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
+                                        radioStationPool.get(streamSlugName)
+                                                .subscribe().with(
+                                                        station -> {
+                                                            if (station != null) {
+                                                                station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                                                LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
+                                                            }
+                                                        },
+                                                        error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
+                                                );
+                                    })
+                                    .invoke(liveStream -> {
+                                        if (liveStream != null) {
+                                            stream.setStatus(liveStream.getStatus());
+                                        }
+                                    })
+                                    .replaceWith(stream);
                         })
                 );
     }
 
-    private OneTimeStream prepaerOneTimeStream(Brand sourceBrand, Script script, OneTimeStreamRunReqDTO dto) {
-        OneTimeStream doc = new OneTimeStream(sourceBrand, script, dto.getUserVariables());
-
-        doc.setScripts(List.of(new BrandScriptEntry(dto.getScriptId(), dto.getUserVariables())));
-        doc.setSourceBrand(sourceBrand);
-        doc.setSchedule(dto.getSchedule());
-        //oneTimeStreamRepository.insert(doc);
-        return doc;
-    }
-
-    public Uni<OneTimeStream> getBySlugName(String slugName) {
-        return oneTimeStreamRepository.getBySlugName(slugName);
-    }
-
-
-    private Uni<IStream> initializeOneTimeStream(OneTimeStream oneTimeStream) {
-        String streamSlugName = oneTimeStream.getSlugName();
-        return radioStationPool.initializeStream(oneTimeStream)
-                .onFailure().invoke(failure -> {
-                    LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
-                    radioStationPool.get(streamSlugName)
-                            .subscribe().with(
-                                    station -> {
-                                        if (station != null) {
-                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
-                                            LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
-                                        }
-                                    },
-                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
-                            );
-                });
-    }
 
     public Uni<StreamScheduleDTO> buildStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
         return brandRepository.findById(brandId, user, true)
@@ -152,6 +150,10 @@ public class OneTimeStreamService {
                                                 return toScheduleDTO(s);
                                             });
                                 })));
+    }
+
+    public Uni<OneTimeStream> getBySlugName(String slugName) {
+        return oneTimeStreamRepository.getBySlugName(slugName);
     }
 
     private StreamScheduleDTO toScheduleDTO(StreamSchedule schedule) {
@@ -176,6 +178,16 @@ public class OneTimeStreamService {
         dto.setScheduledStartTime(scene.getScheduledStartTime());
         dto.setScheduledEndTime(scene.getScheduledEndTime());
         dto.setDurationSeconds(scene.getDurationSeconds());
+
+        dto.setSourcing(scene.getSourcing().name());
+        dto.setPlaylistTitle(scene.getPlaylistTitle());
+        dto.setArtist(scene.getArtist());
+        dto.setGenres(scene.getGenres());
+        dto.setLabels(scene.getLabels());
+        dto.setPlaylistItemTypes(scene.getPlaylistItemTypes().stream().map(Enum::name).collect(Collectors.toList()));
+        dto.setSourceTypes(scene.getSourceTypes().stream().map(Enum::name).collect(Collectors.toList()));
+        dto.setSearchTerm(scene.getSearchTerm());
+        dto.setSoundFragments(scene.getSoundFragments());
 
         List<StreamScheduleDTO.ScheduledSongDTO> songDTOs = scene.getSongs().stream()
                 .map(this::toSongDTO)

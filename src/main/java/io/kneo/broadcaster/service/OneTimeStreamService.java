@@ -5,6 +5,10 @@ import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.cnst.WayOfSourcing;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
@@ -80,28 +84,34 @@ public class OneTimeStreamService {
                 .chain(this::mapToDTO);
     }
 
-    private Uni<OneTimeStreamDTO> mapToDTO(OneTimeStream entity) {
+    private Uni<OneTimeStreamDTO> mapToDTO(OneTimeStream doc) {
         OneTimeStreamDTO dto = new OneTimeStreamDTO();
-        dto.setId(entity.getId());
-        dto.setSlugName(entity.getSlugName());
-        dto.setLocalizedName(entity.getLocalizedName());
-        dto.setTimeZone(entity.getTimeZone() != null ? entity.getTimeZone().getId() : null);
-        dto.setBitRate(entity.getBitRate());
-        dto.setBaseBrandId(entity.getBaseBrandId());
-        dto.setCreatedAt(entity.getCreatedAt());
-        dto.setExpiresAt(entity.getExpiresAt());
+        dto.setId(doc.getId());
+        dto.setBaseBrandId(doc.getSourceBrand().getId());
+        dto.setAiAgentId(doc.getAiAgentId());
+        dto.setProfileId(doc.getProfileId());
+        dto.setScripts(doc.getScripts());
+        dto.setSlugName(doc.getSlugName());
+        dto.setUserVariables(doc.getUserVariables());
+        dto.setLocalizedName(doc.getLocalizedName());
+        dto.setTimeZone(doc.getTimeZone() != null ? doc.getTimeZone().getId() : null);
+        dto.setBitRate(doc.getBitRate());
+        dto.setStreamSchedule(toScheduleDTO(doc.getStreamSchedule()));
+        dto.setCreatedAt(doc.getCreatedAt());
+        dto.setExpiresAt(doc.getExpiresAt());
         return Uni.createFrom().item(dto);
     }
 
     public Uni<OneTimeStream> run(OneTimeStreamRunReqDTO dto, IUser user) {
-        return brandRepository.findById(dto.getBrandId(), user, true)
+        return brandRepository.findById(dto.getBaseBrandId(), user, true)
                 .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
                         .chain(script -> {
                             OneTimeStream stream = new OneTimeStream(sourceBrand, script, dto.getUserVariables());
                             stream.setId(UUID.randomUUID());
                             stream.setScripts(List.of(new BrandScriptEntry(dto.getScriptId(), dto.getUserVariables())));
                             stream.setSourceBrand(sourceBrand);
-                            stream.setSchedule(dto.getSchedule());
+                            stream.setStreamSchedule(fromScheduleDTO(dto.getSchedule()));
+                            stream.setUserVariables(dto.getUserVariables());
                             oneTimeStreamRepository.insert(stream);
                             return Uni.createFrom().item(stream);
                         })
@@ -157,6 +167,9 @@ public class OneTimeStreamService {
     }
 
     private StreamScheduleDTO toScheduleDTO(StreamSchedule schedule) {
+        if (schedule == null) {
+            return null;
+        }
         StreamScheduleDTO dto = new StreamScheduleDTO();
         dto.setCreatedAt(schedule.getCreatedAt());
         dto.setEstimatedEndTime(schedule.getEstimatedEndTime());
@@ -179,15 +192,19 @@ public class OneTimeStreamService {
         dto.setScheduledEndTime(scene.getScheduledEndTime());
         dto.setDurationSeconds(scene.getDurationSeconds());
 
-        dto.setSourcing(scene.getSourcing().name());
+        dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
         dto.setPlaylistTitle(scene.getPlaylistTitle());
         dto.setArtist(scene.getArtist());
-        dto.setGenres(scene.getGenres());
-        dto.setLabels(scene.getLabels());
-        dto.setPlaylistItemTypes(scene.getPlaylistItemTypes().stream().map(Enum::name).collect(Collectors.toList()));
-        dto.setSourceTypes(scene.getSourceTypes().stream().map(Enum::name).collect(Collectors.toList()));
-        dto.setSearchTerm(scene.getSearchTerm());
-        dto.setSoundFragments(scene.getSoundFragments());
+        dto.setGenres(scene.getGenres() != null ? scene.getGenres() : List.of());
+        dto.setLabels(scene.getLabels() != null ? scene.getLabels() : List.of());
+        dto.setPlaylistItemTypes(scene.getPlaylistItemTypes() != null
+                ? scene.getPlaylistItemTypes().stream().map(Enum::name).collect(Collectors.toList())
+                : List.of());
+        dto.setSourceTypes(scene.getSourceTypes() != null
+                ? scene.getSourceTypes().stream().map(Enum::name).collect(Collectors.toList())
+                : List.of());
+        dto.setSearchTerm(scene.getSearchTerm() != null ? scene.getSearchTerm() : "");
+        dto.setSoundFragments(scene.getSoundFragments() != null ? scene.getSoundFragments() : List.of());
 
         List<StreamScheduleDTO.ScheduledSongDTO> songDTOs = scene.getSongs().stream()
                 .map(this::toSongDTO)
@@ -207,5 +224,56 @@ public class OneTimeStreamService {
         dto.setEstimatedDurationSeconds(song.getEstimatedDurationSeconds());
         dto.setPlayed(song.isPlayed());
         return dto;
+    }
+
+    private StreamSchedule fromScheduleDTO(StreamScheduleDTO dto) {
+        if (dto == null) {
+            return null;
+        }
+        StreamSchedule schedule = new StreamSchedule(dto.getCreatedAt());
+        if (dto.getScenes() != null) {
+            for (StreamScheduleDTO.SceneScheduleDTO sceneDTO : dto.getScenes()) {
+                SceneScheduleEntry sceneEntry = fromSceneDTO(sceneDTO);
+                schedule.addSceneSchedule(sceneEntry);
+            }
+        }
+        return schedule;
+    }
+
+    private SceneScheduleEntry fromSceneDTO(StreamScheduleDTO.SceneScheduleDTO dto) {
+        SceneScheduleEntry entry = new SceneScheduleEntry(
+                UUID.fromString(dto.getSceneId()),
+                dto.getSceneTitle(),
+                dto.getScheduledStartTime(),
+                dto.getDurationSeconds(),
+                dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null,
+                dto.getPlaylistTitle(),
+                dto.getArtist(),
+                dto.getGenres(),
+                dto.getLabels(),
+                dto.getPlaylistItemTypes() != null ? dto.getPlaylistItemTypes().stream().map(PlaylistItemType::valueOf).toList() : null,
+                dto.getSourceTypes() != null ? dto.getSourceTypes().stream().map(SourceType::valueOf).toList() : null,
+                dto.getSearchTerm(),
+                dto.getSoundFragments()
+        );
+        if (dto.getSongs() != null) {
+            for (StreamScheduleDTO.ScheduledSongDTO songDTO : dto.getSongs()) {
+                entry.addSong(fromSongDTO(songDTO));
+            }
+        }
+        return entry;
+    }
+
+    private ScheduledSongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {
+        SoundFragment soundFragment = new SoundFragment();
+        soundFragment.setId(UUID.fromString(dto.getSongId()));
+        soundFragment.setTitle(dto.getTitle());
+        soundFragment.setArtist(dto.getArtist());
+        return new ScheduledSongEntry(
+                UUID.fromString(dto.getId()),
+                soundFragment,
+                dto.getScheduledStartTime(),
+                dto.isPlayed()
+        );
     }
 }

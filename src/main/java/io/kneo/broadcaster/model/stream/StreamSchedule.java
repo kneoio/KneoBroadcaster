@@ -25,6 +25,11 @@ public class StreamSchedule {
         this.sceneSchedules = new ArrayList<>();
     }
 
+    public StreamSchedule(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+        this.sceneSchedules = new ArrayList<>();
+    }
+
     public Uni<StreamSchedule> build(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
         List<Scene> scenes = script.getScenes();
 

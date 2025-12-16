@@ -25,4 +25,5 @@ public class Scene extends SecureDataEntity<UUID> {
     private double talkativity = 0.5;
     private double podcastMode = 0.0;
     private List<Integer> weekdays;
+    private List<UUID> soundFragmentIds;
 }

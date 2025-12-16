@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.AiOverriding;
@@ -22,7 +21,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -47,7 +45,6 @@ public class OneTimeStream extends AbstractStream {
     private CountryCode country;
 
     private IStreamManager streamManager;
-    private UUID baseBrandId;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
     private IStream sourceBrand;
@@ -56,7 +53,6 @@ public class OneTimeStream extends AbstractStream {
     private AiOverriding aiOverriding;
     private List<BrandScriptEntry> scripts;
     private AiAgentStatus aiAgentStatus;
-    private StreamScheduleDTO schedule;
     private StreamSchedule streamSchedule;
 
     public OneTimeStream(Brand sourceBrand, Script script, Map<String, Object> userVariables) {
@@ -120,7 +116,7 @@ public class OneTimeStream extends AbstractStream {
 
     @Override
     public String toString() {
-        return String.format("OneTimeStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, baseBrandId);
+        return String.format("OneTimeStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, sourceBrand.getSlugName());
     }
 
 
@@ -150,28 +146,27 @@ public class OneTimeStream extends AbstractStream {
 
     @Override
     public Scene findActiveScene(List<Scene> scenes) {
-        LocalDateTime streamStartTime = getStartTime();
-        if (streamStartTime == null) {
-            LOGGER.warn("Station '{}': No start time set for relative timing mode", slugName);
+        if (streamSchedule == null) {
+            LOGGER.warn("Station '{}': No stream schedule available", slugName);
             return null;
         }
 
-        long elapsedSeconds = ChronoUnit.SECONDS.between(streamStartTime, LocalDateTime.now());
-        LOGGER.debug("Station '{}': Elapsed time since stream start: {} seconds", slugName, elapsedSeconds);
-
-        long cumulativeDuration = 0;
-        for (Scene scene : scenes) {
-            int sceneDuration = scene.getDurationSeconds();
-            if (elapsedSeconds < cumulativeDuration + sceneDuration) {
-                LOGGER.debug("Station '{}': Scene '{}' is active (elapsed: {}s, scene range: {}-{}s)",
-                        slugName, scene.getTitle(), elapsedSeconds, cumulativeDuration, cumulativeDuration + sceneDuration);
-                return scene;
+        LocalDateTime now = LocalDateTime.now();
+        for (SceneScheduleEntry entry : streamSchedule.getSceneSchedules()) {
+            if (!now.isBefore(entry.getScheduledStartTime()) && now.isBefore(entry.getScheduledEndTime())) {
+                Scene matchingScene = scenes.stream()
+                        .filter(s -> s.getId().equals(entry.getSceneId()))
+                        .findFirst()
+                        .orElse(null);
+                if (matchingScene != null) {
+                    LOGGER.debug("Station '{}': Scene '{}' is active (now: {}, scene range: {} - {})",
+                            slugName, matchingScene.getTitle(), now, entry.getScheduledStartTime(), entry.getScheduledEndTime());
+                    return matchingScene;
+                }
             }
-            cumulativeDuration += sceneDuration;
         }
 
-        LOGGER.info("Station '{}': All scenes completed (elapsed: {}s, total duration: {}s). Stream should stop.",
-                slugName, elapsedSeconds, cumulativeDuration);
+        LOGGER.info("Station '{}': No active scene found at {}. Stream may have completed.", slugName, now);
         return null;
     }
 

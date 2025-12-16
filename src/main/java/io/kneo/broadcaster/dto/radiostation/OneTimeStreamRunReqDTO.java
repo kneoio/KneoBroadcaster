@@ -18,7 +18,7 @@ import java.util.UUID;
 public class OneTimeStreamRunReqDTO {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     @NotNull
-    private UUID brandId;
+    private UUID baseBrandId;
     @NotNull
     private UUID aiAgentId;
     @NotNull

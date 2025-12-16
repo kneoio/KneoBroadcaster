@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.dto.radiostation.BuildScheduleReqDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.model.stream.IStream;
@@ -59,7 +60,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         router.get(path).handler(this::getAll);
         //router.get(path + "/slug/:slugName").handler(this::getBySlugName);
         router.get(path + "/:id").handler(this::getById);
-        router.post(path + "/schedule/:brandId/:scriptId").handler(this::buildSchedule);
+        router.post(path + "/schedule").handler(this::buildSchedule);
         router.post(path + "/run").handler(this::runOneTimeStream);
     }
 
@@ -143,18 +144,21 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     }*/
 
     private void buildSchedule(RoutingContext rc) {
-        UUID brandId = UUID.fromString(rc.pathParam("brandId"));
-        UUID scriptId = UUID.fromString(rc.pathParam("scriptId"));
+        if (!validateJsonBody(rc)) {
+            return;
+        }
+
+        BuildScheduleReqDTO dto = rc.body().asJsonObject().mapTo(BuildScheduleReqDTO.class);
 
         getContextUser(rc, false, true)
-                .chain(user -> oneTimeStreamService.buildStreamSchedule(brandId, scriptId, user))
+                .chain(user -> oneTimeStreamService.buildStreamSchedule(dto.getBaseBrandId(), dto.getScriptId(), user))
                 .subscribe().with(
-                        dto -> rc.response()
+                        result -> rc.response()
                                 .putHeader("Content-Type", "application/json")
                                 .setStatusCode(200)
-                                .end(JsonObject.mapFrom(dto).encode()),
+                                .end(JsonObject.mapFrom(result).encode()),
                         throwable -> {
-                            LOGGER.error("Failed to build schedule for brandId: {}, scriptId: {}", brandId, scriptId, throwable);
+                            LOGGER.error("Failed to build schedule for brandId: {}, scriptId: {}", dto.getBaseBrandId(), dto.getScriptId(), throwable);
                             rc.fail(throwable);
                         }
                 );

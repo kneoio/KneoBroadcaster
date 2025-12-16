@@ -61,6 +61,26 @@ public class SceneScheduleEntry {
         }
     }
 
+    public SceneScheduleEntry(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
+                              WayOfSourcing sourcing, String playlistTitle, String artist,
+                              List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
+                              List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments) {
+        this.sceneId = sceneId;
+        this.sceneTitle = sceneTitle;
+        this.scheduledStartTime = scheduledStartTime;
+        this.durationSeconds = durationSeconds;
+        this.songs = new ArrayList<>();
+        this.sourcing = sourcing;
+        this.playlistTitle = playlistTitle;
+        this.artist = artist;
+        this.genres = genres;
+        this.labels = labels;
+        this.playlistItemTypes = playlistItemTypes;
+        this.sourceTypes = sourceTypes;
+        this.searchTerm = searchTerm;
+        this.soundFragments = soundFragments;
+    }
+
     public void addSong(ScheduledSongEntry song) {
         this.songs.add(song);
     }

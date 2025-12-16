@@ -164,6 +164,7 @@ public class RadioStationPool {
                                             updateService,
                                             aiHelperService
                                     );
+                                    stream.setStreamManager(streamManager);
                                     streamManager.setStream(ots);
                                     streamManager.initialize();
                                     LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP.", key);

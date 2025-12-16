@@ -22,6 +22,13 @@ public class ScheduledSongEntry {
         this.played = false;
     }
 
+    public ScheduledSongEntry(UUID id, SoundFragment soundFragment, LocalDateTime scheduledStartTime, boolean played) {
+        this.id = id;
+        this.soundFragment = soundFragment;
+        this.scheduledStartTime = scheduledStartTime;
+        this.played = played;
+    }
+
     public void markAsPlayed() {
         this.played = true;
     }

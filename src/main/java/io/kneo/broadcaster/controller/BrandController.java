@@ -4,7 +4,10 @@ import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.BrandService;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.service.stream.StreamScheduleService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -13,6 +16,7 @@ import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.RuntimeUtil;
 import io.kneo.core.util.WebHelper;
@@ -42,18 +46,22 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
     private static final Logger LOGGER = LoggerFactory.getLogger(BrandController.class);
 
     private BrandService service;
-
     private Validator validator;
+    private RadioStationPool radioStationPool;
+    private StreamScheduleService streamScheduleService;
 
     public BrandController() {
         super(null);
     }
 
     @Inject
-    public BrandController(UserService userService, BrandService service, Validator validator) {
+    public BrandController(UserService userService, BrandService service, Validator validator,
+                           RadioStationPool radioStationPool, StreamScheduleService streamScheduleService) {
         super(userService);
         this.service = service;
         this.validator = validator;
+        this.radioStationPool = radioStationPool;
+        this.streamScheduleService = streamScheduleService;
     }
 
     public void setupRoutes(Router router) {
@@ -64,6 +72,7 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
         router.post(path + "/:id?").handler(this::upsert);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
+        router.post(path + "/:slugName/schedule").handler(this::buildSchedule);
     }
 
     private void getAll(RoutingContext rc) {
@@ -209,5 +218,46 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
         } catch (IllegalArgumentException e) {
             rc.fail(400, new IllegalArgumentException("Invalid document ID format"));
         }
+    }
+
+    private void buildSchedule(RoutingContext rc) {
+        String slugName = rc.pathParam("slugName");
+
+        getContextUser(rc, false, true)
+                .chain(user -> {
+                    IStream stream = radioStationPool.getStation(slugName);
+                    if (stream == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Stream not found in pool: " + slugName));
+                    }
+
+                    if (stream.getStreamSchedule() != null) {
+                        LOGGER.info("Stream '{}' already has a schedule, using existing", slugName);
+                        return Uni.createFrom().item(stream.getStreamSchedule());
+                    }
+
+                    return streamScheduleService.buildStreamSchedule(stream.getMasterBrand().getId(), UUID.randomUUID(), AnonymousUser.build())
+                            .invoke(stream::setStreamSchedule);
+                })
+                .subscribe().with(
+                        schedule -> {
+                            JsonObject response = new JsonObject();
+                            response.put("slugName", slugName);
+                            response.put("totalScenes", schedule != null ? schedule.getTotalScenes() : 0);
+                            response.put("totalSongs", schedule != null ? schedule.getTotalSongs() : 0);
+                            response.put("estimatedEndTime", schedule != null ? schedule.getEstimatedEndTime().toString() : null);
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(response.encode());
+                        },
+                        throwable -> {
+                            LOGGER.error("Failed to build schedule for stream: {}", slugName, throwable);
+                            if (throwable instanceof IllegalArgumentException) {
+                                rc.fail(400, throwable);
+                            } else {
+                                rc.fail(500, throwable);
+                            }
+                        }
+                );
     }
 }

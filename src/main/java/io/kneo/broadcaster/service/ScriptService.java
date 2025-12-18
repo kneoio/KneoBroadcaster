@@ -128,6 +128,11 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return repository.findById(id, user, false).chain(script -> mapToDTO(script, user));
     }
 
+    public Uni<Script> getById(UUID id, IUser user) {
+        assert repository != null;
+        return repository.findById(id, user, false);
+    }
+
     public Uni<ScriptDTO> upsert(String id, ScriptDTO dto, IUser user) {
         assert repository != null;
         assert scriptSceneService != null;

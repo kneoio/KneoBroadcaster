@@ -7,7 +7,7 @@ import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 
 public interface IStreamManager {
 
-    void initialize();
+    void initialize(IStream stream);
 
     String generatePlaylist();
 
@@ -18,8 +18,6 @@ public interface IStreamManager {
     void shutdown();
 
     IStream getStream();
-
-    void setStream(IStream stream);
 
     SoundFragmentService getSoundFragmentService();
 

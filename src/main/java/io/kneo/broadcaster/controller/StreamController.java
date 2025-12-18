@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.OneTimeStreamService;
+import io.kneo.broadcaster.service.stream.StreamScheduleService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -41,6 +42,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamController.class);
 
     private OneTimeStreamService oneTimeStreamService;
+    private StreamScheduleService streamScheduleService;
     private Validator validator;
 
     public StreamController() {
@@ -48,9 +50,10 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     }
 
     @Inject
-    public StreamController(UserService userService, OneTimeStreamService oneTimeStreamService, Validator validator) {
+    public StreamController(UserService userService, OneTimeStreamService oneTimeStreamService, StreamScheduleService streamScheduleService, Validator validator) {
         super(userService);
         this.oneTimeStreamService = oneTimeStreamService;
+        this.streamScheduleService = streamScheduleService;
         this.validator = validator;
     }
 
@@ -58,7 +61,6 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         String path = "/api/streams";
         router.route(path + "/*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
-        //router.get(path + "/slug/:slugName").handler(this::getBySlugName);
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/schedule").handler(this::buildSchedule);
         router.post(path + "/run").handler(this::runOneTimeStream);
@@ -123,26 +125,6 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
                 );
     }
 
-  /*  private void getBySlugName(RoutingContext rc) {
-        String slugName = rc.pathParam("slugName");
-
-        oneTimeStreamService.getBySlugName(slugName)
-                .subscribe().with(
-                        stream -> {
-                            if (stream == null) {
-                                rc.response().setStatusCode(404).end();
-                            } else {
-                                OneTimeStreamDTO dto = oneTimeStreamService.getDTO(stream);
-                                rc.response().setStatusCode(200).end(JsonObject.mapFrom(dto).encode());
-                            }
-                        },
-                        throwable -> {
-                            LOGGER.error("Failed to get stream by slugName: {}", slugName, throwable);
-                            rc.fail(throwable);
-                        }
-                );
-    }*/
-
     private void buildSchedule(RoutingContext rc) {
         if (!validateJsonBody(rc)) {
             return;
@@ -151,7 +133,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         BuildScheduleReqDTO dto = rc.body().asJsonObject().mapTo(BuildScheduleReqDTO.class);
 
         getContextUser(rc, false, true)
-                .chain(user -> oneTimeStreamService.buildStreamSchedule(dto.getBaseBrandId(), dto.getScriptId(), user))
+                .chain(user -> streamScheduleService.getStreamScheduleDTO(dto.getBaseBrandId(), dto.getScriptId(), user))
                 .subscribe().with(
                         result -> rc.response()
                                 .putHeader("Content-Type", "application/json")

@@ -14,7 +14,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiDjStats {
+public class AiDjStatsDTO {
     private UUID currentSceneId;
     private String currentSceneTitle;
     private LocalTime sceneStartTime;

@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -209,7 +210,7 @@ public class QueueService {
     public Uni<Boolean> isStationOnline(String brand) {
         LOGGER.debug("[QueueService] Checking if station is online: {}", brand);
         return radioStationPool.get(brand)
-                .onItem().transform(station -> station != null && station.getStreamManager() != null);
+                .onItem().transform(Objects::nonNull);
     }
 
     public SSEProgressDTO getQueuingProgress(String uploadId) {

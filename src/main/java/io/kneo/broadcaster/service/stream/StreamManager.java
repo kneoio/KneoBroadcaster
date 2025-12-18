@@ -15,7 +15,6 @@ import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.subscription.Cancellable;
 import lombok.Getter;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +43,6 @@ public class StreamManager implements IStreamManager {
     private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
 
     @Getter
-    @Setter
     private IStream stream;
     @Getter
     private PlaylistManager playlistManager;
@@ -92,8 +90,9 @@ public class StreamManager implements IStreamManager {
     }
 
     @Override
-    public void initialize() {
-        this.stream.setStatus(RadioStationStatus.WARMING_UP);
+    public void initialize(IStream stream) {
+        stream.setStatus(RadioStationStatus.WARMING_UP);
+        this.stream = stream;
         LOGGER.info("New broadcast initialized for {}", stream.getSlugName());
 
         playlistManager = new PlaylistManager(

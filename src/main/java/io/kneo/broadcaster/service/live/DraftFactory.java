@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.agent.PerplexityApiClient;
 import io.kneo.broadcaster.agent.WeatherApiClient;
 import io.kneo.broadcaster.agent.WorldNewsApiClient;
+import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
@@ -12,6 +13,7 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ListenerService;
@@ -124,6 +126,8 @@ public class DraftFactory {
             LanguageCode selectedLanguage,
             Map<String, Object> userVariables
     ) {
+        RadioStream radioStream = new RadioStream();
+        radioStream.setMasterBrand(station);
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
                 : Uni.createFrom().nullItem();
@@ -148,7 +152,7 @@ public class DraftFactory {
                             song,
                             agent,
                             copilot,
-                            station,
+                            radioStream,
                             profile,
                             genres,
                             listeners,
@@ -186,7 +190,7 @@ public class DraftFactory {
             IStream stream,
             Profile profile,
             List<String> genres,
-            List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners,
+            List<BrandListenerDTO> listeners,
             LanguageCode selectedLanguage,
             Map<String, Object> userVariables
     ) {

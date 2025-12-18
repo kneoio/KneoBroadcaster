@@ -14,7 +14,6 @@ import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Prompt;
-import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -47,7 +46,6 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -116,19 +114,19 @@ public class EventExecutor {
 
         return brandService.getById(brandId, SuperUser.build())
                 .chain(station -> {
-                    Optional<IStream> stationOpt = radioStationPool.getStation(station.getSlugName());
-                    if (stationOpt.isEmpty()) {
+                    IStream stationStream = radioStationPool.getStation(station.getSlugName());
+                    if (stationStream == null) {
                         LOGGER.info("Station {} is offline, skipping event {}", station.getSlugName(), event.getId());
                         return Uni.createFrom().voidItem();
                     }
-                    RadioStationStatus status = stationOpt.get().getStatus();
+                    RadioStationStatus status = stationStream.getStatus();
                     if (status != RadioStationStatus.WARMING_UP && 
                         status != RadioStationStatus.ON_LINE && 
                         status != RadioStationStatus.QUEUE_SATURATED) {
                         LOGGER.info("Station {} has status {}, skipping event {}", station.getSlugName(), status, event.getId());
                         return Uni.createFrom().voidItem();
                     }
-                    return fetchFragmentsForEvent(station, event, fragmentType)
+                    return fetchFragmentsForEvent(stationStream, event, fragmentType)
                         .chain(fragments -> {
                             if (fragments.isEmpty()) {
                                 LOGGER.warn("No {} fragments found for event: {}", fragmentType, event.getId());
@@ -145,16 +143,16 @@ public class EventExecutor {
 
                             if (activeActions.isEmpty()) {
                                 LOGGER.info("No RUN_PROMPT actions, queuing fragment without TTS");
-                                return queueFragmentWithoutTts(station, fragment);
+                                return queueFragmentWithoutTts(stationStream, fragment);
                             }
 
                             Action selectedAction = Randomizator.pickRandom(activeActions);
-                            return executeWithPrompt(station, fragment, selectedAction);
+                            return executeWithPrompt(stationStream, fragment, selectedAction);
                         });
                 });
     }
 
-    private Uni<List<SoundFragment>> fetchFragmentsForEvent(Brand station, Event event, PlaylistItemType fragmentType) {
+    private Uni<List<SoundFragment>> fetchFragmentsForEvent(IStream stationStream, Event event, PlaylistItemType fragmentType) {
         PlaylistRequest playlistRequest = event.getPlaylistRequest();
 
         if (playlistRequest == null) {
@@ -168,7 +166,7 @@ public class EventExecutor {
         }
 
         if (sourcing == WayOfSourcing.QUERY) {
-            return songSupplier.getNextSongByQuery(station.getId(), playlistRequest, 10);
+            return songSupplier.getNextSongByQuery(stationStream.getId(), playlistRequest, 10);
         }
 
         if (sourcing == WayOfSourcing.STATIC_LIST) {
@@ -178,18 +176,18 @@ public class EventExecutor {
         throw new IllegalStateException("Unknown sourcing type: " + sourcing);
     }
 
-    private Uni<Void> executeWithPrompt(Brand station, SoundFragment fragment, Action action) {
+    private Uni<Void> executeWithPrompt(IStream stationStream, SoundFragment fragment, Action action) {
         UUID promptId = action.getPromptId();
 
         return promptService.getById(promptId, SuperUser.build())
-                .chain(prompt -> aiAgentService.getById(station.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                .chain(prompt -> aiAgentService.getById(stationStream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                         .chain(agent -> {
                             LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                            return draftFactory.createDraft(fragment, agent, station, prompt.getDraftId(), broadcastingLanguage, null)
+                            return draftFactory.createDraft(fragment, agent, stationStream, prompt.getDraftId(), broadcastingLanguage, null)
                                     .chain(draft -> generateText(prompt, draft))
                                     .chain(ttsText -> {
-                                        String voiceId = AiHelperUtils.resolvePrimaryVoiceId(station, agent);
-                                        return generateTtsAndQueue(station, fragment, ttsText, voiceId);
+                                        String voiceId = AiHelperUtils.resolvePrimaryVoiceId(stationStream, agent);
+                                        return generateTtsAndQueue(stationStream, fragment, ttsText, voiceId);
                                     });
                         }));
     }
@@ -216,7 +214,7 @@ public class EventExecutor {
         });
     }
 
-    private Uni<Void> generateTtsAndQueue(Brand station, SoundFragment fragment, String ttsText, String voiceId) {
+    private Uni<Void> generateTtsAndQueue(IStream station, SoundFragment fragment, String ttsText, String voiceId) {
         String uploadId = UUID.randomUUID().toString();
 
         return elevenLabsClient.textToSpeech(ttsText, voiceId, config.getElevenLabsModelId())
@@ -257,7 +255,7 @@ public class EventExecutor {
                 .replaceWithVoid();
     }
 
-    private Uni<Void> queueFragmentWithoutTts(Brand station, SoundFragment fragment) {
+    private Uni<Void> queueFragmentWithoutTts(IStream station, SoundFragment fragment) {
         String uploadId = UUID.randomUUID().toString();
 
         Map<String, UUID> soundFragments = new HashMap<>();

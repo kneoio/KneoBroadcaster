@@ -34,5 +34,5 @@ public class StationStatsDTO {
     @Getter
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
     @Getter
-    private AiDjStats aiDjStats;
+    private AiDjStatsDTO aiDjStats;
 }

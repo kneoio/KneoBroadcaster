@@ -12,7 +12,6 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ListenerType;
-import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -52,14 +51,18 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
     @Inject
     Provider<ListenerService> listenerService;
 
+    ScriptService scriptService;
+
     @Inject
     public BrandService(
             UserService userService,
+            ScriptService scriptService,
             BrandRepository repository,
             RadioStationPool radiostationPool,
             BroadcasterConfig broadcasterConfig
     ) {
         super(userService);
+        this.scriptService =scriptService;
         this.repository = repository;
         this.radiostationPool = radiostationPool;
         this.broadcasterConfig = broadcasterConfig;
@@ -113,8 +116,22 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
     }
 
     public Uni<Brand> getBySlugName(String name) {
-        return repository.getBySlugName(name);
+        return repository.getBySlugName(name)
+                .chain(brand ->
+                        scriptService.getAllScriptsForBrandWithScenes(brand.getId(), SuperUser.build())
+                                .map(brandScripts -> {
+                                    List<BrandScriptEntry> entries = brandScripts.stream()
+                                            .map(bs -> new BrandScriptEntry(
+                                                    bs.getScript().getId(),
+                                                    bs.getUserVariables()
+                                            ))
+                                            .collect(Collectors.toList());
+                                    brand.setScripts(entries);
+                                    return brand;
+                                })
+                );
     }
+
 
     public Uni<Brand> getBySlugName(String name, IUser user) {
         return repository.getBySlugName(name, user, false);
@@ -191,8 +208,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         return repository.archive(id, SuperUser.build());
     }
 
-    private Uni<BrandDTO> mapToDTO(IStream stream) {
-        Brand doc = (Brand) stream;
+    private Uni<BrandDTO> mapToDTO(Brand doc) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),

@@ -73,6 +73,10 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         return repository.findById(id, user, false).chain(this::mapToDTO);
     }
 
+    public Uni<Scene> getById(UUID sceneId, IUser user) {
+        return repository.findById(sceneId, user, false);
+    }
+
     public Uni<SceneDTO> upsert(String id, UUID scriptId, SceneDTO dto, IUser user) {
         Scene entity = buildEntity(dto);
         if (id == null) {

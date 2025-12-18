@@ -32,11 +32,10 @@ public class StationDashboardService {
 
     public Uni<Optional<StationStatsDTO>> getStationStats(String brand) {
         return Uni.createFrom().item(() -> radioStationPool.getStation(brand))
-                .flatMap(optionalStation -> {
-                    if (optionalStation.isEmpty()) {
+                .flatMap(stream -> {
+                    if (stream == null) {
                         return Uni.createFrom().item(Optional.empty());
                     }
-                    IStream stream = optionalStation.get();
                     StationStatsDTO stats = createStationStats(brand, stream);
                     
                     // Get country stats from in-memory accumulator

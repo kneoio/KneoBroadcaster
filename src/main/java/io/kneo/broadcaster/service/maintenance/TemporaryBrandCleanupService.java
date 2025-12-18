@@ -55,7 +55,7 @@ public class TemporaryBrandCleanupService {
     }
 
     private void performCleanup(Long tick) {
-        Set<String> activeSlugs = radioStationPool.getActiveSlugNamesSnapshot();
+        Set<String> activeSlugs = radioStationPool.getActiveSnapshot();
         LOGGER.info("Temporary brand cleanup (tick: {}) - Active slugs in pool (will be excluded): {}", tick, activeSlugs);
         
         brandService.getAll(1000, 0)

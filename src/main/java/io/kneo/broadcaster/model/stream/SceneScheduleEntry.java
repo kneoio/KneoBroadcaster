@@ -85,10 +85,6 @@ public class SceneScheduleEntry {
         this.songs.add(song);
     }
 
-    public void addSongs(List<ScheduledSongEntry> songList) {
-        this.songs.addAll(songList);
-    }
-
     public LocalDateTime getScheduledEndTime() {
         return scheduledStartTime.plusSeconds(durationSeconds);
     }

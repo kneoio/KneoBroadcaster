@@ -3,24 +3,19 @@ package io.kneo.broadcaster.model.stream;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
-import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
-import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.util.WebHelper;
-import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -32,50 +27,29 @@ import java.util.UUID;
 @Getter
 public class OneTimeStream extends AbstractStream {
     private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStream.class);
-    private UUID id;
-    private String slugName;
-    private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-    private ZoneId timeZone;
-    private long bitRate;
-    private ManagedBy managedBy = ManagedBy.MIX;
-    private String color;
-    private double popularityRate = 5;
-    private UUID aiAgentId;
-    private UUID profileId;
-    private CountryCode country;
-
-    private IStreamManager streamManager;
-    private LocalDateTime createdAt;
-    private LocalDateTime expiresAt;
-    private IStream sourceBrand;
     private Script script;
     private Map<String, Object> userVariables;
-    private AiOverriding aiOverriding;
-    private List<BrandScriptEntry> scripts;
     private AiAgentStatus aiAgentStatus;
-    private StreamSchedule streamSchedule;
 
-    public OneTimeStream(Brand sourceBrand, Script script, Map<String, Object> userVariables) {
+    public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
+        this.masterBrand = masterBrand;
+        this.id = UUID.randomUUID();
         this.script = script;
         this.userVariables = userVariables;
+        this.createdAt = LocalDateTime.now();
         String displayName = buildOneTimeDisplayName();
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
         localizedName.put(LanguageCode.en, displayName);
         this.localizedName = localizedName;
-        this.timeZone = sourceBrand.getTimeZone();
+        this.timeZone = masterBrand.getTimeZone();
         this.color = WebHelper.generateRandomBrightColor();
-        this.aiAgentId = sourceBrand.getAiAgentId();
+        this.aiAgentId = masterBrand.getAiAgentId();
         this.profileId = script.getDefaultProfileId();
-        this.bitRate = sourceBrand.getBitRate();
-        this.aiOverriding = sourceBrand.getAiOverriding();
-        this.country =sourceBrand.getCountry();
+        this.bitRate = masterBrand.getBitRate();
+        this.aiOverriding = masterBrand.getAiOverriding();
+        this.country = masterBrand.getCountry();
         this.slugName = WebHelper.generateSlug(displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF)));
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
-    }
-
-    @Override
-    public String getSourceBrandName() {
-        return sourceBrand.getSlugName();
     }
 
     @Override
@@ -116,7 +90,7 @@ public class OneTimeStream extends AbstractStream {
 
     @Override
     public String toString() {
-        return String.format("OneTimeStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, sourceBrand.getSlugName());
+        return String.format("OneTimeStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, masterBrand.getSlugName());
     }
 
 
@@ -144,8 +118,7 @@ public class OneTimeStream extends AbstractStream {
         return String.join(" ", parts);
     }
 
-    @Override
-    public Scene findActiveScene(List<Scene> scenes) {
+    public SceneScheduleEntry findActiveSceneEntry() {
         if (streamSchedule == null) {
             LOGGER.warn("Station '{}': No stream schedule available", slugName);
             return null;
@@ -154,15 +127,9 @@ public class OneTimeStream extends AbstractStream {
         LocalDateTime now = LocalDateTime.now();
         for (SceneScheduleEntry entry : streamSchedule.getSceneSchedules()) {
             if (!now.isBefore(entry.getScheduledStartTime()) && now.isBefore(entry.getScheduledEndTime())) {
-                Scene matchingScene = scenes.stream()
-                        .filter(s -> s.getId().equals(entry.getSceneId()))
-                        .findFirst()
-                        .orElse(null);
-                if (matchingScene != null) {
-                    LOGGER.debug("Station '{}': Scene '{}' is active (now: {}, scene range: {} - {})",
-                            slugName, matchingScene.getTitle(), now, entry.getScheduledStartTime(), entry.getScheduledEndTime());
-                    return matchingScene;
-                }
+                LOGGER.debug("Station '{}': Scene '{}' is active (now: {}, scene range: {} - {})",
+                        slugName, entry.getSceneTitle(), now, entry.getScheduledStartTime(), entry.getScheduledEndTime());
+                return entry;
             }
         }
 

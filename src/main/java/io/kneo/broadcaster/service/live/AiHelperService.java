@@ -7,7 +7,7 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.dashboard.AiDjStats;
+import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.model.Action;
@@ -59,7 +59,7 @@ public class AiHelperService {
     }
 
     private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
-    private final Map<String, List<AiDjStats.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
+    private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
     private final Map<String, List<UUID>> oneTimeRunTracker = new ConcurrentHashMap<>();
     private LocalDate lastReset = LocalDate.now();
 
@@ -293,7 +293,7 @@ public class AiHelperService {
         return null;
     }
 
-    public Uni<AiDjStats> getAiDjStats(IStream stream) {
+    public Uni<AiDjStatsDTO> getAiDjStats(IStream stream) {
         return scriptService.getAllScriptsForBrandWithScenes(stream.getId(), SuperUser.build())
                 .flatMap(scripts -> {
                     if (scripts.isEmpty()) {
@@ -340,7 +340,7 @@ public class AiHelperService {
                             }
                             final AiOverriding overriding = stream.getAiOverriding();
                             if (overriding != null) {
-                                return Uni.createFrom().item(() -> new AiDjStats(
+                                return Uni.createFrom().item(() -> new AiDjStatsDTO(
                                         scene.getId(),
                                         scene.getTitle(),
                                         sceneStart,
@@ -352,7 +352,7 @@ public class AiHelperService {
                                         aiDjMessagesTracker.get(stream.getSlugName())
                                 ));
                             } else {
-                                return Uni.createFrom().item(() -> new AiDjStats(
+                                return Uni.createFrom().item(() -> new AiDjStatsDTO(
                                         scene.getId(),
                                         scene.getTitle(),
                                         sceneStart,
@@ -435,9 +435,9 @@ public class AiHelperService {
         return null;
     }
 
-    public void addMessage(String brandName, AiDjStats.MessageType type, String message) {
+    public void addMessage(String brandName, AiDjStatsDTO.MessageType type, String message) {
         aiDjMessagesTracker.computeIfAbsent(brandName, k -> new ArrayList<>())
-                .add(new AiDjStats.StatusMessage(type, message));
+                .add(new AiDjStatsDTO.StatusMessage(type, message));
     }
 
     public void clearDashboardMessages(String brandName) {

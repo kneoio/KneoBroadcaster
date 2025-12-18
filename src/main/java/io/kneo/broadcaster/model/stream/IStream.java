@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -21,11 +22,13 @@ import java.util.UUID;
 
 public interface IStream {
 
+    Brand getMasterBrand();
+
+    void setMasterBrand(Brand brand);
+
     UUID getId();
 
     String getSlugName();
-
-    String getSourceBrandName();
 
     EnumMap<LanguageCode, String> getLocalizedName();
 
@@ -40,8 +43,6 @@ public interface IStream {
     void setStatus(RadioStationStatus status);
 
     IStreamManager getStreamManager();
-
-    void setStreamManager(IStreamManager streamManager);
 
     AiAgentStatus getAiAgentStatus();
 
@@ -89,11 +90,11 @@ public interface IStream {
 
     void setLastAgentContactAt(long l);
 
-    default Scene findActiveScene(List<Scene> scenes) {
-        return null;
-    }
+    StreamSchedule getStreamSchedule();
 
-    default List<SoundFragment> getNextScheduledSongs(Scene scene, int count) {
-        return List.of();
-    }
+    void setStreamSchedule(StreamSchedule streamSchedule);
+
+    SceneScheduleEntry findActiveSceneEntry();
+
+    List<SoundFragment> getNextScheduledSongs(Scene scene, int count);
 }

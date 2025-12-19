@@ -24,11 +24,6 @@ public abstract class StreamSupplier {
             SongSupplier songSupplier,
             SoundFragmentService soundFragmentService
     ) {
-        if (activeEntry.getSourcing() == null) {
-            int songCount = new Random().nextDouble() < 0.7 ? 1 : 2;
-            return songSupplier.getNextSong(slugName, PlaylistItemType.SONG, songCount);
-        }
-
         return switch (activeEntry.getSourcing()) {
             case QUERY -> {
                 PlaylistRequest req = new PlaylistRequest();

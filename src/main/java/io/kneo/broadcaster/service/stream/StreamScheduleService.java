@@ -131,20 +131,23 @@ public class StreamScheduleService {
         }
 
         WayOfSourcing sourcing = playlistRequest.getSourcing();
-
-        if (sourcing == WayOfSourcing.RANDOM) {
+        if (sourcing == null) {
             return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
         }
 
-        if (sourcing == WayOfSourcing.QUERY) {
-            return songSupplier.getSongsByQuery(brand.getId(), playlistRequest, quantity);
-        }
-
-        if (sourcing == WayOfSourcing.STATIC_LIST) {
-            return songSupplier.getSongsFromStaticList(playlistRequest.getSoundFragments(), quantity);
-        }
-
-        return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+        return switch (sourcing) {
+            case QUERY -> {
+                PlaylistRequest req = new PlaylistRequest();
+                req.setSearchTerm(playlistRequest.getSearchTerm());
+                req.setGenres(playlistRequest.getGenres());
+                req.setLabels(playlistRequest.getLabels());
+                req.setType(playlistRequest.getType());
+                req.setSource(playlistRequest.getSource());
+                yield songSupplier.getSongsByQuery(brand.getId(), req, quantity);
+            }
+            case STATIC_LIST -> songSupplier.getSongsFromStaticList(playlistRequest.getSoundFragments(), quantity);
+            default -> songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+        };
     }
 
     private StreamScheduleDTO toScheduleDTO(StreamSchedule schedule) {
@@ -392,20 +395,23 @@ public class StreamScheduleService {
         }
 
         WayOfSourcing sourcing = playlistRequest.getSourcing();
-
-        if (sourcing == WayOfSourcing.RANDOM) {
+        if (sourcing == null) {
             return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
         }
 
-        if (sourcing == WayOfSourcing.QUERY) {
-            return songSupplier.getSongsByQuery(brand.getId(), playlistRequest, quantity);
-        }
-
-        if (sourcing == WayOfSourcing.STATIC_LIST) {
-            return songSupplier.getSongsFromStaticList(playlistRequest.getSoundFragments(), quantity);
-        }
-
-        return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+        return switch (sourcing) {
+            case QUERY -> {
+                PlaylistRequest req = new PlaylistRequest();
+                req.setSearchTerm(playlistRequest.getSearchTerm());
+                req.setGenres(playlistRequest.getGenres());
+                req.setLabels(playlistRequest.getLabels());
+                req.setType(playlistRequest.getType());
+                req.setSource(playlistRequest.getSource());
+                yield songSupplier.getSongsByQuery(brand.getId(), req, quantity);
+            }
+            case STATIC_LIST -> songSupplier.getSongsFromStaticList(playlistRequest.getSoundFragments(), quantity);
+            default -> songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+        };
     }
 
     private int estimateSongsForDuration(int durationSeconds, double talkativity) {

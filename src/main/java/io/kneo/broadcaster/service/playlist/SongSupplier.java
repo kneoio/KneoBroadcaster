@@ -83,7 +83,7 @@ public class SongSupplier implements ISupplier {
         return getUnplayedFragments(brandName, null, fragmentType)
                 .map(unplayed -> {
                     if (unplayed.isEmpty()) {
-                        return List.<SoundFragment>of();
+                        return List.of();
                     }
 
                     List<SoundFragment> selected;
@@ -106,7 +106,7 @@ public class SongSupplier implements ISupplier {
         return getBrandDataCached(brandName, brandId, fragmentType)
                 .map(fragments -> {
                     if (fragments.isEmpty()) {
-                        return List.<SoundFragment>of();
+                        return List.of();
                     }
 
                     SupplierSongMemory memory = getMemory(brandName, fragmentType);
@@ -182,7 +182,7 @@ public class SongSupplier implements ISupplier {
                 .map(fragments -> {
                     if (fragments.isEmpty()) {
                         LOGGER.warn("No fragments found for query filter, brandId: {}", brandId);
-                        return List.<SoundFragment>of();
+                        return List.of();
                     }
                     List<SoundFragment> shuffled = new ArrayList<>(fragments);
                     Collections.shuffle(shuffled, secureRandom);
@@ -202,7 +202,7 @@ public class SongSupplier implements ISupplier {
                 .map(fragments -> {
                     if (fragments.isEmpty()) {
                         LOGGER.warn("No fragments found for static list IDs");
-                        return List.<SoundFragment>of();
+                        return List.of();
                     }
                     List<SoundFragment> shuffled = new ArrayList<>(fragments);
                     Collections.shuffle(shuffled, secureRandom);

@@ -9,6 +9,7 @@ import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
+import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -66,10 +67,30 @@ public class OneTimeStreamSupplier extends StreamSupplier{
         String currentSceneTitle = activeEntry.getSceneTitle();
         Map<String, Object> userVariables = stream.getUserVariables();
 
-        Uni<List<SoundFragment>> songsUni = getSongsFromEntry(
-                activeEntry, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService);
+        Uni<List<SoundFragment>> songsUni;
+        List<ScheduledSongEntry> scheduledSongs = activeEntry.getSongs();
+        if (!scheduledSongs.isEmpty()) {
+            List<SoundFragment> songs = scheduledSongs.stream()
+                    .filter(s -> !s.isPlayed())
+                    .peek(ScheduledSongEntry::markAsPlayed)
+                    .map(ScheduledSongEntry::getSoundFragment)
+                    .toList();
+            songsUni = Uni.createFrom().item(songs);
+        } else {
+            songsUni = getSongsFromEntry(
+                    activeEntry, stream.getMasterBrand().getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService);
+        }
 
-        return songsUni.flatMap(songs -> sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
+        return songsUni.flatMap(songs -> {
+            if (songs.isEmpty()) {
+                messageSink.add(
+                        stream.getSlugName(),
+                        AiDjStatsDTO.MessageType.WARNING,
+                        String.format("No unplayed songs available for scene '%s'", currentSceneTitle)
+                );
+                return Uni.createFrom().item(() -> null);
+            }
+            return sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
             .chain(scene -> {
                 List<UUID> promptIds = scene.getPrompts() != null
                         ? scene.getPrompts().stream()
@@ -132,6 +153,7 @@ public class OneTimeStreamSupplier extends StreamSupplier{
                             return Uni.join().all(songPromptUnis).andFailFast()
                                     .map(result -> Tuple2.of(result, currentSceneTitle));
                         });
-            }));
+            });
+        });
     }
 }

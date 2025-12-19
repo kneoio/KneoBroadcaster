@@ -61,8 +61,9 @@ public class SongSupplier implements ISupplier {
                 .getFirst();
     }
 
-    public Uni<List<SoundFragment>> getBrandSongs(String brandName, PlaylistItemType fragmentType, int quantity) {
-        return getUnplayedFragments(brandName, fragmentType)
+    @Override
+    public Uni<List<SoundFragment>> getBrandSongs(String brandName, UUID brandId, PlaylistItemType fragmentType, int quantity) {
+        return getUnplayedFragments(brandName, brandId, fragmentType)
                 .map(unplayed -> {
                     if (unplayed.isEmpty()) return List.of();
 
@@ -78,9 +79,8 @@ public class SongSupplier implements ISupplier {
                 });
     }
 
-
     public Uni<List<SoundFragment>> getNextSong(String brandName, PlaylistItemType fragmentType, int quantity) {
-        return getUnplayedFragments(brandName, fragmentType)
+        return getUnplayedFragments(brandName, null, fragmentType)
                 .map(unplayed -> {
                     if (unplayed.isEmpty()) {
                         return List.<SoundFragment>of();
@@ -102,8 +102,8 @@ public class SongSupplier implements ISupplier {
                 });
     }
 
-    private Uni<List<SoundFragment>> getUnplayedFragments(String brandName, PlaylistItemType fragmentType) {
-        return getBrandDataCached(brandName, fragmentType)
+    private Uni<List<SoundFragment>> getUnplayedFragments(String brandName, UUID brandId, PlaylistItemType fragmentType) {
+        return getBrandDataCached(brandName, brandId, fragmentType)
                 .map(fragments -> {
                     if (fragments.isEmpty()) {
                         return List.<SoundFragment>of();
@@ -123,12 +123,28 @@ public class SongSupplier implements ISupplier {
                 });
     }
 
-    private Uni<List<SoundFragment>> getBrandDataCached(String brandName, PlaylistItemType fragmentType) {
+    private Uni<List<SoundFragment>> getBrandDataCached(String brandName, UUID brandId, PlaylistItemType fragmentType) {
         String cacheKey = brandName + "_" + fragmentType;
         CachedBrandData cached = brandCache.get(cacheKey);
 
         if (cached != null && !cached.isExpired()) {
             return Uni.createFrom().item(cached.fragments);
+        }
+
+        if (brandId != null) {
+            BrandLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
+            return repository.getBrandSongsRandomPage(brandId, fragmentType)
+                    .flatMap(fragments -> {
+                        if (fragments.isEmpty()) {
+                            return repository.getBrandSongs(brandId, fragmentType);
+                        }
+                        return Uni.createFrom().item(fragments);
+                    })
+                    .map(fragments -> {
+                        Collections.shuffle(fragments, secureRandom);
+                        brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));
+                        return fragments;
+                    });
         }
 
         return brandService.getBySlugName(brandName)
@@ -137,19 +153,19 @@ public class SongSupplier implements ISupplier {
                         BrandLogger.logActivity(brandName, "brand_not_found", "Brand not found");
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
-                    UUID brandId = radioStation.getId();
+                    UUID resolvedBrandId = radioStation.getId();
                     BrandLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
 
-                    return repository.getBrandSongsRandomPage(brandId, fragmentType)
+                    return repository.getBrandSongsRandomPage(resolvedBrandId, fragmentType)
                             .flatMap(fragments -> {
                                 if (fragments.isEmpty()) {
-                                    return repository.getBrandSongs(brandId, fragmentType);
+                                    return repository.getBrandSongs(resolvedBrandId, fragmentType);
                                 }
                                 return Uni.createFrom().item(fragments);
                             })
                             .map(fragments -> {
                                 Collections.shuffle(fragments, secureRandom);
-                                brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));
+                                brandCache.put(cacheKey, new CachedBrandData(resolvedBrandId, fragments));
                                 return fragments;
                             });
 

@@ -93,11 +93,12 @@ public class PlaylistManager {
         this.songSupplier = songSupplier;
         this.brandSoundFragmentUpdateService = brandSoundFragmentUpdateService;
         this.aiHelperService = aiHelperService;
-        this.brandSlug = stream.getSlugName();
-        if (stream.getMasterBrand() == null) {
+        if (stream.getMasterBrand() != null) {
             this.masterBrandId = stream.getMasterBrand().getId();
+            this.brandSlug = stream.getMasterBrand().getSlugName();
         } else {
             this.masterBrandId = stream.getId();
+            this.brandSlug = stream.getSlugName();
         }
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
@@ -141,7 +142,7 @@ public class PlaylistManager {
         int quantityToFetch = Math.min(remaining, maxQuantity);
         LOGGER.info("Adding {} fragments for brand {}", quantityToFetch, brandSlug);
 
-        songSupplier.getBrandSongs(stream.getMasterBrand().getSlugName(), PlaylistItemType.SONG, quantityToFetch)
+        songSupplier.getBrandSongs(brandSlug, masterBrandId, PlaylistItemType.SONG, quantityToFetch)
                 .onItem().transformToMulti(soundFragments ->
                         Multi.createFrom().iterable(soundFragments)
                 )

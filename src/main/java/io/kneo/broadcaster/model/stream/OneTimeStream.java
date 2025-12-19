@@ -5,7 +5,7 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
-import io.kneo.broadcaster.model.brand.ProfileOverriding;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.core.localization.LanguageCode;
@@ -37,6 +37,7 @@ public class OneTimeStream extends AbstractStream {
         this.script = script;
         this.userVariables = userVariables;
         this.createdAt = LocalDateTime.now();
+        this.managedBy = ManagedBy.DJ;
         String displayName = buildOneTimeDisplayName();
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
         localizedName.put(LanguageCode.en, displayName);
@@ -73,26 +74,14 @@ public class OneTimeStream extends AbstractStream {
     }
 
     @Override
-    public void setAiAgentId(UUID aiAgentId) {
-
-    }
-
-    @Override
-    public ProfileOverriding getProfileOverriding() {
-        return null;
-    }
-
-    @Override
     public void setLastAgentContactAt(long l) {
 
     }
-
 
     @Override
     public String toString() {
         return String.format("OneTimeStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, masterBrand.getSlugName());
     }
-
 
     private String buildOneTimeDisplayName() {
         String base = script.getSlugName() != null && !script.getSlugName().trim().isEmpty()

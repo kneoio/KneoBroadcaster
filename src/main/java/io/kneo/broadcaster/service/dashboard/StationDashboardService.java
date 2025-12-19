@@ -3,6 +3,8 @@ package io.kneo.broadcaster.service.dashboard;
 import io.kneo.broadcaster.dto.dashboard.CountryStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
+import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
@@ -13,7 +15,9 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -74,6 +78,34 @@ public class StationDashboardService {
             stationStats.setPlaylistManagerStats(playlistManager.getStats());
         }
 
+        stationStats.setSchedule(buildScheduleEntries(station));
+
         return stationStats;
+    }
+
+    private List<StationStatsDTO.ScheduleEntryDTO> buildScheduleEntries(IStream station) {
+        StreamSchedule schedule = station.getStreamSchedule();
+        if (schedule == null || schedule.getSceneSchedules().isEmpty()) {
+            return List.of();
+        }
+
+        LocalTime now = LocalTime.now();
+        List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();
+
+        for (SceneScheduleEntry scene : schedule.getSceneSchedules()) {
+            StationStatsDTO.ScheduleEntryDTO dto = new StationStatsDTO.ScheduleEntryDTO();
+            dto.setSceneTitle(scene.getSceneTitle());
+            dto.setStartTime(scene.getOriginalStartTime());
+            dto.setEndTime(scene.getOriginalEndTime());
+            dto.setActive(scene.isActiveAt(now));
+            dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
+            dto.setPlaylistTitle(scene.getPlaylistTitle());
+            dto.setArtist(scene.getArtist());
+            dto.setSearchTerm(scene.getSearchTerm());
+            dto.setSongsCount(scene.getSongs() != null ? scene.getSongs().size() : 0);
+            entries.add(dto);
+        }
+
+        return entries;
     }
 }

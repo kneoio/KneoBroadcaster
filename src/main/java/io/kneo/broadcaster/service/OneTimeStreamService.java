@@ -218,6 +218,8 @@ public class OneTimeStreamService {
                 dto.getSceneTitle(),
                 dto.getScheduledStartTime(),
                 dto.getDurationSeconds(),
+                dto.getOriginalStartTime(),
+                dto.getOriginalEndTime(),
                 dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null,
                 dto.getPlaylistTitle(),
                 dto.getArtist(),

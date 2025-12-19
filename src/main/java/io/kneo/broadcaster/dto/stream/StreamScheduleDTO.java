@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Setter
@@ -25,6 +26,8 @@ public class StreamScheduleDTO {
         private int durationSeconds;
         private List<ScheduledSongDTO> songs;
 
+        private LocalTime originalStartTime;
+        private LocalTime originalEndTime;
         private String sourcing;
         private String playlistTitle;
         private String artist;

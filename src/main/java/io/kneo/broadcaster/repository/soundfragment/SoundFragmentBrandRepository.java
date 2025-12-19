@@ -13,11 +13,14 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.SqlResult;
 import io.vertx.mutiny.sqlclient.Tuple;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
 
 public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstract {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SoundFragmentBrandRepository.class);
 
     public SoundFragmentBrandRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository) {
         super(client, mapper, rlsRepository);
@@ -280,19 +283,23 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         StringBuilder sql = new StringBuilder();
+        sql.append("SELECT * FROM (");
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
-        sql.append("JOIN kneobroadcaster__brand_sound_fragments bsf ON t.id = bsf.sound_fragment_id ");
-        sql.append("WHERE bsf.brand_id = '").append(brandId).append("' AND t.archived = 0");
+        sql.append("JOIN kneobroadcaster__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
+        sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
+        sql.append("AND t.archived = 0 ");
 
         if (filter != null && filter.isActivated()) {
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(" ORDER BY RANDOM()");
+        sql.append(") q ORDER BY RANDOM() ");
 
         if (limit > 0) {
-            sql.append(" LIMIT ").append(limit);
+            sql.append("LIMIT ").append(limit);
         }
+
+        LOGGER.debug("findByFilter SQL: {}", sql);
 
         return client.query(sql.toString())
                 .execute()
@@ -301,4 +308,6 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                 .concatenate()
                 .collect().asList();
     }
+
+
 }

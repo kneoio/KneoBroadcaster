@@ -22,8 +22,11 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -68,6 +71,18 @@ public class StreamScheduleService {
                     );
                     return toScheduleDTO(s);
                 });
+    }
+
+    public Uni<StreamSchedule> buildLoopedStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
+        return brandService.getById(brandId, user)
+                .chain(sourceBrand ->
+                        scriptService.getById(scriptId, user)
+                                .chain(script ->
+                                        sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
+                                                .invoke(script::setScenes)
+                                                .chain(x -> buildLoopedSchedule(script, sourceBrand, scheduleSongSupplier))
+                                )
+                );
     }
 
 
@@ -158,6 +173,8 @@ public class StreamScheduleService {
         dto.setScheduledEndTime(scene.getScheduledEndTime());
         dto.setDurationSeconds(scene.getDurationSeconds());
 
+        dto.setOriginalStartTime(scene.getOriginalStartTime());
+        dto.setOriginalEndTime(scene.getOriginalEndTime());
         dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
         dto.setPlaylistTitle(scene.getPlaylistTitle());
         dto.setArtist(scene.getArtist());
@@ -212,6 +229,8 @@ public class StreamScheduleService {
                 dto.getSceneTitle(),
                 dto.getScheduledStartTime(),
                 dto.getDurationSeconds(),
+                dto.getOriginalStartTime(),
+                dto.getOriginalEndTime(),
                 dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null,
                 dto.getPlaylistTitle(),
                 dto.getArtist(),
@@ -248,6 +267,150 @@ public class StreamScheduleService {
         int avgSongDuration = 180;
         double djTalkRatio = scene.getTalkativity();
         int effectiveMusicTime = (int) (durationSeconds * (1 - djTalkRatio * 0.3));
+        return Math.max(1, effectiveMusicTime / avgSongDuration);
+    }
+
+    public Uni<StreamSchedule> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+        StreamSchedule schedule = new StreamSchedule(LocalDateTime.now());
+
+        List<Scene> scenes = script.getScenes();
+        if (scenes == null || scenes.isEmpty()) {
+            return Uni.createFrom().item(schedule);
+        }
+
+        List<Scene> sortedScenes = scenes.stream()
+                .filter(s -> s.getStartTime() != null)
+                .sorted(Comparator.comparing(Scene::getStartTime))
+                .collect(Collectors.toList());
+
+        if (sortedScenes.isEmpty()) {
+            return Uni.createFrom().item(schedule);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalTime currentTime = now.toLocalTime();
+        LocalDate today = now.toLocalDate();
+
+        int activeIndex = findActiveSceneIndex(sortedScenes, currentTime);
+
+        List<Uni<SceneScheduleEntry>> sceneUnis = new ArrayList<>();
+        LocalDateTime sceneStartTime = now;
+
+        for (int i = 0; i < sortedScenes.size(); i++) {
+            int sceneIndex = (activeIndex + i) % sortedScenes.size();
+            Scene scene = sortedScenes.get(sceneIndex);
+            int nextIndex = (sceneIndex + 1) % sortedScenes.size();
+            Scene nextScene = sortedScenes.get(nextIndex);
+
+            int durationSeconds = calculateDurationUntilNext(scene.getStartTime(), nextScene.getStartTime());
+
+            if (i == 0) {
+                int elapsedInCurrentScene = calculateElapsedSeconds(scene.getStartTime(), currentTime);
+                durationSeconds = Math.max(0, durationSeconds - elapsedInCurrentScene);
+            }
+
+            LocalDateTime finalSceneStartTime = sceneStartTime;
+            int finalDurationSeconds = durationSeconds;
+
+            LocalTime sceneOriginalStart = scene.getStartTime();
+            LocalTime sceneOriginalEnd = nextScene.getStartTime();
+
+            sceneUnis.add(
+                    fetchSongsForSceneWithDuration(sourceBrand, scene, finalDurationSeconds, songSupplier)
+                            .map(songs -> {
+                                SceneScheduleEntry entry = new SceneScheduleEntry(
+                                        scene.getId(),
+                                        scene.getTitle(),
+                                        finalSceneStartTime,
+                                        finalDurationSeconds,
+                                        sceneOriginalStart,
+                                        sceneOriginalEnd,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSourcing() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getTitle() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getArtist() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getGenres() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getLabels() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getType() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSource() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSearchTerm() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSoundFragments() : null
+                                );
+                                LocalDateTime songStartTime = finalSceneStartTime;
+                                for (SoundFragment song : songs) {
+                                    ScheduledSongEntry songEntry = new ScheduledSongEntry(song, songStartTime);
+                                    entry.addSong(songEntry);
+                                    songStartTime = songStartTime.plusSeconds(songEntry.getEstimatedDurationSeconds());
+                                }
+                                return entry;
+                            })
+            );
+            sceneStartTime = sceneStartTime.plusSeconds(durationSeconds);
+        }
+
+        return Uni.join().all(sceneUnis).andFailFast()
+                .map(entries -> {
+                    entries.forEach(schedule::addSceneSchedule);
+                    return schedule;
+                });
+    }
+
+    private int findActiveSceneIndex(List<Scene> sortedScenes, LocalTime currentTime) {
+        for (int i = sortedScenes.size() - 1; i >= 0; i--) {
+            if (!currentTime.isBefore(sortedScenes.get(i).getStartTime())) {
+                return i;
+            }
+        }
+        return sortedScenes.size() - 1;
+    }
+
+    private int calculateDurationUntilNext(LocalTime start, LocalTime next) {
+        int startSeconds = start.toSecondOfDay();
+        int nextSeconds = next.toSecondOfDay();
+        if (nextSeconds > startSeconds) {
+            return nextSeconds - startSeconds;
+        } else {
+            return (24 * 60 * 60 - startSeconds) + nextSeconds;
+        }
+    }
+
+    private int calculateElapsedSeconds(LocalTime sceneStart, LocalTime currentTime) {
+        int sceneStartSeconds = sceneStart.toSecondOfDay();
+        int currentSeconds = currentTime.toSecondOfDay();
+        if (currentSeconds >= sceneStartSeconds) {
+            return currentSeconds - sceneStartSeconds;
+        } else {
+            return (24 * 60 * 60 - sceneStartSeconds) + currentSeconds;
+        }
+    }
+
+    private Uni<List<SoundFragment>> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int durationSeconds, ScheduleSongSupplier songSupplier) {
+        int quantity = estimateSongsForDuration(durationSeconds, scene.getTalkativity());
+        PlaylistRequest playlistRequest = scene.getPlaylistRequest();
+
+        if (playlistRequest == null) {
+            return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+        }
+
+        WayOfSourcing sourcing = playlistRequest.getSourcing();
+
+        if (sourcing == WayOfSourcing.RANDOM) {
+            return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+        }
+
+        if (sourcing == WayOfSourcing.QUERY) {
+            return songSupplier.getSongsByQuery(brand.getId(), playlistRequest, quantity);
+        }
+
+        if (sourcing == WayOfSourcing.STATIC_LIST) {
+            return songSupplier.getSongsFromStaticList(playlistRequest.getSoundFragments(), quantity);
+        }
+
+        return songSupplier.getSongsForBrand(brand.getId(), PlaylistItemType.SONG, quantity);
+    }
+
+    private int estimateSongsForDuration(int durationSeconds, double talkativity) {
+        int avgSongDuration = 180;
+        int effectiveMusicTime = (int) (durationSeconds * (1 - talkativity * 0.3));
         return Math.max(1, effectiveMusicTime / avgSongDuration);
     }
 }

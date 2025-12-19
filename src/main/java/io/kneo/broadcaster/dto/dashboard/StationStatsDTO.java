@@ -8,6 +8,7 @@ import io.kneo.broadcaster.service.stream.HLSSongStats;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalTime;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -35,4 +36,20 @@ public class StationStatsDTO {
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
     @Getter
     private AiDjStatsDTO aiDjStats;
+    @Getter
+    private List<ScheduleEntryDTO> schedule;
+
+    @Setter
+    @Getter
+    public static class ScheduleEntryDTO {
+        private String sceneTitle;
+        private LocalTime startTime;
+        private LocalTime endTime;
+        private boolean active;
+        private String sourcing;
+        private String playlistTitle;
+        private String artist;
+        private String searchTerm;
+        private int songsCount;
+    }
 }

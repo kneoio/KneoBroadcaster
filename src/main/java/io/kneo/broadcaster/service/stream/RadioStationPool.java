@@ -117,8 +117,8 @@ public class RadioStationPool {
                                 });
 
                                 if (finalStationToUse instanceof RadioStream radioStream && radioStream.getStreamSchedule() == null) {
-                                    LOGGER.info("RadioStationPool: Building schedule for RadioStream '{}'", radioStream.getSlugName());
-                                    return streamScheduleService.buildStreamSchedule(brand.getId(), brand.getScripts().getFirst().getScriptId(),  SuperUser.build())
+                                    LOGGER.info("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
+                                    return streamScheduleService.buildLoopedStreamSchedule(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
                                             .invoke(schedule -> {
                                                 radioStream.setStreamSchedule(schedule);
                                                 LOGGER.info("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",
@@ -134,8 +134,8 @@ public class RadioStationPool {
                 .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize station {}: {}", brandName, failure.getMessage(), failure));
     }
 
-    public Uni<IStream> initializeStream(IStream anyStream) {
-        return Uni.createFrom().item(anyStream)
+    public Uni<IStream> initializeStream(IStream oneTimeStream) {
+        return Uni.createFrom().item(oneTimeStream)
                 .onItem().transformToUni(ots -> {
                     IStream stationAlreadyActive = pool.get(ots.getSlugName());
                     if (stationAlreadyActive != null &&
@@ -176,7 +176,7 @@ public class RadioStationPool {
                                 return Uni.createFrom().item(finalStationToUse);
                             });
                 })
-                .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize stream {}: {}", anyStream.getSlugName(), failure.getMessage(), failure));
+                .onFailure().invoke(failure -> LOGGER.error("Overall failure to initialize stream {}: {}", oneTimeStream.getSlugName(), failure.getMessage(), failure));
     }
 
     public Uni<IStream> get(String brandName) {

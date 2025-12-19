@@ -163,7 +163,7 @@ public class AirSupplier {
                     }
 
                     if (stream instanceof RadioStream radioStream) {
-                        return radioStreamSupplier.fetchPromptForRadioStream(
+                        return radioStreamSupplier.fetchStuffForRadioStream(
                                         radioStream,
                                         agent,
                                         broadcastingLanguage,
@@ -171,9 +171,6 @@ public class AirSupplier {
                                         this::addMessage
                                 )
                                 .flatMap(tuple -> {
-                                    if (tuple == null) {
-                                        return Uni.createFrom().item(liveRadioStation);
-                                    }
                                     List<SongPromptDTO> prompts = tuple.getItem1();
                                     liveRadioStation.setPrompts(prompts);
                                     liveRadioStation.setInfo(tuple.getItem2());

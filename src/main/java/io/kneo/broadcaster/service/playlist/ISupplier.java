@@ -5,8 +5,10 @@ import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.smallrye.mutiny.Uni;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface ISupplier {
 
-    Uni<List<SoundFragment>> getBrandSongs(String brandSlug, PlaylistItemType playlistItemType, int quantityToFetch);
+
+    Uni<List<SoundFragment>> getBrandSongs(String brandSlug, UUID brandId, PlaylistItemType playlistItemType, int quantityToFetch);
 }

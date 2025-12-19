@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,6 +20,8 @@ public class SceneScheduleEntry {
     private final LocalDateTime scheduledStartTime;
     private final int durationSeconds;
     private final List<ScheduledSongEntry> songs;
+    private final LocalTime originalStartTime;
+    private final LocalTime originalEndTime;
 
     private final WayOfSourcing sourcing;
     private final String playlistTitle;
@@ -36,6 +39,8 @@ public class SceneScheduleEntry {
         this.scheduledStartTime = scheduledStartTime;
         this.durationSeconds = scene.getDurationSeconds();
         this.songs = new ArrayList<>();
+        this.originalStartTime = scene.getStartTime();
+        this.originalEndTime = null;
 
         PlaylistRequest pr = scene.getPlaylistRequest();
         if (pr != null) {
@@ -62,6 +67,7 @@ public class SceneScheduleEntry {
     }
 
     public SceneScheduleEntry(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
+                              LocalTime originalStartTime, LocalTime originalEndTime,
                               WayOfSourcing sourcing, String playlistTitle, String artist,
                               List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
                               List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments) {
@@ -70,6 +76,8 @@ public class SceneScheduleEntry {
         this.scheduledStartTime = scheduledStartTime;
         this.durationSeconds = durationSeconds;
         this.songs = new ArrayList<>();
+        this.originalStartTime = originalStartTime;
+        this.originalEndTime = originalEndTime;
         this.sourcing = sourcing;
         this.playlistTitle = playlistTitle;
         this.artist = artist;
@@ -87,5 +95,16 @@ public class SceneScheduleEntry {
 
     public LocalDateTime getScheduledEndTime() {
         return scheduledStartTime.plusSeconds(durationSeconds);
+    }
+
+    public boolean isActiveAt(LocalTime time) {
+        if (originalStartTime == null || originalEndTime == null) {
+            return false;
+        }
+        if (originalEndTime.isAfter(originalStartTime)) {
+            return !time.isBefore(originalStartTime) && time.isBefore(originalEndTime);
+        } else {
+            return !time.isBefore(originalStartTime) || time.isBefore(originalEndTime);
+        }
     }
 }

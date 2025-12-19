@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.EnumMap;
 import java.util.List;
 
@@ -84,11 +85,11 @@ public class RadioStream extends AbstractStream {
             return null;
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalTime now = LocalTime.now();
         for (SceneScheduleEntry entry : streamSchedule.getSceneSchedules()) {
-            if (!now.isBefore(entry.getScheduledStartTime()) && now.isBefore(entry.getScheduledEndTime())) {
-                LOGGER.debug("Station '{}': Scene '{}' is active (now: {}, scene range: {} - {})",
-                        slugName, entry.getSceneTitle(), now, entry.getScheduledStartTime(), entry.getScheduledEndTime());
+            if (entry.isActiveAt(now)) {
+                LOGGER.debug("Station '{}': Scene '{}' is active at time {}",
+                        slugName, entry.getSceneTitle(), now);
                 return entry;
             }
         }

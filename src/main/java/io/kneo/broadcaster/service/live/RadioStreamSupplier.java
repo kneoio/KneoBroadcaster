@@ -9,9 +9,11 @@ import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
+import io.kneo.broadcaster.service.playlist.SongSupplier;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.util.AiHelperUtils;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
@@ -25,7 +27,7 @@ import java.util.Random;
 import java.util.UUID;
 
 @ApplicationScoped
-public class RadioStreamSupplier {
+public class RadioStreamSupplier extends StreamSupplier {
 
     @FunctionalInterface
     public interface MessageSink {
@@ -35,15 +37,21 @@ public class RadioStreamSupplier {
     private final PromptService promptService;
     private final DraftFactory draftFactory;
     private final SceneService sceneService;
+    private final SongSupplier songSupplier;
+    private final SoundFragmentService soundFragmentService;
+    private final JinglePlaybackHandler jinglePlaybackHandler;
 
     @Inject
-    public RadioStreamSupplier(PromptService promptService, DraftFactory draftFactory, SceneService sceneService) {
+    public RadioStreamSupplier(PromptService promptService, DraftFactory draftFactory, SceneService sceneService, SongSupplier songSupplier, SoundFragmentService soundFragmentService, JinglePlaybackHandler jinglePlaybackHandler) {
         this.promptService = promptService;
         this.draftFactory = draftFactory;
         this.sceneService = sceneService;
+        this.songSupplier = songSupplier;
+        this.soundFragmentService = soundFragmentService;
+        this.jinglePlaybackHandler = jinglePlaybackHandler;
     }
 
-    public Uni<Tuple2<List<SongPromptDTO>, String>> fetchPromptForRadioStream(
+    public Uni<Tuple2<List<SongPromptDTO>, String>> fetchStuffForRadioStream(
             RadioStream stream,
             AiAgent agent,
             LanguageCode broadcastingLanguage,
@@ -51,7 +59,6 @@ public class RadioStreamSupplier {
             MessageSink messageSink
     ) {
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
-
         if (activeEntry == null) {
             stream.setStatus(RadioStationStatus.OFF_LINE);
             messageSink.add(stream.getSlugName(), AiDjStatsDTO.MessageType.INFO, "No active scene - schedule may need refresh");
@@ -60,85 +67,87 @@ public class RadioStreamSupplier {
 
         String currentSceneTitle = activeEntry.getSceneTitle();
 
-        List<SoundFragment> songs = activeEntry.getSongs().stream()
-                .filter(s -> !s.isPlayed())
-                .limit(1)
-                .peek(ScheduledSongEntry::markAsPlayed)
-                .map(ScheduledSongEntry::getSoundFragment)
-                .toList();
+        Uni<List<SoundFragment>> songsUni = getSongsFromEntry(
+                activeEntry, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService);
 
-        if (songs.isEmpty()) {
-            messageSink.add(
-                    stream.getSlugName(),
-                    AiDjStatsDTO.MessageType.INFO,
-                    String.format("No more scheduled songs for scene '%s'", currentSceneTitle)
-            );
-            return Uni.createFrom().item(() -> null);
-        }
+        return songsUni.flatMap(songs ->
+                sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
+                        .chain(scene -> {
+                            double effectiveTalkativity = scene.getTalkativity();
+                            double rate = stream.getPopularityRate();
+                            if (rate < 4.0) {
+                                double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
+                                effectiveTalkativity =
+                                        Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
+                            }
 
-        return sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
-                .chain(scene -> {
-                    List<UUID> promptIds = scene.getPrompts() != null
-                            ? scene.getPrompts().stream()
-                            .filter(Action::isActive)
-                            .map(Action::getPromptId)
-                            .toList()
-                            : List.of();
 
-                    if (promptIds.isEmpty()) {
-                        messageSink.add(
-                                stream.getSlugName(),
-                                AiDjStatsDTO.MessageType.WARNING,
-                                String.format("Active scene '%s' has no prompts", currentSceneTitle)
-                        );
-                        return Uni.createFrom().item(() -> null);
-                    }
+                            if (AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
+                                jinglePlaybackHandler.handleJinglePlayback(stream, scene);
+                                return Uni.createFrom().item(() -> null);
+                            }
 
-                    List<Uni<Prompt>> promptUnis = promptIds.stream()
-                            .map(masterId ->
-                                    promptService.getById(masterId, SuperUser.build())
-                                            .flatMap(masterPrompt -> {
-                                                if (masterPrompt.getLanguageCode() == broadcastingLanguage) {
-                                                    return Uni.createFrom().item(masterPrompt);
-                                                }
-                                                return promptService
-                                                        .findByMasterAndLanguage(masterId, broadcastingLanguage, false)
-                                                        .map(p -> p != null ? p : masterPrompt);
-                                            })
-                            )
-                            .toList();
+                            List<UUID> enabledPrompts = scene.getPrompts() != null
+                                    ? scene.getPrompts().stream()
+                                    .filter(Action::isActive)
+                                    .map(Action::getPromptId)
+                                    .toList()
+                                    : List.of();
 
-                    return Uni.join().all(promptUnis).andFailFast()
-                            .flatMap(prompts -> {
-                                Random random = new Random();
-                                List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
-                                        .map(song -> {
-                                            Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
-                                            return draftFactory.createDraft(
-                                                            song,
-                                                            agent,
-                                                            stream,
-                                                            selectedPrompt.getDraftId(),
-                                                            broadcastingLanguage,
-                                                            Map.of()
-                                                    )
-                                                    .map(draft -> new SongPromptDTO(
-                                                            song.getId(),
-                                                            draft,
-                                                            selectedPrompt.getPrompt() + additionalInstruction,
-                                                            selectedPrompt.getPromptType(),
-                                                            agent.getLlmType(),
-                                                            agent.getSearchEngineType(),
-                                                            activeEntry.getScheduledStartTime().toLocalTime(),
-                                                            false,
-                                                            selectedPrompt.isPodcast()
-                                                    ));
-                                        })
-                                        .toList();
+                            if (enabledPrompts.isEmpty()) {
+                                messageSink.add(
+                                        stream.getSlugName(),
+                                        AiDjStatsDTO.MessageType.WARNING,
+                                        String.format("Active scene '%s' has no enabled prompts", currentSceneTitle)
+                                );
+                                return Uni.createFrom().item(() -> null);
+                            }
 
-                                return Uni.join().all(songPromptUnis).andFailFast()
-                                        .map(result -> Tuple2.of(result, currentSceneTitle));
-                            });
-                });
+                            List<Uni<Prompt>> promptUnis = enabledPrompts.stream()
+                                    .map(masterId ->
+                                            promptService.getById(masterId, SuperUser.build())
+                                                    .flatMap(masterPrompt -> {
+                                                        if (masterPrompt.getLanguageCode() == broadcastingLanguage) {
+                                                            return Uni.createFrom().item(masterPrompt);
+                                                        }
+                                                        return promptService
+                                                                .findByMasterAndLanguage(masterId, broadcastingLanguage, false)
+                                                                .map(p -> p != null ? p : masterPrompt);
+                                                    })
+                                    )
+                                    .toList();
+
+                            return Uni.join().all(promptUnis).andFailFast()
+                                    .flatMap(prompts -> {
+                                        Random random = new Random();
+                                        List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
+                                                .map(song -> {
+                                                    Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                                                    return draftFactory.createDraft(
+                                                                    song,
+                                                                    agent,
+                                                                    stream,
+                                                                    selectedPrompt.getDraftId(),
+                                                                    broadcastingLanguage,
+                                                                    Map.of()
+                                                            )
+                                                            .map(draft -> new SongPromptDTO(
+                                                                    song.getId(),
+                                                                    draft,
+                                                                    selectedPrompt.getPrompt() + additionalInstruction,
+                                                                    selectedPrompt.getPromptType(),
+                                                                    agent.getLlmType(),
+                                                                    agent.getSearchEngineType(),
+                                                                    activeEntry.getScheduledStartTime().toLocalTime(),
+                                                                    false,
+                                                                    selectedPrompt.isPodcast()
+                                                            ));
+                                                })
+                                                .toList();
+
+                                        return Uni.join().all(songPromptUnis).andFailFast()
+                                                .map(result -> Tuple2.of(result, currentSceneTitle));
+                                    });
+                        }));
     }
 }

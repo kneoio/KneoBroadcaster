@@ -115,6 +115,8 @@ public class OneTimeStreamService {
                 .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
                         .chain(script -> {
                             OneTimeStream stream = new OneTimeStream(sourceBrand, script, dto.getUserVariables());
+                            stream.setAiAgentId(dto.getAiAgentId());
+                            stream.setProfileId(dto.getProfileId());
                             stream.setStreamSchedule(fromScheduleDTO(dto.getSchedule()));
                             oneTimeStreamRepository.insert(stream);
                             return Uni.createFrom().item(stream);

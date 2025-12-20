@@ -101,7 +101,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         if (!scheduledSongs.isEmpty()) {
             List<ScheduledSongEntry> availableEntries = scheduledSongs.stream()
                     .filter(entry -> !playedSongsInScene.contains(entry.getSoundFragment().getId()))
-                    .filter(entry -> entry.fitsTimeScope(activeEntry.getScheduledStartTime().toLocalTime()))
                     .toList();
 
             if (availableEntries.isEmpty()) {

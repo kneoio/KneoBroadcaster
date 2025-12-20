@@ -28,6 +28,12 @@ public class StreamScheduleDTO {
 
         private LocalTime originalStartTime;
         private LocalTime originalEndTime;
+        private ScenePlaylistRequest playlistRequest;
+    }
+
+    @Setter
+    @Getter
+    public static class ScenePlaylistRequest {
         private String sourcing;
         private String playlistTitle;
         private String artist;

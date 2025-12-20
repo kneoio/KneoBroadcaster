@@ -178,19 +178,7 @@ public class StreamScheduleService {
 
         dto.setOriginalStartTime(scene.getOriginalStartTime());
         dto.setOriginalEndTime(scene.getOriginalEndTime());
-        dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
-        dto.setPlaylistTitle(scene.getPlaylistTitle());
-        dto.setArtist(scene.getArtist());
-        dto.setGenres(scene.getGenres() != null ? scene.getGenres() : List.of());
-        dto.setLabels(scene.getLabels() != null ? scene.getLabels() : List.of());
-        dto.setPlaylistItemTypes(scene.getPlaylistItemTypes() != null
-                ? scene.getPlaylistItemTypes().stream().map(Enum::name).collect(Collectors.toList())
-                : List.of());
-        dto.setSourceTypes(scene.getSourceTypes() != null
-                ? scene.getSourceTypes().stream().map(Enum::name).collect(Collectors.toList())
-                : List.of());
-        dto.setSearchTerm(scene.getSearchTerm() != null ? scene.getSearchTerm() : "");
-        dto.setSoundFragments(scene.getSoundFragments() != null ? scene.getSoundFragments() : List.of());
+        dto.setPlaylistRequest(toScenePlaylistRequest(scene));
 
         List<StreamScheduleDTO.ScheduledSongDTO> songDTOs = scene.getSongs().stream()
                 .map(this::toSongDTO)
@@ -198,6 +186,24 @@ public class StreamScheduleService {
         dto.setSongs(songDTOs);
 
         return dto;
+    }
+
+    private StreamScheduleDTO.ScenePlaylistRequest toScenePlaylistRequest(SceneScheduleEntry scene) {
+        StreamScheduleDTO.ScenePlaylistRequest request = new StreamScheduleDTO.ScenePlaylistRequest();
+        request.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
+        request.setPlaylistTitle(scene.getPlaylistTitle());
+        request.setArtist(scene.getArtist());
+        request.setGenres(scene.getGenres() != null ? scene.getGenres() : List.of());
+        request.setLabels(scene.getLabels() != null ? scene.getLabels() : List.of());
+        request.setPlaylistItemTypes(scene.getPlaylistItemTypes() != null
+                ? scene.getPlaylistItemTypes().stream().map(Enum::name).collect(Collectors.toList())
+                : List.of());
+        request.setSourceTypes(scene.getSourceTypes() != null
+                ? scene.getSourceTypes().stream().map(Enum::name).collect(Collectors.toList())
+                : List.of());
+        request.setSearchTerm(scene.getSearchTerm() != null ? scene.getSearchTerm() : "");
+        request.setSoundFragments(scene.getSoundFragments() != null ? scene.getSoundFragments() : List.of());
+        return request;
     }
 
     private StreamScheduleDTO.ScheduledSongDTO toSongDTO(ScheduledSongEntry song) {
@@ -226,6 +232,7 @@ public class StreamScheduleService {
     }
 
     private SceneScheduleEntry fromSceneDTO(StreamScheduleDTO.SceneScheduleDTO dto) {
+        StreamScheduleDTO.ScenePlaylistRequest request = dto.getPlaylistRequest();
         SceneScheduleEntry entry = new SceneScheduleEntry(
                 UUID.fromString(dto.getSceneId()),
                 dto.getSceneTitle(),
@@ -233,15 +240,15 @@ public class StreamScheduleService {
                 dto.getDurationSeconds(),
                 dto.getOriginalStartTime(),
                 dto.getOriginalEndTime(),
-                dto.getSourcing() != null ? WayOfSourcing.valueOf(dto.getSourcing()) : null,
-                dto.getPlaylistTitle(),
-                dto.getArtist(),
-                dto.getGenres(),
-                dto.getLabels(),
-                dto.getPlaylistItemTypes() != null ? dto.getPlaylistItemTypes().stream().map(PlaylistItemType::valueOf).toList() : null,
-                dto.getSourceTypes() != null ? dto.getSourceTypes().stream().map(SourceType::valueOf).toList() : null,
-                dto.getSearchTerm(),
-                dto.getSoundFragments()
+                request != null && request.getSourcing() != null ? WayOfSourcing.valueOf(request.getSourcing()) : null,
+                request != null ? request.getPlaylistTitle() : null,
+                request != null ? request.getArtist() : null,
+                request != null ? request.getGenres() : null,
+                request != null ? request.getLabels() : null,
+                request != null && request.getPlaylistItemTypes() != null ? request.getPlaylistItemTypes().stream().map(PlaylistItemType::valueOf).toList() : null,
+                request != null && request.getSourceTypes() != null ? request.getSourceTypes().stream().map(SourceType::valueOf).toList() : null,
+                request != null ? request.getSearchTerm() : null,
+                request != null ? request.getSoundFragments() : null
         );
         if (dto.getSongs() != null) {
             for (StreamScheduleDTO.ScheduledSongDTO songDTO : dto.getSongs()) {

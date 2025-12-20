@@ -104,11 +104,23 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     .toList();
 
             if (availableEntries.isEmpty()) {
-                messageSink.add(
-                        stream.getSlugName(),
-                        AiDjStatsDTO.MessageType.INFO,
-                        String.format("All songs exhausted for scene '%s', waiting for next scene", currentSceneTitle)
-                );
+                List<SceneScheduleEntry> allScenes = stream.getStreamSchedule().getSceneScheduleEntries();
+                boolean isLastScene = allScenes.indexOf(activeEntry) == allScenes.size() - 1;
+                
+                if (isLastScene) {
+                    stream.setStatus(RadioStationStatus.OFF_LINE);
+                    messageSink.add(
+                            stream.getSlugName(),
+                            AiDjStatsDTO.MessageType.INFO,
+                            String.format("Last scene '%s' completed - stream finished", currentSceneTitle)
+                    );
+                } else {
+                    messageSink.add(
+                            stream.getSlugName(),
+                            AiDjStatsDTO.MessageType.INFO,
+                            String.format("All songs exhausted for scene '%s', waiting for next scene", currentSceneTitle)
+                    );
+                }
                 return Uni.createFrom().item(() -> null);
             }
 
@@ -201,7 +213,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                                 agent.getLlmType(),
                                                                 agent.getSearchEngineType(),
                                                                 activeEntry.getScheduledStartTime().toLocalTime(),
-                                                                false,
+                                                                true,
                                                                 selectedPrompt.isPodcast()
                                                         ));
                                             })

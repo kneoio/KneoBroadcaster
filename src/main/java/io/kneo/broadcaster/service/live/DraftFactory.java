@@ -196,10 +196,11 @@ public class DraftFactory {
     ) {
         String countryIso = stream.getCountry().getIsoCode();
         Map<String, Object> data = new HashMap<>();
-        data.put("songTitle", song.getTitle());
-        data.put("songArtist", song.getArtist());
-        data.put("songDescription", song.getDescription());
-        data.put("songGenres", genres);
+        
+        if (userVariables != null && !userVariables.isEmpty()) {
+            data.putAll(userVariables);
+        }
+        
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
         data.put("listeners", listeners);
@@ -230,10 +231,11 @@ public class DraftFactory {
         data.put("perplexity", new PerpelxitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
-
-        if (userVariables != null && !userVariables.isEmpty()) {
-            data.putAll(userVariables);
-        }
+        
+        data.put("songTitle", song.getTitle());
+        data.put("songArtist", song.getArtist());
+        data.put("songDescription", song.getDescription());
+        data.put("songGenres", genres);
 
         return groovyEngine.render(template, data).trim();
     }

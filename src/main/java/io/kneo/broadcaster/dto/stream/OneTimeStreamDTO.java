@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
@@ -33,5 +34,9 @@ public class OneTimeStreamDTO {
     private LocalDateTime expiresAt;
     private StreamScheduleDTO streamSchedule;
     private Map<String, Object> userVariables;
+    private URL hlsUrl;
+    private URL iceCastUrl;
+    private URL mp3Url;
+    private URL mixplaUrl;
 
 }

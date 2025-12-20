@@ -208,7 +208,6 @@ public class StreamScheduleService {
         dto.setArtist(song.getSoundFragment().getArtist());
         dto.setScheduledStartTime(song.getScheduledStartTime());
         dto.setEstimatedDurationSeconds(song.getEstimatedDurationSeconds());
-        dto.setPlayed(song.isPlayed());
         return dto;
     }
 
@@ -260,8 +259,7 @@ public class StreamScheduleService {
         return new ScheduledSongEntry(
                 UUID.fromString(dto.getId()),
                 soundFragment,
-                dto.getScheduledStartTime(),
-                dto.isPlayed()
+                dto.getScheduledStartTime()
         );
     }
 

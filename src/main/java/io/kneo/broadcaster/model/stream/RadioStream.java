@@ -116,9 +116,7 @@ public class RadioStream extends AbstractStream {
         }
 
         List<SoundFragment> songs = sceneEntry.getSongs().stream()
-                .filter(s -> !s.isPlayed())
                 .limit(count)
-                .peek(ScheduledSongEntry::markAsPlayed)
                 .map(ScheduledSongEntry::getSoundFragment)
                 .toList();
 

@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
@@ -16,7 +17,6 @@ import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.service.stream.StreamScheduleService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -25,6 +25,8 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -46,7 +48,8 @@ public class OneTimeStreamService {
     RadioStationPool radioStationPool;
 
     @Inject
-    StreamScheduleService streamScheduleService;
+    BroadcasterConfig broadcasterConfig;
+
 
     public Uni<List<OneTimeStreamDTO>> getAll(int limit, int offset) {
         return oneTimeStreamRepository.getAll(limit, offset)
@@ -95,6 +98,15 @@ public class OneTimeStreamService {
         dto.setStreamSchedule(toScheduleDTO(doc.getStreamSchedule()));
         dto.setCreatedAt(doc.getCreatedAt());
         dto.setExpiresAt(doc.getExpiresAt());
+        try {
+            dto.setHlsUrl(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.m3u8").toURL());
+            dto.setIceCastUrl(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/icecast").toURL());
+            dto.setMp3Url(URI.create(broadcasterConfig.getHost() + "/" + dto.getSlugName() + "/radio/stream.mp3").toURL());
+            dto.setMixplaUrl(URI.create("https://player.mixpla.io/?radio=" + dto.getSlugName()).toURL());
+        } catch (
+                MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
         return Uni.createFrom().item(dto);
     }
 
@@ -194,7 +206,6 @@ public class OneTimeStreamService {
         dto.setArtist(song.getSoundFragment().getArtist());
         dto.setScheduledStartTime(song.getScheduledStartTime());
         dto.setEstimatedDurationSeconds(song.getEstimatedDurationSeconds());
-        dto.setPlayed(song.isPlayed());
         return dto;
     }
 
@@ -246,8 +257,7 @@ public class OneTimeStreamService {
         return new ScheduledSongEntry(
                 UUID.fromString(dto.getId()),
                 soundFragment,
-                dto.getScheduledStartTime(),
-                dto.isPlayed()
+                dto.getScheduledStartTime()
         );
     }
 }

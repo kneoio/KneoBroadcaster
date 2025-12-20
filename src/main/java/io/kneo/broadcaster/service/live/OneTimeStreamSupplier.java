@@ -71,8 +71,6 @@ public class OneTimeStreamSupplier extends StreamSupplier{
         List<ScheduledSongEntry> scheduledSongs = activeEntry.getSongs();
         if (!scheduledSongs.isEmpty()) {
             List<SoundFragment> songs = scheduledSongs.stream()
-                    .filter(s -> !s.isPlayed())
-                    .peek(ScheduledSongEntry::markAsPlayed)
                     .map(ScheduledSongEntry::getSoundFragment)
                     .toList();
             songsUni = Uni.createFrom().item(songs);

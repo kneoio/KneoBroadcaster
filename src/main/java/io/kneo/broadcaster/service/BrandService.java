@@ -44,9 +44,9 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
 
     private final BrandRepository repository;
 
-    BroadcasterConfig broadcasterConfig;
+    private final BroadcasterConfig broadcasterConfig;
 
-    RadioStationPool radiostationPool;
+    private final RadioStationPool radiostationPool;
 
     @Inject
     Provider<ListenerService> listenerService;

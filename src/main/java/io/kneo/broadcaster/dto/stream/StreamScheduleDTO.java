@@ -54,5 +54,6 @@ public class StreamScheduleDTO {
         private String artist;
         private LocalDateTime scheduledStartTime;
         private int estimatedDurationSeconds;
+        private boolean played;
     }
 }

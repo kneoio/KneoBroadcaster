@@ -32,7 +32,6 @@ public class OneTimeStream extends AbstractStream {
     private Map<String, Object> userVariables;
     private AiAgentStatus aiAgentStatus;
 
-    private UUID lastReturnedSceneId;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;
@@ -117,26 +116,9 @@ public class OneTimeStream extends AbstractStream {
                     !now.isBefore(entry.getScheduledStartTime()) &&
                             now.isBefore(entry.getScheduledEndTime());
 
-            if (!active) {
-                continue;
+            if (active) {
+                return entry;
             }
-
-            if (entry.getSceneId().equals(lastReturnedSceneId)) {
-                return null;
-            }
-
-            lastReturnedSceneId = entry.getSceneId();
-            return entry;
-        }
-
-        if (lastReturnedSceneId != null &&
-                streamSchedule.getSceneScheduleEntries().stream()
-                        .noneMatch(e ->
-                                e.getSceneId().equals(lastReturnedSceneId) &&
-                                        !now.isBefore(e.getScheduledStartTime()) &&
-                                        now.isBefore(e.getScheduledEndTime())
-                        )) {
-            lastReturnedSceneId = null;
         }
 
         return null;

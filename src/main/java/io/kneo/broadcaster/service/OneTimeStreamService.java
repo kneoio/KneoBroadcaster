@@ -214,6 +214,7 @@ public class OneTimeStreamService {
         dto.setArtist(song.getSoundFragment().getArtist());
         dto.setScheduledStartTime(song.getScheduledStartTime());
         dto.setEstimatedDurationSeconds(song.getEstimatedDurationSeconds());
+        dto.setPlayed(song.isPlayed());
         return dto;
     }
 

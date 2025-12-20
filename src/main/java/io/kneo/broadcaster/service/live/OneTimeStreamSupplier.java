@@ -21,6 +21,7 @@ import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,8 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     private final SceneService sceneService;
     private final SongSupplier songSupplier;
     private final SoundFragmentService soundFragmentService;
-    private final Set<UUID> playedSongIds = new HashSet<>();
+    private final Map<UUID, Set<UUID>> playedSongsByScene = new HashMap<>();
+    private UUID currentSceneId = null;
 
     @Inject
     public OneTimeStreamSupplier(
@@ -79,6 +81,17 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             return Uni.createFrom().item(() -> null);
         }
 
+        UUID activeSceneId = activeEntry.getSceneId();
+        if (currentSceneId != null && !currentSceneId.equals(activeSceneId)) {
+            playedSongsByScene.remove(currentSceneId);
+            currentSceneId = activeSceneId;
+        }
+        if (currentSceneId == null) {
+            currentSceneId = activeSceneId;
+        }
+
+        Set<UUID> playedSongsInScene = playedSongsByScene.computeIfAbsent(activeSceneId, k -> new HashSet<>());
+
         String currentSceneTitle = activeEntry.getSceneTitle();
         Map<String, Object> userVariables = stream.getUserVariables();
 
@@ -86,15 +99,32 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         List<ScheduledSongEntry> scheduledSongs = activeEntry.getSongs();
 
         if (!scheduledSongs.isEmpty()) {
-            songsUni = Uni.createFrom().item(
-                    scheduledSongs.stream()
-                            .filter(entry -> !playedSongIds.contains(entry.getSoundFragment().getId()))
-                            .filter(entry -> entry.fitsTimeScope(activeEntry.getScheduledStartTime().toLocalTime()))
-                            .limit(2)
-                            .peek(entry -> playedSongIds.add(entry.getSoundFragment().getId()))
-                            .map(ScheduledSongEntry::getSoundFragment)
-                            .toList()
-            );
+            List<ScheduledSongEntry> availableEntries = scheduledSongs.stream()
+                    .filter(entry -> !playedSongsInScene.contains(entry.getSoundFragment().getId()))
+                    .filter(entry -> entry.fitsTimeScope(activeEntry.getScheduledStartTime().toLocalTime()))
+                    .toList();
+
+            if (availableEntries.isEmpty()) {
+                messageSink.add(
+                        stream.getSlugName(),
+                        AiDjStatsDTO.MessageType.INFO,
+                        String.format("All songs exhausted for scene '%s', waiting for next scene", currentSceneTitle)
+                );
+                return Uni.createFrom().item(() -> null);
+            }
+
+            Random random = new Random();
+            int songsToReturn = Math.min(availableEntries.size(), random.nextInt(2) + 1);
+            List<SoundFragment> selectedSongs = availableEntries.stream()
+                    .limit(songsToReturn)
+                    .peek(entry -> {
+                        playedSongsInScene.add(entry.getSoundFragment().getId());
+                        entry.setPlayed(true);
+                    })
+                    .map(ScheduledSongEntry::getSoundFragment)
+                    .toList();
+
+            songsUni = Uni.createFrom().item(selectedSongs);
         } else {
             songsUni = getSongsFromEntry(
                     activeEntry,

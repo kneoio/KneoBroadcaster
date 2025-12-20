@@ -2,6 +2,7 @@ package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -12,6 +13,8 @@ public class ScheduledSongEntry {
     private final UUID id;
     private final SoundFragment soundFragment;
     private final LocalDateTime scheduledStartTime;
+    @Setter
+    private boolean played = false;
 
     public ScheduledSongEntry(SoundFragment soundFragment, LocalDateTime scheduledStartTime) {
         this.id = UUID.randomUUID();

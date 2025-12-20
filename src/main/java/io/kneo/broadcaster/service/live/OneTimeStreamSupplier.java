@@ -42,7 +42,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     private final SceneService sceneService;
     private final SongSupplier songSupplier;
     private final SoundFragmentService soundFragmentService;
-    private final Map<UUID, Set<UUID>> playedSongsByScene = new HashMap<>();
+    private final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
     private UUID currentSceneId = null;
 
     @Inject
@@ -83,14 +83,14 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
         UUID activeSceneId = activeEntry.getSceneId();
         if (currentSceneId != null && !currentSceneId.equals(activeSceneId)) {
-            playedSongsByScene.remove(currentSceneId);
+            fetchedSongsByScene.remove(currentSceneId);
             currentSceneId = activeSceneId;
         }
         if (currentSceneId == null) {
             currentSceneId = activeSceneId;
         }
 
-        Set<UUID> playedSongsInScene = playedSongsByScene.computeIfAbsent(activeSceneId, k -> new HashSet<>());
+        Set<UUID> fetchedSongsInScene = fetchedSongsByScene.computeIfAbsent(activeSceneId, k -> new HashSet<>());
 
         String currentSceneTitle = activeEntry.getSceneTitle();
         Map<String, Object> userVariables = stream.getUserVariables();
@@ -100,7 +100,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
         if (!scheduledSongs.isEmpty()) {
             List<ScheduledSongEntry> availableEntries = scheduledSongs.stream()
-                    .filter(entry -> !playedSongsInScene.contains(entry.getSoundFragment().getId()))
+                    .filter(entry -> !fetchedSongsInScene.contains(entry.getSoundFragment().getId()))
                     .toList();
 
             if (availableEntries.isEmpty()) {
@@ -128,10 +128,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             int songsToReturn = Math.min(availableEntries.size(), random.nextInt(2) + 1);
             List<SoundFragment> selectedSongs = availableEntries.stream()
                     .limit(songsToReturn)
-                    .peek(entry -> {
-                        playedSongsInScene.add(entry.getSoundFragment().getId());
-                        entry.setPlayed(true);
-                    })
+                    .peek(entry -> fetchedSongsInScene.add(entry.getSoundFragment().getId()))
                     .map(ScheduledSongEntry::getSoundFragment)
                     .toList();
 

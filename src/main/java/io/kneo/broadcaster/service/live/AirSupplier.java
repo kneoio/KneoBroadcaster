@@ -101,7 +101,18 @@ public class AirSupplier {
                 .flatMap(ConcurrentLinkedQueue::stream)
                 .mapToInt(HlsSegment::getDuration)
                 .sum();
-        if (queueSize > 1 || queuedDurationSec > 300) {
+        
+        int maxQueueSize;
+        int maxQueueDurationSec;
+        if (stream instanceof OneTimeStream) {
+            maxQueueSize = 1;
+            maxQueueDurationSec = 600;
+        } else {
+            maxQueueSize = 1;
+            maxQueueDurationSec = 300;
+        }
+        
+        if (queueSize > maxQueueSize || queuedDurationSec > maxQueueDurationSec) {
             double queuedDurationInMinutes = queuedDurationSec / 60.0;
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
             LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s ({} min)",

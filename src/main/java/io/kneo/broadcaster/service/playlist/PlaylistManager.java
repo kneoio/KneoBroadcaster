@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
@@ -293,7 +294,9 @@ public class PlaylistManager {
             return nextFragment;
         }
 
-        feedFragments(1, true);
+        if (stream.getManagedBy() != ManagedBy.DJ) {
+            feedFragments(1, true);
+        }
         return null;
     }
 

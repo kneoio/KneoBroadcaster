@@ -160,7 +160,7 @@ public class StreamScheduleService {
         dto.setTotalScenes(schedule.getTotalScenes());
         dto.setTotalSongs(schedule.getTotalSongs());
 
-        List<StreamScheduleDTO.SceneScheduleDTO> sceneDTOs = schedule.getSceneSchedules().stream()
+        List<StreamScheduleDTO.SceneScheduleDTO> sceneDTOs = schedule.getSceneScheduleEntries().stream()
                 .map(this::toSceneDTO)
                 .collect(Collectors.toList());
         dto.setScenes(sceneDTOs);

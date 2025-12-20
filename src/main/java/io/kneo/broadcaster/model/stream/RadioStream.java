@@ -86,7 +86,7 @@ public class RadioStream extends AbstractStream {
         }
 
         LocalTime now = LocalTime.now();
-        for (SceneScheduleEntry entry : streamSchedule.getSceneSchedules()) {
+        for (SceneScheduleEntry entry : streamSchedule.getSceneScheduleEntries()) {
             if (entry.isActiveAt(now)) {
                 LOGGER.debug("Station '{}': Scene '{}' is active at time {}",
                         slugName, entry.getSceneTitle(), now);
@@ -105,7 +105,7 @@ public class RadioStream extends AbstractStream {
             return List.of();
         }
 
-        SceneScheduleEntry sceneEntry = streamSchedule.getSceneSchedules().stream()
+        SceneScheduleEntry sceneEntry = streamSchedule.getSceneScheduleEntries().stream()
                 .filter(s -> s.getSceneId().equals(scene.getId()))
                 .findFirst()
                 .orElse(null);

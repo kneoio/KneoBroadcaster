@@ -60,11 +60,17 @@ public interface IStream {
 
     String getColor();
 
-    String getDescription();
+    default String getDescription() {
+        return "";
+    }
 
-    SubmissionPolicy getSubmissionPolicy();
+    default SubmissionPolicy getSubmissionPolicy() {
+        return SubmissionPolicy.NOT_ALLOWED;
+    }
 
-    SubmissionPolicy getMessagingPolicy();
+    default SubmissionPolicy getMessagingPolicy() {
+        return SubmissionPolicy.NOT_ALLOWED;
+    }
 
     void setColor(String s);
 

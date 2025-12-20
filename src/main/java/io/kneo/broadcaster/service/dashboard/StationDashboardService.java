@@ -85,14 +85,14 @@ public class StationDashboardService {
 
     private List<StationStatsDTO.ScheduleEntryDTO> buildScheduleEntries(IStream station) {
         StreamSchedule schedule = station.getStreamSchedule();
-        if (schedule == null || schedule.getSceneSchedules().isEmpty()) {
+        if (schedule == null || schedule.getSceneScheduleEntries().isEmpty()) {
             return List.of();
         }
 
         LocalTime now = LocalTime.now();
         List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();
 
-        for (SceneScheduleEntry scene : schedule.getSceneSchedules()) {
+        for (SceneScheduleEntry scene : schedule.getSceneScheduleEntries()) {
             StationStatsDTO.ScheduleEntryDTO dto = new StationStatsDTO.ScheduleEntryDTO();
             dto.setSceneTitle(scene.getSceneTitle());
             dto.setStartTime(scene.getOriginalStartTime());

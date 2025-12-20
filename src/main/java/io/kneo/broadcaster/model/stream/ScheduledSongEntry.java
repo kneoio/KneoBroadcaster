@@ -4,6 +4,7 @@ import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Getter
@@ -29,5 +30,11 @@ public class ScheduledSongEntry {
             return (int) soundFragment.getLength().toSeconds();
         }
         return 180;
+    }
+
+    public boolean fitsTimeScope(LocalTime currentTime) {
+        LocalTime songTime = scheduledStartTime.toLocalTime();
+        return !songTime.isBefore(currentTime) && 
+               songTime.isBefore(currentTime.plusSeconds(getEstimatedDurationSeconds()));
     }
 }

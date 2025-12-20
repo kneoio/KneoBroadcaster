@@ -21,9 +21,11 @@ import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -39,6 +41,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     private final SceneService sceneService;
     private final SongSupplier songSupplier;
     private final SoundFragmentService soundFragmentService;
+    private final Set<UUID> playedSongIds = new HashSet<>();
 
     @Inject
     public OneTimeStreamSupplier(
@@ -85,6 +88,10 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         if (!scheduledSongs.isEmpty()) {
             songsUni = Uni.createFrom().item(
                     scheduledSongs.stream()
+                            .filter(entry -> !playedSongIds.contains(entry.getSoundFragment().getId()))
+                            .filter(entry -> entry.fitsTimeScope(activeEntry.getScheduledStartTime().toLocalTime()))
+                            .limit(2)
+                            .peek(entry -> playedSongIds.add(entry.getSoundFragment().getId()))
                             .map(ScheduledSongEntry::getSoundFragment)
                             .toList()
             );

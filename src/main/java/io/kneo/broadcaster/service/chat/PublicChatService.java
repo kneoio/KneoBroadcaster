@@ -169,7 +169,7 @@ public class PublicChatService extends ChatService {
                 .maxTokens(1024L)
                 .system(renderedPrompt)
                 .messages(history)
-                .model(Model.CLAUDE_3_5_HAIKU_20241022);
+                .model(Model.CLAUDE_HAIKU_4_5_20251001);
         
         for (Tool tool : getAvailableTools()) {
             builder.addTool(tool);

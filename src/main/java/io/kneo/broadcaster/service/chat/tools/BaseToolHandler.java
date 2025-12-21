@@ -4,7 +4,6 @@ import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.Model;
-import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
@@ -59,23 +58,8 @@ public abstract class BaseToolHandler {
                 .maxTokens(1024L)
                 .system(systemPrompt)
                 .messages(conversationHistory)
-                .model(Model.CLAUDE_3_5_HAIKU_20241022)
+                .model(Model.CLAUDE_HAIKU_4_5_20251001)
                 .build();
     }
 
-    protected MessageCreateParams buildFollowUpParams(String systemPrompt, List<MessageParam> conversationHistory, List<Tool> tools) {
-        MessageCreateParams.Builder builder = MessageCreateParams.builder()
-                .maxTokens(1024L)
-                .system(systemPrompt)
-                .messages(conversationHistory)
-                .model(Model.CLAUDE_3_5_HAIKU_20241022);
-        
-        if (tools != null && !tools.isEmpty()) {
-            for (Tool tool : tools) {
-                builder.addTool(tool);
-            }
-        }
-        
-        return builder.build();
-    }
 }

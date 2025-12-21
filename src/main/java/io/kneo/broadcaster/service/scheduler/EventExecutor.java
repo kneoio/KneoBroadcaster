@@ -197,7 +197,7 @@ public class EventExecutor {
             String userMessage = prompt.getPrompt() + "\n\nDraft input:\n" + draft;
 
             MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_3_5_HAIKU_LATEST)
+                    .model(Model.CLAUDE_HAIKU_4_5_20251001)
                     .maxTokens(256)
                     .addUserMessage(userMessage)
                     .build();

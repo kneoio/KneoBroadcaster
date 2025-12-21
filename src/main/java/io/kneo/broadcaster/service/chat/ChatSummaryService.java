@@ -200,7 +200,7 @@ public class ChatSummaryService {
 
         MessageCreateParams params = MessageCreateParams.builder()
                 .maxTokens(500L)
-                .model(Model.CLAUDE_3_5_HAIKU_20241022)
+                .model(Model.CLAUDE_HAIKU_4_5_20251001)
                 .addMessage(MessageParam.builder()
                         .role(MessageParam.Role.USER)
                         .content(MessageParam.Content.ofString(prompt))

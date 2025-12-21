@@ -185,6 +185,17 @@ public class StreamScheduleService {
                 .collect(Collectors.toList());
         dto.setSongs(songDTOs);
 
+        int songCount = scene.getSongs().size();
+        int avgSongDuration = 180;
+        int avgIntroDuration = 30;
+        int estimatedMinDuration = songCount * (avgSongDuration + avgIntroDuration);
+        
+        if (estimatedMinDuration > scene.getDurationSeconds()) {
+            int shortfall = estimatedMinDuration - scene.getDurationSeconds();
+            dto.setWarning(String.format("Scene may have silent gaps: %d songs need ~%d seconds but scene is %d seconds (shortfall: %d seconds)",
+                    songCount, estimatedMinDuration, scene.getDurationSeconds(), shortfall));
+        }
+
         return dto;
     }
 
@@ -275,8 +286,7 @@ public class StreamScheduleService {
         int avgSongDuration = 180;
         double djTalkRatio = scene.getTalkativity();
         int effectiveMusicTime = (int) (durationSeconds * (1 - djTalkRatio * 0.3));
-        int estimatedSongs = Math.max(1, effectiveMusicTime / avgSongDuration);
-        return estimatedSongs + 1;
+        return Math.max(1, effectiveMusicTime / avgSongDuration);
     }
 
     public Uni<StreamSchedule> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {

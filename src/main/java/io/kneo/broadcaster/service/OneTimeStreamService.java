@@ -152,6 +152,17 @@ public class OneTimeStreamService {
         return oneTimeStreamRepository.getBySlugName(slugName);
     }
 
+    public Uni<Void> delete(UUID id) {
+        return oneTimeStreamRepository.findById(id)
+                .chain(stream -> {
+                    if (stream == null) {
+                        return Uni.createFrom().failure(new RuntimeException("Stream not found"));
+                    }
+                    return radioStationPool.stopAndRemove(stream.getSlugName())
+                            .chain(() -> oneTimeStreamRepository.delete(id));
+                });
+    }
+
     private StreamScheduleDTO toScheduleDTO(StreamSchedule schedule) {
         if (schedule == null) {
             return null;

@@ -29,6 +29,7 @@ public class StreamScheduleDTO {
         private LocalTime originalStartTime;
         private LocalTime originalEndTime;
         private ScenePlaylistRequest playlistRequest;
+        private String warning;
     }
 
     @Setter

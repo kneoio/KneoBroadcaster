@@ -42,4 +42,12 @@ public class OneTimeStreamRepository {
     public Uni<Integer> getAllCount() {
         return Uni.createFrom().item(inMemoryRepository.size());
     }
+
+    public Uni<Void> delete(UUID id) {
+        inMemoryRepository.values().stream()
+                .filter(s -> s.getId().equals(id))
+                .findFirst()
+                .ifPresent(s -> inMemoryRepository.remove(s.getSlugName()));
+        return Uni.createFrom().voidItem();
+    }
 }

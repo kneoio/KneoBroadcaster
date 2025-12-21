@@ -62,6 +62,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         router.route(path + "/*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
         router.get(path + "/:id").handler(this::getById);
+        router.delete(path + "/:id").handler(this::delete);
         router.post(path + "/schedule").handler(this::buildSchedule);
         router.post(path + "/run").handler(this::runOneTimeStream);
     }
@@ -89,6 +90,18 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
                         },
                         throwable -> {
                             LOGGER.error("Failed to get all streams", throwable);
+                            rc.fail(throwable);
+                        }
+                );
+    }
+
+    private void delete(RoutingContext rc) {
+        String id = rc.pathParam("id");
+        oneTimeStreamService.delete(UUID.fromString(id))
+                .subscribe().with(
+                        item -> rc.response().setStatusCode(204).end(),
+                        throwable -> {
+                            LOGGER.error("Failed to delete stream by id: {}", id, throwable);
                             rc.fail(throwable);
                         }
                 );

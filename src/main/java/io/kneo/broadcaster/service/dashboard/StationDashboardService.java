@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.dashboard;
 import io.kneo.broadcaster.dto.dashboard.CountryStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -90,6 +91,10 @@ public class StationDashboardService {
         }
 
         LocalTime now = LocalTime.now(station.getTimeZone());
+        SceneScheduleEntry activeEntry = null;
+        if (station instanceof OneTimeStream) {
+            activeEntry = station.findActiveSceneEntry();
+        }
         List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();
         List<SceneScheduleEntry> scenes = schedule.getSceneScheduleEntries();
 
@@ -101,7 +106,11 @@ public class StationDashboardService {
             dto.setSceneTitle(scene.getSceneTitle());
             dto.setStartTime(scene.getOriginalStartTime());
             dto.setEndTime(scene.getOriginalEndTime());
-            dto.setActive(scene.isActiveAt(now, nextScene != null ? nextScene.getOriginalStartTime() : null));
+            if (activeEntry != null) {
+                dto.setActive(activeEntry.getSceneId().equals(scene.getSceneId()));
+            } else {
+                dto.setActive(scene.isActiveAt(now, nextScene != null ? nextScene.getOriginalStartTime() : null));
+            }
             dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
             dto.setPlaylistTitle(scene.getPlaylistTitle());
             dto.setArtist(scene.getArtist());

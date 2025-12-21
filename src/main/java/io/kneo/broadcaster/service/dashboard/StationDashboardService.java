@@ -89,15 +89,19 @@ public class StationDashboardService {
             return List.of();
         }
 
-        LocalTime now = LocalTime.now();
+        LocalTime now = LocalTime.now(station.getTimeZone());
         List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();
+        List<SceneScheduleEntry> scenes = schedule.getSceneScheduleEntries();
 
-        for (SceneScheduleEntry scene : schedule.getSceneScheduleEntries()) {
+        for (int i = 0; i < scenes.size(); i++) {
+            SceneScheduleEntry scene = scenes.get(i);
+            SceneScheduleEntry nextScene = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
+            
             StationStatsDTO.ScheduleEntryDTO dto = new StationStatsDTO.ScheduleEntryDTO();
             dto.setSceneTitle(scene.getSceneTitle());
             dto.setStartTime(scene.getOriginalStartTime());
             dto.setEndTime(scene.getOriginalEndTime());
-            dto.setActive(scene.isActiveAt(now));
+            dto.setActive(scene.isActiveAt(now, nextScene != null ? nextScene.getOriginalStartTime() : null));
             dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
             dto.setPlaylistTitle(scene.getPlaylistTitle());
             dto.setArtist(scene.getArtist());

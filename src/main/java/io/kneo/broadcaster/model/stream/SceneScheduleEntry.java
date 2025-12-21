@@ -97,14 +97,24 @@ public class SceneScheduleEntry {
         return scheduledStartTime.plusSeconds(durationSeconds);
     }
 
-    public boolean isActiveAt(LocalTime time) {
-        if (originalStartTime == null || originalEndTime == null) {
+    public boolean isActiveAt(LocalTime time, LocalTime nextSceneStartTime) {
+        if (originalStartTime == null) {
             return false;
         }
-        if (originalEndTime.isAfter(originalStartTime)) {
-            return !time.isBefore(originalStartTime) && time.isBefore(originalEndTime);
+        
+        LocalTime effectiveEndTime = originalEndTime;
+        if (effectiveEndTime == null) {
+            effectiveEndTime = nextSceneStartTime;
+        }
+        
+        if (effectiveEndTime == null) {
+            return !time.isBefore(originalStartTime);
+        }
+        
+        if (effectiveEndTime.isAfter(originalStartTime)) {
+            return !time.isBefore(originalStartTime) && time.isBefore(effectiveEndTime);
         } else {
-            return !time.isBefore(originalStartTime) || time.isBefore(originalEndTime);
+            return !time.isBefore(originalStartTime) || time.isBefore(effectiveEndTime);
         }
     }
 }

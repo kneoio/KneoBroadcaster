@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.aihelper.LiveRadioStationDTO;
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.aihelper.TtsDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.dto.cnst.StreamType;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -143,6 +144,7 @@ public class AirSupplier {
 
 
                     if (stream instanceof OneTimeStream oneTimeStream) {
+                        liveRadioStation.setStreamType(StreamType.ONE_TIME_STREAM);
                         return oneTimeStreamSupplier.fetchPromptForOneTimeStream(
                                         oneTimeStream,
                                         agent,
@@ -174,6 +176,7 @@ public class AirSupplier {
                     }
 
                     if (stream instanceof RadioStream radioStream) {
+                        liveRadioStation.setStreamType(StreamType.RADIO);
                         return radioStreamSupplier.fetchStuffForRadioStream(
                                         radioStream,
                                         agent,

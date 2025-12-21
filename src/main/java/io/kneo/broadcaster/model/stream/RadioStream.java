@@ -85,9 +85,14 @@ public class RadioStream extends AbstractStream {
             return null;
         }
 
-        LocalTime now = LocalTime.now();
-        for (SceneScheduleEntry entry : streamSchedule.getSceneScheduleEntries()) {
-            if (entry.isActiveAt(now)) {
+        LocalTime now = LocalTime.now(timeZone);
+        List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
+        
+        for (int i = 0; i < scenes.size(); i++) {
+            SceneScheduleEntry entry = scenes.get(i);
+            SceneScheduleEntry nextEntry = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
+            
+            if (entry.isActiveAt(now, nextEntry != null ? nextEntry.getOriginalStartTime() : null)) {
                 LOGGER.debug("Station '{}': Scene '{}' is active at time {}",
                         slugName, entry.getSceneTitle(), now);
                 return entry;

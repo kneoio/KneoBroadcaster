@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -140,7 +141,18 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     stream.getMasterBrand().getId(),
                     songSupplier,
                     soundFragmentService
-            );
+            ).flatMap(songs -> {
+                if (songs.isEmpty()) {
+                    messageSink.add(
+                            stream.getSlugName(),
+                            AiDjStatsDTO.MessageType.WARNING,
+                            String.format("No songs found for scene '%s' sourcing, falling back to random brand songs", currentSceneTitle)
+                    );
+                    int songCount = new Random().nextDouble() < 0.7 ? 1 : 2;
+                    return songSupplier.getNextSong(stream.getMasterBrand().getSlugName(), PlaylistItemType.SONG, songCount);
+                }
+                return Uni.createFrom().item(songs);
+            });
         }
 
         return songsUni.flatMap(songs -> {

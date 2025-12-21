@@ -275,7 +275,8 @@ public class StreamScheduleService {
         int avgSongDuration = 180;
         double djTalkRatio = scene.getTalkativity();
         int effectiveMusicTime = (int) (durationSeconds * (1 - djTalkRatio * 0.3));
-        return Math.max(1, effectiveMusicTime / avgSongDuration);
+        int estimatedSongs = Math.max(1, effectiveMusicTime / avgSongDuration);
+        return estimatedSongs + 1;
     }
 
     public Uni<StreamSchedule> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {

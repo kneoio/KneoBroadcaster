@@ -181,10 +181,15 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
                     .chain(user -> oneTimeStreamService.run(dto, user)
                             .chain(stream -> oneTimeStreamService.getDTO(stream.getId(), user, languageCode)))
                     .subscribe().with(
-                            streamDto -> rc.response()
-                                    .putHeader("Content-Type", "application/json")
-                                    .setStatusCode(200)
-                                    .end(JsonObject.mapFrom(streamDto).encode()),
+                            streamDto -> {
+                                FormPage page = new FormPage();
+                                page.addPayload(PayloadType.DOC_DATA, streamDto);
+                                page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                                rc.response()
+                                        .putHeader("Content-Type", "application/json")
+                                        .setStatusCode(200)
+                                        .end(JsonObject.mapFrom(page).encode());
+                            },
                             throwable -> {
                                 LOGGER.error("Failed to run one-time stream", throwable);
                                 rc.fail(throwable);

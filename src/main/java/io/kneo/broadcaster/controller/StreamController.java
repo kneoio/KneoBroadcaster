@@ -148,10 +148,15 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         getContextUser(rc, false, true)
                 .chain(user -> streamScheduleService.getStreamScheduleDTO(dto.getBaseBrandId(), dto.getScriptId(), user))
                 .subscribe().with(
-                        result -> rc.response()
-                                .putHeader("Content-Type", "application/json")
-                                .setStatusCode(200)
-                                .end(JsonObject.mapFrom(result).encode()),
+                        result -> {
+                            FormPage page = new FormPage();
+                            page.addPayload(PayloadType.DOC_DATA, result);
+                            page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            rc.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .setStatusCode(200)
+                                    .end(JsonObject.mapFrom(page).encode());
+                        },
                         throwable -> {
                             LOGGER.error("Failed to build schedule for brandId: {}, scriptId: {}", dto.getBaseBrandId(), dto.getScriptId(), throwable);
                             rc.fail(throwable);

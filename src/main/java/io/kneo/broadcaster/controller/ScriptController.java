@@ -176,11 +176,12 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
     private void getAllShared(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        ScriptFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllSharedCount(user),
-                        service.getAllShared(size, (page - 1) * size, user)
+                        service.getAllSharedCount(user, filter),
+                        service.getAllShared(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<ScriptDTO> dtoEntries = new View<>(tuple.getItem2(),

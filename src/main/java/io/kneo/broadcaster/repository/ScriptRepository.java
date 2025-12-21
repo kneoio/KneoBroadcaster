@@ -145,6 +145,10 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user) {
+        return getAllShared(limit, offset, user, null);
+    }
+
+    public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user, final ScriptFilter filter) {
         String sql = """
             SELECT t.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
             FROM %s t
@@ -153,10 +157,22 @@ public class ScriptRepository extends AsyncRepository {
             )) AND t.archived = 0
         """.formatted(entityData.getTableName(), entityData.getRlsName(), user.getId());
 
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
         sql += " ORDER BY t.last_mod_date DESC";
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
+        }
+
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(filter.getSearchTerm().trim()))
+                    .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                    .onItem().transform(this::from)
+                    .collect().asList();
         }
 
         return client.query(sql)
@@ -167,9 +183,23 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<Integer> getAllSharedCount(IUser user) {
+        return getAllSharedCount(user, null);
+    }
+
+    public Uni<Integer> getAllSharedCount(IUser user, ScriptFilter filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t " +
                 "WHERE (t.access_level = 1 OR EXISTS (SELECT 1 FROM " + entityData.getRlsName() +
                 " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() + ")) AND t.archived = 0";
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter);
+        }
+
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
+            return client.preparedQuery(sql)
+                    .execute(Tuple.of(filter.getSearchTerm().trim()))
+                    .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+        }
 
         return client.query(sql)
                 .execute()

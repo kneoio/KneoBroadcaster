@@ -104,8 +104,13 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<ScriptDTO>> getAllShared(final int limit, final int offset, final IUser user) {
+        return getAllShared(limit, offset, user, null);
+    }
+
+    public Uni<List<ScriptDTO>> getAllShared(final int limit, final int offset, final IUser user, final ScriptFilterDTO filterDTO) {
         assert repository != null;
-        return repository.getAllShared(limit, offset, user)
+        ScriptFilter filter = toFilter(filterDTO);
+        return repository.getAllShared(limit, offset, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -118,8 +123,13 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<Integer> getAllSharedCount(final IUser user) {
+        return getAllSharedCount(user, null);
+    }
+
+    public Uni<Integer> getAllSharedCount(final IUser user, final ScriptFilterDTO filterDTO) {
         assert repository != null;
-        return repository.getAllSharedCount(user);
+        ScriptFilter filter = toFilter(filterDTO);
+        return repository.getAllSharedCount(user, filter);
     }
 
     @Override

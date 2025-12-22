@@ -68,7 +68,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
-        String currentStreamSlugName = stream.getMasterBrand().getSlugName();
+        String currentStreamSlugName = stream.getSlugName();
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
         if (activeEntry == null) {

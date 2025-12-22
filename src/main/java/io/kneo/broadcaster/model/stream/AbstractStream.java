@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model.stream;
 
+import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
@@ -44,6 +45,8 @@ public abstract class AbstractStream implements IStream {
     protected LocalDateTime createdAt;
     protected LocalDateTime expiresAt;
     protected StreamSchedule streamSchedule;
+    protected AiAgentStatus aiAgentStatus;
+    protected long lastAgentContactAt;
 
     @Override
     public void setStatus(RadioStationStatus newStatus) {
@@ -60,6 +63,4 @@ public abstract class AbstractStream implements IStream {
             this.status = newStatus;
         }
     }
-
-
 }

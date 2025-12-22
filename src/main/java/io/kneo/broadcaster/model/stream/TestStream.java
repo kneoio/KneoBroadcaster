@@ -17,10 +17,10 @@ import java.util.List;
 @Setter
 @Getter
 @NoArgsConstructor
-public class RadioStream extends AbstractStream {
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStream.class);
+public class TestStream extends AbstractStream {
+    private static final Logger LOGGER = LoggerFactory.getLogger(TestStream.class);
 
-    public RadioStream(Brand brand) {
+    public TestStream(Brand brand) {
         this.masterBrand = brand;
         this.id = brand.getId();
         this.slugName = brand.getSlugName();
@@ -50,11 +50,11 @@ public class RadioStream extends AbstractStream {
 
         LocalTime now = LocalTime.now(timeZone);
         List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
-        
+
         for (int i = 0; i < scenes.size(); i++) {
             SceneScheduleEntry entry = scenes.get(i);
             SceneScheduleEntry nextEntry = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
-            
+
             if (entry.isActiveAt(now, nextEntry != null ? nextEntry.getOriginalStartTime() : null)) {
                 LOGGER.debug("Station '{}': Scene '{}' is active at time {}",
                         slugName, entry.getSceneTitle(), now);
@@ -92,10 +92,4 @@ public class RadioStream extends AbstractStream {
                 slugName, songs.size(), scene.getTitle());
         return songs;
     }
-
-    @Override
-    public String toString() {
-        return String.format("RadioStream[id: %s, slug: %s, baseBrand: %s]", id, slugName, masterBrand.getSlugName());
-    }
-
 }

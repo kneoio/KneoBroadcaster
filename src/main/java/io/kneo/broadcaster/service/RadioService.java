@@ -14,7 +14,6 @@ import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.ContributionRepository;
@@ -303,8 +302,6 @@ public class RadioService {
                 s.getCountry().name(),
                 s.getColor(),
                 s.getDescription(),
-                s.getSubmissionPolicy(),
-                s.getMessagingPolicy(),
                 anim);
     }
 
@@ -322,8 +319,6 @@ public class RadioService {
                 b.getCountry().name(),
                 b.getColor(),
                 b.getDescription(),
-                b.getSubmissionPolicy(),
-                b.getMessagingPolicy(),
                 anim);
     }
 
@@ -338,8 +333,6 @@ public class RadioService {
             String stationCountryCode,
             String color,
             String description,
-            SubmissionPolicy submissionPolicy,
-            SubmissionPolicy messagingPolicy,
             boolean includeAnimation
     ) {
         String currentStatus = stationStatus != null
@@ -364,8 +357,6 @@ public class RadioService {
                             color,
                             description,
                             0,
-                            submissionPolicy,
-                            messagingPolicy,
                             includeAnimation ? animationService.generateRandomAnimation() : null
                     )
             );
@@ -392,8 +383,6 @@ public class RadioService {
                             color,
                             description,
                             0,
-                            submissionPolicy,
-                            messagingPolicy,
                             includeAnimation ? animationService.generateRandomAnimation() : null
                     );
                 })
@@ -410,8 +399,6 @@ public class RadioService {
                                 color,
                                 description,
                                 0,
-                                submissionPolicy,
-                                messagingPolicy,
                                 includeAnimation ? animationService.generateRandomAnimation() : null
                         )
                 );

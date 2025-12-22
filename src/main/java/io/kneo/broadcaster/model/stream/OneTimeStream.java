@@ -31,7 +31,7 @@ public class OneTimeStream extends AbstractStream {
     private Script script;
     private Map<String, Object> userVariables;
     private AiAgentStatus aiAgentStatus;
-
+    private StreamDeliveryState deliveryState;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;
@@ -57,25 +57,6 @@ public class OneTimeStream extends AbstractStream {
                 displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF))
         );
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
-    }
-
-    @Override
-    public AiAgentStatus getAiAgentStatus() {
-        return aiAgentStatus;
-    }
-
-    @Override
-    public void setLastAgentContactAt(long l) {
-    }
-
-    @Override
-    public String toString() {
-        return String.format(
-                "OneTimeStream[id: %s, slug: %s, baseBrand: %s]",
-                id,
-                slugName,
-                masterBrand.getSlugName()
-        );
     }
 
     private String buildOneTimeDisplayName() {
@@ -112,11 +93,8 @@ public class OneTimeStream extends AbstractStream {
         LocalDateTime now = LocalDateTime.now();
 
         for (SceneScheduleEntry entry : streamSchedule.getSceneScheduleEntries()) {
-            boolean active =
-                    !now.isBefore(entry.getScheduledStartTime()) &&
-                            now.isBefore(entry.getScheduledEndTime());
-
-            if (active) {
+            if (!now.isBefore(entry.getScheduledStartTime())
+                    && now.isBefore(entry.getScheduledEndTime())) {
                 return entry;
             }
         }
@@ -136,23 +114,57 @@ public class OneTimeStream extends AbstractStream {
     @Override
     public List<SoundFragment> getNextScheduledSongs(Scene scene, int count) {
         if (streamSchedule == null || scene == null) {
-            LOGGER.warn("Station '{}': No stream schedule or scene provided", slugName);
             return List.of();
         }
 
-        SceneScheduleEntry sceneEntry = streamSchedule.getSceneScheduleEntries().stream()
+        SceneScheduleEntry entry = streamSchedule.getSceneScheduleEntries().stream()
                 .filter(s -> s.getSceneId().equals(scene.getId()))
                 .findFirst()
                 .orElse(null);
 
-        if (sceneEntry == null) {
-            LOGGER.warn("Station '{}': Scene '{}' not found in schedule", slugName, scene.getTitle());
+        if (entry == null) {
             return List.of();
         }
 
-        return sceneEntry.getSongs().stream()
-                .limit(count)
+        LocalDateTime now = LocalDateTime.now();
+
+        if (deliveryState == null || !scene.getId().equals(deliveryState.getSceneId())) {
+            deliveryState = new StreamDeliveryState();
+            deliveryState.reset(entry);
+        }
+
+        if (deliveryState.isExpired(now)) {
+            return List.of();
+        }
+
+        int remaining = entry.getSongs().size() - deliveryState.getDeliveredSongIndex();
+        int take = Math.min(2, Math.min(count, remaining));
+
+        if (take <= 0) {
+            return List.of();
+        }
+
+        List<SoundFragment> result = entry.getSongs().subList(
+                        deliveryState.getDeliveredSongIndex(),
+                        deliveryState.getDeliveredSongIndex() + take
+                ).stream()
                 .map(ScheduledSongEntry::getSoundFragment)
                 .toList();
+
+        deliveryState.setDeliveredSongIndex(deliveryState.getDeliveredSongIndex() + take);
+        deliveryState.setLastDeliveryAt(now);
+
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+                "OneTimeStream[id: %s, slug: %s, baseBrand: %s]",
+                id,
+                slugName,
+                masterBrand.getSlugName()
+        );
     }
 }
+

@@ -8,7 +8,6 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
@@ -64,14 +63,6 @@ public interface IStream {
         return "";
     }
 
-    default SubmissionPolicy getSubmissionPolicy() {
-        return SubmissionPolicy.NOT_ALLOWED;
-    }
-
-    default SubmissionPolicy getMessagingPolicy() {
-        return SubmissionPolicy.NOT_ALLOWED;
-    }
-
     void setColor(String s);
 
     void setPopularityRate(double popularityRate);
@@ -95,6 +86,8 @@ public interface IStream {
     double getPopularityRate();
 
     void setLastAgentContactAt(long l);
+
+    long getLastAgentContactAt();
 
     StreamSchedule getStreamSchedule();
 

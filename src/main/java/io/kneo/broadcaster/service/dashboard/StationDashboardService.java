@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.broadcaster.service.live.OneTimeStreamSupplier;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -119,6 +120,17 @@ public class StationDashboardService {
             dto.setArtist(scene.getArtist());
             dto.setSearchTerm(scene.getSearchTerm());
             dto.setSongsCount(scene.getSongs() != null ? scene.getSongs().size() : 0);
+
+            if (station instanceof OneTimeStream oneTimeStream) {
+                Object supplier = oneTimeStream.getStreamSupplier();
+                if (supplier instanceof OneTimeStreamSupplier oneTimeSupplier) {
+                    dto.setFetchedSongsCount(oneTimeSupplier.getFetchedSongsCount(scene.getSceneId()));
+                } else {
+                    dto.setFetchedSongsCount(0);
+                }
+            } else {
+                dto.setFetchedSongsCount(0);
+            }
 
             dto.setActualStartTime(scene.getActualStartTime());
             dto.setActualEndTime(scene.getActualEndTime());

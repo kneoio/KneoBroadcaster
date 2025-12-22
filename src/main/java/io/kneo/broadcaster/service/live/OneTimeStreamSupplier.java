@@ -72,6 +72,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
+        stream.setStreamSupplier(this);
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
         if (activeEntry == null) {
@@ -282,5 +283,13 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                 .filter(scene -> scene.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public int getFetchedSongsCount(UUID sceneId) {
+        Set<UUID> fetchedSongs = fetchedSongsByScene.get(sceneId);
+        if (fetchedSongs == null) {
+            return 0;
+        }
+        return fetchedSongs.size();
     }
 }

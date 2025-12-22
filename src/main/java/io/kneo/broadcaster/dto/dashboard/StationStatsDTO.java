@@ -52,6 +52,7 @@ public class StationStatsDTO {
         private String artist;
         private String searchTerm;
         private int songsCount;
+        private int fetchedSongsCount;
 
         private java.time.LocalDateTime actualStartTime;
         private java.time.LocalDateTime actualEndTime;

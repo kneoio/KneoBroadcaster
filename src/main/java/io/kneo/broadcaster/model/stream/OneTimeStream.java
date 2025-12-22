@@ -32,6 +32,7 @@ public class OneTimeStream extends AbstractStream {
     private Map<String, Object> userVariables;
     private AiAgentStatus aiAgentStatus;
     private StreamDeliveryState deliveryState;
+    private Object streamSupplier;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;

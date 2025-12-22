@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.dto.stream;
 
-import io.kneo.broadcaster.model.cnst.SceneStatus;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -31,11 +30,6 @@ public class StreamScheduleDTO {
         private LocalTime originalEndTime;
         private ScenePlaylistRequest playlistRequest;
         private String warning;
-
-        private LocalDateTime actualStartTime;
-        private LocalDateTime actualEndTime;
-        private SceneStatus status;
-        private Long timingOffsetSeconds;
     }
 
     @Setter

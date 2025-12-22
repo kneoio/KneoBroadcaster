@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service.dashboard;
 
 import io.kneo.broadcaster.dto.dashboard.CountryStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
+import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -16,6 +17,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -116,9 +119,49 @@ public class StationDashboardService {
             dto.setArtist(scene.getArtist());
             dto.setSearchTerm(scene.getSearchTerm());
             dto.setSongsCount(scene.getSongs() != null ? scene.getSongs().size() : 0);
+
+            dto.setActualStartTime(scene.getActualStartTime());
+            dto.setActualEndTime(scene.getActualEndTime());
+
+            LocalDateTime nowDateTime = LocalDateTime.now();
+            SceneStatus status = computeSceneStatus(scene, nowDateTime);
+            dto.setStatus(status);
+
+            Long timingOffset = computeTimingOffset(scene, nowDateTime);
+            dto.setTimingOffsetSeconds(timingOffset);
+
             entries.add(dto);
         }
 
         return entries;
+    }
+
+    private SceneStatus computeSceneStatus(SceneScheduleEntry scene, LocalDateTime now) {
+        if (scene.getActualEndTime() != null) {
+            return SceneStatus.COMPLETED;
+        }
+        if (scene.getActualStartTime() != null) {
+            return SceneStatus.ACTIVE;
+        }
+        if (scene.getScheduledStartTime() != null && !now.isBefore(scene.getScheduledStartTime())) {
+            return SceneStatus.ACTIVE;
+        }
+        return SceneStatus.PENDING;
+    }
+
+    private Long computeTimingOffset(SceneScheduleEntry scene, LocalDateTime now) {
+        if (scene.getActualStartTime() == null) {
+            return null;
+        }
+
+        if (scene.getScheduledStartTime() == null) {
+            return null;
+        }
+
+        LocalDateTime scheduledStart = scene.getScheduledStartTime();
+        long scheduledElapsedSeconds = Duration.between(scheduledStart, now).getSeconds();
+        long actualElapsedSeconds = Duration.between(scene.getActualStartTime(), now).getSeconds();
+
+        return actualElapsedSeconds - scheduledElapsedSeconds;
     }
 }

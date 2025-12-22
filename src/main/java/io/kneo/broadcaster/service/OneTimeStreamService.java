@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -28,8 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -201,16 +198,6 @@ public class OneTimeStreamService {
                 .collect(Collectors.toList());
         dto.setSongs(songDTOs);
 
-        dto.setActualStartTime(scene.getActualStartTime());
-        dto.setActualEndTime(scene.getActualEndTime());
-
-        LocalDateTime now = LocalDateTime.now();
-        SceneStatus status = computeSceneStatus(scene, now);
-        dto.setStatus(status);
-
-        Long timingOffset = computeTimingOffset(scene, now);
-        dto.setTimingOffsetSeconds(timingOffset);
-
         return dto;
     }
 
@@ -283,31 +270,6 @@ public class OneTimeStreamService {
             }
         }
         return entry;
-    }
-
-    private SceneStatus computeSceneStatus(SceneScheduleEntry scene, LocalDateTime now) {
-        if (scene.getActualEndTime() != null) {
-            return SceneStatus.COMPLETED;
-        }
-        if (scene.getActualStartTime() != null) {
-            return SceneStatus.ACTIVE;
-        }
-        if (!now.isBefore(scene.getScheduledStartTime())) {
-            return SceneStatus.ACTIVE;
-        }
-        return SceneStatus.PENDING;
-    }
-
-    private Long computeTimingOffset(SceneScheduleEntry scene, LocalDateTime now) {
-        if (scene.getActualStartTime() == null) {
-            return null;
-        }
-
-        LocalDateTime scheduledStart = scene.getScheduledStartTime();
-        long scheduledElapsedSeconds = Duration.between(scheduledStart, now).getSeconds();
-        long actualElapsedSeconds = Duration.between(scene.getActualStartTime(), now).getSeconds();
-
-        return actualElapsedSeconds - scheduledElapsedSeconds;
     }
 
     private ScheduledSongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {

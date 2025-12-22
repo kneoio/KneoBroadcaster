@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto.dashboard;
 
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import io.kneo.broadcaster.service.stream.HLSSongStats;
@@ -51,5 +52,10 @@ public class StationStatsDTO {
         private String artist;
         private String searchTerm;
         private int songsCount;
+
+        private java.time.LocalDateTime actualStartTime;
+        private java.time.LocalDateTime actualEndTime;
+        private SceneStatus status;
+        private Long timingOffsetSeconds;
     }
 }

@@ -68,13 +68,14 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
+        String currentStreamSlugName = stream.getMasterBrand().getSlugName();
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
         if (activeEntry == null) {
             if (stream.isCompleted()) {
                 stream.setStatus(RadioStationStatus.OFF_LINE);
                 messageSink.add(
-                        stream.getSlugName(),
+                        currentStreamSlugName,
                         AiDjStatsDTO.MessageType.INFO,
                         "Stream completed - all scenes played"
                 );
@@ -111,13 +112,13 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                 if (isLastScene) {
                     stream.setStatus(RadioStationStatus.OFF_LINE);
                     messageSink.add(
-                            stream.getSlugName(),
+                            currentStreamSlugName,
                             AiDjStatsDTO.MessageType.INFO,
                             String.format("Last scene '%s' completed - stream finished", currentSceneTitle)
                     );
                 } else {
                     messageSink.add(
-                            stream.getSlugName(),
+                            currentStreamSlugName,
                             AiDjStatsDTO.MessageType.INFO,
                             String.format("All songs exhausted for scene '%s', waiting for next scene", currentSceneTitle)
                     );
@@ -137,14 +138,14 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         } else {
             songsUni = getSongsFromEntry(
                     activeEntry,
-                    stream.getMasterBrand().getSlugName(),
+                    currentStreamSlugName,
                     stream.getMasterBrand().getId(),
                     songSupplier,
                     soundFragmentService
             ).flatMap(songs -> {
                 if (songs.isEmpty()) {
                     messageSink.add(
-                            stream.getSlugName(),
+                            currentStreamSlugName,
                             AiDjStatsDTO.MessageType.WARNING,
                             String.format("No songs found for scene '%s' sourcing, falling back to random brand songs", currentSceneTitle)
                     );
@@ -158,7 +159,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         return songsUni.flatMap(songs -> {
             if (songs.isEmpty()) {
                 messageSink.add(
-                        stream.getSlugName(),
+                        currentStreamSlugName,
                         AiDjStatsDTO.MessageType.WARNING,
                         String.format("No unplayed songs available for scene '%s'", currentSceneTitle)
                 );
@@ -176,7 +177,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
                         if (promptIds.isEmpty()) {
                             messageSink.add(
-                                    stream.getSlugName(),
+                                    currentStreamSlugName,
                                     AiDjStatsDTO.MessageType.WARNING,
                                     String.format("Active scene '%s' has no prompts", currentSceneTitle)
                             );

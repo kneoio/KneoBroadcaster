@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -22,6 +23,11 @@ public class SceneScheduleEntry {
     private final List<ScheduledSongEntry> songs;
     private final LocalTime originalStartTime;
     private final LocalTime originalEndTime;
+
+    @Setter
+    private LocalDateTime actualStartTime;
+    @Setter
+    private LocalDateTime actualEndTime;
 
     private final WayOfSourcing sourcing;
     private final String playlistTitle;

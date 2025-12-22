@@ -68,14 +68,19 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
-        String currentStreamSlugName = stream.getSlugName();
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
         if (activeEntry == null) {
+            if (currentSceneId != null) {
+                SceneScheduleEntry previousScene = findSceneById(stream, currentSceneId);
+                if (previousScene != null && previousScene.getActualEndTime() == null) {
+                    previousScene.setActualEndTime(java.time.LocalDateTime.now());
+                }
+            }
             if (stream.isCompleted()) {
                 stream.setStatus(RadioStationStatus.OFF_LINE);
                 messageSink.add(
-                        currentStreamSlugName,
+                        stream.getSlugName(),
                         AiDjStatsDTO.MessageType.INFO,
                         "Stream completed - all scenes played"
                 );
@@ -85,11 +90,21 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
         UUID activeSceneId = activeEntry.getSceneId();
         if (currentSceneId != null && !currentSceneId.equals(activeSceneId)) {
+            SceneScheduleEntry previousScene = findSceneById(stream, currentSceneId);
+            if (previousScene != null && previousScene.getActualEndTime() == null) {
+                previousScene.setActualEndTime(java.time.LocalDateTime.now());
+            }
             fetchedSongsByScene.remove(currentSceneId);
             currentSceneId = activeSceneId;
+            if (activeEntry.getActualStartTime() == null) {
+                activeEntry.setActualStartTime(java.time.LocalDateTime.now());
+            }
         }
         if (currentSceneId == null) {
             currentSceneId = activeSceneId;
+            if (activeEntry.getActualStartTime() == null) {
+                activeEntry.setActualStartTime(java.time.LocalDateTime.now());
+            }
         }
 
         Set<UUID> fetchedSongsInScene = fetchedSongsByScene.computeIfAbsent(activeSceneId, k -> new HashSet<>());
@@ -112,13 +127,13 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                 if (isLastScene) {
                     stream.setStatus(RadioStationStatus.OFF_LINE);
                     messageSink.add(
-                            currentStreamSlugName,
+                            stream.getSlugName(),
                             AiDjStatsDTO.MessageType.INFO,
                             String.format("Last scene '%s' completed - stream finished", currentSceneTitle)
                     );
                 } else {
                     messageSink.add(
-                            currentStreamSlugName,
+                            stream.getSlugName(),
                             AiDjStatsDTO.MessageType.INFO,
                             String.format("All songs exhausted for scene '%s', waiting for next scene", currentSceneTitle)
                     );
@@ -138,14 +153,14 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         } else {
             songsUni = getSongsFromEntry(
                     activeEntry,
-                    currentStreamSlugName,
+                    stream.getMasterBrand().getSlugName(),
                     stream.getMasterBrand().getId(),
                     songSupplier,
                     soundFragmentService
             ).flatMap(songs -> {
                 if (songs.isEmpty()) {
                     messageSink.add(
-                            currentStreamSlugName,
+                            stream.getSlugName(),
                             AiDjStatsDTO.MessageType.WARNING,
                             String.format("No songs found for scene '%s' sourcing, falling back to random brand songs", currentSceneTitle)
                     );
@@ -159,7 +174,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         return songsUni.flatMap(songs -> {
             if (songs.isEmpty()) {
                 messageSink.add(
-                        currentStreamSlugName,
+                        stream.getSlugName(),
                         AiDjStatsDTO.MessageType.WARNING,
                         String.format("No unplayed songs available for scene '%s'", currentSceneTitle)
                 );
@@ -177,7 +192,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
                         if (promptIds.isEmpty()) {
                             messageSink.add(
-                                    currentStreamSlugName,
+                                    stream.getSlugName(),
                                     AiDjStatsDTO.MessageType.WARNING,
                                     String.format("Active scene '%s' has no prompts", currentSceneTitle)
                             );
@@ -234,5 +249,15 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                 });
                     });
         });
+    }
+
+    private SceneScheduleEntry findSceneById(OneTimeStream stream, UUID sceneId) {
+        if (stream.getStreamSchedule() == null) {
+            return null;
+        }
+        return stream.getStreamSchedule().getSceneScheduleEntries().stream()
+                .filter(scene -> scene.getSceneId().equals(sceneId))
+                .findFirst()
+                .orElse(null);
     }
 }

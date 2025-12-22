@@ -27,6 +27,7 @@ import java.util.UUID;
 public class OneTimeStream extends AbstractStream {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStream.class);
+    private static final int SCENE_PREPARATION_BUFFER_SECONDS = 120;
 
     private Script script;
     private Map<String, Object> userVariables;
@@ -92,10 +93,18 @@ public class OneTimeStream extends AbstractStream {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
 
-        for (SceneScheduleEntry entry : streamSchedule.getSceneScheduleEntries()) {
+        for (int i = 0; i < scenes.size(); i++) {
+            SceneScheduleEntry entry = scenes.get(i);
+            LocalDateTime effectiveEndTime = entry.getScheduledEndTime();
+            
+            if (i < scenes.size() - 1) {
+                effectiveEndTime = effectiveEndTime.minusSeconds(SCENE_PREPARATION_BUFFER_SECONDS);
+            }
+            
             if (!now.isBefore(entry.getScheduledStartTime())
-                    && now.isBefore(entry.getScheduledEndTime())) {
+                    && now.isBefore(effectiveEndTime)) {
                 return entry;
             }
         }

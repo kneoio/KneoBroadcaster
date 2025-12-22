@@ -152,12 +152,22 @@ public class StationDashboardService {
         if (scene.getActualEndTime() != null) {
             return SceneStatus.COMPLETED;
         }
+        
+        if (scene.getScheduledStartTime() != null && now.isAfter(scene.getScheduledEndTime())) {
+            if (scene.getActualStartTime() == null) {
+                return SceneStatus.SKIPPED;
+            }
+            return SceneStatus.COMPLETED;
+        }
+        
         if (scene.getActualStartTime() != null) {
             return SceneStatus.ACTIVE;
         }
+        
         if (scene.getScheduledStartTime() != null && !now.isBefore(scene.getScheduledStartTime())) {
             return SceneStatus.ACTIVE;
         }
+        
         return SceneStatus.PENDING;
     }
 

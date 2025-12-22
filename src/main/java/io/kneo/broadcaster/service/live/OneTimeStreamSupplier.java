@@ -147,7 +147,12 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             }
 
             Random random = new Random();
-            int songsToReturn = Math.min(availableEntries.size(), random.nextInt(2) + 1);
+            int songsToReturn;
+            if (availableEntries.size() >= 2) {
+                songsToReturn = random.nextDouble() < 0.70 ? 2 : 1;
+            } else {
+                songsToReturn = availableEntries.size();
+            }
             List<SoundFragment> selectedSongs = availableEntries.stream()
                     .limit(songsToReturn)
                     .peek(entry -> {

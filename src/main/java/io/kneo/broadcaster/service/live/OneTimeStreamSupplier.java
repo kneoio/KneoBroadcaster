@@ -21,6 +21,8 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +34,8 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class OneTimeStreamSupplier extends StreamSupplier {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStreamSupplier.class);
 
     @FunctionalInterface
     public interface MessageSink {
@@ -145,7 +149,14 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             int songsToReturn = Math.min(availableEntries.size(), random.nextInt(2) + 1);
             List<SoundFragment> selectedSongs = availableEntries.stream()
                     .limit(songsToReturn)
-                    .peek(entry -> fetchedSongsInScene.add(entry.getSoundFragment().getId()))
+                    .peek(entry -> {
+                        fetchedSongsInScene.add(entry.getSoundFragment().getId());
+                        LOGGER.info("[{}] Selected song from schedule: '{}' by '{}' (ID: {})",
+                                stream.getSlugName(),
+                                entry.getSoundFragment().getTitle(),
+                                entry.getSoundFragment().getArtist(),
+                                entry.getSoundFragment().getId());
+                    })
                     .map(ScheduledSongEntry::getSoundFragment)
                     .toList();
 
@@ -222,6 +233,12 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                 Prompt selectedPrompt =
                                                         prompts.get(random.nextInt(prompts.size()));
 
+                                                LOGGER.info("[{}] Creating draft for song: '{}' by '{}' (ID: {})",
+                                                        stream.getSlugName(),
+                                                        song.getTitle(),
+                                                        song.getArtist(),
+                                                        song.getId());
+
                                                 return draftFactory.createDraft(
                                                                 song,
                                                                 agent,
@@ -230,17 +247,23 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                                 broadcastingLanguage,
                                                                 userVariables
                                                         )
-                                                        .map(draft -> new SongPromptDTO(
-                                                                song.getId(),
-                                                                draft,
-                                                                selectedPrompt.getPrompt() + additionalInstruction,
-                                                                selectedPrompt.getPromptType(),
-                                                                agent.getLlmType(),
-                                                                agent.getSearchEngineType(),
-                                                                activeEntry.getScheduledStartTime().toLocalTime(),
-                                                                true,
-                                                                selectedPrompt.isPodcast()
-                                                        ));
+                                                        .map(draft -> {
+                                                            LOGGER.info("[{}] Draft created for song ID: {} - Draft preview: {}",
+                                                                    stream.getSlugName(),
+                                                                    song.getId(),
+                                                                    draft.length() > 100 ? draft.substring(0, 100) + "..." : draft);
+                                                            return new SongPromptDTO(
+                                                                    song.getId(),
+                                                                    draft,
+                                                                    selectedPrompt.getPrompt() + additionalInstruction,
+                                                                    selectedPrompt.getPromptType(),
+                                                                    agent.getLlmType(),
+                                                                    agent.getSearchEngineType(),
+                                                                    activeEntry.getScheduledStartTime().toLocalTime(),
+                                                                    true,
+                                                                    selectedPrompt.isPodcast()
+                                                            );
+                                                        });
                                             })
                                             .toList();
 

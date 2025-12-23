@@ -28,10 +28,13 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.stream.Collectors;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -86,6 +89,8 @@ public class PlaylistManager {
     private static final Random RANDOM = new Random();
     private LiveSoundFragment waitingStateFragment;
     private boolean isWaitingStateActive = false;
+    private List<String> waitingMessages = new ArrayList<>();
+    private int currentMessageIndex = 0;
 
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
@@ -312,7 +317,8 @@ public class PlaylistManager {
         }
         
         if (waitingStateFragment != null && isWaitingStateActive) {
-            LOGGER.debug("Looping waiting state for brand: {}", brandSlug);
+            waitingStateFragment.getMetadata().setTitle(getNextWaitingMessage());
+            LOGGER.debug("Looping waiting state for brand: {} with message: {}", brandSlug, waitingStateFragment.getMetadata().getTitle());
             return waitingStateFragment;
         }
         
@@ -354,6 +360,8 @@ public class PlaylistManager {
 
     private void initializeWaitingState() {
         try {
+            loadWaitingMessages();
+            
             InputStream resourceStream = getClass().getClassLoader().getResourceAsStream("Waiting_State.wav");
             if (resourceStream == null) {
                 LOGGER.warn("Waiting_State.wav not found in resources for brand: {}", brandSlug);
@@ -364,7 +372,7 @@ public class PlaylistManager {
             Files.copy(resourceStream, tempWaitingFile, StandardCopyOption.REPLACE_EXISTING);
             resourceStream.close();
 
-            SongMetadata waitingMetadata = new SongMetadata("Waiting State", "System");
+            SongMetadata waitingMetadata = new SongMetadata(getNextWaitingMessage(), "System");
             segmentationService.slice(waitingMetadata, tempWaitingFile, List.of(stream.getBitRate()))
                     .subscribe().with(
                             segments -> {
@@ -379,12 +387,52 @@ public class PlaylistManager {
                                 waitingStateFragment.setSegments(segments);
                                 waitingStateFragment.setPriority(999);
                                 isWaitingStateActive = true;
-                                LOGGER.info("Waiting state initialized for brand: {} with {} segments", brandSlug, segments.get(stream.getBitRate()).size());
+                                LOGGER.info("Waiting state initialized for brand: {} with {} segments and {} messages", brandSlug, segments.get(stream.getBitRate()).size(), waitingMessages.size());
                             },
                             error -> LOGGER.error("Error slicing Waiting_State.wav for brand {}: {}", brandSlug, error.getMessage(), error)
                     );
         } catch (Exception e) {
             LOGGER.error("Error initializing waiting state for brand {}: {}", brandSlug, e.getMessage(), e);
         }
+    }
+
+    private void loadWaitingMessages() {
+        try {
+            InputStream messageStream = getClass().getClassLoader().getResourceAsStream("waiting_messages.txt");
+            if (messageStream == null) {
+                LOGGER.warn("waiting_messages.txt not found in resources, using default messages");
+                waitingMessages = List.of(
+                    "DJ is preparing the show...",
+                    "Your DJ is getting ready!",
+                    "Setting up the studio...",
+                    "Almost ready to go live!"
+                );
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(messageStream));
+            waitingMessages = reader.lines()
+                    .filter(line -> !line.trim().isEmpty())
+                    .collect(Collectors.toList());
+            reader.close();
+
+            if (waitingMessages.isEmpty()) {
+                waitingMessages = List.of("DJ is preparing the show...");
+            }
+
+            LOGGER.info("Loaded {} waiting messages for brand: {}", waitingMessages.size(), brandSlug);
+        } catch (Exception e) {
+            LOGGER.error("Error loading waiting messages for brand {}: {}", brandSlug, e.getMessage(), e);
+            waitingMessages = List.of("DJ is preparing the show...");
+        }
+    }
+
+    private String getNextWaitingMessage() {
+        if (waitingMessages.isEmpty()) {
+            return "Preparing...";
+        }
+        String message = waitingMessages.get(currentMessageIndex);
+        currentMessageIndex = (currentMessageIndex + 1) % waitingMessages.size();
+        return message;
     }
 }

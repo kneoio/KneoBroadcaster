@@ -75,14 +75,24 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         stream.setStreamSupplier(this);
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
+        LOGGER.info("[{}] fetchPromptForOneTimeStream called. Active entry: {}", 
+                stream.getSlugName(), 
+                activeEntry != null ? activeEntry.getSceneTitle() : "null");
+
         if (activeEntry == null) {
+            LOGGER.warn("[{}] No active scene found. Current scene ID: {}", 
+                    stream.getSlugName(), currentSceneId);
             if (currentSceneId != null) {
                 SceneScheduleEntry previousScene = findSceneById(stream, currentSceneId);
                 if (previousScene != null && previousScene.getActualEndTime() == null) {
                     previousScene.setActualEndTime(java.time.LocalDateTime.now());
+                    LOGGER.info("[{}] Set actualEndTime for previous scene: {}", 
+                            stream.getSlugName(), previousScene.getSceneTitle());
                 }
             }
-            if (stream.isCompleted()) {
+            boolean completed = stream.isCompleted();
+            LOGGER.info("[{}] Stream completed check: {}", stream.getSlugName(), completed);
+            if (completed) {
                 stream.setStatus(RadioStationStatus.OFF_LINE);
                 messageSink.add(
                         stream.getSlugName(),

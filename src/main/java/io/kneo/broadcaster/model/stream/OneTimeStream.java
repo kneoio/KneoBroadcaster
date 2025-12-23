@@ -96,22 +96,39 @@ public class OneTimeStream extends AbstractStream {
         boolean anySceneStarted = scenes.stream()
                 .anyMatch(scene -> scene.getActualStartTime() != null);
         
+        LOGGER.info("Station '{}': Finding active scene. Total scenes: {}, Any started: {}", 
+                slugName, scenes.size(), anySceneStarted);
+        
         if (!anySceneStarted) {
-            return scenes.isEmpty() ? null : scenes.get(0);
+            SceneScheduleEntry firstScene = scenes.isEmpty() ? null : scenes.get(0);
+            if (firstScene != null) {
+                LOGGER.info("Station '{}': No scenes started yet, returning first scene: '{}'", 
+                        slugName, firstScene.getSceneTitle());
+            }
+            return firstScene;
         }
 
         for (int i = 0; i < scenes.size(); i++) {
             SceneScheduleEntry entry = scenes.get(i);
             
+            LOGGER.info("Station '{}': Checking scene {}/{}: '{}' - actualStart: {}, actualEnd: {}", 
+                    slugName, i + 1, scenes.size(), entry.getSceneTitle(), 
+                    entry.getActualStartTime(), entry.getActualEndTime());
+            
             if (entry.getActualStartTime() != null && entry.getActualEndTime() == null) {
+                LOGGER.info("Station '{}': Returning currently active scene: '{}'", 
+                        slugName, entry.getSceneTitle());
                 return entry;
             }
             
             if (entry.getActualStartTime() == null) {
+                LOGGER.info("Station '{}': Returning next unstarted scene: '{}'", 
+                        slugName, entry.getSceneTitle());
                 return entry;
             }
         }
 
+        LOGGER.warn("Station '{}': All scenes completed, returning null", slugName);
         return null;
     }
 
@@ -119,8 +136,10 @@ public class OneTimeStream extends AbstractStream {
         if (streamSchedule == null) {
             return true;
         }
-        return streamSchedule.getSceneScheduleEntries().stream()
+        boolean completed = streamSchedule.getSceneScheduleEntries().stream()
                 .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
+        LOGGER.info("Station '{}': isCompleted check = {}", slugName, completed);
+        return completed;
     }
 
     @Override

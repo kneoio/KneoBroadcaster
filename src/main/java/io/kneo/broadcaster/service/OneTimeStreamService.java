@@ -107,7 +107,10 @@ public class OneTimeStreamService {
                 MalformedURLException e) {
             throw new RuntimeException(e);
         }
-        return Uni.createFrom().item(dto);
+        
+        return radioStationPool.getLiveStatus(doc.getSlugName())
+                .onItem().invoke(liveStatus -> dto.setStatus(liveStatus.getStatus()))
+                .replaceWith(dto);
     }
 
     public Uni<OneTimeStream> run(OneTimeStreamRunReqDTO dto, IUser user) {

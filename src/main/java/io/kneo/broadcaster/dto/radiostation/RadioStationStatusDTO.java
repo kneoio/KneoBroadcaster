@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.aihelper.AnimationDTO;
+import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,4 +26,9 @@ public class RadioStationStatusDTO {
     private String description;
     private long availableSongs;
     private AnimationDTO animation;
+    private SubmissionPolicy oneTimeStreamPolicy;
+    private SubmissionPolicy submissionPolicy;
+    private SubmissionPolicy messagingPolicy;
+    private long bitRate;
+    private double popularityRate;
 }

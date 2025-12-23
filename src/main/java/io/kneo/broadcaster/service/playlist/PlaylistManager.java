@@ -14,6 +14,7 @@ import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
@@ -27,6 +28,10 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -79,6 +84,8 @@ public class PlaylistManager {
     private final LinkedList<LiveSoundFragment> fragmentsForMp3 = new LinkedList<>();
     private final AiHelperService aiHelperService;
     private static final Random RANDOM = new Random();
+    private LiveSoundFragment waitingStateFragment;
+    private boolean isWaitingStateActive = false;
 
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
@@ -104,6 +111,10 @@ public class PlaylistManager {
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
         LOGGER.info("Created PlaylistManager for brand: {}", brandSlug);
+        
+        if (stream instanceof OneTimeStream) {
+            initializeWaitingState();
+        }
     }
 
     public void startSelfManaging() {
@@ -283,12 +294,14 @@ public class PlaylistManager {
 
     public LiveSoundFragment getNextFragment() {
         if (!prioritizedQueue.isEmpty()) {
+            isWaitingStateActive = false;
             LiveSoundFragment nextFragment = prioritizedQueue.poll();
             moveFragmentToProcessedList(nextFragment);
             return nextFragment;
         }
 
         if (!regularQueue.isEmpty()) {
+            isWaitingStateActive = false;
             LiveSoundFragment nextFragment = regularQueue.poll();
             moveFragmentToProcessedList(nextFragment);
             return nextFragment;
@@ -297,6 +310,12 @@ public class PlaylistManager {
         if (stream.getManagedBy() != ManagedBy.DJ) {
             feedFragments(1, true);
         }
+        
+        if (waitingStateFragment != null && isWaitingStateActive) {
+            LOGGER.debug("Looping waiting state for brand: {}", brandSlug);
+            return waitingStateFragment;
+        }
+        
         return null;
     }
 
@@ -330,6 +349,42 @@ public class PlaylistManager {
             } finally {
                 slicedFragmentsLock.writeLock().unlock();
             }
+        }
+    }
+
+    private void initializeWaitingState() {
+        try {
+            InputStream resourceStream = getClass().getClassLoader().getResourceAsStream("Waiting_State.wav");
+            if (resourceStream == null) {
+                LOGGER.warn("Waiting_State.wav not found in resources for brand: {}", brandSlug);
+                return;
+            }
+
+            Path tempWaitingFile = Files.createTempFile("waiting_state_", ".wav");
+            Files.copy(resourceStream, tempWaitingFile, StandardCopyOption.REPLACE_EXISTING);
+            resourceStream.close();
+
+            SongMetadata waitingMetadata = new SongMetadata("Waiting State", "System");
+            segmentationService.slice(waitingMetadata, tempWaitingFile.toString(), List.of(stream.getBitRate()))
+                    .subscribe().with(
+                            segments -> {
+                                if (segments.isEmpty()) {
+                                    LOGGER.warn("Failed to slice Waiting_State.wav for brand: {}", brandSlug);
+                                    return;
+                                }
+                                waitingStateFragment = new LiveSoundFragment();
+                                waitingStateFragment.setSoundFragmentId(UUID.randomUUID());
+                                waitingStateFragment.setMetadata(waitingMetadata);
+                                waitingStateFragment.setSourceFilePath(tempWaitingFile);
+                                waitingStateFragment.setSegments(segments);
+                                waitingStateFragment.setPriority(999);
+                                isWaitingStateActive = true;
+                                LOGGER.info("Waiting state initialized for brand: {} with {} segments", brandSlug, segments.get(stream.getBitRate()).size());
+                            },
+                            error -> LOGGER.error("Error slicing Waiting_State.wav for brand {}: {}", brandSlug, error.getMessage(), error)
+                    );
+        } catch (Exception e) {
+            LOGGER.error("Error initializing waiting state for brand {}: {}", brandSlug, e.getMessage(), e);
         }
     }
 }

@@ -107,6 +107,38 @@ public class MailService {
         }
     }
 
+    public Uni<Void> sendStreamLinksAsync(String email, String slugName, String hlsUrl, String mixplaUrl) {
+        LOG.info("Sending stream links to email: {} for stream: {}", email, slugName);
+
+        String htmlBody = """
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Your Stream is Ready!</h2>
+            <p>Your one-time stream <strong>%s</strong> has been created successfully.</p>
+            <h3>Stream Links:</h3>
+            <ul style="line-height: 1.8;">
+                <li><strong>HLS Stream URL:</strong><br/><a href="%s" style="color: #3498db;">%s</a></li>
+                <li><strong>Mixpla Player:</strong><br/><a href="%s" style="color: #3498db;">%s</a></li>
+            </ul>
+            <p style="color: #7f8c8d; margin-top: 30px;">You can use these links to access your stream.</p>
+        </body>
+        </html>
+        """.formatted(slugName, hlsUrl, hlsUrl, mixplaUrl, mixplaUrl);
+
+        String textBody = "Your Stream is Ready!\n\n" +
+                "Stream: " + slugName + "\n\n" +
+                "HLS Stream URL: " + hlsUrl + "\n" +
+                "Mixpla Player: " + mixplaUrl + "\n\n" +
+                "You can use these links to access your stream.";
+
+        Mail mail = Mail.withHtml(email, "Your Stream Links - " + slugName, htmlBody)
+                .setText(textBody)
+                .setFrom("Mixpla <" + fromAddress + ">");
+
+        return reactiveMailer.send(mail)
+                .onFailure().invoke(failure -> LOG.error("Failed to send stream links email", failure));
+    }
 
     @Scheduled(every = "60m")
     void cleanupExpiredCodes() {

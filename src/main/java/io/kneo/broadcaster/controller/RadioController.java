@@ -8,6 +8,7 @@ import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.external.MailService;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.broadcaster.service.stream.Mp3Streamer;
@@ -70,6 +71,8 @@ public class RadioController {
     Validator validator;
     @Inject
     BroadcasterConfig broadcasterConfig;
+    @Inject
+    MailService mailService;
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -371,6 +374,14 @@ public class RadioController {
                                     String slugName = stream.getSlugName();
                                     String hlsUrl = broadcasterConfig.getHost() + "/" + slugName + "/radio/stream.m3u8";
                                     String mixplaUrl = "https://player.mixpla.io/?radio=" + slugName;
+                                    
+                                    if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
+                                        mailService.sendStreamLinksAsync(dto.getEmail(), slugName, hlsUrl, mixplaUrl)
+                                                .subscribe().with(
+                                                        v -> LOGGER.info("Stream links sent to email: {}", dto.getEmail()),
+                                                        err -> LOGGER.error("Failed to send email to: {}", dto.getEmail(), err)
+                                                );
+                                    }
                                     
                                     JsonObject response = new JsonObject()
                                             .put("message", "Stream started successfully")

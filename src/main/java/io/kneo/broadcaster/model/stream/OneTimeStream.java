@@ -101,8 +101,6 @@ public class OneTimeStream extends AbstractStream {
             return scenes.isEmpty() ? null : scenes.get(0);
         }
 
-        LocalDateTime now = LocalDateTime.now();
-
         for (int i = 0; i < scenes.size(); i++) {
             SceneScheduleEntry entry = scenes.get(i);
             
@@ -110,14 +108,7 @@ public class OneTimeStream extends AbstractStream {
                 return entry;
             }
             
-            LocalDateTime effectiveEndTime = entry.getScheduledEndTime();
-            
-            if (i < scenes.size() - 1) {
-                effectiveEndTime = effectiveEndTime.minusSeconds(SCENE_PREPARATION_BUFFER_SECONDS);
-            }
-            
-            if (!now.isBefore(entry.getScheduledStartTime())
-                    && now.isBefore(effectiveEndTime)) {
+            if (entry.getActualStartTime() == null) {
                 return entry;
             }
         }

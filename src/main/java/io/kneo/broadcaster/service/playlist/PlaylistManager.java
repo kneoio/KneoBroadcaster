@@ -365,7 +365,7 @@ public class PlaylistManager {
             resourceStream.close();
 
             SongMetadata waitingMetadata = new SongMetadata("Waiting State", "System");
-            segmentationService.slice(waitingMetadata, tempWaitingFile.toString(), List.of(stream.getBitRate()))
+            segmentationService.slice(waitingMetadata, tempWaitingFile, List.of(stream.getBitRate()))
                     .subscribe().with(
                             segments -> {
                                 if (segments.isEmpty()) {

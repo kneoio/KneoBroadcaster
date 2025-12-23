@@ -1,8 +1,11 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
+import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.model.cnst.RatingAction;
+import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.RadioService;
+import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -23,13 +26,20 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class RadioController {
@@ -50,6 +60,12 @@ public class RadioController {
     @Inject GeolocationService geoService;
     @Inject
     Mp3Streamer mp3Streamer;
+    @Inject
+    ScriptService scriptService;
+    @Inject
+    OneTimeStreamService oneTimeStreamService;
+    @Inject
+    Validator validator;
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -64,9 +80,11 @@ public class RadioController {
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
         router.route(HttpMethod.GET, path + "/stream.mp3").handler(this::getMp3Stream);
 
-        router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);  //used by Mixpla
+        router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
+        router.route(HttpMethod.GET, "/radio/shared-scripts").handler(this::validateMixplaAccess).handler(this::getSharedScripts);
+        router.route(HttpMethod.POST, "/radio/run-stream").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::runOneTimeStream);
         router.route(HttpMethod.PATCH, "/radio/:brand/:id/rating").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::rateFragment);
         router.route(HttpMethod.POST, "/radio/alexa/skill").handler(jsonBodyHandler).handler(this::getSkill);
 
@@ -297,6 +315,66 @@ public class RadioController {
                                 .end(Json.encode(station)),
                         throwable -> rc.response().setStatusCode(500).end("Failed to get station")
                 );
+    }
+
+    private void getSharedScripts(RoutingContext rc) {
+        scriptService.getAllShared(50, 0, AnonymousUser.build())
+                .subscribe().with(
+                        scripts -> rc.response()
+                                .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                .end(Json.encode(scripts)),
+                        throwable -> rc.response().setStatusCode(500).end("Failed to get shared scripts")
+                );
+    }
+
+    private void runOneTimeStream(RoutingContext rc) {
+        if (jsonBodyIsBad(rc)) {
+            return;
+        }
+
+        try {
+            OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
+
+            Set<ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(dto);
+            if (violations != null && !violations.isEmpty()) {
+                Map<String, List<String>> fieldErrors = new HashMap<>();
+                for (ConstraintViolation<OneTimeStreamRunReqDTO> v : violations) {
+                    String field = v.getPropertyPath().toString();
+                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                }
+
+                String detail = fieldErrors.entrySet().stream()
+                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                        .collect(Collectors.joining(", "));
+
+                rc.response()
+                        .setStatusCode(400)
+                        .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                        .end(new JsonObject()
+                                .put("error", "Validation failed")
+                                .put("detail", detail)
+                                .encode());
+                return;
+            }
+
+            oneTimeStreamService.run(dto, AnonymousUser.build())
+                    .subscribe().with(
+                            stream -> rc.response()
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .setStatusCode(200)
+                                    .end(Json.encode(stream)),
+                            throwable -> {
+                                LOGGER.error("Failed to run one-time stream", throwable);
+                                rc.response().setStatusCode(500).end("Failed to run stream");
+                            }
+                    );
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
     }
 
     private void submit(RoutingContext rc) {

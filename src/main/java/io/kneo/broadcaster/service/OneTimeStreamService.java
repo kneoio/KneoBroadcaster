@@ -17,6 +17,7 @@ import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
+import io.kneo.broadcaster.service.stream.StreamScheduleService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -50,6 +51,47 @@ public class OneTimeStreamService {
     @Inject
     BroadcasterConfig broadcasterConfig;
 
+    @Inject
+    BrandService brandService;
+
+    @Inject
+    StreamScheduleService streamScheduleService;
+
+
+    public Uni<OneTimeStreamRunReqDTO> populateFromSlugName(OneTimeStreamRunReqDTO dto, IUser user) {
+        if (dto.getSlugName() == null || dto.getSlugName().isEmpty()) {
+            return Uni.createFrom().item(dto);
+        }
+
+        return brandService.getBySlugName(dto.getSlugName())
+                .chain(brand -> {
+                    if (brand == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + dto.getSlugName()));
+                    }
+
+                    dto.setBaseBrandId(brand.getId());
+                    dto.setAiAgentId(brand.getAiAgentId());
+
+                    return scriptRepository.findById(dto.getScriptId(), user, false)
+                            .chain(script -> {
+                                if (script == null) {
+                                    return Uni.createFrom().failure(new IllegalArgumentException("Script not found"));
+                                }
+
+                                dto.setProfileId(script.getDefaultProfileId());
+
+                                if (dto.getSchedule() == null) {
+                                    return streamScheduleService.getStreamScheduleDTO(brand.getId(), script.getId(), user)
+                                            .map(schedule -> {
+                                                dto.setSchedule(schedule);
+                                                return dto;
+                                            });
+                                }
+
+                                return Uni.createFrom().item(dto);
+                            });
+                });
+    }
 
     public Uni<List<OneTimeStreamDTO>> getAll(int limit, int offset) {
         return oneTimeStreamRepository.getAll(limit, offset)

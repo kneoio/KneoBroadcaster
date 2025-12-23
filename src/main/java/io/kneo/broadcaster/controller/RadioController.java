@@ -335,37 +335,48 @@ public class RadioController {
         try {
             OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
 
-            Set<ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(dto);
-            if (violations != null && !violations.isEmpty()) {
-                Map<String, List<String>> fieldErrors = new HashMap<>();
-                for (ConstraintViolation<OneTimeStreamRunReqDTO> v : violations) {
-                    String field = v.getPropertyPath().toString();
-                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
-                }
+            oneTimeStreamService.populateFromSlugName(dto, AnonymousUser.build())
+                    .chain(populatedDto -> {
+                        Set<ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(populatedDto);
+                        if (violations != null && !violations.isEmpty()) {
+                            Map<String, List<String>> fieldErrors = new HashMap<>();
+                            for (ConstraintViolation<OneTimeStreamRunReqDTO> v : violations) {
+                                String field = v.getPropertyPath().toString();
+                                fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                            }
 
-                String detail = fieldErrors.entrySet().stream()
-                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
-                        .collect(Collectors.joining(", "));
+                            String detail = fieldErrors.entrySet().stream()
+                                    .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                                    .collect(Collectors.joining(", "));
 
-                rc.response()
-                        .setStatusCode(400)
-                        .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                        .end(new JsonObject()
-                                .put("error", "Validation failed")
-                                .put("detail", detail)
-                                .encode());
-                return;
-            }
-
-            oneTimeStreamService.run(dto, AnonymousUser.build())
-                    .subscribe().with(
-                            stream -> rc.response()
+                            rc.response()
+                                    .setStatusCode(400)
                                     .putHeader("Content-Type", MediaType.APPLICATION_JSON)
-                                    .setStatusCode(200)
-                                    .end(Json.encode(stream)),
+                                    .end(new JsonObject()
+                                            .put("error", "Validation failed")
+                                            .put("detail", detail)
+                                            .encode());
+                            return Uni.createFrom().nullItem();
+                        }
+
+                        return oneTimeStreamService.run(populatedDto, AnonymousUser.build());
+                    })
+                    .subscribe().with(
+                            stream -> {
+                                if (stream != null) {
+                                    rc.response()
+                                            .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                            .setStatusCode(200)
+                                            .end(Json.encode(stream));
+                                }
+                            },
                             throwable -> {
                                 LOGGER.error("Failed to run one-time stream", throwable);
-                                rc.response().setStatusCode(500).end("Failed to run stream");
+                                if (throwable instanceof IllegalArgumentException) {
+                                    rc.response().setStatusCode(400).end(throwable.getMessage());
+                                } else {
+                                    rc.response().setStatusCode(500).end("Failed to run stream");
+                                }
                             }
                     );
         } catch (Exception e) {

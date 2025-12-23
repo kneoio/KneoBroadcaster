@@ -57,6 +57,11 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         if (row.getValue("length") != null) {
             Long lengthMillis = row.getLong("length");
             doc.setLength(Duration.ofMillis(lengthMillis));
+            LOGGER.debug("Loaded song '{}' with length: {} ms ({} seconds)", 
+                    doc.getTitle(), lengthMillis, lengthMillis / 1000.0);
+        } else {
+            LOGGER.warn("Song '{}' (ID: {}) has NULL length in database row", 
+                    row.getString("title"), row.getUUID("id"));
         }
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));

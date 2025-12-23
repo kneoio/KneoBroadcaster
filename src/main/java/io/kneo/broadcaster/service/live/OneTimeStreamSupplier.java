@@ -172,7 +172,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             List<SoundFragment> selectedSongs = availableEntries.stream()
                     .limit(songsToReturn)
                     .peek(entry -> {
-                        fetchedSongsInScene.add(entry.getSoundFragment().getId());
                         LOGGER.info("[{}] Selected song from schedule: '{}' by '{}' (ID: {})",
                                 stream.getSlugName(),
                                 entry.getSoundFragment().getTitle(),
@@ -290,7 +289,14 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                             .toList();
 
                                     return Uni.join().all(songPromptUnis).andFailFast()
-                                            .map(result -> Tuple2.of(result, currentSceneTitle));
+                                            .map(result -> {
+                                                songs.forEach(song -> {
+                                                    fetchedSongsInScene.add(song.getId());
+                                                    LOGGER.info("[{}] Marked song as fetched after successful draft creation: '{}' (ID: {})",
+                                                            stream.getSlugName(), song.getTitle(), song.getId());
+                                                });
+                                                return Tuple2.of(result, currentSceneTitle);
+                                            });
                                 });
                     });
         });

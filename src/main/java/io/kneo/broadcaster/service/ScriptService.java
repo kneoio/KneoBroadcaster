@@ -14,6 +14,7 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.ScriptFilter;
 import io.kneo.broadcaster.model.ScriptVariable;
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.util.ScriptVariableExtractor;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -104,7 +105,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     public Uni<List<ScriptDTO>> getAllShared(final int limit, final int offset, final IUser user) {
-        return getAllShared(limit, offset, user, null);
+        ScriptFilterDTO filterDTO = new ScriptFilterDTO();
+        filterDTO.setTimingMode(SceneTimingMode.RELATIVE_TO_STREAM_START);
+        return getAllShared(limit, offset, user, filterDTO);
     }
 
     public Uni<List<ScriptDTO>> getAllShared(final int limit, final int offset, final IUser user, final ScriptFilterDTO filterDTO) {

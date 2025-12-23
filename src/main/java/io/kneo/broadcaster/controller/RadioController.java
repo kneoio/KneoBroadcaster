@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.controller;
 
+import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.model.cnst.RatingAction;
@@ -67,6 +68,8 @@ public class RadioController {
     OneTimeStreamService oneTimeStreamService;
     @Inject
     Validator validator;
+    @Inject
+    BroadcasterConfig broadcasterConfig;
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -365,10 +368,19 @@ public class RadioController {
                     .subscribe().with(
                             stream -> {
                                 if (stream != null) {
+                                    String slugName = stream.getSlugName();
+                                    String hlsUrl = broadcasterConfig.getHost() + "/" + slugName + "/radio/stream.m3u8";
+                                    String mixplaUrl = "https://player.mixpla.io/?radio=" + slugName;
+                                    
+                                    JsonObject response = new JsonObject()
+                                            .put("message", "Stream started successfully")
+                                            .put("slugName", slugName)
+                                            .put("hlsUrl", hlsUrl)
+                                            .put("mixplaUrl", mixplaUrl);
                                     rc.response()
                                             .putHeader("Content-Type", MediaType.APPLICATION_JSON)
                                             .setStatusCode(200)
-                                            .end(Json.encode(stream));
+                                            .end(response.encode());
                                 }
                             },
                             throwable -> {

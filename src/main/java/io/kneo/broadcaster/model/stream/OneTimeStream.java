@@ -92,11 +92,24 @@ public class OneTimeStream extends AbstractStream {
             return null;
         }
 
-        LocalDateTime now = LocalDateTime.now();
         List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
+        
+        boolean anySceneStarted = scenes.stream()
+                .anyMatch(scene -> scene.getActualStartTime() != null);
+        
+        if (!anySceneStarted) {
+            return scenes.isEmpty() ? null : scenes.get(0);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
 
         for (int i = 0; i < scenes.size(); i++) {
             SceneScheduleEntry entry = scenes.get(i);
+            
+            if (entry.getActualStartTime() != null && entry.getActualEndTime() == null) {
+                return entry;
+            }
+            
             LocalDateTime effectiveEndTime = entry.getScheduledEndTime();
             
             if (i < scenes.size() - 1) {

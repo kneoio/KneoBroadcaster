@@ -20,6 +20,7 @@ import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationService;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Multi;
@@ -38,9 +39,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -92,6 +96,7 @@ public class PlaylistManager {
     private boolean isWaitingStateActive = false;
     private List<String> waitingMessages = new ArrayList<>();
     private int currentMessageIndex = 0;
+    private Map<Long, List<HlsSegment>> originalWaitingSegments = new ConcurrentHashMap<>();
 
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
@@ -318,9 +323,12 @@ public class PlaylistManager {
         }
         
         if (waitingStateFragment != null && isWaitingStateActive) {
-            waitingStateFragment.getMetadata().setTitle(getNextWaitingMessage());
-            LOGGER.debug("Looping waiting state for brand: {} with message: {}", brandSlug, waitingStateFragment.getMetadata().getTitle());
-            return waitingStateFragment;
+            LiveSoundFragment loopedFragment = createWaitingStateLoop();
+            if (loopedFragment != null) {
+                loopedFragment.getMetadata().setTitle(getNextWaitingMessage());
+                LOGGER.debug("Looping waiting state for brand: {} with message: {}", brandSlug, loopedFragment.getMetadata().getTitle());
+                return loopedFragment;
+            }
         }
         
         return null;
@@ -387,6 +395,12 @@ public class PlaylistManager {
                                 waitingStateFragment.setSourceFilePath(tempWaitingFile);
                                 waitingStateFragment.setSegments(segments);
                                 waitingStateFragment.setPriority(999);
+                                
+                                for (Map.Entry<Long, ConcurrentLinkedQueue<HlsSegment>> entry : segments.entrySet()) {
+                                    List<HlsSegment> segmentList = new ArrayList<>(entry.getValue());
+                                    originalWaitingSegments.put(entry.getKey(), segmentList);
+                                }
+                                
                                 isWaitingStateActive = true;
                                 LOGGER.info("Waiting state initialized for brand: {} with {} segments and {} messages", brandSlug, segments.get(stream.getBitRate()).size(), waitingMessages.size());
                             },
@@ -435,5 +449,36 @@ public class PlaylistManager {
         String message = waitingMessages.get(currentMessageIndex);
         currentMessageIndex = (currentMessageIndex + 1) % waitingMessages.size();
         return message;
+    }
+
+    private LiveSoundFragment createWaitingStateLoop() {
+        if (originalWaitingSegments.isEmpty()) {
+            return null;
+        }
+
+        LiveSoundFragment loopedFragment = new LiveSoundFragment();
+        loopedFragment.setSoundFragmentId(waitingStateFragment.getSoundFragmentId());
+        loopedFragment.setMetadata(new SongMetadata(waitingStateFragment.getMetadata().getTitle(), "System"));
+        loopedFragment.setSourceFilePath(waitingStateFragment.getSourceFilePath());
+        loopedFragment.setPriority(999);
+
+        Map<Long, ConcurrentLinkedQueue<HlsSegment>> clonedSegments = new ConcurrentHashMap<>();
+        for (Map.Entry<Long, List<HlsSegment>> entry : originalWaitingSegments.entrySet()) {
+            ConcurrentLinkedQueue<HlsSegment> queue = new ConcurrentLinkedQueue<>();
+            for (HlsSegment originalSegment : entry.getValue()) {
+                HlsSegment clonedSegment = new HlsSegment(
+                    0,
+                    originalSegment.getData(),
+                    originalSegment.getDuration(),
+                    loopedFragment.getMetadata(),
+                    originalSegment.getTimestamp()
+                );
+                queue.offer(clonedSegment);
+            }
+            clonedSegments.put(entry.getKey(), queue);
+        }
+        loopedFragment.setSegments(clonedSegments);
+
+        return loopedFragment;
     }
 }

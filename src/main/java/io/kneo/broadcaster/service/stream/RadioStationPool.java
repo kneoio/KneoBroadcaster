@@ -5,7 +5,9 @@ import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.RadioStream;
+import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -66,6 +68,9 @@ public class RadioStationPool {
 
     @Inject
     private OneTimeStreamService oneTimeStreamService;
+
+    @Inject
+    private OneTimeStreamRepository oneTimeStreamRepository;
 
     public Uni<IStream> initializeRadio(String brandName) {
         LOGGER.info("Attempting to initialize Radio Stream for brand: {}", brandName);
@@ -191,6 +196,18 @@ public class RadioStationPool {
         if (brand != null) {
             LOGGER.info("Station {} found in pool and removed. Shutting down its playlist.", brandName);
             brand.setStatus(RadioStationStatus.OFF_LINE);
+            
+            if (brand instanceof OneTimeStream) {
+                return oneTimeStreamRepository.getBySlugName(brandName)
+                        .onItem().invoke(repoStream -> {
+                            if (repoStream != null) {
+                                repoStream.setStatus(RadioStationStatus.OFF_LINE);
+                                LOGGER.info("Updated repository status to OFF_LINE for station: {}", brandName);
+                            }
+                        })
+                        .replaceWith(brand);
+            }
+            
             return Uni.createFrom().item(brand);
         } else {
             LOGGER.warn("Station {} not found in pool during stopAndRemove.", brandName);

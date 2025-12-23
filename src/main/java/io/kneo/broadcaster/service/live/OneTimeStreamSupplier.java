@@ -136,6 +136,12 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     .toList();
 
             if (availableEntries.isEmpty()) {
+                if (activeEntry.getActualEndTime() == null) {
+                    activeEntry.setActualEndTime(java.time.LocalDateTime.now());
+                    LOGGER.info("[{}] Set actualEndTime for completed scene: {}", 
+                            stream.getSlugName(), currentSceneTitle);
+                }
+                
                 List<SceneScheduleEntry> allScenes = stream.getStreamSchedule().getSceneScheduleEntries();
                 boolean isLastScene = allScenes.indexOf(activeEntry) == allScenes.size() - 1;
                 
@@ -150,7 +156,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     messageSink.add(
                             stream.getSlugName(),
                             AiDjStatsDTO.MessageType.INFO,
-                            String.format("All songs exhausted for scene '%s', waiting for next scene", currentSceneTitle)
+                            String.format("All songs exhausted for scene '%s', moving to next scene", currentSceneTitle)
                     );
                 }
                 return Uni.createFrom().item(() -> null);

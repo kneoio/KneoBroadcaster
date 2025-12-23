@@ -14,6 +14,7 @@ import io.kneo.broadcaster.service.util.FileUploadService;
 import io.kneo.broadcaster.service.util.GeolocationService;
 import io.kneo.broadcaster.service.util.ValidationService;
 import io.kneo.core.model.user.AnonymousUser;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
 import io.smallrye.mutiny.Uni;
@@ -82,7 +83,7 @@ public class RadioController {
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
-        router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);
+        router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);  //used by Web
         router.route(HttpMethod.GET, "/radio/shared-scripts").handler(this::validateMixplaAccess).handler(this::getSharedScripts);
         router.route(HttpMethod.POST, "/radio/run-stream").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::runOneTimeStream);
         router.route(HttpMethod.PATCH, "/radio/:brand/:id/rating").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::rateFragment);
@@ -335,7 +336,7 @@ public class RadioController {
         try {
             OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
 
-            oneTimeStreamService.populateFromSlugName(dto, AnonymousUser.build())
+            oneTimeStreamService.populateFromSlugName(dto, SuperUser.build())
                     .chain(populatedDto -> {
                         Set<ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(populatedDto);
                         if (violations != null && !violations.isEmpty()) {
@@ -359,7 +360,7 @@ public class RadioController {
                             return Uni.createFrom().nullItem();
                         }
 
-                        return oneTimeStreamService.run(populatedDto, AnonymousUser.build());
+                        return oneTimeStreamService.run(populatedDto, SuperUser.build());
                     })
                     .subscribe().with(
                             stream -> {

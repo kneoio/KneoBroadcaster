@@ -18,8 +18,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Setter
@@ -32,7 +35,10 @@ public class OneTimeStream extends AbstractStream {
     private Map<String, Object> userVariables;
     private AiAgentStatus aiAgentStatus;
     private StreamDeliveryState deliveryState;
-    private Object streamSupplier;
+
+    // per-stream mutable state (moved from supplier)
+    private UUID currentSceneId;
+    private final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;
@@ -92,43 +98,22 @@ public class OneTimeStream extends AbstractStream {
         }
 
         List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
-        
+
         boolean anySceneStarted = scenes.stream()
                 .anyMatch(scene -> scene.getActualStartTime() != null);
-        
-        LOGGER.info("Station '{}': Finding active scene. Total scenes: {}, Any started: {}", 
-                slugName, scenes.size(), anySceneStarted);
-        
+
         if (!anySceneStarted) {
-            SceneScheduleEntry firstScene = scenes.isEmpty() ? null : scenes.get(0);
-            if (firstScene != null) {
-                LOGGER.info("Station '{}': No scenes started yet, returning first scene: '{}'", 
-                        slugName, firstScene.getSceneTitle());
-            }
-            return firstScene;
+            return scenes.isEmpty() ? null : scenes.get(0);
         }
 
-        for (int i = 0; i < scenes.size(); i++) {
-            SceneScheduleEntry entry = scenes.get(i);
-            
-            LOGGER.info("Station '{}': Checking scene {}/{}: '{}' - actualStart: {}, actualEnd: {}", 
-                    slugName, i + 1, scenes.size(), entry.getSceneTitle(), 
-                    entry.getActualStartTime(), entry.getActualEndTime());
-            
+        for (SceneScheduleEntry entry : scenes) {
             if (entry.getActualStartTime() != null && entry.getActualEndTime() == null) {
-                LOGGER.info("Station '{}': Returning currently active scene: '{}'", 
-                        slugName, entry.getSceneTitle());
                 return entry;
             }
-            
             if (entry.getActualStartTime() == null) {
-                LOGGER.info("Station '{}': Returning next unstarted scene: '{}'", 
-                        slugName, entry.getSceneTitle());
                 return entry;
             }
         }
-
-        LOGGER.warn("Station '{}': All scenes completed, returning null", slugName);
         return null;
     }
 
@@ -136,11 +121,21 @@ public class OneTimeStream extends AbstractStream {
         if (streamSchedule == null) {
             return true;
         }
-        boolean completed = streamSchedule.getSceneScheduleEntries().stream()
+        return streamSchedule.getSceneScheduleEntries().stream()
                 .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
-        LOGGER.info("Station '{}': isCompleted check = {}", slugName, completed);
-        return completed;
     }
+
+    // ---- per-scene delivery helpers ----
+
+    public Set<UUID> getFetchedSongsInScene(UUID sceneId) {
+        return fetchedSongsByScene.computeIfAbsent(sceneId, k -> new HashSet<>());
+    }
+
+    public void clearSceneState(UUID sceneId) {
+        fetchedSongsByScene.remove(sceneId);
+    }
+
+    // ---- legacy scheduled-song delivery (kept intact) ----
 
     @Override
     public List<SoundFragment> getNextScheduledSongs(Scene scene, int count) {
@@ -198,4 +193,3 @@ public class OneTimeStream extends AbstractStream {
         );
     }
 }
-

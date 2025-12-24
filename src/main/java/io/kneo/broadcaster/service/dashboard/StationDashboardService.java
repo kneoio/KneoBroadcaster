@@ -8,7 +8,6 @@ import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.kneo.broadcaster.service.live.OneTimeStreamSupplier;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -99,22 +98,28 @@ public class StationDashboardService {
         if (station instanceof OneTimeStream) {
             activeEntry = station.findActiveSceneEntry();
         }
+
         List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();
         List<SceneScheduleEntry> scenes = schedule.getSceneScheduleEntries();
 
         for (int i = 0; i < scenes.size(); i++) {
             SceneScheduleEntry scene = scenes.get(i);
             SceneScheduleEntry nextScene = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
-            
+
             StationStatsDTO.ScheduleEntryDTO dto = new StationStatsDTO.ScheduleEntryDTO();
             dto.setSceneTitle(scene.getSceneTitle());
             dto.setStartTime(scene.getOriginalStartTime());
             dto.setEndTime(scene.getOriginalEndTime());
+
             if (activeEntry != null) {
                 dto.setActive(activeEntry.getSceneId().equals(scene.getSceneId()));
             } else {
-                dto.setActive(scene.isActiveAt(now, nextScene != null ? nextScene.getOriginalStartTime() : null));
+                dto.setActive(scene.isActiveAt(
+                        now,
+                        nextScene != null ? nextScene.getOriginalStartTime() : null
+                ));
             }
+
             dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
             dto.setPlaylistTitle(scene.getPlaylistTitle());
             dto.setArtist(scene.getArtist());
@@ -122,12 +127,9 @@ public class StationDashboardService {
             dto.setSongsCount(scene.getSongs() != null ? scene.getSongs().size() : 0);
 
             if (station instanceof OneTimeStream oneTimeStream) {
-                Object supplier = oneTimeStream.getStreamSupplier();
-                if (supplier instanceof OneTimeStreamSupplier oneTimeSupplier) {
-                    dto.setFetchedSongsCount(oneTimeSupplier.getFetchedSongsCount(scene.getSceneId()));
-                } else {
-                    dto.setFetchedSongsCount(0);
-                }
+                dto.setFetchedSongsCount(
+                        oneTimeStream.getFetchedSongsInScene(scene.getSceneId()).size()
+                );
             } else {
                 dto.setFetchedSongsCount(0);
             }
@@ -147,6 +149,7 @@ public class StationDashboardService {
 
         return entries;
     }
+
 
     private SceneStatus computeSceneStatus(SceneScheduleEntry scene, LocalDateTime now) {
         if (scene.getActualEndTime() != null) {

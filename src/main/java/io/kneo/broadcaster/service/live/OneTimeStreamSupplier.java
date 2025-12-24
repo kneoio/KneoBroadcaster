@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
-import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -24,8 +23,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.HashSet;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -47,8 +45,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     private final SceneService sceneService;
     private final SongSupplier songSupplier;
     private final SoundFragmentService soundFragmentService;
-    private final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
-    private UUID currentSceneId = null;
 
     @Inject
     public OneTimeStreamSupplier(
@@ -72,27 +68,18 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
-        stream.setStreamSupplier(this);
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
-        LOGGER.info("[{}] fetchPromptForOneTimeStream called. Active entry: {}", 
-                stream.getSlugName(), 
-                activeEntry != null ? activeEntry.getSceneTitle() : "null");
-
         if (activeEntry == null) {
-            LOGGER.warn("[{}] No active scene found. Current scene ID: {}", 
-                    stream.getSlugName(), currentSceneId);
-            if (currentSceneId != null) {
-                SceneScheduleEntry previousScene = findSceneById(stream, currentSceneId);
-                if (previousScene != null && previousScene.getActualEndTime() == null) {
-                    previousScene.setActualEndTime(java.time.LocalDateTime.now());
-                    LOGGER.info("[{}] Set actualEndTime for previous scene: {}", 
-                            stream.getSlugName(), previousScene.getSceneTitle());
+            UUID prevSceneId = stream.getCurrentSceneId();
+            if (prevSceneId != null) {
+                SceneScheduleEntry prev = findSceneById(stream, prevSceneId);
+                if (prev != null && prev.getActualEndTime() == null) {
+                    prev.setActualEndTime(LocalDateTime.now());
                 }
             }
-            boolean completed = stream.isCompleted();
-            LOGGER.info("[{}] Stream completed check: {}", stream.getSlugName(), completed);
-            if (completed) {
+
+            if (stream.isCompleted()) {
                 stream.setStatus(RadioStationStatus.OFF_LINE);
                 messageSink.add(
                         stream.getSlugName(),
@@ -104,25 +91,27 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         }
 
         UUID activeSceneId = activeEntry.getSceneId();
+        UUID currentSceneId = stream.getCurrentSceneId();
+
         if (currentSceneId != null && !currentSceneId.equals(activeSceneId)) {
-            SceneScheduleEntry previousScene = findSceneById(stream, currentSceneId);
-            if (previousScene != null && previousScene.getActualEndTime() == null) {
-                previousScene.setActualEndTime(java.time.LocalDateTime.now());
+            SceneScheduleEntry prev = findSceneById(stream, currentSceneId);
+            if (prev != null && prev.getActualEndTime() == null) {
+                prev.setActualEndTime(LocalDateTime.now());
             }
-            fetchedSongsByScene.remove(currentSceneId);
-            currentSceneId = activeSceneId;
-            if (activeEntry.getActualStartTime() == null) {
-                activeEntry.setActualStartTime(java.time.LocalDateTime.now());
-            }
-        }
-        if (currentSceneId == null) {
-            currentSceneId = activeSceneId;
-            if (activeEntry.getActualStartTime() == null) {
-                activeEntry.setActualStartTime(java.time.LocalDateTime.now());
-            }
+            stream.clearSceneState(currentSceneId);
+            stream.setCurrentSceneId(activeSceneId);
         }
 
-        Set<UUID> fetchedSongsInScene = fetchedSongsByScene.computeIfAbsent(activeSceneId, k -> new HashSet<>());
+        if (stream.getCurrentSceneId() == null) {
+            stream.setCurrentSceneId(activeSceneId);
+        }
+
+        if (activeEntry.getActualStartTime() == null) {
+            activeEntry.setActualStartTime(LocalDateTime.now());
+        }
+
+        Set<UUID> fetchedSongsInScene =
+                stream.getFetchedSongsInScene(activeSceneId);
 
         String currentSceneTitle = activeEntry.getSceneTitle();
         Map<String, Object> userVariables = stream.getUserVariables();
@@ -132,56 +121,22 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
         if (!scheduledSongs.isEmpty()) {
             List<ScheduledSongEntry> availableEntries = scheduledSongs.stream()
-                    .filter(entry -> !fetchedSongsInScene.contains(entry.getSoundFragment().getId()))
+                    .filter(e -> !fetchedSongsInScene.contains(e.getSoundFragment().getId()))
                     .toList();
 
             if (availableEntries.isEmpty()) {
-                if (activeEntry.getActualEndTime() == null) {
-                    activeEntry.setActualEndTime(java.time.LocalDateTime.now());
-                    LOGGER.info("[{}] Set actualEndTime for completed scene: {}", 
-                            stream.getSlugName(), currentSceneTitle);
-                }
-                
-                List<SceneScheduleEntry> allScenes = stream.getStreamSchedule().getSceneScheduleEntries();
-                boolean isLastScene = allScenes.indexOf(activeEntry) == allScenes.size() - 1;
-                
-                if (isLastScene) {
-                    stream.setStatus(RadioStationStatus.OFF_LINE);
-                    messageSink.add(
-                            stream.getSlugName(),
-                            AiDjStatsDTO.MessageType.INFO,
-                            String.format("Last scene '%s' completed - stream finished", currentSceneTitle)
-                    );
-                } else {
-                    messageSink.add(
-                            stream.getSlugName(),
-                            AiDjStatsDTO.MessageType.INFO,
-                            String.format("All songs exhausted for scene '%s', moving to next scene", currentSceneTitle)
-                    );
-                }
+                activeEntry.setActualEndTime(LocalDateTime.now());
+                stream.clearSceneState(activeSceneId);
                 return Uni.createFrom().item(() -> null);
             }
 
-            Random random = new Random();
-            int songsToReturn;
-            if (availableEntries.size() >= 2) {
-                songsToReturn = random.nextDouble() < 0.70 ? 2 : 1;
-            } else {
-                songsToReturn = availableEntries.size();
-            }
-            List<SoundFragment> selectedSongs = availableEntries.stream()
-                    .limit(songsToReturn)
-                    .peek(entry -> {
-                        LOGGER.info("[{}] Selected song from schedule: '{}' by '{}' (ID: {})",
-                                stream.getSlugName(),
-                                entry.getSoundFragment().getTitle(),
-                                entry.getSoundFragment().getArtist(),
-                                entry.getSoundFragment().getId());
-                    })
-                    .map(ScheduledSongEntry::getSoundFragment)
-                    .toList();
-
-            songsUni = Uni.createFrom().item(selectedSongs);
+            int take = availableEntries.size() >= 2 && new Random().nextDouble() < 0.7 ? 2 : 1;
+            songsUni = Uni.createFrom().item(
+                    availableEntries.stream()
+                            .limit(take)
+                            .map(ScheduledSongEntry::getSoundFragment)
+                            .toList()
+            );
         } else {
             songsUni = getSongsFromEntry(
                     activeEntry,
@@ -189,58 +144,37 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     stream.getMasterBrand().getId(),
                     songSupplier,
                     soundFragmentService
-            ).flatMap(songs -> {
-                if (songs.isEmpty()) {
-                    messageSink.add(
-                            stream.getSlugName(),
-                            AiDjStatsDTO.MessageType.WARNING,
-                            String.format("No songs found for scene '%s' sourcing, falling back to random brand songs", currentSceneTitle)
-                    );
-                    int songCount = new Random().nextDouble() < 0.7 ? 1 : 2;
-                    return songSupplier.getNextSong(stream.getMasterBrand().getSlugName(), PlaylistItemType.SONG, songCount);
-                }
-                return Uni.createFrom().item(songs);
-            });
+            );
         }
 
         return songsUni.flatMap(songs -> {
             if (songs.isEmpty()) {
-                messageSink.add(
-                        stream.getSlugName(),
-                        AiDjStatsDTO.MessageType.WARNING,
-                        String.format("No unplayed songs available for scene '%s'", currentSceneTitle)
-                );
                 return Uni.createFrom().item(() -> null);
             }
 
             return sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
                     .chain(scene -> {
-                        List<UUID> promptIds = scene.getPrompts() != null
-                                ? scene.getPrompts().stream()
+                        List<UUID> promptIds = scene.getPrompts() == null
+                                ? List.of()
+                                : scene.getPrompts().stream()
                                 .filter(Action::isActive)
                                 .map(Action::getPromptId)
-                                .toList()
-                                : List.of();
+                                .toList();
 
                         if (promptIds.isEmpty()) {
-                            messageSink.add(
-                                    stream.getSlugName(),
-                                    AiDjStatsDTO.MessageType.WARNING,
-                                    String.format("Active scene '%s' has no prompts", currentSceneTitle)
-                            );
                             return Uni.createFrom().item(() -> null);
                         }
 
                         List<Uni<Prompt>> promptUnis = promptIds.stream()
-                                .map(masterId ->
-                                        promptService.getById(masterId, SuperUser.build())
-                                                .flatMap(masterPrompt -> {
-                                                    if (masterPrompt.getLanguageCode() == broadcastingLanguage) {
-                                                        return Uni.createFrom().item(masterPrompt);
+                                .map(id ->
+                                        promptService.getById(id, SuperUser.build())
+                                                .flatMap(master -> {
+                                                    if (master.getLanguageCode() == broadcastingLanguage) {
+                                                        return Uni.createFrom().item(master);
                                                     }
                                                     return promptService
-                                                            .findByMasterAndLanguage(masterId, broadcastingLanguage, false)
-                                                            .map(p -> p != null ? p : masterPrompt);
+                                                            .findByMasterAndLanguage(id, broadcastingLanguage, false)
+                                                            .map(p -> p != null ? p : master);
                                                 })
                                 )
                                 .toList();
@@ -251,50 +185,32 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
                                     List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
                                             .map(song -> {
-                                                Prompt selectedPrompt =
-                                                        prompts.get(random.nextInt(prompts.size()));
-
-                                                LOGGER.info("[{}] Creating draft for song: '{}' by '{}' (ID: {})",
-                                                        stream.getSlugName(),
-                                                        song.getTitle(),
-                                                        song.getArtist(),
-                                                        song.getId());
-
+                                                Prompt selected = prompts.get(random.nextInt(prompts.size()));
                                                 return draftFactory.createDraft(
                                                                 song,
                                                                 agent,
                                                                 stream,
-                                                                selectedPrompt.getDraftId(),
+                                                                selected.getDraftId(),
                                                                 broadcastingLanguage,
                                                                 userVariables
                                                         )
-                                                        .map(draft -> {
-                                                            LOGGER.info("[{}] Draft created for song ID: {} - Draft preview: {}",
-                                                                    stream.getSlugName(),
-                                                                    song.getId(),
-                                                                    draft.length() > 100 ? draft.substring(0, 100) + "..." : draft);
-                                                            return new SongPromptDTO(
-                                                                    song.getId(),
-                                                                    draft,
-                                                                    selectedPrompt.getPrompt() + additionalInstruction,
-                                                                    selectedPrompt.getPromptType(),
-                                                                    agent.getLlmType(),
-                                                                    agent.getSearchEngineType(),
-                                                                    activeEntry.getScheduledStartTime().toLocalTime(),
-                                                                    true,
-                                                                    selectedPrompt.isPodcast()
-                                                            );
-                                                        });
+                                                        .map(draft -> new SongPromptDTO(
+                                                                song.getId(),
+                                                                draft,
+                                                                selected.getPrompt() + additionalInstruction,
+                                                                selected.getPromptType(),
+                                                                agent.getLlmType(),
+                                                                agent.getSearchEngineType(),
+                                                                activeEntry.getScheduledStartTime().toLocalTime(),
+                                                                true,
+                                                                selected.isPodcast()
+                                                        ));
                                             })
                                             .toList();
 
                                     return Uni.join().all(songPromptUnis).andFailFast()
                                             .map(result -> {
-                                                songs.forEach(song -> {
-                                                    fetchedSongsInScene.add(song.getId());
-                                                    LOGGER.info("[{}] Marked song as fetched after successful draft creation: '{}' (ID: {})",
-                                                            stream.getSlugName(), song.getTitle(), song.getId());
-                                                });
+                                                songs.forEach(s -> fetchedSongsInScene.add(s.getId()));
                                                 return Tuple2.of(result, currentSceneTitle);
                                             });
                                 });
@@ -307,16 +223,12 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             return null;
         }
         return stream.getStreamSchedule().getSceneScheduleEntries().stream()
-                .filter(scene -> scene.getSceneId().equals(sceneId))
+                .filter(s -> s.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);
     }
 
-    public int getFetchedSongsCount(UUID sceneId) {
-        Set<UUID> fetchedSongs = fetchedSongsByScene.get(sceneId);
-        if (fetchedSongs == null) {
-            return 0;
-        }
-        return fetchedSongs.size();
+    public int getFetchedSongsCount(OneTimeStream stream, UUID sceneId) {
+        return stream.getFetchedSongsInScene(sceneId).size();
     }
 }

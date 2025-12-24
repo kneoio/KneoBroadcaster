@@ -67,6 +67,10 @@ public class OneTimeStream extends AbstractStream {
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
     }
 
+    public OneTimeStream() {
+
+    }
+
     private String buildOneTimeDisplayName() {
         String base =
                 script.getSlugName() != null && !script.getSlugName().trim().isEmpty()
@@ -93,10 +97,6 @@ public class OneTimeStream extends AbstractStream {
     }
 
     public SceneScheduleEntry findActiveSceneEntry() {
-        if (streamSchedule == null) {
-            LOGGER.warn("Station '{}': No stream schedule available", slugName);
-            return null;
-        }
 
         List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
 
@@ -104,7 +104,7 @@ public class OneTimeStream extends AbstractStream {
                 .anyMatch(scene -> scene.getActualStartTime() != null);
 
         if (!anySceneStarted) {
-            return scenes.isEmpty() ? null : scenes.get(0);
+            return scenes.isEmpty() ? null : scenes.getFirst();
         }
 
         for (SceneScheduleEntry entry : scenes) {

@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -205,6 +206,49 @@ public class OneTimeStreamService {
                     }
                     return radioStationPool.stopAndRemove(stream.getSlugName())
                             .chain(() -> oneTimeStreamRepository.delete(id));
+                });
+    }
+
+    public Uni<OneTimeStreamDTO> upsert(String id, OneTimeStreamDTO dto, IUser user, LanguageCode languageCode) {
+        return brandRepository.findById(dto.getBaseBrandId(), user, true)
+                .chain(sourceBrand -> {
+                    UUID scriptId = dto.getScripts() != null && !dto.getScripts().isEmpty() 
+                            ? dto.getScripts().get(0).getScriptId() 
+                            : null;
+                    
+                    if (scriptId == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Script ID is required"));
+                    }
+                    
+                    return scriptRepository.findById(scriptId, user, false)
+                            .chain(script -> {
+                                OneTimeStream stream;
+                                Map<String, Object> userVariables = dto.getUserVariables();
+                                
+                                if (id == null) {
+                                    stream = new OneTimeStream(sourceBrand, script, userVariables);
+                                    stream.setAiAgentId(dto.getAiAgentId());
+                                    stream.setProfileId(dto.getProfileId());
+                                    stream.setStreamSchedule(fromScheduleDTO(dto.getStreamSchedule()));
+                                    oneTimeStreamRepository.insert(stream);
+                                    return mapToDTO(stream);
+                                } else {
+                                    return oneTimeStreamRepository.findById(UUID.fromString(id))
+                                            .chain(existing -> {
+                                                if (existing == null) {
+                                                    return Uni.createFrom().failure(new RuntimeException("Stream not found"));
+                                                }
+                                                existing.setMasterBrand(sourceBrand);
+                                                existing.setScript(script);
+                                                existing.setUserVariables(userVariables);
+                                                existing.setAiAgentId(dto.getAiAgentId());
+                                                existing.setProfileId(dto.getProfileId());
+                                                existing.setStreamSchedule(fromScheduleDTO(dto.getStreamSchedule()));
+                                                return oneTimeStreamRepository.update(UUID.fromString(id), existing)
+                                                        .chain(this::mapToDTO);
+                                            });
+                                }
+                            });
                 });
     }
 

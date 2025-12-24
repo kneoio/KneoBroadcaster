@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -228,7 +229,7 @@ public class AiHelperService {
         return b;
     }
 
-    private boolean isSceneActive(String stationSlug, ZoneId zone, Scene scene, List<Scene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
+    private boolean isSceneActive(String stationSlug, ZoneId zone, Scene scene, NavigableSet<Scene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
         if (!LocalDate.now(zone).equals(lastReset)) {
             oneTimeRunTracker.clear();
             lastReset = LocalDate.now(zone);
@@ -270,7 +271,7 @@ public class AiHelperService {
         return true;
     }
 
-    private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, List<Scene> scenes) {
+    private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, NavigableSet<Scene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
         if (currentStart == null) {
             return null;
@@ -304,7 +305,7 @@ public class AiHelperService {
                     int currentDayOfWeek = now.getDayOfWeek().getValue();
 
                     for (BrandScript brandScript : scripts) {
-                        List<Scene> scenes = brandScript.getScript().getScenes();
+                        NavigableSet<Scene> scenes = brandScript.getScript().getScenes();
                         boolean useRelativeTiming = brandScript.getScript().getTimingMode() == SceneTimingMode.RELATIVE_TO_STREAM_START;
                         
                         Scene activeScene = null;
@@ -370,7 +371,7 @@ public class AiHelperService {
                 });
     }
 
-    private String findNextSceneTitle(String stationSlug, int currentDayOfWeek, Scene currentScene, List<Scene> scenes) {
+    private String findNextSceneTitle(String stationSlug, int currentDayOfWeek, Scene currentScene, NavigableSet<Scene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
         if (currentStart == null) {
             return null;
@@ -390,7 +391,7 @@ public class AiHelperService {
         return !sortedScenes.isEmpty() ? sortedScenes.getFirst().getTitle() : null;
     }
 
-    private Scene findActiveSceneByDuration(IStream station, List<Scene> scenes) {
+    private Scene findActiveSceneByDuration(IStream station, NavigableSet<Scene> scenes) {
         LocalDateTime startTime = station.getStartTime();
         if (startTime == null) {
             LOGGER.warn("Station '{}': No start time set for relative timing mode", station.getSlugName());
@@ -411,7 +412,7 @@ public class AiHelperService {
         return null;
     }
 
-    private String findNextSceneTitleByDuration(IStream stream, Scene currentScene, List<Scene> scenes) {
+    private String findNextSceneTitleByDuration(IStream stream, Scene currentScene, NavigableSet<Scene> scenes) {
         LocalDateTime startTime = stream.getStartTime();
         if (startTime == null) {
             return null;

@@ -28,6 +28,8 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -53,12 +55,18 @@ public class StreamScheduleService {
                         scriptService.getById(scriptId, user)
                                 .chain(script ->
                                         sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
+                                                .map(list -> new TreeSet<>(
+                                                        Comparator.comparingInt(Scene::getSeqNum)
+                                                                .thenComparing(Scene::getId)
+                                                ) {{
+                                                    addAll(list);
+                                                }})
                                                 .invoke(script::setScenes)
                                                 .chain(x -> build(script, sourceBrand, scheduleSongSupplier))
-
                                 )
                 );
     }
+
 
     public Uni<StreamScheduleDTO> getStreamScheduleDTO(UUID brandId, UUID scriptId, IUser user) {
         return buildStreamSchedule(brandId, scriptId, user)
@@ -79,6 +87,12 @@ public class StreamScheduleService {
                         scriptService.getById(scriptId, user)
                                 .chain(script ->
                                         sceneService.getAllWithPromptIds(scriptId, 100, 0, user)
+                                                .map(list -> new TreeSet<>(
+                                                        Comparator.comparingInt(Scene::getSeqNum)
+                                                                .thenComparing(Scene::getId)
+                                                ) {{
+                                                    addAll(list);
+                                                }})
                                                 .invoke(script::setScenes)
                                                 .chain(x -> buildLoopedSchedule(script, sourceBrand, scheduleSongSupplier))
                                 )
@@ -89,7 +103,7 @@ public class StreamScheduleService {
     public Uni<StreamSchedule> build(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
         StreamSchedule schedule = new StreamSchedule(LocalDateTime.now());
 
-        List<Scene> scenes = script.getScenes();
+        NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
         }
@@ -292,7 +306,7 @@ public class StreamScheduleService {
     public Uni<StreamSchedule> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
         StreamSchedule schedule = new StreamSchedule(LocalDateTime.now());
 
-        List<Scene> scenes = script.getScenes();
+        NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
         }

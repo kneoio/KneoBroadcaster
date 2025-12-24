@@ -32,6 +32,22 @@ public class OneTimeStreamRepository {
         inMemoryRepository.put(doc.getSlugName(), doc);
     }
 
+    public Uni<OneTimeStream> update(UUID id, OneTimeStream doc) {
+        OneTimeStream existing = inMemoryRepository.values().stream()
+                .filter(s -> s.getId() != null && s.getId().equals(id))
+                .findFirst()
+                .orElse(null);
+        
+        if (existing != null) {
+            inMemoryRepository.remove(existing.getSlugName());
+            doc.setId(id);
+            inMemoryRepository.put(doc.getSlugName(), doc);
+            return Uni.createFrom().item(doc);
+        }
+        
+        return Uni.createFrom().failure(new RuntimeException("Stream not found"));
+    }
+
     public Uni<List<OneTimeStream>> getAll(int limit, int offset) {
         List<OneTimeStream> all = new ArrayList<>(inMemoryRepository.values());
         int fromIndex = Math.min(offset, all.size());

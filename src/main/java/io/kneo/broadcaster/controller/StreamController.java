@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.stream.StreamScheduleService;
+import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
@@ -61,10 +62,12 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         String path = "/api/streams";
         router.route(path + "/*").handler(BodyHandler.create());
         router.get(path).handler(this::getAll);
-        router.get(path + "/:id").handler(this::getById);
-        router.delete(path + "/:id").handler(this::delete);
         router.post(path + "/schedule").handler(this::buildSchedule);
         router.post(path + "/run").handler(this::runOneTimeStream);
+        router.get(path + "/:id").handler(this::getById);
+        router.post(path).handler(this::upsert);
+        router.post(path + "/:id").handler(this::upsert);
+        router.delete(path + "/:id").handler(this::delete);
     }
 
     private void getAll(RoutingContext rc) {
@@ -138,6 +141,43 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
                 );
     }
 
+    private void upsert(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            OneTimeStreamDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamDTO.class);
+            String id = rc.pathParam("id");
+
+            Set<ConstraintViolation<OneTimeStreamDTO>> violations = validator.validate(dto);
+            if (violations != null && !violations.isEmpty()) {
+                Map<String, List<String>> fieldErrors = new HashMap<>();
+                for (ConstraintViolation<OneTimeStreamDTO> v : violations) {
+                    String field = v.getPropertyPath().toString();
+                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+                }
+                String detail = fieldErrors.entrySet().stream()
+                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                        .collect(Collectors.joining(", "));
+                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+                return;
+            }
+
+            getContextUser(rc, false, true)
+                    .chain(user -> oneTimeStreamService.upsert(id, dto, user, LanguageCode.en))
+                    .subscribe().with(
+                            doc -> sendUpsertResponse(rc, doc, id),
+                            throwable -> handleUpsertFailure(rc, throwable)
+                    );
+
+        } catch (Exception e) {
+            if (e instanceof IllegalArgumentException) {
+                rc.fail(400, e);
+            } else {
+                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+            }
+        }
+    }
+
     private void buildSchedule(RoutingContext rc) {
         if (!validateJsonBody(rc)) {
             return;
@@ -196,17 +236,16 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
             }
 
             getContextUser(rc, false, true)
-                    .chain(user -> oneTimeStreamService.run(dto, user)
-                            .chain(stream -> oneTimeStreamService.getDTO(stream.getId(), user, languageCode)))
+                    .chain(user -> oneTimeStreamService.run(dto, user))
                     .subscribe().with(
-                            streamDto -> {
-                                FormPage page = new FormPage();
-                                page.addPayload(PayloadType.DOC_DATA, streamDto);
-                                page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            stream -> {
+                                JsonObject response = new JsonObject()
+                                        .put("id", stream.getId().toString())
+                                        .put("slugName", stream.getSlugName());
                                 rc.response()
                                         .putHeader("Content-Type", "application/json")
                                         .setStatusCode(200)
-                                        .end(JsonObject.mapFrom(page).encode());
+                                        .end(response.encode());
                             },
                             throwable -> {
                                 LOGGER.error("Failed to run one-time stream", throwable);

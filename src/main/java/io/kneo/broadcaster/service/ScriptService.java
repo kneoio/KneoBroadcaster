@@ -29,10 +29,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -312,11 +314,19 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     private Uni<BrandScript> populateScenesWithPrompts(BrandScript brandScript, IUser user) {
         assert scriptSceneService != null;
         return scriptSceneService.getAllWithPromptIds(brandScript.getScript().getId(), 100, 0, user)
-                .map(scenes -> {
-                    brandScript.getScript().setScenes(scenes);
+                .map(list -> {
+                    brandScript.getScript().setScenes(
+                            new TreeSet<>(
+                                    Comparator.comparingInt(Scene::getSeqNum)
+                                            .thenComparing(Scene::getId)
+                            ) {{
+                                addAll(list);
+                            }}
+                    );
                     return brandScript;
                 });
     }
+
 
     private Uni<BrandScriptDTO> mapToDTO(BrandScript brandScript, IUser user) {
         return mapToDTO(brandScript.getScript(), user).map(scriptDTO -> {

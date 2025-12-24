@@ -2,12 +2,10 @@
 
     import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
     import io.kneo.broadcaster.dto.aihelper.LiveRadioStationDTO;
-    import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
     import io.kneo.broadcaster.dto.aihelper.TtsDTO;
     import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
     import io.kneo.broadcaster.dto.cnst.StreamType;
     import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
-    import io.kneo.broadcaster.model.brand.AiOverriding;
     import io.kneo.broadcaster.model.cnst.ManagedBy;
     import io.kneo.broadcaster.model.stream.IStream;
     import io.kneo.broadcaster.model.stream.OneTimeStream;
@@ -25,13 +23,13 @@
     import org.slf4j.Logger;
     import org.slf4j.LoggerFactory;
 
+    import java.time.Duration;
+    import java.time.LocalDateTime;
     import java.util.ArrayList;
     import java.util.Collections;
     import java.util.List;
     import java.util.Map;
-    import java.util.UUID;
     import java.util.concurrent.ConcurrentHashMap;
-    import java.util.concurrent.ConcurrentLinkedQueue;
     import java.util.stream.Collectors;
 
     @ApplicationScoped
@@ -96,55 +94,55 @@
         private Uni<LiveRadioStationDTO> buildLiveRadioStation(IStream stream) {
             LiveRadioStationDTO liveRadioStation = new LiveRadioStationDTO();
             PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
+
             int queueSize = playlistManager.getPrioritizedQueue().size();
             int queuedDurationSec = playlistManager.getPrioritizedQueue().stream()
                     .flatMap(f -> f.getSegments().values().stream())
-                    .flatMap(ConcurrentLinkedQueue::stream)
+                    .flatMap(java.util.concurrent.ConcurrentLinkedQueue::stream)
                     .mapToInt(HlsSegment::getDuration)
                     .sum();
 
-            int maxQueueSize;
-            int maxQueueDurationSec;
-            if (stream instanceof OneTimeStream) {
-                maxQueueSize = 1;
-                maxQueueDurationSec = 300;
-            } else {
-                maxQueueSize = 1;
-                maxQueueDurationSec = 300;
-            }
+            int maxQueueSize = 1;
+            int maxQueueDurationSec = 300;
 
             if (queueSize > maxQueueSize || queuedDurationSec > maxQueueDurationSec) {
-                double queuedDurationInMinutes = queuedDurationSec / 60.0;
                 liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
-                LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s ({} min)",
-                        stream.getSlugName(), queueSize, queuedDurationSec, String.format("%.1f", queuedDurationInMinutes));
-                addMessage(stream.getSlugName(), AiDjStatsDTO.MessageType.INFO,
-                        String.format("The playlist is saturated (size %s, duration %.1f min)", queueSize, queuedDurationInMinutes));
-
                 return Uni.createFrom().item(() -> null);
-            } else {
-                liveRadioStation.setRadioStationStatus(stream.getStatus());
             }
+
+            liveRadioStation.setRadioStationStatus(stream.getStatus());
+
+            // -------- SOFT BACK-PRESSURE  --------
+            if (stream instanceof OneTimeStream oneTimeStream) {
+                LocalDateTime lastDelivery = oneTimeStream.getLastDeliveryAt();
+                LocalDateTime now = LocalDateTime.now();
+
+                if (lastDelivery != null) {
+                    long secondsSinceLast = Duration.between(lastDelivery, now).getSeconds();
+                    if (secondsSinceLast < 45) {
+                        return Uni.createFrom().item(liveRadioStation);
+                    }
+                }
+            }
+            // ------------------------------------------
 
             return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                     .flatMap(agent -> {
                         LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                         liveRadioStation.setSlugName(stream.getSlugName());
                         liveRadioStation.setName(stream.getLocalizedName().get(broadcastingLanguage));
-                        String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(stream, agent);
-                        String additionalInstruction;
-                        AiOverriding overriding = stream.getAiOverriding();
-                        if (overriding != null) {
-                            liveRadioStation.setDjName(String.format("%s overridden as %s", agent.getName(), overriding.getName()));
-                            additionalInstruction = "\n\nAdditional instruction: " + overriding.getPrompt();
-                        } else {
-                            liveRadioStation.setDjName(agent.getName());
-                            additionalInstruction = "";
-                        }
 
+                        String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(stream, agent);
+                        String additionalInstruction = "";
+
+                        if (stream.getAiOverriding() != null) {
+                            additionalInstruction = "\n\nAdditional instruction: " +
+                                    stream.getAiOverriding().getPrompt();
+                        }
 
                         if (stream instanceof OneTimeStream oneTimeStream) {
                             liveRadioStation.setStreamType(StreamType.ONE_TIME_STREAM);
+
                             return oneTimeStreamSupplier.fetchPromptForOneTimeStream(
                                             oneTimeStream,
                                             agent,
@@ -156,19 +154,22 @@
                                         if (tuple == null) {
                                             return Uni.createFrom().item(liveRadioStation);
                                         }
-                                        List<SongPromptDTO> prompts = tuple.getItem1();
-                                        liveRadioStation.setPrompts(prompts);
+
+                                        oneTimeStream.setLastDeliveryAt(LocalDateTime.now());
+
+                                        liveRadioStation.setPrompts(tuple.getItem1());
                                         liveRadioStation.setInfo(tuple.getItem2());
 
-                                        UUID copilotId = agent.getCopilot();
-                                        return aiAgentService.getDTO(copilotId, SuperUser.build(), LanguageCode.en)
+                                        return aiAgentService.getDTO(
+                                                        agent.getCopilot(),
+                                                        SuperUser.build(),
+                                                        LanguageCode.en
+                                                )
                                                 .map(copilot -> {
-                                                    String secondaryVoice = copilot.getPrimaryVoice().getFirst().getId();
-                                                    String secondaryVoiceName = copilot.getName();
                                                     liveRadioStation.setTts(new TtsDTO(
                                                             primaryVoice,
-                                                            secondaryVoice,
-                                                            secondaryVoiceName
+                                                            copilot.getPrimaryVoice().getFirst().getId(),
+                                                            copilot.getName()
                                                     ));
                                                     return liveRadioStation;
                                                 });
@@ -184,30 +185,19 @@
                                             additionalInstruction,
                                             this::addMessage
                                     )
-                                    .flatMap(tuple -> {
-                                        List<SongPromptDTO> prompts = tuple.getItem1();
-                                        liveRadioStation.setPrompts(prompts);
+                                    .map(tuple -> {
+                                        liveRadioStation.setPrompts(tuple.getItem1());
                                         liveRadioStation.setInfo(tuple.getItem2());
-
-                                        UUID copilotId = agent.getCopilot();
-                                        return aiAgentService.getDTO(copilotId, SuperUser.build(), LanguageCode.en)
-                                                .map(copilot -> {
-                                                    String secondaryVoice = copilot.getPrimaryVoice().getFirst().getId();
-                                                    String secondaryVoiceName = copilot.getName();
-                                                    liveRadioStation.setTts(new TtsDTO(
-                                                            primaryVoice,
-                                                            secondaryVoice,
-                                                            secondaryVoiceName
-                                                    ));
-                                                    return liveRadioStation;
-                                                });
+                                        return liveRadioStation;
                                     });
                         }
 
-                        return Uni.createFrom().failure(new IllegalStateException(
-                                "Unsupported stream type: " + stream.getClass().getSimpleName()));
+                        return Uni.createFrom().failure(
+                                new IllegalStateException("Unsupported stream type")
+                        );
                     });
         }
+
 
         private void clearDashboardMessages(String stationSlug) {
             aiDjMessagesTracker.remove(stationSlug);

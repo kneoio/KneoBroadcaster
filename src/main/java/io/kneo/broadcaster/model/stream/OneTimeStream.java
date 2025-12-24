@@ -39,6 +39,7 @@ public class OneTimeStream extends AbstractStream {
     // per-stream mutable state (moved from supplier)
     private UUID currentSceneId;
     private final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
+    private LocalDateTime lastDeliveryAt;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;

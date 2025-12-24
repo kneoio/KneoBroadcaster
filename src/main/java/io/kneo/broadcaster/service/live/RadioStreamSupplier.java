@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
@@ -60,9 +59,9 @@ public class RadioStreamSupplier extends StreamSupplier {
     ) {
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
         if (activeEntry == null) {
-            stream.setStatus(RadioStationStatus.OFF_LINE);
-            messageSink.add(stream.getSlugName(), AiDjStatsDTO.MessageType.INFO, "No active scene - schedule may need refresh");
-            return Uni.createFrom().item(() -> null);
+            return Uni.createFrom().failure(
+                new IllegalStateException("No active scene found for RadioStream: " + stream.getSlugName())
+            );
         }
 
         String currentSceneTitle = activeEntry.getSceneTitle();

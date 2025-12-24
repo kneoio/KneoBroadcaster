@@ -205,8 +205,10 @@
                                             this::addMessage
                                     )
                                     .map(tuple -> {
-                                        liveRadioStation.setPrompts(tuple.getItem1());
-                                        liveRadioStation.setInfo(tuple.getItem2());
+                                        if (tuple != null) {
+                                            liveRadioStation.setPrompts(tuple.getItem1());
+                                            liveRadioStation.setInfo(tuple.getItem2());
+                                        }
                                         return liveRadioStation;
                                     });
                         }

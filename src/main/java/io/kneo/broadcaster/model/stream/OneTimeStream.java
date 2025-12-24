@@ -1,12 +1,10 @@
 package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.util.WebHelper;
 import lombok.Getter;
@@ -40,6 +38,8 @@ public class OneTimeStream extends AbstractStream {
     private UUID currentSceneId;
     private final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
     private LocalDateTime lastDeliveryAt;
+    private int lastDeliveredSongsDuration;
+    private LocalDateTime scheduledOfflineAt;
 
     public OneTimeStream(Brand masterBrand, Script script, Map<String, Object> userVariables) {
         this.masterBrand = masterBrand;
@@ -48,12 +48,13 @@ public class OneTimeStream extends AbstractStream {
         this.userVariables = userVariables;
         this.createdAt = LocalDateTime.now();
         this.managedBy = ManagedBy.DJ;
-
-        String displayName = buildOneTimeDisplayName();
+        String displayName = buildDisplayName();
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
+        this.slugName = WebHelper.generateSlug(
+                displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF))
+        );
         localizedName.put(LanguageCode.en, displayName);
         this.localizedName = localizedName;
-
         this.timeZone = masterBrand.getTimeZone();
         this.color = WebHelper.generateRandomBrightColor();
         this.aiAgentId = masterBrand.getAiAgentId();
@@ -61,17 +62,44 @@ public class OneTimeStream extends AbstractStream {
         this.bitRate = masterBrand.getBitRate();
         this.aiOverriding = masterBrand.getAiOverriding();
         this.country = masterBrand.getCountry();
-        this.slugName = WebHelper.generateSlug(
-                displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF))
-        );
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
     }
 
-    public OneTimeStream() {
+    public SceneScheduleEntry findActiveSceneEntry() {
+        List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
 
+        boolean anySceneStarted = scenes.stream()
+                .anyMatch(scene -> scene.getActualStartTime() != null);
+
+        if (!anySceneStarted) {
+            return scenes.isEmpty() ? null : scenes.getFirst();
+        }
+
+        for (SceneScheduleEntry entry : scenes) {
+            if (entry.getActualStartTime() != null && entry.getActualEndTime() == null) {
+                return entry;
+            }
+            if (entry.getActualStartTime() == null) {
+                return entry;
+            }
+        }
+        return null;
     }
 
-    private String buildOneTimeDisplayName() {
+    public boolean isCompleted() {
+        return streamSchedule.getSceneScheduleEntries().stream()
+                .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
+    }
+
+    public Set<UUID> getFetchedSongsInScene(UUID sceneId) {
+        return fetchedSongsByScene.computeIfAbsent(sceneId, k -> new HashSet<>());
+    }
+
+    public void clearSceneState(UUID sceneId) {
+        fetchedSongsByScene.remove(sceneId);
+    }
+
+    private String buildDisplayName() {
         String base =
                 script.getSlugName() != null && !script.getSlugName().trim().isEmpty()
                         ? script.getSlugName()
@@ -94,103 +122,5 @@ public class OneTimeStream extends AbstractStream {
                     });
         }
         return String.join(" ", parts);
-    }
-
-    public SceneScheduleEntry findActiveSceneEntry() {
-
-        List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
-
-        boolean anySceneStarted = scenes.stream()
-                .anyMatch(scene -> scene.getActualStartTime() != null);
-
-        if (!anySceneStarted) {
-            return scenes.isEmpty() ? null : scenes.getFirst();
-        }
-
-        for (SceneScheduleEntry entry : scenes) {
-            if (entry.getActualStartTime() != null && entry.getActualEndTime() == null) {
-                return entry;
-            }
-            if (entry.getActualStartTime() == null) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    public boolean isCompleted() {
-        if (streamSchedule == null) {
-            return true;
-        }
-        return streamSchedule.getSceneScheduleEntries().stream()
-                .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
-    }
-
-    // ---- per-scene delivery helpers ----
-
-    public Set<UUID> getFetchedSongsInScene(UUID sceneId) {
-        return fetchedSongsByScene.computeIfAbsent(sceneId, k -> new HashSet<>());
-    }
-
-    public void clearSceneState(UUID sceneId) {
-        fetchedSongsByScene.remove(sceneId);
-    }
-
-    // ---- legacy scheduled-song delivery (kept intact) ----
-
-    @Override
-    public List<SoundFragment> getNextScheduledSongs(Scene scene, int count) {
-        if (streamSchedule == null || scene == null) {
-            return List.of();
-        }
-
-        SceneScheduleEntry entry = streamSchedule.getSceneScheduleEntries().stream()
-                .filter(s -> s.getSceneId().equals(scene.getId()))
-                .findFirst()
-                .orElse(null);
-
-        if (entry == null) {
-            return List.of();
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-
-        if (deliveryState == null || !scene.getId().equals(deliveryState.getSceneId())) {
-            deliveryState = new StreamDeliveryState();
-            deliveryState.reset(entry);
-        }
-
-        if (deliveryState.isExpired(now)) {
-            return List.of();
-        }
-
-        int remaining = entry.getSongs().size() - deliveryState.getDeliveredSongIndex();
-        int take = Math.min(2, Math.min(count, remaining));
-
-        if (take <= 0) {
-            return List.of();
-        }
-
-        List<SoundFragment> result = entry.getSongs().subList(
-                        deliveryState.getDeliveredSongIndex(),
-                        deliveryState.getDeliveredSongIndex() + take
-                ).stream()
-                .map(ScheduledSongEntry::getSoundFragment)
-                .toList();
-
-        deliveryState.setDeliveredSongIndex(deliveryState.getDeliveredSongIndex() + take);
-        deliveryState.setLastDeliveryAt(now);
-
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return String.format(
-                "OneTimeStream[id: %s, slug: %s, baseBrand: %s]",
-                id,
-                slugName,
-                masterBrand.getSlugName()
-        );
     }
 }

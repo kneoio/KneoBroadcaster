@@ -121,7 +121,7 @@ public class StreamScheduleService {
                                 for (SoundFragment song : songs) {
                                     ScheduledSongEntry songEntry = new ScheduledSongEntry(song, songStartTime);
                                     entry.addSong(songEntry);
-                                    songStartTime = songStartTime.plusSeconds(songEntry.getEstimatedDurationSeconds());
+                                    songStartTime = songStartTime.plusSeconds(songEntry.getDurationSeconds());
                                 }
                                 return entry;
                             })
@@ -238,7 +238,7 @@ public class StreamScheduleService {
         dto.setTitle(song.getSoundFragment().getTitle());
         dto.setArtist(song.getSoundFragment().getArtist());
         dto.setScheduledStartTime(song.getScheduledStartTime());
-        dto.setEstimatedDurationSeconds(song.getEstimatedDurationSeconds());
+        dto.setEstimatedDurationSeconds(song.getDurationSeconds());
         return dto;
     }
 
@@ -372,7 +372,7 @@ public class StreamScheduleService {
                                 for (SoundFragment song : songs) {
                                     ScheduledSongEntry songEntry = new ScheduledSongEntry(song, songStartTime);
                                     entry.addSong(songEntry);
-                                    songStartTime = songStartTime.plusSeconds(songEntry.getEstimatedDurationSeconds());
+                                    songStartTime = songStartTime.plusSeconds(songEntry.getDurationSeconds());
                                 }
                                 return entry;
                             })

@@ -37,25 +37,26 @@
     public class AirSupplier {
         private static final Logger LOGGER = LoggerFactory.getLogger(AirSupplier.class);
 
-        private final RadioStationPool radioStationPool;
-        private final AiAgentService aiAgentService;
-        private final OneTimeStreamSupplier oneTimeStreamSupplier;
-        private final RadioStreamSupplier radioStreamSupplier;
+    private final RadioStationPool radioStationPool;
+    private final AiAgentService aiAgentService;
+    private final OneTimeStreamSupplier oneTimeStreamSupplier;
+    private final RadioStreamSupplier radioStreamSupplier;
 
-        private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
+    private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
+    private final Map<String, Integer> lastDeliveredSongsDurationTracker = new ConcurrentHashMap<>();
 
-        @Inject
-        public AirSupplier(
-                RadioStationPool radioStationPool,
-                AiAgentService aiAgentService,
-                OneTimeStreamSupplier oneTimeStreamSupplier,
-                RadioStreamSupplier radioStreamSupplier
-        ) {
-            this.radioStationPool = radioStationPool;
-            this.aiAgentService = aiAgentService;
-            this.oneTimeStreamSupplier = oneTimeStreamSupplier;
-            this.radioStreamSupplier = radioStreamSupplier;
-        }
+    @Inject
+    public AirSupplier(
+            RadioStationPool radioStationPool,
+            AiAgentService aiAgentService,
+            OneTimeStreamSupplier oneTimeStreamSupplier,
+            RadioStreamSupplier radioStreamSupplier
+    ) {
+        this.radioStationPool = radioStationPool;
+        this.aiAgentService = aiAgentService;
+        this.oneTimeStreamSupplier = oneTimeStreamSupplier;
+        this.radioStreamSupplier = radioStreamSupplier;
+    }
 
         public Uni<LiveContainerDTO> getOnline(List<RadioStationStatus> statuses) {
             return Uni.createFrom().item(() ->
@@ -104,7 +105,20 @@
 
         int maxQueueSize;
         int maxQueueDurationSec;
-        if (stream instanceof OneTimeStream) {
+        if (stream instanceof OneTimeStream oneTimeStream) {
+            Integer lastSongsDuration = lastDeliveredSongsDurationTracker.get(stream.getSlugName());
+            LocalDateTime lastDelivery = oneTimeStream.getLastDeliveryAt();
+
+            if (lastSongsDuration != null && lastSongsDuration > 0 && lastDelivery != null) {
+                long secondsSinceLastDelivery = java.time.Duration.between(lastDelivery, LocalDateTime.now()).getSeconds();
+
+                if (secondsSinceLastDelivery < lastSongsDuration) {
+                    long remainingSeconds = lastSongsDuration - secondsSinceLastDelivery;
+                    addMessage(stream.getSlugName(), AiDjStatsDTO.MessageType.INFO,
+                            String.format("Waiting for delivered content to play (%.1f min remaining)", remainingSeconds / 60.0));
+                    return Uni.createFrom().item(() -> null);
+                }
+            }
             maxQueueSize = 1;
             maxQueueDurationSec = 600;
         } else {
@@ -115,15 +129,13 @@
         if (queueSize > maxQueueSize || queuedDurationSec > maxQueueDurationSec) {
             double queuedDurationInMinutes = queuedDurationSec / 60.0;
             liveRadioStation.setRadioStationStatus(RadioStationStatus.QUEUE_SATURATED);
-            LOGGER.info("Station '{}' is saturated, it will be skip: size={}, duration={}s ({} min)",
-                    stream.getSlugName(), queueSize, queuedDurationSec, String.format("%.1f", queuedDurationInMinutes));
             addMessage(stream.getSlugName(), AiDjStatsDTO.MessageType.INFO,
                     String.format("The playlist is saturated (size %s, duration %.1f min)", queueSize, queuedDurationInMinutes));
 
             return Uni.createFrom().item(() -> null);
-        } else {
-            liveRadioStation.setRadioStationStatus(stream.getStatus());
         }
+
+        liveRadioStation.setRadioStationStatus(stream.getStatus());
 
         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
@@ -149,18 +161,19 @@
                         if (stream instanceof OneTimeStream oneTimeStream) {
                             liveRadioStation.setStreamType(StreamType.ONE_TIME_STREAM);
 
-                            return oneTimeStreamSupplier.fetchPromptForOneTimeStream(
+                            return oneTimeStreamSupplier.fetchOneTimeStreamPrompt(
                                             oneTimeStream,
                                             agent,
                                             broadcastingLanguage,
-                                            additionalInstruction,
-                                            this::addMessage
+                                            additionalInstruction
                                     )
                                     .flatMap(tuple -> {
                                         if (tuple == null) {
                                             return Uni.createFrom().item(liveRadioStation);
                                         }
 
+                                        int totalDuration = oneTimeStream.getLastDeliveredSongsDuration();
+                                        lastDeliveredSongsDurationTracker.put(stream.getSlugName(), totalDuration);
                                         oneTimeStream.setLastDeliveryAt(LocalDateTime.now());
 
                                         liveRadioStation.setPrompts(tuple.getItem1());

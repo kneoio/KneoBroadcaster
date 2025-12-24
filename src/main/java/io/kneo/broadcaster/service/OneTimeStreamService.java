@@ -213,7 +213,7 @@ public class OneTimeStreamService {
         return brandRepository.findById(dto.getBaseBrandId(), user, true)
                 .chain(sourceBrand -> {
                     UUID scriptId = dto.getScripts() != null && !dto.getScripts().isEmpty() 
-                            ? dto.getScripts().get(0).getScriptId() 
+                            ? dto.getScripts().getFirst().getScriptId()
                             : null;
                     
                     if (scriptId == null) {
@@ -315,7 +315,7 @@ public class OneTimeStreamService {
         dto.setTitle(song.getSoundFragment().getTitle());
         dto.setArtist(song.getSoundFragment().getArtist());
         dto.setScheduledStartTime(song.getScheduledStartTime());
-        dto.setEstimatedDurationSeconds(song.getEstimatedDurationSeconds());
+        dto.setEstimatedDurationSeconds(song.getDurationSeconds());
         dto.setPlayed(song.isPlayed());
         return dto;
     }

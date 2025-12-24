@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.UUID;
 
 @Getter
@@ -28,16 +27,10 @@ public class ScheduledSongEntry {
         this.scheduledStartTime = scheduledStartTime;
     }
 
-    public int getEstimatedDurationSeconds() {
+    public int getDurationSeconds() {
         if (soundFragment.getLength() != null) {
             return (int) soundFragment.getLength().toSeconds();
         }
         return 180;
-    }
-
-    public boolean fitsTimeScope(LocalTime currentTime) {
-        LocalTime songTime = scheduledStartTime.toLocalTime();
-        return !songTime.isBefore(currentTime) && 
-               songTime.isBefore(currentTime.plusSeconds(getEstimatedDurationSeconds()));
     }
 }

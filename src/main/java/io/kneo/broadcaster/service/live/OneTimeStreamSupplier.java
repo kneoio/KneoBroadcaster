@@ -2,7 +2,6 @@ package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
-import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
@@ -35,11 +34,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OneTimeStreamSupplier.class);
 
-    @FunctionalInterface
-    public interface MessageSink {
-        void add(String stationSlug, AiDjStatsDTO.MessageType type, String message);
-    }
-
     private final PromptService promptService;
     private final DraftFactory draftFactory;
     private final SceneService sceneService;
@@ -61,12 +55,11 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         this.soundFragmentService = soundFragmentService;
     }
 
-    public Uni<Tuple2<List<SongPromptDTO>, String>> fetchPromptForOneTimeStream(
+    public Uni<Tuple2<List<SongPromptDTO>, String>> fetchOneTimeStreamPrompt(
             OneTimeStream stream,
             AiAgent agent,
             LanguageCode broadcastingLanguage,
-            String additionalInstruction,
-            MessageSink messageSink
+            String additionalInstruction
     ) {
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
 
@@ -80,12 +73,17 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             }
 
             if (stream.isCompleted()) {
-                stream.setStatus(RadioStationStatus.OFF_LINE);
-                messageSink.add(
-                        stream.getSlugName(),
-                        AiDjStatsDTO.MessageType.INFO,
-                        "Stream completed - all scenes played"
-                );
+                if (stream.getScheduledOfflineAt() == null) {
+                    int lastSceneDuration = stream.getLastDeliveredSongsDuration();
+                    int delaySeconds = lastSceneDuration + (5 * 60);
+                    LocalDateTime offlineAt = LocalDateTime.now().plusSeconds(delaySeconds);
+                    stream.setScheduledOfflineAt(offlineAt);
+                    LOGGER.info("Stream {} completed - scheduled to go offline at {} (delay: {} seconds)", 
+                            stream.getSlugName(), offlineAt, delaySeconds);
+                } else if (LocalDateTime.now().isAfter(stream.getScheduledOfflineAt())) {
+                    stream.setStatus(RadioStationStatus.OFF_LINE);
+                    LOGGER.info("Stream {} going offline - scheduled time reached", stream.getSlugName());
+                }
             }
             return Uni.createFrom().item(() -> null);
         }
@@ -138,7 +136,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                             .toList()
             );
         } else {
-            songsUni = getSongsFromEntry(
+            songsUni = getSongsFromSceneEntry(
                     activeEntry,
                     stream.getMasterBrand().getSlugName(),
                     stream.getMasterBrand().getId(),
@@ -186,6 +184,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                     List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
                                             .map(song -> {
                                                 Prompt selected = prompts.get(random.nextInt(prompts.size()));
+                                                int songDuration = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
                                                 return draftFactory.createDraft(
                                                                 song,
                                                                 agent,
@@ -194,23 +193,31 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                                 broadcastingLanguage,
                                                                 userVariables
                                                         )
-                                                        .map(draft -> new SongPromptDTO(
-                                                                song.getId(),
-                                                                draft,
-                                                                selected.getPrompt() + additionalInstruction,
-                                                                selected.getPromptType(),
-                                                                agent.getLlmType(),
-                                                                agent.getSearchEngineType(),
-                                                                activeEntry.getScheduledStartTime().toLocalTime(),
-                                                                true,
-                                                                selected.isPodcast()
-                                                        ));
+                                                        .map(draft -> {
+                                                            SongPromptDTO dto = new SongPromptDTO(
+                                                                    song.getId(),
+                                                                    draft,
+                                                                    selected.getPrompt() + additionalInstruction,
+                                                                    selected.getPromptType(),
+                                                                    agent.getLlmType(),
+                                                                    agent.getSearchEngineType(),
+                                                                    activeEntry.getScheduledStartTime().toLocalTime(),
+                                                                    true,
+                                                                    selected.isPodcast()
+                                                            );
+                                                            dto.setSongDurationSeconds(songDuration);
+                                                            return dto;
+                                                        });
                                             })
                                             .toList();
 
                                     return Uni.join().all(songPromptUnis).andFailFast()
                                             .map(result -> {
                                                 songs.forEach(s -> fetchedSongsInScene.add(s.getId()));
+                                                int totalDuration = result.stream()
+                                                        .mapToInt(SongPromptDTO::getSongDurationSeconds)
+                                                        .sum();
+                                                stream.setLastDeliveredSongsDuration(totalDuration);
                                                 return Tuple2.of(result, currentSceneTitle);
                                             });
                                 });
@@ -219,16 +226,10 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     }
 
     private SceneScheduleEntry findSceneById(OneTimeStream stream, UUID sceneId) {
-        if (stream.getStreamSchedule() == null) {
-            return null;
-        }
         return stream.getStreamSchedule().getSceneScheduleEntries().stream()
                 .filter(s -> s.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);
     }
 
-    public int getFetchedSongsCount(OneTimeStream stream, UUID sceneId) {
-        return stream.getFetchedSongsInScene(sceneId).size();
-    }
 }

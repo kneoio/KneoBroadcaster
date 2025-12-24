@@ -231,25 +231,28 @@ public class PlaylistManager {
 
                         if (curated) {
                             if (queueDTO.getPriority() != null && queueDTO.getPriority() <= 9) {
-                                prioritizedQueue.clear();
-                                
-                                if (queueDTO.getPriority() <= 8) {
-                                    slicedFragmentsLock.writeLock().lock();
-                                    try {
-                                        obtainedByHlsPlaylist.clear();
-                                        LOGGER.warn("Priority {} triggered immediate interruption. Cleared active playlist for brand {}",
-                                                queueDTO.getPriority(), brandSlug);
-                                    } finally {
-                                        slicedFragmentsLock.writeLock().unlock();
+                                if (queueDTO.getMergingMethod() != MergingType.INTRO_SONG_INTRO_SONG && 
+                                    queueDTO.getMergingMethod() != MergingType.SONG_INTRO_SONG) {
+                                    prioritizedQueue.clear();
+                                    
+                                    if (queueDTO.getPriority() <= 8) {
+                                        slicedFragmentsLock.writeLock().lock();
+                                        try {
+                                            obtainedByHlsPlaylist.clear();
+                                            LOGGER.warn("Priority {} triggered immediate interruption. Cleared active playlist for brand {}",
+                                                    queueDTO.getPriority(), brandSlug);
+                                        } finally {
+                                            slicedFragmentsLock.writeLock().unlock();
+                                        }
                                     }
+                                    
+                                    aiHelperService.addMessage(
+                                            brandSlug,
+                                        AiDjStatsDTO.MessageType.INFO,
+                                        String.format("Sound fragment '%s' with higher priority (%s)",
+                                                soundFragment.getTitle(), queueDTO.getPriority())
+                                    );
                                 }
-                                
-                                aiHelperService.addMessage(
-                                        brandSlug,
-                                    AiDjStatsDTO.MessageType.INFO,
-                                    String.format("Sound fragment '%s' with higher priority (%s)",
-                                            soundFragment.getTitle(), queueDTO.getPriority())
-                                );
                             }
                             
                             prioritizedQueue.add(liveSoundFragment);

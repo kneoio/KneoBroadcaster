@@ -1,8 +1,6 @@
 package io.kneo.broadcaster.model.stream;
 
-import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.brand.Brand;
-import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -64,33 +62,6 @@ public class RadioStream extends AbstractStream {
 
         LOGGER.info("Station '{}': No active scene found at {}. Schedule may need refresh.", slugName, now);
         return null;
-    }
-
-    @Override
-    public List<SoundFragment> getNextScheduledSongs(Scene scene, int count) {
-        if (streamSchedule == null || scene == null) {
-            LOGGER.warn("Station '{}': No stream schedule or scene provided", slugName);
-            return List.of();
-        }
-
-        SceneScheduleEntry sceneEntry = streamSchedule.getSceneScheduleEntries().stream()
-                .filter(s -> s.getSceneId().equals(scene.getId()))
-                .findFirst()
-                .orElse(null);
-
-        if (sceneEntry == null) {
-            LOGGER.warn("Station '{}': Scene '{}' not found in schedule", slugName, scene.getTitle());
-            return List.of();
-        }
-
-        List<SoundFragment> songs = sceneEntry.getSongs().stream()
-                .limit(count)
-                .map(ScheduledSongEntry::getSoundFragment)
-                .toList();
-
-        LOGGER.debug("Station '{}': Retrieved {} scheduled songs for scene '{}'",
-                slugName, songs.size(), scene.getTitle());
-        return songs;
     }
 
     @Override

@@ -17,7 +17,7 @@ import java.util.UUID;
 public abstract class StreamSupplier {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamSupplier.class);
 
-    protected Uni<List<SoundFragment>> getSongsFromEntry(
+    protected Uni<List<SoundFragment>> getSongsFromSceneEntry(
             SceneScheduleEntry activeEntry,
             String slugName,
             UUID brandId,

@@ -158,46 +158,33 @@
                                     stream.getAiOverriding().getPrompt();
                         }
 
+                        Uni<Void> fetchPromptsUni;
+                        
                         if (stream instanceof OneTimeStream oneTimeStream) {
                             liveRadioStation.setStreamType(StreamType.ONE_TIME_STREAM);
 
-                            return oneTimeStreamSupplier.fetchOneTimeStreamPrompt(
+                            fetchPromptsUni = oneTimeStreamSupplier.fetchOneTimeStreamPrompt(
                                             oneTimeStream,
                                             agent,
                                             broadcastingLanguage,
                                             additionalInstruction
                                     )
-                                    .flatMap(tuple -> {
-                                        if (tuple == null) {
-                                            return Uni.createFrom().item(liveRadioStation);
+                                    .map(tuple -> {
+                                        if (tuple != null) {
+                                            int totalDuration = oneTimeStream.getLastDeliveredSongsDuration();
+                                            lastDeliveredSongsDurationTracker.put(stream.getSlugName(), totalDuration);
+                                            oneTimeStream.setLastDeliveryAt(LocalDateTime.now());
+
+                                            liveRadioStation.setPrompts(tuple.getItem1());
+                                            liveRadioStation.setInfo(tuple.getItem2());
                                         }
-
-                                        int totalDuration = oneTimeStream.getLastDeliveredSongsDuration();
-                                        lastDeliveredSongsDurationTracker.put(stream.getSlugName(), totalDuration);
-                                        oneTimeStream.setLastDeliveryAt(LocalDateTime.now());
-
-                                        liveRadioStation.setPrompts(tuple.getItem1());
-                                        liveRadioStation.setInfo(tuple.getItem2());
-
-                                        return aiAgentService.getDTO(
-                                                        agent.getCopilot(),
-                                                        SuperUser.build(),
-                                                        LanguageCode.en
-                                                )
-                                                .map(copilot -> {
-                                                    liveRadioStation.setTts(new TtsDTO(
-                                                            primaryVoice,
-                                                            copilot.getPrimaryVoice().getFirst().getId(),
-                                                            copilot.getName()
-                                                    ));
-                                                    return liveRadioStation;
-                                                });
+                                        return null;
                                     });
                         }
 
-                        if (stream instanceof RadioStream radioStream) {
+                        else if (stream instanceof RadioStream radioStream) {
                             liveRadioStation.setStreamType(StreamType.RADIO);
-                            return radioStreamSupplier.fetchStuffForRadioStream(
+                            fetchPromptsUni = radioStreamSupplier.fetchStuffForRadioStream(
                                             radioStream,
                                             agent,
                                             broadcastingLanguage,
@@ -209,12 +196,28 @@
                                             liveRadioStation.setPrompts(tuple.getItem1());
                                             liveRadioStation.setInfo(tuple.getItem2());
                                         }
-                                        return liveRadioStation;
+                                        return null;
                                     });
+                        } else {
+                            return Uni.createFrom().failure(
+                                    new IllegalStateException("Unsupported stream type")
+                            );
                         }
-
-                        return Uni.createFrom().failure(
-                                new IllegalStateException("Unsupported stream type")
+                        
+                        return fetchPromptsUni.flatMap(ignored ->
+                                aiAgentService.getDTO(
+                                                agent.getCopilot(),
+                                                SuperUser.build(),
+                                                LanguageCode.en
+                                        )
+                                        .map(copilot -> {
+                                            liveRadioStation.setTts(new TtsDTO(
+                                                    primaryVoice,
+                                                    copilot.getPrimaryVoice().getFirst().getId(),
+                                                    copilot.getName()
+                                            ));
+                                            return liveRadioStation;
+                                        })
                         );
                     });
         }

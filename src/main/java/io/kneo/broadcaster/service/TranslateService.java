@@ -153,7 +153,7 @@ public class TranslateService {
                         return Uni.createFrom().nullItem();
                     }
 
-                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode())
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode(), dto.getCountryCode())
                             .chain(resp -> {
                                 String translatedContent = resp != null ? resp.getResult() : null;
                                 if (translatedContent == null || translatedContent.isBlank()) {
@@ -189,7 +189,7 @@ public class TranslateService {
                         return Uni.createFrom().nullItem();
                     }
 
-                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode())
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode(), dto.getCountryCode())
                             .chain(resp -> {
                                 String translatedContent = resp != null ? resp.getResult() : null;
                                 if (translatedContent == null || translatedContent.isBlank()) {

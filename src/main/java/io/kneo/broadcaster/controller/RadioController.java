@@ -82,7 +82,6 @@ public class RadioController {
                 .setBodyLimit(BODY_HANDLER_LIMIT);
 
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
-        router.route(HttpMethod.GET, path + "/stream").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
         router.route(HttpMethod.GET, path + "/stream.mp3").handler(this::getMp3Stream);

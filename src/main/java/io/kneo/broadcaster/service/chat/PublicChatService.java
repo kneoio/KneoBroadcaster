@@ -18,6 +18,8 @@ import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
+import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.external.MailService;
@@ -159,7 +161,8 @@ public class PublicChatService extends ChatService {
                 GetStations.toTool(),
                 GetOnlineStations.toTool(),
                 SearchBrandSoundFragments.toTool(),
-                AddToQueueTool.toTool()
+                AddToQueueTool.toTool(),
+                PerplexitySearchTool.toTool()
         );
     }
 
@@ -207,6 +210,10 @@ public class PublicChatService extends ChatService {
             String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
             return AddToQueueToolHandler.handle(
                     toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("perplexity_search".equals(toolUse.name())) {
+            return PerplexitySearchToolHandler.handle(
+                    toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

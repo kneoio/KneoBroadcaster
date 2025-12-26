@@ -23,6 +23,7 @@ public class TranslateReqDTO {
     private TranslationType translationType;
     @NotNull
     private LanguageCode languageCode;
+    @NotNull
     private CountryCode countryCode;
     private double version;
 }

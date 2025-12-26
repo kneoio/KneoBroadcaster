@@ -82,7 +82,7 @@ public class DraftFactory {
         
         return Uni.combine().all()
                 .unis(
-                        getDraftTemplate(draftId, stream.getSlugName(), selectedLanguage),
+                        getDraftTemplate(draftId, stream.getSlugName(), LanguageCode.en),  //the drafts always un ENG
                         profileService.getById(stream.getProfileId()),
                         resolveGenreNames(song, selectedLanguage),
                         copilotUni,
@@ -128,6 +128,8 @@ public class DraftFactory {
     ) {
         RadioStream radioStream = new RadioStream();
         radioStream.setMasterBrand(station);
+        radioStream.setCountry(station.getCountry());
+        radioStream.setLocalizedName(station.getLocalizedName());
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
                 : Uni.createFrom().nullItem();
@@ -214,7 +216,7 @@ public class DraftFactory {
             data.put("djVoiceId", overriddenAiDj.getPrimaryVoice());
         } else {
             data.put("djName", agent.getName());
-            data.put("djVoiceId", agent.getPrimaryVoice().stream().findAny().orElseThrow().getId());
+            data.put("djVoiceId", agent.getPrimaryVoice().stream().findFirst().orElseThrow().getId());
         }
         ProfileOverriding overriddenProfile = stream.getProfileOverriding();
         if (overriddenProfile != null){
@@ -228,7 +230,7 @@ public class DraftFactory {
         data.put("country", stream.getCountry());
         data.put("language", selectedLanguage);
         data.put("random", random);
-        data.put("perplexity", new PerpelxitySearchHelper(perplexityApiClient));
+        data.put("perplexity", new PerplexitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
         

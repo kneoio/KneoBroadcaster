@@ -77,6 +77,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.get(path + "/:id").handler(this::getById);
         router.post(path).handler(this::upsert);
         router.post(path + "/:id").handler(this::upsert);
+        router.post(path + "/:id/clone").handler(this::cloneScript);
         router.patch(path + "/:id/access-level").handler(this::updateAccessLevel);
         router.delete(path + "/:id").handler(this::delete);
         router.get(path + "/:id/access").handler(this::getDocumentAccess);
@@ -616,6 +617,39 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                             dto -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(dto).encode()),
                             rc::fail
                     );
+        } catch (Exception e) {
+            rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
+        }
+    }
+
+    private void cloneScript(RoutingContext rc) {
+        try {
+            if (!validateJsonBody(rc)) return;
+
+            String id = rc.pathParam("id");
+            JsonObject body = rc.body().asJsonObject();
+            String newTitle = body.getString("title");
+
+            if (newTitle == null || newTitle.trim().isEmpty()) {
+                rc.fail(400, new IllegalArgumentException("title is required"));
+                return;
+            }
+
+            UUID scriptId = UUID.fromString(id);
+
+            getContextUser(rc, false, true)
+                    .chain(user -> service.cloneScript(scriptId, newTitle.trim(), user))
+                    .subscribe().with(
+                            clonedScript -> {
+                                FormPage page = new FormPage();
+                                page.addPayload(PayloadType.DOC_DATA, clonedScript);
+                                page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                                rc.response().setStatusCode(201).end(JsonObject.mapFrom(page).encode());
+                            },
+                            rc::fail
+                    );
+        } catch (IllegalArgumentException e) {
+            rc.fail(400, new IllegalArgumentException("Invalid script ID format or JSON payload"));
         } catch (Exception e) {
             rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
         }

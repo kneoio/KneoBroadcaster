@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.agentrest.AgentRespDTO;
 import io.kneo.broadcaster.dto.cnst.TranslationType;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -79,13 +80,14 @@ public class AgentClient {
                 });
     }
 
-    public Uni<AgentRespDTO> translate(String toTranslate, TranslationType translationType, LanguageCode code) {
+    public Uni<AgentRespDTO> translate(String toTranslate, TranslationType translationType, LanguageCode code, CountryCode countryCode) {
         String endpoint = config.getAgentUrl() + "/translate";
 
         JsonObject payload = new JsonObject();
         payload.put("toTranslate", toTranslate);
         payload.put("translationType", translationType);
         payload.put("language", code.name());
+        payload.put("country", countryCode.name());
 
         return webClient
                 .postAbs(endpoint)

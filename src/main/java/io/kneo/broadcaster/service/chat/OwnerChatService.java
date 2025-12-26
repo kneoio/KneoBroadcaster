@@ -14,6 +14,8 @@ import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
+import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlTool;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
@@ -52,7 +54,8 @@ public class OwnerChatService extends ChatService {
                 GetOnlineStations.toTool(),
                 SearchBrandSoundFragments.toTool(),
                 AddToQueueTool.toTool(),
-                RadioStationControlTool.toTool()
+                RadioStationControlTool.toTool(),
+                PerplexitySearchTool.toTool()
         );
     }
 
@@ -104,6 +107,10 @@ public class OwnerChatService extends ChatService {
         } else if ("control_station".equals(toolUse.name())) {
             return RadioStationControlToolHandler.handle(
                     toolUse, inputMap, radioService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+            );
+        } else if ("perplexity_search".equals(toolUse.name())) {
+            return PerplexitySearchToolHandler.handle(
+                    toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

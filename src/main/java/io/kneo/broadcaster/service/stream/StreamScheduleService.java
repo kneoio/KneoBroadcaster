@@ -6,7 +6,6 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -240,59 +239,6 @@ public class StreamScheduleService {
         dto.setScheduledStartTime(song.getScheduledStartTime());
         dto.setEstimatedDurationSeconds(song.getDurationSeconds());
         return dto;
-    }
-
-    private StreamSchedule fromScheduleDTO(StreamScheduleDTO dto) {
-        if (dto == null) {
-            return null;
-        }
-        StreamSchedule schedule = new StreamSchedule(dto.getCreatedAt());
-        if (dto.getScenes() != null) {
-            for (StreamScheduleDTO.SceneScheduleDTO sceneDTO : dto.getScenes()) {
-                SceneScheduleEntry sceneEntry = fromSceneDTO(sceneDTO);
-                schedule.addSceneSchedule(sceneEntry);
-            }
-        }
-        return schedule;
-    }
-
-    private SceneScheduleEntry fromSceneDTO(StreamScheduleDTO.SceneScheduleDTO dto) {
-        StreamScheduleDTO.ScenePlaylistRequest request = dto.getPlaylistRequest();
-        SceneScheduleEntry entry = new SceneScheduleEntry(
-                UUID.fromString(dto.getSceneId()),
-                dto.getSceneTitle(),
-                dto.getScheduledStartTime(),
-                dto.getDurationSeconds(),
-                dto.getOriginalStartTime(),
-                dto.getOriginalEndTime(),
-                request != null && request.getSourcing() != null ? WayOfSourcing.valueOf(request.getSourcing()) : null,
-                request != null ? request.getPlaylistTitle() : null,
-                request != null ? request.getArtist() : null,
-                request != null ? request.getGenres() : null,
-                request != null ? request.getLabels() : null,
-                request != null && request.getPlaylistItemTypes() != null ? request.getPlaylistItemTypes().stream().map(PlaylistItemType::valueOf).toList() : null,
-                request != null && request.getSourceTypes() != null ? request.getSourceTypes().stream().map(SourceType::valueOf).toList() : null,
-                request != null ? request.getSearchTerm() : null,
-                request != null ? request.getSoundFragments() : null
-        );
-        if (dto.getSongs() != null) {
-            for (StreamScheduleDTO.ScheduledSongDTO songDTO : dto.getSongs()) {
-                entry.addSong(fromSongDTO(songDTO));
-            }
-        }
-        return entry;
-    }
-
-    private ScheduledSongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {
-        SoundFragment soundFragment = new SoundFragment();
-        soundFragment.setId(UUID.fromString(dto.getSongId()));
-        soundFragment.setTitle(dto.getTitle());
-        soundFragment.setArtist(dto.getArtist());
-        return new ScheduledSongEntry(
-                UUID.fromString(dto.getId()),
-                soundFragment,
-                dto.getScheduledStartTime()
-        );
     }
 
     private int estimateSongsForScene(Scene scene) {

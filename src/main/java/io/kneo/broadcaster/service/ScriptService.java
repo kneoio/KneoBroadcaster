@@ -1,14 +1,17 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.BrandScriptDTO;
+import io.kneo.broadcaster.dto.DraftDTO;
 import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptExportDTO;
+import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.filter.ScriptFilterDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
@@ -711,5 +714,223 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                                     .map(dto -> List.<io.kneo.broadcaster.dto.DraftDTO>of(dto)));
                 })
                 .onFailure().recoverWithItem(List.<io.kneo.broadcaster.dto.DraftDTO>of());
+    }
+
+    public Uni<ScriptDTO> cloneScript(UUID scriptId, String newTitle, IUser user) {
+        assert repository != null;
+        assert scriptSceneService != null;
+        assert promptService != null;
+        assert draftService != null;
+
+        return repository.findById(scriptId, user, false)
+                .chain(originalScript -> {
+                    Script clonedScript = new Script();
+                    clonedScript.setName(newTitle);
+                    clonedScript.setSlugName(WebHelper.generateSlug(newTitle));
+                    clonedScript.setDescription(originalScript.getDescription());
+                    clonedScript.setDefaultProfileId(originalScript.getDefaultProfileId());
+                    clonedScript.setLanguageCode(originalScript.getLanguageCode());
+                    clonedScript.setTimingMode(originalScript.getTimingMode());
+                    clonedScript.setLabels(originalScript.getLabels());
+                    clonedScript.setBrands(originalScript.getBrands());
+                    clonedScript.setAccessLevel(originalScript.getAccessLevel());
+
+                    return repository.insert(clonedScript, user)
+                            .chain(savedScript -> scriptSceneService.getAllWithPromptIds(scriptId, 1000, 0, user)
+                                    .chain(originalScenes -> {
+                                        if (originalScenes.isEmpty()) {
+                                            return getDTO(savedScript.getId(), user, LanguageCode.en);
+                                        }
+
+                                        List<Uni<Scene>> clonedSceneUnis = originalScenes.stream()
+                                                .map(originalScene -> cloneScene(savedScript.getId(), originalScene, user))
+                                                .collect(Collectors.toList());
+
+                                        return Uni.join().all(clonedSceneUnis).andFailFast()
+                                                .chain(() -> getDTO(savedScript.getId(), user, LanguageCode.en));
+                                    })
+                            );
+                });
+    }
+
+    private Uni<Scene> cloneScene(UUID newScriptId, Scene originalScene, IUser user) {
+        assert scriptSceneService != null;
+        assert promptService != null;
+
+        if (originalScene.getPrompts() == null || originalScene.getPrompts().isEmpty()) {
+            SceneDTO sceneDTO = buildSceneDTOFromScene(originalScene, newScriptId, null);
+            return scriptSceneService.upsert(null, newScriptId, sceneDTO, user)
+                    .map(savedDTO -> {
+                        Scene scene = new Scene();
+                        scene.setId(savedDTO.getId());
+                        return scene;
+                    });
+        }
+
+        List<UUID> promptIds = originalScene.getPrompts().stream()
+                .map(Action::getPromptId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (promptIds.isEmpty()) {
+            SceneDTO sceneDTO = buildSceneDTOFromScene(originalScene, newScriptId, null);
+            return scriptSceneService.upsert(null, newScriptId, sceneDTO, user)
+                    .map(savedDTO -> {
+                        Scene scene = new Scene();
+                        scene.setId(savedDTO.getId());
+                        return scene;
+                    });
+        }
+
+        return promptService.getByIds(promptIds, user)
+                .chain(originalPrompts -> {
+                    List<Uni<Prompt>> clonedPromptUnis = originalPrompts.stream()
+                            .map(originalPrompt -> clonePrompt(originalPrompt, user))
+                            .collect(Collectors.toList());
+
+                    return Uni.join().all(clonedPromptUnis).andFailFast()
+                            .chain(clonedPrompts -> {
+                                Map<UUID, UUID> oldToNewPromptIds = new java.util.HashMap<>();
+                                for (int i = 0; i < originalPrompts.size(); i++) {
+                                    oldToNewPromptIds.put(originalPrompts.get(i).getId(), clonedPrompts.get(i).getId());
+                                }
+
+                                SceneDTO sceneDTO = buildSceneDTOFromScene(originalScene, newScriptId, oldToNewPromptIds);
+                                return scriptSceneService.upsert(null, newScriptId, sceneDTO, user)
+                                        .map(savedDTO -> {
+                                            Scene scene = new Scene();
+                                            scene.setId(savedDTO.getId());
+                                            return scene;
+                                        });
+                            });
+                });
+    }
+
+    private Uni<Prompt> clonePrompt(Prompt originalPrompt, IUser user) {
+        assert promptService != null;
+        assert draftService != null;
+
+        if (originalPrompt.getDraftId() == null) {
+            Prompt clonedPrompt = new Prompt();
+            clonedPrompt.setTitle(originalPrompt.getTitle());
+            clonedPrompt.setPrompt(originalPrompt.getPrompt());
+            clonedPrompt.setDescription(originalPrompt.getDescription());
+            clonedPrompt.setPromptType(originalPrompt.getPromptType());
+            clonedPrompt.setLanguageCode(originalPrompt.getLanguageCode());
+            clonedPrompt.setEnabled(originalPrompt.isEnabled());
+            clonedPrompt.setMaster(originalPrompt.isMaster());
+            clonedPrompt.setLocked(originalPrompt.isLocked());
+            clonedPrompt.setBackup(originalPrompt.getBackup());
+            clonedPrompt.setPodcast(originalPrompt.isPodcast());
+            clonedPrompt.setMasterId(originalPrompt.getMasterId());
+            clonedPrompt.setVersion(originalPrompt.getVersion());
+
+            return promptService.insert(clonedPrompt, user);
+        }
+
+        return draftService.getById(originalPrompt.getDraftId(), user)
+                .chain(originalDraft -> cloneDraft(originalDraft, user))
+                .chain(clonedDraft -> {
+                    Prompt clonedPrompt = new Prompt();
+                    clonedPrompt.setTitle(originalPrompt.getTitle());
+                    clonedPrompt.setPrompt(originalPrompt.getPrompt());
+                    clonedPrompt.setDescription(originalPrompt.getDescription());
+                    clonedPrompt.setPromptType(originalPrompt.getPromptType());
+                    clonedPrompt.setLanguageCode(originalPrompt.getLanguageCode());
+                    clonedPrompt.setEnabled(originalPrompt.isEnabled());
+                    clonedPrompt.setMaster(originalPrompt.isMaster());
+                    clonedPrompt.setLocked(originalPrompt.isLocked());
+                    clonedPrompt.setBackup(originalPrompt.getBackup());
+                    clonedPrompt.setPodcast(originalPrompt.isPodcast());
+                    clonedPrompt.setDraftId(clonedDraft.getId());
+                    clonedPrompt.setMasterId(originalPrompt.getMasterId());
+                    clonedPrompt.setVersion(originalPrompt.getVersion());
+
+                    return promptService.insert(clonedPrompt, user);
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    Prompt clonedPrompt = new Prompt();
+                    clonedPrompt.setTitle(originalPrompt.getTitle());
+                    clonedPrompt.setPrompt(originalPrompt.getPrompt());
+                    clonedPrompt.setDescription(originalPrompt.getDescription());
+                    clonedPrompt.setPromptType(originalPrompt.getPromptType());
+                    clonedPrompt.setLanguageCode(originalPrompt.getLanguageCode());
+                    clonedPrompt.setEnabled(originalPrompt.isEnabled());
+                    clonedPrompt.setMaster(originalPrompt.isMaster());
+                    clonedPrompt.setLocked(originalPrompt.isLocked());
+                    clonedPrompt.setBackup(originalPrompt.getBackup());
+                    clonedPrompt.setPodcast(originalPrompt.isPodcast());
+                    clonedPrompt.setMasterId(originalPrompt.getMasterId());
+                    clonedPrompt.setVersion(originalPrompt.getVersion());
+
+                    return promptService.insert(clonedPrompt, user);
+                });
+    }
+
+    private Uni<Draft> cloneDraft(Draft originalDraft, IUser user) {
+        assert draftService != null;
+
+        DraftDTO clonedDraftDTO = new DraftDTO();
+        clonedDraftDTO.setTitle(originalDraft.getTitle());
+        clonedDraftDTO.setContent(originalDraft.getContent());
+        clonedDraftDTO.setLanguageCode(originalDraft.getLanguageCode());
+        clonedDraftDTO.setEnabled(originalDraft.isEnabled());
+        clonedDraftDTO.setMaster(originalDraft.isMaster());
+        clonedDraftDTO.setLocked(originalDraft.isLocked());
+        clonedDraftDTO.setMasterId(originalDraft.getMasterId());
+        clonedDraftDTO.setVersion(originalDraft.getVersion());
+
+        return draftService.upsert(null, clonedDraftDTO, user, LanguageCode.en)
+                .map(dto -> {
+                    Draft draft = new Draft();
+                    draft.setId(dto.getId());
+                    return draft;
+                });
+    }
+
+    private SceneDTO buildSceneDTOFromScene(Scene originalScene, UUID newScriptId, Map<UUID, UUID> oldToNewPromptIds) {
+        SceneDTO sceneDTO = new SceneDTO();
+        sceneDTO.setScriptId(newScriptId);
+        sceneDTO.setTitle(originalScene.getTitle());
+        sceneDTO.setStartTime(originalScene.getStartTime());
+        sceneDTO.setDurationSeconds(originalScene.getDurationSeconds());
+        sceneDTO.setSeqNum(originalScene.getSeqNum());
+        sceneDTO.setOneTimeRun(originalScene.isOneTimeRun());
+        sceneDTO.setWeekdays(originalScene.getWeekdays());
+        sceneDTO.setTalkativity(originalScene.getTalkativity());
+        sceneDTO.setPodcastMode(originalScene.getPodcastMode());
+
+        if (originalScene.getPrompts() != null && !originalScene.getPrompts().isEmpty() && oldToNewPromptIds != null) {
+            List<ScenePromptDTO> promptDTOs = originalScene.getPrompts().stream()
+                    .map(action -> {
+                        ScenePromptDTO dto = new ScenePromptDTO();
+                        UUID newPromptId = oldToNewPromptIds.get(action.getPromptId());
+                        dto.setPromptId(newPromptId != null ? newPromptId : action.getPromptId());
+                        dto.setRank(action.getRank());
+                        dto.setWeight(action.getWeight());
+                        dto.setActive(action.isActive());
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+            sceneDTO.setPrompts(promptDTOs);
+        }
+
+        if (originalScene.getPlaylistRequest() != null) {
+            PlaylistRequest originalPlaylist = originalScene.getPlaylistRequest();
+            StagePlaylistDTO playlistDTO = new StagePlaylistDTO();
+            playlistDTO.setSourcing(originalPlaylist.getSourcing() != null ? originalPlaylist.getSourcing().name() : null);
+            playlistDTO.setTitle(originalPlaylist.getTitle());
+            playlistDTO.setArtist(originalPlaylist.getArtist());
+            playlistDTO.setGenres(originalPlaylist.getGenres());
+            playlistDTO.setLabels(originalPlaylist.getLabels());
+            playlistDTO.setType(originalPlaylist.getType() != null ? originalPlaylist.getType().stream().map(Enum::name).toList() : null);
+            playlistDTO.setSource(originalPlaylist.getSource() != null ? originalPlaylist.getSource().stream().map(Enum::name).toList() : null);
+            playlistDTO.setSearchTerm(originalPlaylist.getSearchTerm());
+            playlistDTO.setSoundFragments(originalPlaylist.getSoundFragments());
+            sceneDTO.setStagePlaylist(playlistDTO);
+        }
+
+        return sceneDTO;
     }
 }

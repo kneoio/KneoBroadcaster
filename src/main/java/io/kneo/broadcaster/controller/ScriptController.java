@@ -1,7 +1,11 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.BrandScriptDTO;
+import io.kneo.broadcaster.dto.DraftDTO;
+import io.kneo.broadcaster.dto.PromptDTO;
+import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
+import io.kneo.broadcaster.dto.TreeNodeDTO;
 import io.kneo.broadcaster.dto.filter.ScriptFilterDTO;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
@@ -67,6 +71,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         router.get(path).handler(this::getAll);
         router.get(path + "/shared").handler(this::getAllShared);
         router.get(path + "/available-scripts").handler(this::getForBrand);
+        router.get(path + "/tree").handler(this::getTree);
         router.post(path + "/import").handler(this::importScript);
         router.get(path + "/:id/export").handler(this::exportScript);
         router.get(path + "/:id").handler(this::getById);
@@ -417,7 +422,6 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
 
         dryRunService.subscribe(jobId, consumer);
 
-        // Unsubscribe when client disconnects
         resp.exceptionHandler(t -> dryRunService.unsubscribe(jobId, consumer));
         resp.endHandler(v -> dryRunService.unsubscribe(jobId, consumer));
     }
@@ -480,6 +484,100 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         }
     }
 
+    private void getTree(RoutingContext rc) {
+        String parentKey = rc.request().getParam("parentKey");
+
+        getContextUser(rc, false, true)
+                .chain(user -> {
+                    if (parentKey == null || parentKey.isEmpty()) {
+                        return service.getAll(Integer.MAX_VALUE, 0, user)
+                                .map(scripts -> scripts.stream()
+                                        .map(this::scriptToTreeNode)
+                                        .collect(Collectors.toList()));
+                    }
+
+                    String[] parts = parentKey.split(":", 2);
+                    if (parts.length != 2) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid parentKey format"));
+                    }
+
+                    String type = parts[0];
+                    String id = parts[1];
+
+                    try {
+                        UUID entityId = UUID.fromString(id);
+
+                        return switch (type) {
+                            case "script" -> service.getScenesByScriptId(entityId, user)
+                                    .map(scenes -> scenes.stream()
+                                            .map(this::sceneToTreeNode)
+                                            .collect(Collectors.toList()));
+                            case "scene" -> service.getPromptsBySceneId(entityId, user)
+                                    .map(prompts -> prompts.stream()
+                                            .map(this::promptToTreeNode)
+                                            .collect(Collectors.toList()));
+                            case "prompt" -> service.getDraftsByPromptId(entityId, user)
+                                    .map(drafts -> drafts.stream()
+                                            .map(this::draftToTreeNode)
+                                            .collect(Collectors.toList()));
+                            case "draft" -> Uni.createFrom().item(List.of());
+                            default ->
+                                    Uni.createFrom().failure(new IllegalArgumentException("Unknown node type: " + type));
+                        };
+                    } catch (IllegalArgumentException e) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Invalid UUID format"));
+                    }
+                })
+                .subscribe().with(
+                        nodes -> rc.response().setStatusCode(200).end(new JsonArray(nodes).encode()),
+                        rc::fail
+                );
+    }
+
+    private TreeNodeDTO scriptToTreeNode(ScriptDTO script) {
+        TreeNodeDTO node = new TreeNodeDTO();
+        node.setKey("script:" + script.getId());
+        node.setLabel(script.getName());
+        node.setLeaf(false);
+        node.setNodeType("script");
+        node.setEntityId(script.getId().toString());
+        node.setOpenTarget("script-editor");
+        return node;
+    }
+
+    private TreeNodeDTO sceneToTreeNode(SceneDTO scene) {
+        TreeNodeDTO node = new TreeNodeDTO();
+        node.setKey("scene:" + scene.getId());
+        node.setLabel(scene.getTitle());
+        node.setLeaf(false);
+        node.setNodeType("scene");
+        node.setEntityId(scene.getId().toString());
+        node.setOpenTarget("scene-editor");
+        return node;
+    }
+
+    private TreeNodeDTO promptToTreeNode(PromptDTO prompt) {
+        TreeNodeDTO node = new TreeNodeDTO();
+        node.setKey("prompt:" + prompt.getId());
+        node.setLabel(prompt.getTitle());
+        node.setLeaf(false);
+        node.setNodeType("prompt");
+        node.setEntityId(prompt.getId().toString());
+        node.setOpenTarget("prompt-editor");
+        return node;
+    }
+
+    private TreeNodeDTO draftToTreeNode(DraftDTO draft) {
+        TreeNodeDTO node = new TreeNodeDTO();
+        node.setKey("draft:" + draft.getId());
+        node.setLabel(draft.getTitle());
+        node.setLeaf(true);
+        node.setNodeType("draft");
+        node.setEntityId(draft.getId().toString());
+        node.setOpenTarget("draft-editor");
+        return node;
+    }
+
     private void updateAccessLevel(RoutingContext rc) {
         try {
             if (!validateJsonBody(rc)) return;
@@ -489,26 +587,27 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
             
             int accessLevel;
             Object accessLevelValue = body.getValue("accessLevel");
-            
-            if (accessLevelValue == null) {
-                rc.fail(400, new IllegalArgumentException("accessLevel is required"));
-                return;
-            }
-            
-            if (accessLevelValue instanceof String accessLevelStr) {
-                if ("PUBLIC".equalsIgnoreCase(accessLevelStr)) {
-                    accessLevel = 1;
-                } else if ("PRIVATE".equalsIgnoreCase(accessLevelStr)) {
-                    accessLevel = 0;
-                } else {
-                    rc.fail(400, new IllegalArgumentException("Invalid accessLevel value. Expected 'PUBLIC', 'PRIVATE', or integer"));
+
+            switch (accessLevelValue) {
+                case null -> {
+                    rc.fail(400, new IllegalArgumentException("accessLevel is required"));
                     return;
                 }
-            } else if (accessLevelValue instanceof Number) {
-                accessLevel = ((Number) accessLevelValue).intValue();
-            } else {
-                rc.fail(400, new IllegalArgumentException("accessLevel must be a string or integer"));
-                return;
+                case String accessLevelStr -> {
+                    if ("PUBLIC".equalsIgnoreCase(accessLevelStr)) {
+                        accessLevel = 1;
+                    } else if ("PRIVATE".equalsIgnoreCase(accessLevelStr)) {
+                        accessLevel = 0;
+                    } else {
+                        rc.fail(400, new IllegalArgumentException("Invalid accessLevel value. Expected 'PUBLIC', 'PRIVATE', or integer"));
+                        return;
+                    }
+                }
+                case Number number -> accessLevel = number.intValue();
+                default -> {
+                    rc.fail(400, new IllegalArgumentException("accessLevel must be a string or integer"));
+                    return;
+                }
             }
 
             getContextUser(rc, false, true)

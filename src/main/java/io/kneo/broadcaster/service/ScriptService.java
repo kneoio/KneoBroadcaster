@@ -663,4 +663,53 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         dto.setWeight(promptDTO.getWeight() != null ? promptDTO.getWeight() : java.math.BigDecimal.valueOf(0.5));
         return dto;
     }
+
+    public Uni<List<SceneDTO>> getScenesByScriptId(UUID scriptId, IUser user) {
+        assert scriptSceneService != null;
+        return scriptSceneService.getAllByScript(scriptId, Integer.MAX_VALUE, 0, user)
+                .map(scenes -> scenes.stream()
+                        .sorted(Comparator.comparingInt(SceneDTO::getSeqNum))
+                        .collect(Collectors.toList()));
+    }
+
+    public Uni<List<io.kneo.broadcaster.dto.PromptDTO>> getPromptsBySceneId(UUID sceneId, IUser user) {
+        assert scriptSceneService != null;
+        assert promptService != null;
+        return scriptSceneService.getById(sceneId, user)
+                .chain(scene -> {
+                    if (scene.getPrompts() == null || scene.getPrompts().isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    List<UUID> promptIds = scene.getPrompts().stream()
+                            .map(Action::getPromptId)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .collect(Collectors.toList());
+                    if (promptIds.isEmpty()) {
+                        return Uni.createFrom().item(List.of());
+                    }
+                    return promptService.getByIds(promptIds, user)
+                            .chain(prompts -> {
+                                List<Uni<io.kneo.broadcaster.dto.PromptDTO>> dtoUnis = prompts.stream()
+                                        .map(prompt -> promptService.getDTO(prompt.getId(), user, LanguageCode.en))
+                                        .collect(Collectors.toList());
+                                return Uni.join().all(dtoUnis).andFailFast();
+                            });
+                });
+    }
+
+    public Uni<List<io.kneo.broadcaster.dto.DraftDTO>> getDraftsByPromptId(UUID promptId, IUser user) {
+        assert promptService != null;
+        assert draftService != null;
+        return promptService.getById(promptId, user)
+                .chain(prompt -> {
+                    if (prompt.getDraftId() == null) {
+                        return Uni.createFrom().item(List.<io.kneo.broadcaster.dto.DraftDTO>of());
+                    }
+                    return draftService.getById(prompt.getDraftId(), user)
+                            .chain(draft -> draftService.getDTO(draft.getId(), user, LanguageCode.en)
+                                    .map(dto -> List.<io.kneo.broadcaster.dto.DraftDTO>of(dto)));
+                })
+                .onFailure().recoverWithItem(List.<io.kneo.broadcaster.dto.DraftDTO>of());
+    }
 }

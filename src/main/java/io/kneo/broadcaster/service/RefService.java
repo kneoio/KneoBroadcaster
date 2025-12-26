@@ -46,21 +46,12 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
                 ).andFailFast());
     }
 
-    @Override
-    public Uni<GenreDTO> getDTOByIdentifier(String identifier) {
-        return repository.findByIdentifier(identifier).chain(this::mapToDTO);
-    }
-
     public Uni<Integer> getAllCount(IUser user) {
         return repository.getAllCount();
     }
 
     public Uni<Genre> getById(UUID uuid) {
         return repository.findById(uuid);
-    }
-
-    public Uni<Genre> getByIdentifier(String uuid) {
-        return repository.findByIdentifier(uuid);
     }
 
     public Uni<List<UUID>> resolveGenresByName(String genreString) {

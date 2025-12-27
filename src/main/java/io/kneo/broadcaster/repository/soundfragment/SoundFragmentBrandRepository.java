@@ -283,7 +283,6 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
 
     public Uni<List<SoundFragment>> findByFilter(UUID brandId, SoundFragmentFilter filter, int limit) {
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT * FROM (");
         sql.append("SELECT t.* FROM ").append(entityData.getTableName()).append(" t ");
         sql.append("JOIN kneobroadcaster__brand_sound_fragments bsf ON bsf.sound_fragment_id = t.id ");
         sql.append("WHERE bsf.brand_id = '").append(brandId).append("' ");
@@ -293,7 +292,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
             sql.append(buildFilterConditions(filter));
         }
 
-        sql.append(") q ORDER BY RANDOM() ");
+        sql.append(" ORDER BY RANDOM() ");
 
         if (limit > 0) {
             sql.append("LIMIT ").append(limit);

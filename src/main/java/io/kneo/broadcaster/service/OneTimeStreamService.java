@@ -31,7 +31,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class OneTimeStreamService {
@@ -138,7 +137,7 @@ public class OneTimeStreamService {
         dto.setLocalizedName(doc.getLocalizedName());
         dto.setTimeZone(doc.getTimeZone() != null ? doc.getTimeZone().getId() : null);
         dto.setBitRate(doc.getBitRate());
-        dto.setStreamSchedule(toScheduleDTO(doc.getStreamSchedule()));
+        dto.setStreamSchedule(streamScheduleService.toScheduleDTO(doc.getStreamSchedule()));
         dto.setCreatedAt(doc.getCreatedAt());
         dto.setExpiresAt(doc.getExpiresAt());
         try {
@@ -156,6 +155,31 @@ public class OneTimeStreamService {
                 .replaceWith(dto);
     }
 
+    public Uni<OneTimeStream> start(OneTimeStream stream) {
+        LOGGER.info("OneTimeStream: Initializing stream slugName={}", stream.getSlugName());
+        String streamSlugName = stream.getSlugName();
+        return radioStationPool.initializeStream(stream)
+                .onFailure().invoke(failure -> {
+                    LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
+                    radioStationPool.get(streamSlugName)
+                            .subscribe().with(
+                                    station -> {
+                                        if (station != null) {
+                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                            LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
+                                        }
+                                    },
+                                    error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
+                            );
+                })
+                .invoke(liveStream -> {
+                    if (liveStream != null) {
+                        stream.setStatus(liveStream.getStatus());
+                    }
+                })
+                .replaceWith(stream);
+    }
+
     public Uni<OneTimeStream> run(OneTimeStreamRunReqDTO dto, IUser user) {
         return brandRepository.findById(dto.getBaseBrandId(), user, true)
                 .chain(sourceBrand -> scriptRepository.findById(dto.getScriptId(), user, false)
@@ -164,34 +188,15 @@ public class OneTimeStreamService {
                             stream.setAiAgentId(dto.getAiAgentId());
                             stream.setProfileId(dto.getProfileId());
                             stream.setStreamSchedule(fromScheduleDTO(dto.getSchedule()));
+                            if (!dto.isStartImmediately()) {
+                                stream.setStatus(RadioStationStatus.PENDING);
+                            }
                             oneTimeStreamRepository.insert(stream);
+                            LOGGER.info("OneTimeStream created: slugName={}, id={}, status={}", stream.getSlugName(), stream.getId(), stream.getStatus());
                             return Uni.createFrom().item(stream);
                         })
-                        .chain(stream -> {
-                            LOGGER.info("OneTimeStream: Initializing stream slugName={}", stream.getSlugName());
-                            String streamSlugName = stream.getSlugName();
-                            return radioStationPool.initializeStream(stream)
-                                    .onFailure().invoke(failure -> {
-                                        LOGGER.error("Failed to initialize stream: {}", streamSlugName, failure);
-                                        radioStationPool.get(streamSlugName)
-                                                .subscribe().with(
-                                                        station -> {
-                                                            if (station != null) {
-                                                                station.setStatus(RadioStationStatus.SYSTEM_ERROR);
-                                                                LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
-                                                            }
-                                                        },
-                                                        error -> LOGGER.error("Failed to get station {} to set error status: {}", streamSlugName, error.getMessage(), error)
-                                                );
-                                    })
-                                    .invoke(liveStream -> {
-                                        if (liveStream != null) {
-                                            stream.setStatus(liveStream.getStatus());
-                                        }
-                                    })
-                                    .replaceWith(stream);
-                        })
-                );
+                )
+                .chain(stream -> dto.isStartImmediately() ? start(stream) : Uni.createFrom().item(stream));
     }
 
     public Uni<OneTimeStream> getBySlugName(String slugName) {
@@ -252,74 +257,6 @@ public class OneTimeStreamService {
                 });
     }
 
-    private StreamScheduleDTO toScheduleDTO(StreamSchedule schedule) {
-        if (schedule == null) {
-            return null;
-        }
-        StreamScheduleDTO dto = new StreamScheduleDTO();
-        dto.setCreatedAt(schedule.getCreatedAt());
-        dto.setEstimatedEndTime(schedule.getEstimatedEndTime());
-        dto.setTotalScenes(schedule.getTotalScenes());
-        dto.setTotalSongs(schedule.getTotalSongs());
-
-        List<StreamScheduleDTO.SceneScheduleDTO> sceneDTOs = schedule.getSceneScheduleEntries().stream()
-                .map(this::toSceneDTO)
-                .collect(Collectors.toList());
-        dto.setScenes(sceneDTOs);
-
-        return dto;
-    }
-
-    private StreamScheduleDTO.SceneScheduleDTO toSceneDTO(SceneScheduleEntry scene) {
-        StreamScheduleDTO.SceneScheduleDTO dto = new StreamScheduleDTO.SceneScheduleDTO();
-        dto.setSceneId(scene.getSceneId().toString());
-        dto.setSceneTitle(scene.getSceneTitle());
-        dto.setScheduledStartTime(scene.getScheduledStartTime());
-        dto.setScheduledEndTime(scene.getScheduledEndTime());
-        dto.setDurationSeconds(scene.getDurationSeconds());
-
-        dto.setOriginalStartTime(scene.getOriginalStartTime());
-        dto.setOriginalEndTime(scene.getOriginalEndTime());
-        dto.setPlaylistRequest(toScenePlaylistRequest(scene));
-
-        List<StreamScheduleDTO.ScheduledSongDTO> songDTOs = scene.getSongs().stream()
-                .map(this::toSongDTO)
-                .collect(Collectors.toList());
-        dto.setSongs(songDTOs);
-
-        return dto;
-    }
-
-    private StreamScheduleDTO.ScenePlaylistRequest toScenePlaylistRequest(SceneScheduleEntry scene) {
-        StreamScheduleDTO.ScenePlaylistRequest request = new StreamScheduleDTO.ScenePlaylistRequest();
-        request.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
-        request.setPlaylistTitle(scene.getPlaylistTitle());
-        request.setArtist(scene.getArtist());
-        request.setGenres(scene.getGenres() != null ? scene.getGenres() : List.of());
-        request.setLabels(scene.getLabels() != null ? scene.getLabels() : List.of());
-        request.setPlaylistItemTypes(scene.getPlaylistItemTypes() != null
-                ? scene.getPlaylistItemTypes().stream().map(Enum::name).collect(Collectors.toList())
-                : List.of());
-        request.setSourceTypes(scene.getSourceTypes() != null
-                ? scene.getSourceTypes().stream().map(Enum::name).collect(Collectors.toList())
-                : List.of());
-        request.setSearchTerm(scene.getSearchTerm() != null ? scene.getSearchTerm() : "");
-        request.setSoundFragments(scene.getSoundFragments() != null ? scene.getSoundFragments() : List.of());
-        return request;
-    }
-
-    private StreamScheduleDTO.ScheduledSongDTO toSongDTO(ScheduledSongEntry song) {
-        StreamScheduleDTO.ScheduledSongDTO dto = new StreamScheduleDTO.ScheduledSongDTO();
-        dto.setId(song.getId().toString());
-        dto.setSongId(song.getSoundFragment().getId().toString());
-        dto.setTitle(song.getSoundFragment().getTitle());
-        dto.setArtist(song.getSoundFragment().getArtist());
-        dto.setScheduledStartTime(song.getScheduledStartTime());
-        dto.setEstimatedDurationSeconds(song.getDurationSeconds());
-        dto.setPlayed(song.isPlayed());
-        return dto;
-    }
-
     private StreamSchedule fromScheduleDTO(StreamScheduleDTO dto) {
         if (dto == null) {
             return null;
@@ -369,7 +306,8 @@ public class OneTimeStreamService {
         return new ScheduledSongEntry(
                 UUID.fromString(dto.getId()),
                 soundFragment,
-                dto.getScheduledStartTime()
+                dto.getScheduledStartTime(),
+                dto.getEstimatedDurationSeconds()
         );
     }
 }

@@ -484,4 +484,25 @@ public class PlaylistManager {
 
         return loopedFragment;
     }
+
+    public void shutdown() {
+        LOGGER.info("Shutting down PlaylistManager for brand: {}", brandSlug);
+        
+        scheduler.shutdownNow();
+        
+        slicedFragmentsLock.writeLock().lock();
+        try {
+            obtainedByHlsPlaylist.clear();
+            fragmentsForMp3.clear();
+        } finally {
+            slicedFragmentsLock.writeLock().unlock();
+        }
+        
+        regularQueue.clear();
+        prioritizedQueue.clear();
+        originalWaitingSegments.clear();
+        waitingMessages.clear();
+        
+        LOGGER.info("PlaylistManager for {} has been shut down. All queues cleared.", brandSlug);
+    }
 }

@@ -32,6 +32,7 @@ public class OneTimeStreamRunReqDTO {
     @NotNull
     private StreamScheduleDTO schedule;
     private long bitRate;
+    private boolean startImmediately = false;
 
     private URL hlsUrl;
     private URL mixplaUrl;

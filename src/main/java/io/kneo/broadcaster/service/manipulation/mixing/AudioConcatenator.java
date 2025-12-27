@@ -104,7 +104,8 @@ public class AudioConcatenator {
         double firstDuration = getAudioDuration(firstPath);
         double crossfadeStart = Math.max(0, firstDuration - mixParam);
 
-        String filterComplex = String.format(
+        // ORIGINAL CODE - WORKING VERSION
+        /*String filterComplex = String.format(
                 // First: remove trailing silence by reversing, trimming leading, then reverse back
                 "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,areverse," +
                         "silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=0:detection=rms,areverse,asetpts=PTS-STARTPTS[a0];" +
@@ -113,6 +114,19 @@ public class AudioConcatenator {
                         "aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,asetpts=PTS-STARTPTS[a1];" +
                         // Crossfade
                         "[a0][a1]acrossfade=d=%.3f:c1=tri:c2=tri",
+                mixParam
+        );*/
+
+        // MODIFIED VERSION - with logarithmic curve for more aggressive song fadeout
+        String filterComplex = String.format(
+                // First: remove trailing silence by reversing, trimming leading, then reverse back
+                "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,areverse," +
+                        "silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=0:detection=rms,areverse,asetpts=PTS-STARTPTS[a0];" +
+                        // Second: remove leading silence
+                        "[1:a]silenceremove=start_periods=1:start_threshold=-40dB:stop_periods=0:detection=rms," +
+                        "aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,asetpts=PTS-STARTPTS[a1];" +
+                        // Crossfade with logarithmic curve to reduce song volume more during overlap
+                        "[a0][a1]acrossfade=d=%.3f:c1=log:c2=tri:o=1",
                 mixParam
         );
 

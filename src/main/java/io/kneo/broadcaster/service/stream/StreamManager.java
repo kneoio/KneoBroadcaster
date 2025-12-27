@@ -273,6 +273,11 @@ public class StreamManager implements IStreamManager {
     @Override
     public void shutdown() {
         LOGGER.info("Shutting down StreamManager for: {}", stream.getSlugName());
+        
+        if (playlistManager != null) {
+            playlistManager.shutdown();
+        }
+        
         timerSubscriptions.forEach((key, subscription) -> {
             if (subscription != null) {
                 subscription.cancel();

@@ -75,7 +75,7 @@ public class AiHelperService {
     @Inject
     StatsAccumulator statsAccumulator;
 
-    private static final int SCENE_START_SHIFT_MINUTES = 5;
+    private static final int SCENE_START_SHIFT_MINUTES = 10;
 
     @Inject
     public AiHelperService(

@@ -14,13 +14,14 @@ public class PerplexitySearchTool {
                         "query",
                         Map.of(
                                 "type", "string",
-                                "description", "The search query to send to Perplexity AI"))))
+                                "description", "The Internet search query to send to Perplexity"))))
                 .required(JsonValue.from(List.of("query")))
                 .build();
 
         return Tool.builder()
                 .name("perplexity_search")
-                .description("Search the web using Perplexity AI to get current information, facts, news, or answer questions that require up-to-date knowledge")
+                .description("Search the web using Perplexity to get current information, facts, news, " +
+                        "or answer questions that require up-to-date knowledge")
                 .inputSchema(schema)
                 .build();
     }

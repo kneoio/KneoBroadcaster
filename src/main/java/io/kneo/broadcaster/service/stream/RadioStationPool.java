@@ -194,7 +194,12 @@ public class RadioStationPool {
         IStream brand = pool.remove(brandName);
 
         if (brand != null) {
-            LOGGER.info("Station {} found in pool and removed. Shutting down its playlist.", brandName);
+            LOGGER.info("Station {} found in pool and removed. Shutting down StreamManager.", brandName);
+            
+            if (brand.getStreamManager() != null) {
+                brand.getStreamManager().shutdown();
+            }
+            
             brand.setStatus(RadioStationStatus.OFF_LINE);
             
             if (brand instanceof OneTimeStream) {

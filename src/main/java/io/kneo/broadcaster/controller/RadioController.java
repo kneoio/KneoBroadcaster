@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.model.cnst.RatingAction;
@@ -226,7 +227,29 @@ public class RadioController {
         String clientIP = rc.request().getHeader("stream-connecting-ip");
 
         geoService.recordAccessWithGeolocation(brand, userAgent, clientIP)
-                .chain(country -> service.getStreamManager(brand))
+                .chain(country -> service.getStreamManager(brand)
+                        .onFailure(RadioStationException.class).recoverWithUni(ex -> {
+                            LOGGER.info("Stream {} not in pool, checking if it's a OneTimeStream that needs lazy start", brand);
+                            return oneTimeStreamService.getBySlugName(brand)
+                                    .chain(oneTimeStream -> {
+                                        if (oneTimeStream == null) {
+                                            LOGGER.warn("Stream {} not found in OneTimeStreamService either", brand);
+                                            return Uni.createFrom().failure(ex);
+                                        }
+                                        if (oneTimeStream.getStatus() == RadioStationStatus.OFF_LINE) {
+                                            LOGGER.info("OneTimeStream {} is OFF_LINE (was stopped), not restarting", brand);
+                                            return Uni.createFrom().failure(ex);
+                                        }
+                                        if (oneTimeStream.getStatus() == RadioStationStatus.PENDING) {
+                                            LOGGER.info("Found PENDING OneTimeStream {}, starting it now for first listener", brand);
+                                            return oneTimeStreamService.start(oneTimeStream)
+                                                    .chain(started -> service.getStreamManager(brand));
+                                        }
+                                        LOGGER.warn("OneTimeStream {} has unexpected status {}, not starting", brand, oneTimeStream.getStatus());
+                                        return Uni.createFrom().failure(ex);
+                                    });
+                        })
+                )
                 .onItem().transform(IStreamManager::generatePlaylist)
                 .subscribe().with(
                         playlistContent -> {
@@ -341,6 +364,8 @@ public class RadioController {
         try {
             OneTimeStreamRunReqDTO dto = rc.body().asJsonObject().mapTo(OneTimeStreamRunReqDTO.class);
 
+            boolean startImmediately = dto.isStartImmediately();
+            
             oneTimeStreamService.populateFromSlugName(dto, SuperUser.build())
                     .chain(populatedDto -> {
                         Set<ConstraintViolation<OneTimeStreamRunReqDTO>> violations = validator.validate(populatedDto);
@@ -382,8 +407,12 @@ public class RadioController {
                                                 );
                                     }
                                     
+                                    String message = startImmediately 
+                                            ? "Stream started successfully" 
+                                            : "Stream created successfully. It will start when first listener connects.";
+                                    
                                     JsonObject response = new JsonObject()
-                                            .put("message", "Stream started successfully")
+                                            .put("message", message)
                                             .put("slugName", slugName)
                                             .put("hlsUrl", hlsUrl)
                                             .put("mixplaUrl", mixplaUrl);

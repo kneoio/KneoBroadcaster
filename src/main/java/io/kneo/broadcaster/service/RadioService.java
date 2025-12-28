@@ -49,9 +49,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class RadioService {
@@ -105,24 +103,11 @@ public class RadioService {
     }
 
     public Uni<List<RadioStationStatusDTO>> getStations() {
-        return Uni.combine().all().unis(getOnlineStations(), brandService.getAll(1000, 0))
-                .asTuple().chain(t -> {
-                    List<IStream> online = t.getItem1();
-                    List<Brand> all = t.getItem2();
-
-                    Set<String> onlineSlugs = online.stream()
-                            .map(IStream::getSlugName).collect(Collectors.toSet());
-
-                    List<Uni<RadioStationStatusDTO>> unis = new ArrayList<>();
-                    online.forEach(s -> {
-                        Brand matchingBrand = all.stream()
-                                .filter(b -> b.getSlugName().equals(s.getSlugName()))
-                                .findFirst().orElse(null);
-                        unis.add(toStatusDTO(s, false, matchingBrand));
-                    });
-                    all.stream()
-                            .filter(b -> !onlineSlugs.contains(b.getSlugName()))
-                            .forEach(b -> unis.add(brandToStatusDTO(b, false)));
+        return getOnlineStations()
+                .chain(online -> {
+                    List<Uni<RadioStationStatusDTO>> unis = online.stream()
+                            .map(s -> toStatusDTO(s, false, null))
+                            .toList();
 
                     return unis.isEmpty()
                             ? Uni.createFrom().item(List.of())

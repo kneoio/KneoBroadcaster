@@ -264,6 +264,7 @@ public class RadioService {
         d.setTitle(dto.getTitle());
         d.setArtist(dto.getArtist());
         d.setGenres(dto.getGenres());
+        d.setLabels(dto.getLabels());
         d.setAlbum(dto.getAlbum());
         d.setDescription(dto.getDescription());
         d.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));

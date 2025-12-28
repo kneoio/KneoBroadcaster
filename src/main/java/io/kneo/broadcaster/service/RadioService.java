@@ -17,7 +17,9 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.repository.ContributionRepository;
+import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
@@ -68,6 +70,7 @@ public class RadioService {
     @Inject BroadcasterConfig config;
     @Inject ListenerService listenerService;
     @Inject UserService userService;
+    @Inject OneTimeStreamRepository oneTimeStreamRepository;
 
     private static final List<String> FEATURED_STATIONS =
             List.of("sacana","bratan","aye-ayes-ear","lumisonic","v-o-i-d","malucra");
@@ -103,11 +106,24 @@ public class RadioService {
     }
 
     public Uni<List<RadioStationStatusDTO>> getStations() {
-        return getOnlineStations()
-                .chain(online -> {
-                    List<Uni<RadioStationStatusDTO>> unis = online.stream()
-                            .map(s -> toStatusDTO(s, false, null))
+        return Uni.combine().all().unis(getOnlineStations(), oneTimeStreamRepository.getAll(1000, 0))
+                .asTuple()
+                .chain(tuple -> {
+                    List<IStream> online = tuple.getItem1();
+                    List<OneTimeStream> allOneTimeStreams = tuple.getItem2();
+
+                    List<Uni<RadioStationStatusDTO>> unis = new ArrayList<>();
+
+                    online.forEach(s -> unis.add(toStatusDTO(s, false, null)));
+
+                    List<String> onlineSlugs = online.stream()
+                            .map(IStream::getSlugName)
                             .toList();
+
+                    allOneTimeStreams.stream()
+                            .filter(ots -> ots.getStatus() == RadioStationStatus.PENDING)
+                            .filter(ots -> !onlineSlugs.contains(ots.getSlugName()))
+                            .forEach(ots -> unis.add(oneTimeStreamToStatusDTO(ots)));
 
                     return unis.isEmpty()
                             ? Uni.createFrom().item(List.of())
@@ -340,6 +356,28 @@ public class RadioService {
                 b.getMessagingPolicy(),
                 b.getBitRate(),
                 b.getPopularityRate());
+    }
+
+    private Uni<RadioStationStatusDTO> oneTimeStreamToStatusDTO(OneTimeStream ots) {
+        if (ots == null) return Uni.createFrom().nullItem();
+        return buildStatusDTO(
+                ots.getLocalizedName().getOrDefault(
+                        ots.getCountry().getPreferredLanguage(), ots.getSlugName()),
+                ots.getSlugName(),
+                ots.getManagedBy().toString(),
+                ots.getAiAgentId(),
+                ots.getAiOverriding(),
+                ots.getAiAgentStatus(),
+                ots.getStatus(),
+                ots.getCountry().name(),
+                ots.getColor(),
+                ots.getDescription(),
+                false,
+                ots.getMasterBrand().getOneTimeStreamPolicy(),
+                ots.getMasterBrand().getSubmissionPolicy(),
+                ots.getMasterBrand().getMessagingPolicy(),
+                ots.getBitRate(),
+                0.0);
     }
 
     private Uni<RadioStationStatusDTO> buildStatusDTO(

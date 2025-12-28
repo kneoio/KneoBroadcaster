@@ -49,10 +49,15 @@ public class OneTimeStream extends AbstractStream {
         this.createdAt = LocalDateTime.now();
         this.managedBy = ManagedBy.DJ;
         String displayName = buildDisplayName();
+        if (displayName.length() > 40) {
+            displayName = displayName.substring(0, 40);
+        }
         EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-        this.slugName = WebHelper.generateSlug(
-                displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF))
-        );
+        String slugBase = displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF));
+        this.slugName = WebHelper.generateSlug(slugBase);
+        if (this.slugName.length() > 50) {
+            this.slugName = this.slugName.substring(0, 50);
+        }
         localizedName.put(LanguageCode.en, displayName);
         this.localizedName = localizedName;
         this.timeZone = masterBrand.getTimeZone();

@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.external;
 
+import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.quarkus.scheduler.Scheduled;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -107,8 +109,59 @@ public class MailService {
         }
     }
 
-    public Uni<Void> sendStreamLinksAsync(String email, String slugName, String hlsUrl, String mixplaUrl) {
+    public Uni<Void> sendStreamLinksAsync(String email, String slugName, String hlsUrl, String mixplaUrl, StreamScheduleDTO schedule) {
         LOG.info("Sending stream links to email: {} for stream: {}", email, slugName);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm");
+        
+        StringBuilder scheduleHtml = new StringBuilder();
+        StringBuilder scheduleText = new StringBuilder();
+        
+        if (schedule != null) {
+            scheduleHtml.append("<h3>Schedule:</h3>");
+            scheduleHtml.append("<ul style=\"line-height: 1.8;\">");
+            
+            if (schedule.getCreatedAt() != null) {
+                scheduleHtml.append("<li><strong>Start Time:</strong> ").append(schedule.getCreatedAt().format(formatter)).append("</li>");
+                scheduleText.append("Start Time: ").append(schedule.getCreatedAt().format(formatter)).append("\n");
+            }
+            
+            if (schedule.getEstimatedEndTime() != null) {
+                scheduleHtml.append("<li><strong>Estimated End Time:</strong> ").append(schedule.getEstimatedEndTime().format(formatter)).append("</li>");
+                scheduleText.append("Estimated End Time: ").append(schedule.getEstimatedEndTime().format(formatter)).append("\n");
+            }
+            
+            if (schedule.getTotalScenes() > 0) {
+                scheduleHtml.append("<li><strong>Total Scenes:</strong> ").append(schedule.getTotalScenes()).append("</li>");
+                scheduleText.append("Total Scenes: ").append(schedule.getTotalScenes()).append("\n");
+            }
+            
+            if (schedule.getTotalSongs() > 0) {
+                scheduleHtml.append("<li><strong>Total Songs:</strong> ").append(schedule.getTotalSongs()).append("</li>");
+                scheduleText.append("Total Songs: ").append(schedule.getTotalSongs()).append("\n");
+            }
+            
+            scheduleHtml.append("</ul>");
+            
+            if (schedule.getScenes() != null && !schedule.getScenes().isEmpty()) {
+                boolean hasWarnings = schedule.getScenes().stream().anyMatch(s -> s.getWarning() != null && !s.getWarning().isEmpty());
+                
+                if (hasWarnings) {
+                    scheduleHtml.append("<div style=\"background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 15px 0;\">")
+                               .append("<strong style=\"color: #856404;\">⚠ Warnings:</strong><ul style=\"margin: 5px 0; color: #856404;\">");
+                    scheduleText.append("\n⚠ WARNINGS:\n");
+                    
+                    for (StreamScheduleDTO.SceneScheduleDTO scene : schedule.getScenes()) {
+                        if (scene.getWarning() != null && !scene.getWarning().isEmpty()) {
+                            scheduleHtml.append("<li>").append(scene.getSceneTitle()).append(": ").append(scene.getWarning()).append("</li>");
+                            scheduleText.append("- ").append(scene.getSceneTitle()).append(": ").append(scene.getWarning()).append("\n");
+                        }
+                    }
+                    
+                    scheduleHtml.append("</ul></div>");
+                }
+            }
+        }
 
         String htmlBody = """
         <!DOCTYPE html>
@@ -118,18 +171,21 @@ public class MailService {
             <p>Your one-time stream <strong>%s</strong> has been created successfully.</p>
             <h3>Stream Links:</h3>
             <ul style="line-height: 1.8;">
-                <li><strong>HLS Stream URL:</strong><br/><a href="%s" style="color: #3498db;">%s</a></li>
                 <li><strong>Mixpla Player:</strong><br/><a href="%s" style="color: #3498db;">%s</a></li>
+                <li><strong>HLS Stream URL:</strong><br/><a href="%s" style="color: #3498db;">%s</a><br/><span style="color: #7f8c8d; font-size: 0.9em;">Can be used in players like AIMP, VLC, and other HLS-compatible players</span></li>
             </ul>
+            %s
             <p style="color: #7f8c8d; margin-top: 30px;">You can use these links to access your stream.</p>
         </body>
         </html>
-        """.formatted(slugName, hlsUrl, hlsUrl, mixplaUrl, mixplaUrl);
+        """.formatted(slugName, mixplaUrl, mixplaUrl, hlsUrl, hlsUrl, scheduleHtml.toString());
 
         String textBody = "Your Stream is Ready!\n\n" +
                 "Stream: " + slugName + "\n\n" +
+                "Mixpla Player: " + mixplaUrl + "\n" +
                 "HLS Stream URL: " + hlsUrl + "\n" +
-                "Mixpla Player: " + mixplaUrl + "\n\n" +
+                "(Can be used in players like AIMP, VLC, and other HLS-compatible players)\n\n" +
+                (!scheduleText.isEmpty() ? "Schedule:\n" + scheduleText.toString() + "\n" : "") +
                 "You can use these links to access your stream.";
 
         Mail mail = Mail.withHtml(email, "Your Stream Links - " + slugName, htmlBody)

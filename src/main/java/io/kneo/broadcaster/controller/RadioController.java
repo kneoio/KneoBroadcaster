@@ -413,7 +413,7 @@ public class RadioController {
                                     String mixplaUrl = "https://player.mixpla.io/?radio=" + slugName;
                                     
                                     if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
-                                        mailService.sendStreamLinksAsync(dto.getEmail(), slugName, hlsUrl, mixplaUrl)
+                                        mailService.sendStreamLinksAsync(dto.getEmail(), slugName, hlsUrl, mixplaUrl, dto.getSchedule())
                                                 .subscribe().with(
                                                         v -> LOGGER.info("Stream links sent to email: {}", dto.getEmail()),
                                                         err -> LOGGER.error("Failed to send email to: {}", dto.getEmail(), err)

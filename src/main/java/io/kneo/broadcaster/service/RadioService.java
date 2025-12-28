@@ -176,6 +176,18 @@ public class RadioService {
                                             dto.setPopularityRate(b.getPopularityRate());
                                         });
                             });
+                })
+                .chain(dto -> {
+                    if (dto != null) {
+                        return Uni.createFrom().item(dto);
+                    }
+                    return radioStationPool.get(slugName)
+                            .chain(online -> {
+                                if (online != null) {
+                                    return toStatusDTO(online, false, null);
+                                }
+                                return Uni.createFrom().nullItem();
+                            });
                 });
     }
 

@@ -117,19 +117,22 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
 
     public Uni<Brand> getBySlugName(String name) {
         return repository.getBySlugName(name)
-                .chain(brand ->
-                        scriptService.getAllScriptsForBrandWithScenes(brand.getId(), SuperUser.build())
-                                .map(brandScripts -> {
-                                    List<BrandScriptEntry> entries = brandScripts.stream()
-                                            .map(bs -> new BrandScriptEntry(
-                                                    bs.getScript().getId(),
-                                                    bs.getUserVariables()
-                                            ))
-                                            .collect(Collectors.toList());
-                                    brand.setScripts(entries);
-                                    return brand;
-                                })
-                );
+                .chain(brand -> {
+                    if (brand == null) {
+                        return Uni.createFrom().nullItem();
+                    }
+                    return scriptService.getAllScriptsForBrandWithScenes(brand.getId(), SuperUser.build())
+                            .map(brandScripts -> {
+                                List<BrandScriptEntry> entries = brandScripts.stream()
+                                        .map(bs -> new BrandScriptEntry(
+                                                bs.getScript().getId(),
+                                                bs.getUserVariables()
+                                        ))
+                                        .collect(Collectors.toList());
+                                brand.setScripts(entries);
+                                return brand;
+                            });
+                });
     }
 
 

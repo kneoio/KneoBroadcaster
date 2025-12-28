@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.GenreDTO;
+import io.kneo.broadcaster.dto.LabelDTO;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.actions.ProfileActionsFactory;
@@ -142,6 +143,26 @@ public class RefController extends BaseController {
                                         ViewPage viewPage = new ViewPage();
                                         viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                                         View<GenreDTO> dtoEntries = new View<>(dtoList, count, page, maxPage, size);
+                                        viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                                        return viewPage;
+                                    });
+                        })
+                        .subscribe().with(
+                                viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                                rc::fail
+                        );
+                break;
+
+            case "labels":
+                service.getAllLabelsCount()
+                        .onItem().transformToUni(count -> {
+                            int maxPage = countMaxPage(count, size);
+                            int offset = RuntimeUtil.calcStartEntry(page, size);
+                            return service.getAllLabels(size, offset)
+                                    .onItem().transform(dtoList -> {
+                                        ViewPage viewPage = new ViewPage();
+                                        viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                                        View<LabelDTO> dtoEntries = new View<>(dtoList, count, page, maxPage, size);
                                         viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                                         return viewPage;
                                     });

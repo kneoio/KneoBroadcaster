@@ -18,6 +18,7 @@ import java.util.UUID;
 public class OneTimeStreamRunReqDTO {
     private String slugName;
     private String email;
+    private String confirmationCode;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     @NotNull
     private UUID baseBrandId;

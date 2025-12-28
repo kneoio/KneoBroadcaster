@@ -3,9 +3,12 @@ package io.kneo.broadcaster.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.GenreDTO;
+import io.kneo.broadcaster.dto.LabelDTO;
 import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.Genre;
+import io.kneo.broadcaster.model.Label;
 import io.kneo.broadcaster.repository.GenreRepository;
+import io.kneo.broadcaster.repository.LabelRepository;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -28,12 +31,14 @@ import java.util.stream.Stream;
 @ApplicationScoped
 public class RefService extends AbstractService<Genre, GenreDTO> implements IRESTService<GenreDTO> {
     private final GenreRepository repository;
+    private final LabelRepository labelRepository;
     private final ObjectMapper objectMapper;
 
     @Inject
-    public RefService(UserService userService, GenreRepository repository) {
+    public RefService(UserService userService, GenreRepository repository, LabelRepository labelRepository) {
         super(userService);
         this.repository = repository;
+        this.labelRepository = labelRepository;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -127,5 +132,42 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
     @Deprecated
     public Uni<? extends Optional<Genre>> findById(UUID Genre) {
         return null;
+    }
+
+    public Uni<List<LabelDTO>> getAllLabels(final int limit, final int offset) {
+        return labelRepository.getAll(limit, offset)
+                .chain(list -> Uni.join().all(
+                        list.stream()
+                                .map(this::mapLabelToDTO)
+                                .collect(Collectors.toList())
+                ).andFailFast());
+    }
+
+    public Uni<Integer> getAllLabelsCount() {
+        return labelRepository.getAllCount();
+    }
+
+    public Uni<LabelDTO> getLabelById(UUID uuid) {
+        return labelRepository.findById(uuid).chain(this::mapLabelToDTO);
+    }
+
+    private Uni<LabelDTO> mapLabelToDTO(Label doc) {
+        return Uni.combine().all().unis(
+                userService.getUserName(doc.getAuthor()),
+                userService.getUserName(doc.getLastModifier())
+        ).asTuple().onItem().transform(tuple ->
+                LabelDTO.builder()
+                        .id(doc.getId())
+                        .author(tuple.getItem1())
+                        .regDate(doc.getRegDate())
+                        .lastModifier(tuple.getItem2())
+                        .lastModifiedDate(doc.getLastModifiedDate())
+                        .identifier(doc.getIdentifier())
+                        .localizedName(doc.getLocalizedName())
+                        .slugName(doc.getSlugName())
+                        .color(doc.getColor())
+                        .archived(doc.getArchived())
+                        .build()
+        );
     }
 }

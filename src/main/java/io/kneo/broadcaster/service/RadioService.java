@@ -236,10 +236,15 @@ public class RadioService {
             return Uni.createFrom().failure(new FileUploadException("At least one file must be uploaded"));
         }
 
+        Path tempBase = Paths.get(config.getPathUploads(), "radio-controller", "anonymous", "temp");
+        
         List<FileMetadata> files = dto.getNewlyUploaded().stream()
                 .map(name -> {
                     FileMetadata m = new FileMetadata();
-                    m.setFileOriginalName(FileSecurityUtils.sanitizeFilename(name));
+                    String sanitizedName = FileSecurityUtils.sanitizeFilename(name);
+                    m.setFileOriginalName(sanitizedName);
+                    Path filePath = FileSecurityUtils.secureResolve(tempBase, sanitizedName);
+                    m.setFilePath(filePath);
                     return m;
                 }).toList();
 
@@ -249,7 +254,7 @@ public class RadioService {
                 .chain(doc -> moveFilesForNewEntity(doc, files, user).replaceWith(doc))
                 .chain(this::mapToDTO)
                 .onFailure().invoke(() ->
-                        localFileCleanupService.cleanupTempFilesForUser(user.getUserName()).subscribe());
+                        localFileCleanupService.cleanupTempFilesForUser("anonymous").subscribe());
     }
 
     private SoundFragment buildEntity(SubmissionDTO dto) {
@@ -268,12 +273,13 @@ public class RadioService {
     private Uni<SoundFragment> moveFilesForNewEntity(
             SoundFragment doc, List<FileMetadata> files, IUser user) {
         try {
-            Path base = Paths.get(config.getPathUploads(), "sound-fragments-controller", user.getUserName());
-            Path entityDir = base.resolve(doc.getId().toString());
+            Path anonymousTempBase = Paths.get(config.getPathUploads(), "radio-controller", "anonymous");
+            Path userBase = Paths.get(config.getPathUploads(), "radio-controller", user.getUserName());
+            Path entityDir = userBase.resolve(doc.getId().toString());
             Files.createDirectories(entityDir);
 
             for (FileMetadata m : files) {
-                Path src = FileSecurityUtils.secureResolve(base.resolve("temp"), m.getFileOriginalName());
+                Path src = FileSecurityUtils.secureResolve(anonymousTempBase.resolve("temp"), m.getFileOriginalName());
                 Path dst = FileSecurityUtils.secureResolve(entityDir, m.getFileOriginalName());
                 Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING);
                 m.setFilePath(dst);

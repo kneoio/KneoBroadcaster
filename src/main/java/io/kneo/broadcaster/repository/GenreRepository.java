@@ -5,7 +5,6 @@ import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.table.EntityData;
-import io.kneo.officeframe.model.Organization;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
@@ -45,10 +44,6 @@ public class GenreRepository extends AsyncRepository {
         return findById(uuid, entityData, this::from);
     }
 
-    public Uni<Genre> findByIdentifier(String identifier) {
-        return findByIdentifier(identifier, entityData, this::from);
-    }
-
     public Uni<List<Genre>> findByFuzzyIdentifier(String identifier) {
         String sql = String.format("SELECT * FROM %s WHERE LOWER(identifier) LIKE LOWER($1) LIMIT 10", 
                 entityData.getTableName());
@@ -67,15 +62,5 @@ public class GenreRepository extends AsyncRepository {
         doc.setIdentifier(row.getString(COLUMN_IDENTIFIER));
         setLocalizedNames(doc, row);
         return doc;
-    }
-
-    public UUID insert(Organization node, Long user) {
-
-        return node.getId();
-    }
-
-    public int delete(Long id) {
-
-        return 1;
     }
 }

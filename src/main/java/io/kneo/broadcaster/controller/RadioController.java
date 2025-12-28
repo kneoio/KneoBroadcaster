@@ -390,7 +390,20 @@ public class RadioController {
                             return Uni.createFrom().nullItem();
                         }
 
-                        return oneTimeStreamService.run(populatedDto, SuperUser.build());
+                        return validationService.validateOneTimeStreamRunReqDTO(populatedDto)
+                                .chain(validationResult -> {
+                                    if (!validationResult.valid()) {
+                                        rc.response()
+                                                .setStatusCode(400)
+                                                .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                                .end(new JsonObject()
+                                                        .put("error", "Validation failed")
+                                                        .put("detail", validationResult.errorMessage())
+                                                        .encode());
+                                        return Uni.createFrom().nullItem();
+                                    }
+                                    return oneTimeStreamService.run(populatedDto, SuperUser.build());
+                                });
                     })
                     .subscribe().with(
                             stream -> {

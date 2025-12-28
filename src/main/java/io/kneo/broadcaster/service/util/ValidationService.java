@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.util;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.radio.MessageDTO;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
+import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.service.external.MailService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -108,6 +109,23 @@ public class ValidationService {
                             return ValidationResult.success();
                         } else {
                             LOGGER.warn("Email verification failed for message {}: {}", dto.getEmail(), result);
+                            return ValidationResult.failure(result);
+                        }
+                    });
+        }
+
+        return Uni.createFrom().item(ValidationResult.success());
+    }
+
+    public Uni<ValidationResult> validateOneTimeStreamRunReqDTO(OneTimeStreamRunReqDTO dto) {
+        if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
+            return mailService.verifyCode(dto.getEmail(), dto.getConfirmationCode())
+                    .map(result -> {
+                        if (result == null) {
+                            mailService.removeCode(dto.getEmail());
+                            return ValidationResult.success();
+                        } else {
+                            LOGGER.warn("Email verification failed for one-time stream {}: {}", dto.getEmail(), result);
                             return ValidationResult.failure(result);
                         }
                     });

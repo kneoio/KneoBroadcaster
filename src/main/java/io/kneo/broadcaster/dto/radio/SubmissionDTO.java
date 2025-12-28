@@ -28,6 +28,7 @@ public class SubmissionDTO {
     @NotNull
     @NotEmpty
     private List<UUID> genres;
+    private List<UUID> labels;
     private String album;
     @NotBlank
     private String email;

@@ -369,11 +369,16 @@ public class AudioMixingHandler extends MixingHandlerBase {
 
                                 byte[] mixed = Arrays.copyOf(songBytes, songBytes.length);
                                 double maxDuck = 1.0;
+                                
+                                int fadeStart = Math.max(0, introStartBytes - fadeBytes);
+                                int fadeEnd   = introStartBytes + introBytes.length;
 
                                 for (int i = 0; i < introBytes.length && (i + introStartBytes + 1) < mixed.length; i += 2) {
                                     int pos = i + introStartBytes;
-                                    int fadeStart = introStartBytes - fadeBytes;
-                                    int fadeEnd   = introStartBytes + introBytes.length;
+                                    
+                                    if (pos < 0 || pos + 1 >= mixed.length) {
+                                        continue;
+                                    }
 
                                     double duckFactor;
                                     if (pos < introStartBytes) {

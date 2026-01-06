@@ -5,7 +5,7 @@ import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
 import io.kneo.broadcaster.model.Prompt;
-import io.kneo.core.localization.LanguageCode;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -123,7 +123,7 @@ public class TranslateService {
         }
 
         TranslateReqDTO dto = dtos.get(idx);
-        LanguageCode lang = dto.getLanguageCode();
+        LanguageTag lang = dto.getLanguageTag();
 
         return translator.apply(dto, user)
                 .onItem().invoke(result -> {
@@ -149,17 +149,17 @@ public class TranslateService {
     private Uni<Draft> translateAndUpsertDraft(TranslateReqDTO dto, IUser user) {
         return draftService.getById(dto.getMasterId(), user)
                 .chain(originalDraft -> {
-                    if (originalDraft.getLanguageCode() == dto.getLanguageCode()) {
+                    if (originalDraft.getLanguageTag() == dto.getLanguageTag()) {
                         return Uni.createFrom().nullItem();
                     }
 
-                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode(), dto.getCountryCode())
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageTag(), dto.getCountryCode())
                             .chain(resp -> {
                                 String translatedContent = resp != null ? resp.getResult() : null;
                                 if (translatedContent == null || translatedContent.isBlank()) {
                                     return Uni.createFrom().nullItem();
                                 }
-                                return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false)
+                                return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageTag(), false)
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
@@ -168,11 +168,11 @@ public class TranslateService {
                                             } else {
                                                 Draft doc = new Draft();
                                                 doc.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                                doc.setLanguageCode(dto.getLanguageCode());
+                                                doc.setLanguageTag(dto.getLanguageTag());
                                                 doc.setEnabled(true);
                                                 doc.setMaster(false);
                                                 doc.setLocked(true);
-                                                doc.setTitle(updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageCode()));
+                                                doc.setTitle(updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageTag()));
                                                 doc.setMasterId(originalDraft.getId());
                                                 doc.setVersion(dto.getVersion());
                                                 return draftService.insert(doc, user);
@@ -185,17 +185,17 @@ public class TranslateService {
     private Uni<Prompt> translateAndUpsertPrompt(TranslateReqDTO dto, IUser user) {
         return promptService.getById(dto.getMasterId(), user)
                 .chain(sourcePrompt -> {
-                    if (sourcePrompt.getLanguageCode() == dto.getLanguageCode()) {
+                    if (sourcePrompt.getLanguageTag() == dto.getLanguageTag()) {
                         return Uni.createFrom().nullItem();
                     }
 
-                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageCode(), dto.getCountryCode())
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageTag(), dto.getCountryCode())
                             .chain(resp -> {
                                 String translatedContent = resp != null ? resp.getResult() : null;
                                 if (translatedContent == null || translatedContent.isBlank()) {
                                     return Uni.createFrom().nullItem();
                                 }
-                                return promptService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageCode(), false)
+                                return promptService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageTag(), false)
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
@@ -205,11 +205,11 @@ public class TranslateService {
                                             } else {
                                                 Prompt doc = new Prompt();
                                                 doc.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                                doc.setLanguageCode(dto.getLanguageCode());
+                                                doc.setLanguageTag(dto.getLanguageTag());
                                                 doc.setEnabled(true);
                                                 doc.setMaster(false);
                                                 doc.setLocked(true);
-                                                doc.setTitle(updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageCode()));
+                                                doc.setTitle(updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageTag()));
                                                 doc.setMasterId(sourcePrompt.getId());
                                                 doc.setVersion(sourcePrompt.getVersion());
                                                 doc.setPodcast(sourcePrompt.isPodcast());
@@ -220,7 +220,7 @@ public class TranslateService {
                 });
     }
 
-    private String updateTitleWithLanguage(String originalTitle, LanguageCode languageCode) {
+    private String updateTitleWithLanguage(String originalTitle, LanguageTag languageCode) {
         String titleWithoutSuffix = originalTitle.replaceAll("\\s*\\([a-z]{2}\\)\\s*$", "").trim();
         return titleWithoutSuffix + " (" + languageCode.name() + ")";
     }

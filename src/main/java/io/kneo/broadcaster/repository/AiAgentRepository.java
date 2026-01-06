@@ -8,8 +8,8 @@ import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.aiagent.SearchEngineType;
 import io.kneo.broadcaster.model.aiagent.Voice;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -104,39 +104,6 @@ public class AiAgentRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<AiAgent> findByName(String name, IUser user) {
-        String sql = "SELECT theTable.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.name = $2 AND theTable.archived = 0";
-
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(user.getId(), name))
-                .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
-                    if (iterator.hasNext()) {
-                        return from(iterator.next());
-                    } else {
-                        LOGGER.warn("No {} found with name: {}, user: {} ", AI_AGENT, name, user.getId());
-                        throw new DocumentHasNotFoundException(name);
-                    }
-                });
-    }
-
-    public Uni<List<AiAgent>> findByPreferredLang(LanguageCode lang, IUser user) {
-        String sql = "SELECT theTable.* " +
-                "FROM %s theTable " +
-                "JOIN %s rls ON theTable.id = rls.entity_id " +
-                "WHERE rls.reader = $1 AND theTable.preferred_lang @> $2::jsonb AND theTable.archived = 0";
-
-        String langFilter = String.format("[{\"code\":\"%s\"}]", lang.name());
-        return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
-                .execute(Tuple.of(user.getId(), langFilter))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
-                .collect().asList();
-    }
-
     public Uni<AiAgent> insert(AiAgent agent, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
@@ -144,24 +111,13 @@ public class AiAgentRepository extends AsyncRepository {
                 " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, preferred_voice, copilot) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
-
-        JsonArray preferredLangJson = new JsonArray();
-        if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
-            for (LanguagePreference pref : agent.getPreferredLang()) {
-                JsonObject prefObj = new JsonObject()
-                        .put("code", pref.getCode().name())
-                        .put("weight", pref.getWeight());
-                preferredLangJson.add(prefObj);
-            }
-        }
-
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
                 .addString(agent.getName())
-                .addJsonArray(preferredLangJson)
+                .addJsonArray(toPreferredLangJson(agent.getPreferredLang()))
                 .addString(agent.getLlmType().name())
                 .addString(agent.getSearchEngineType().name())
                 .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
@@ -196,21 +152,11 @@ public class AiAgentRepository extends AsyncRepository {
                                     "llm_type=$5, search_engine_type=$6, preferred_voice=$7, copilot=$8 " +
                                     "WHERE id=$9";
 
-                            JsonArray preferredLangJson = new JsonArray();
-                            if (agent.getPreferredLang() != null && !agent.getPreferredLang().isEmpty()) {
-                                for (LanguagePreference pref : agent.getPreferredLang()) {
-                                    JsonObject prefObj = new JsonObject()
-                                            .put("code", pref.getCode().name())
-                                            .put("weight", pref.getWeight());
-                                    preferredLangJson.add(prefObj);
-                                }
-                            }
-
                             Tuple params = Tuple.tuple()
                                     .addLong(user.getId())
                                     .addOffsetDateTime(nowTime)
                                     .addString(agent.getName())
-                                    .addJsonArray(preferredLangJson)
+                                    .addJsonArray(toPreferredLangJson(agent.getPreferredLang()))
                                     .addString(agent.getLlmType().name())
                                     .addString(agent.getSearchEngineType().name())
                                     .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
@@ -264,21 +210,27 @@ public class AiAgentRepository extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setName(row.getString("name"));
         doc.setCopilot(row.getUUID("copilot"));
-        
+
         JsonArray preferredLangJson = row.getJsonArray("preferred_lang");
         if (preferredLangJson != null && !preferredLangJson.isEmpty()) {
             List<LanguagePreference> langPrefs = new ArrayList<>();
             for (int i = 0; i < preferredLangJson.size(); i++) {
                 JsonObject prefObj = preferredLangJson.getJsonObject(i);
-                LanguageCode code = LanguageCode.valueOf(prefObj.getString("code"));
-                double weight = prefObj.getDouble("weight", 1.0);
-                langPrefs.add(new LanguagePreference(code, weight));
+
+                LanguagePreference languagePreference = new LanguagePreference();
+                languagePreference.setLanguageTag(
+                        LanguageTag.fromTag(prefObj.getString("languageTag"))
+                );
+                languagePreference.setWeight(prefObj.getDouble("weight", 1.0));
+
+                langPrefs.add(languagePreference);
             }
             doc.setPreferredLang(langPrefs);
         } else {
             doc.setPreferredLang(new ArrayList<>());
         }
-        
+
+
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
         doc.setSearchEngineType(SearchEngineType.valueOf(row.getString("search_engine_type")));
 
@@ -292,6 +244,19 @@ public class AiAgentRepository extends AsyncRepository {
 
         return doc;
     }
+
+    private JsonArray toPreferredLangJson(List<LanguagePreference> prefs) {
+        JsonArray arr = new JsonArray();
+        if (prefs == null || prefs.isEmpty()) return arr;
+
+        for (LanguagePreference pref : prefs) {
+            arr.add(new JsonObject()
+                    .put("languageTag", pref.getLanguageTag().tag())
+                    .put("weight", pref.getWeight()));
+        }
+        return arr;
+    }
+
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);

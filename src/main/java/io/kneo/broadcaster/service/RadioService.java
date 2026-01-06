@@ -7,9 +7,11 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
@@ -432,7 +434,7 @@ public class RadioService {
         return aiAgentService
                 .getById(aiAgentId, SuperUser.build(), LanguageCode.en)
                 .onItem().transform(aiAgent -> {
-                    LanguageCode selectedLang = selectLanguageByWeight(aiAgent);
+                    LanguageTag selectedLang = selectLanguageByWeight(aiAgent);
 
                     String djName = (overriddenAiDj != null && overriddenAiDj.getName() != null)
                             ? overriddenAiDj.getName()
@@ -493,20 +495,19 @@ public class RadioService {
                 new ArrayList<>(radioStationPool.getOnlineStationsSnapshot()));
     }
 
-    private LanguageCode selectLanguageByWeight(
-            io.kneo.broadcaster.model.aiagent.AiAgent agent) {
+    private LanguageTag selectLanguageByWeight(AiAgent agent) {
 
         List<LanguagePreference> p = agent.getPreferredLang();
-        if (p == null || p.isEmpty()) return LanguageCode.en;
-        if (p.size() == 1) return p.get(0).getCode();
+        if (p == null || p.isEmpty()) return LanguageTag.EN_US;
+        if (p.size() == 1) return p.getFirst().getLanguageTag();
 
         double total = p.stream().mapToDouble(LanguagePreference::getWeight).sum();
         double r = random.nextDouble() * total;
         double c = 0;
         for (LanguagePreference lp : p) {
             c += lp.getWeight();
-            if (r <= c) return lp.getCode();
+            if (r <= c) return lp.getLanguageTag();
         }
-        return p.get(0).getCode();
+        return p.getFirst().getLanguageTag();
     }
 }

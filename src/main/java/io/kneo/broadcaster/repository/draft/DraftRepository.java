@@ -3,6 +3,7 @@ package io.kneo.broadcaster.repository.draft;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -39,14 +40,14 @@ public class DraftRepository extends AsyncRepository {
         this.queryBuilder = queryBuilder;
     }
 
-    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
+    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag, boolean includeArchived) {
         String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE master_id = $1 AND language_code = $2";
         if (!includeArchived) {
             sql += " AND archived = 0 ";
         }
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(masterId, languageCode.name()))
+                .execute(Tuple.of(masterId, languageTag.name()))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transform(iterator -> iterator.hasNext() ? from(iterator.next()) : null);
     }
@@ -107,7 +108,7 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, title, content, description, language_code, enabled, is_master, locked, master_id, version) " +
+                        " (author, reg_date, last_mod_user, last_mod_date, title, content, description, language_tag, enabled, is_master, locked, master_id, version) " +
                         "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
@@ -120,7 +121,7 @@ public class DraftRepository extends AsyncRepository {
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
                         .addString(draft.getDescription())
-                        .addString(draft.getLanguageCode().name())
+                        .addString(draft.getLanguageTag().tag())
                         .addBoolean(draft.isEnabled())
                         .addBoolean(draft.isMaster())
                         .addBoolean(draft.isLocked())
@@ -141,7 +142,7 @@ public class DraftRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "UPDATE " + entityData.getTableName() +
-                        " SET title = $1, content = $2, description = $3, language_code = $4, enabled = $5, is_master = $6, locked = $7, master_id = $8, " +
+                        " SET title = $1, content = $2, description = $3, language_tag = $4, enabled = $5, is_master = $6, locked = $7, master_id = $8, " +
                         "version = $9, last_mod_user = $10, last_mod_date = $11 WHERE id = $12";
 
                 OffsetDateTime now = OffsetDateTime.now();
@@ -150,7 +151,7 @@ public class DraftRepository extends AsyncRepository {
                         .addString(draft.getTitle())
                         .addString(draft.getContent())
                         .addString(draft.getDescription())
-                        .addString(draft.getLanguageCode().name())
+                        .addString(draft.getLanguageTag().tag())
                         .addBoolean(draft.isEnabled())
                         .addBoolean(draft.isMaster())
                         .addBoolean(draft.isLocked())
@@ -211,9 +212,9 @@ public class DraftRepository extends AsyncRepository {
             doc.setMasterId(masterId);
         }
 
-        String languageCodeStr = row.getString("language_code");
+        String languageCodeStr = row.getString("language_tag");
         if (languageCodeStr != null) {
-            doc.setLanguageCode(LanguageCode.valueOf(languageCodeStr));
+            doc.setLanguageTag(LanguageTag.fromTag(languageCodeStr));
         }
 
         doc.setVersion(row.getDouble("version"));

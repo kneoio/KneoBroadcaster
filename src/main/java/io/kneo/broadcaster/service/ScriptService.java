@@ -2,6 +2,7 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.BrandScriptDTO;
 import io.kneo.broadcaster.dto.DraftDTO;
+import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.ScriptDTO;
@@ -17,6 +18,7 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.ScriptFilter;
 import io.kneo.broadcaster.model.ScriptVariable;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.util.ScriptVariableExtractor;
@@ -505,7 +507,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setTitle(prompt.getTitle());
             if (extended) {
                 dto.setPrompt(prompt.getPrompt());
-                dto.setLanguageCode(prompt.getLanguageCode().name());
+                dto.setLanguageTag(prompt.getLanguageTag().name());
                 
                 if (prompt.getDraftId() != null) {
                     Draft draft = draftMap.get(prompt.getDraftId());
@@ -513,7 +515,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         ScriptExportDTO.PromptDraftDTO draftDTO = new ScriptExportDTO.PromptDraftDTO();
                         draftDTO.setId(draft.getId());
                         draftDTO.setContent(draft.getContent());
-                        draftDTO.setLanguageCode(draft.getLanguageCode() != null ? draft.getLanguageCode().name() : null);
+                        draftDTO.setLanguageTag(draft.getLanguageTag() != null ? draft.getLanguageTag().tag() : null);
                         dto.setDraft(draftDTO);
                     }
                 }
@@ -619,8 +621,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         prompt.setTitle(exportDTO.getTitle() + " (imported)");
         prompt.setPrompt(exportDTO.getPrompt());
         
-        if (exportDTO.getLanguageCode() != null) {
-            prompt.setLanguageCode(LanguageCode.valueOf(exportDTO.getLanguageCode()));
+        if (exportDTO.getLanguageTag() != null) {
+            prompt.setLanguageTag(LanguageTag.valueOf(exportDTO.getLanguageTag()));
         }
         
         if (exportDTO.getDraft() != null) {
@@ -675,7 +677,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         .collect(Collectors.toList()));
     }
 
-    public Uni<List<io.kneo.broadcaster.dto.PromptDTO>> getPromptsBySceneId(UUID sceneId, IUser user) {
+    public Uni<List<PromptDTO>> getPromptsBySceneId(UUID sceneId, IUser user) {
         assert scriptSceneService != null;
         assert promptService != null;
         return scriptSceneService.getById(sceneId, user)
@@ -693,7 +695,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     }
                     return promptService.getByIds(promptIds, user)
                             .chain(prompts -> {
-                                List<Uni<io.kneo.broadcaster.dto.PromptDTO>> dtoUnis = prompts.stream()
+                                List<Uni<PromptDTO>> dtoUnis = prompts.stream()
                                         .map(prompt -> promptService.getDTO(prompt.getId(), user, LanguageCode.en))
                                         .collect(Collectors.toList());
                                 return Uni.join().all(dtoUnis).andFailFast();
@@ -701,7 +703,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 });
     }
 
-    public Uni<List<io.kneo.broadcaster.dto.DraftDTO>> getDraftsByPromptId(UUID promptId, IUser user) {
+    public Uni<List<DraftDTO>> getDraftsByPromptId(UUID promptId, IUser user) {
         assert promptService != null;
         assert draftService != null;
         return promptService.getById(promptId, user)
@@ -711,7 +713,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     }
                     return draftService.getById(prompt.getDraftId(), user)
                             .chain(draft -> draftService.getDTO(draft.getId(), user, LanguageCode.en)
-                                    .map(dto -> List.<io.kneo.broadcaster.dto.DraftDTO>of(dto)));
+                                    .map(List::<DraftDTO>of));
                 })
                 .onFailure().recoverWithItem(List.<io.kneo.broadcaster.dto.DraftDTO>of());
     }
@@ -817,7 +819,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             clonedPrompt.setPrompt(originalPrompt.getPrompt());
             clonedPrompt.setDescription(originalPrompt.getDescription());
             clonedPrompt.setPromptType(originalPrompt.getPromptType());
-            clonedPrompt.setLanguageCode(originalPrompt.getLanguageCode());
+            clonedPrompt.setLanguageTag(originalPrompt.getLanguageTag());
             clonedPrompt.setEnabled(originalPrompt.isEnabled());
             clonedPrompt.setMaster(originalPrompt.isMaster());
             clonedPrompt.setLocked(originalPrompt.isLocked());
@@ -837,7 +839,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     clonedPrompt.setPrompt(originalPrompt.getPrompt());
                     clonedPrompt.setDescription(originalPrompt.getDescription());
                     clonedPrompt.setPromptType(originalPrompt.getPromptType());
-                    clonedPrompt.setLanguageCode(originalPrompt.getLanguageCode());
+                    clonedPrompt.setLanguageTag(originalPrompt.getLanguageTag());
                     clonedPrompt.setEnabled(originalPrompt.isEnabled());
                     clonedPrompt.setMaster(originalPrompt.isMaster());
                     clonedPrompt.setLocked(originalPrompt.isLocked());
@@ -855,7 +857,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     clonedPrompt.setPrompt(originalPrompt.getPrompt());
                     clonedPrompt.setDescription(originalPrompt.getDescription());
                     clonedPrompt.setPromptType(originalPrompt.getPromptType());
-                    clonedPrompt.setLanguageCode(originalPrompt.getLanguageCode());
+                    clonedPrompt.setLanguageTag(originalPrompt.getLanguageTag());
                     clonedPrompt.setEnabled(originalPrompt.isEnabled());
                     clonedPrompt.setMaster(originalPrompt.isMaster());
                     clonedPrompt.setLocked(originalPrompt.isLocked());
@@ -874,7 +876,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         DraftDTO clonedDraftDTO = new DraftDTO();
         clonedDraftDTO.setTitle(originalDraft.getTitle());
         clonedDraftDTO.setContent(originalDraft.getContent());
-        clonedDraftDTO.setLanguageCode(originalDraft.getLanguageCode());
+        clonedDraftDTO.setLanguageTag(originalDraft.getLanguageTag());
         clonedDraftDTO.setEnabled(originalDraft.isEnabled());
         clonedDraftDTO.setMaster(originalDraft.isMaster());
         clonedDraftDTO.setLocked(originalDraft.isLocked());

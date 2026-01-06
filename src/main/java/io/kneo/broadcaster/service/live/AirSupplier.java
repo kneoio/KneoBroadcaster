@@ -7,6 +7,7 @@
     import io.kneo.broadcaster.dto.cnst.StreamType;
     import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
     import io.kneo.broadcaster.model.brand.AiOverriding;
+    import io.kneo.broadcaster.model.cnst.LanguageTag;
     import io.kneo.broadcaster.model.cnst.ManagedBy;
     import io.kneo.broadcaster.model.stream.IStream;
     import io.kneo.broadcaster.model.stream.OneTimeStream;
@@ -139,9 +140,9 @@
 
         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .flatMap(agent -> {
-                    LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
+                    LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                     liveRadioStation.setSlugName(stream.getSlugName());
-                    liveRadioStation.setName(stream.getLocalizedName().get(broadcastingLanguage));
+                    liveRadioStation.setName(stream.getLocalizedName().get(broadcastingLanguage.toLanguageCode()));
                     String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(stream, agent);
                     String additionalInstruction;
                     AiOverriding overriding = stream.getAiOverriding();

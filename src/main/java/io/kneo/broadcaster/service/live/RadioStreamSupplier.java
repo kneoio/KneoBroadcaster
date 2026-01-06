@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -13,7 +14,6 @@ import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.AiHelperUtils;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -53,7 +53,7 @@ public class RadioStreamSupplier extends StreamSupplier {
     public Uni<Tuple2<List<SongPromptDTO>, String>> fetchStuffForRadioStream(
             RadioStream stream,
             AiAgent agent,
-            LanguageCode broadcastingLanguage,
+            LanguageTag broadcastingLanguage,
             String additionalInstruction,
             MessageSink messageSink
     ) {
@@ -106,7 +106,7 @@ public class RadioStreamSupplier extends StreamSupplier {
                                     .map(masterId ->
                                             promptService.getById(masterId, SuperUser.build())
                                                     .flatMap(masterPrompt -> {
-                                                        if (masterPrompt.getLanguageCode() == broadcastingLanguage) {
+                                                        if (masterPrompt.getLanguageTag() == broadcastingLanguage) {
                                                             return Uni.createFrom().item(masterPrompt);
                                                         }
                                                         return promptService

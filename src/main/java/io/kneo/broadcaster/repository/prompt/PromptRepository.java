@@ -5,8 +5,8 @@ import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.PromptType;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -128,7 +128,7 @@ public class PromptRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
+    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag, boolean includeArchived) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
                 " WHERE master_id = $1 AND language_code = $2";
 
@@ -137,7 +137,7 @@ public class PromptRepository extends AsyncRepository {
         }
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(masterId, languageCode.name()))
+                .execute(Tuple.of(masterId, languageTag.name()))
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
@@ -152,7 +152,7 @@ public class PromptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, description, prompt_type, language_code, is_master, locked, title, backup, podcast, draft_id, master_id, version) " +
+                        " (author, reg_date, last_mod_user, last_mod_date, enabled, prompt, description, prompt_type, language_tag, is_master, locked, title, backup, podcast, draft_id, master_id, version) " +
                         "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
@@ -166,7 +166,7 @@ public class PromptRepository extends AsyncRepository {
                         .addString(prompt.getPrompt())
                         .addString(prompt.getDescription())
                         .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
-                        .addString(prompt.getLanguageCode().name())
+                        .addString(prompt.getLanguageTag().tag())
                         .addBoolean(prompt.isMaster())
                         .addBoolean(prompt.isLocked())
                         .addString(prompt.getTitle())
@@ -202,7 +202,7 @@ public class PromptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET enabled=$1, prompt=$2, description=$3, prompt_type=$4, language_code=$5, is_master=$6, locked=$7, title=$8, backup=$9, podcast=$10, draft_id=$11, master_id=$12, version=$13, last_mod_user=$14, last_mod_date=$15 " +
+                                    " SET enabled=$1, prompt=$2, description=$3, prompt_type=$4, language_tag=$5, is_master=$6, locked=$7, title=$8, backup=$9, podcast=$10, draft_id=$11, master_id=$12, version=$13, last_mod_user=$14, last_mod_date=$15 " +
                                     "WHERE id=$16";
 
                             OffsetDateTime now = OffsetDateTime.now();
@@ -212,7 +212,7 @@ public class PromptRepository extends AsyncRepository {
                                     .addString(prompt.getPrompt())
                                     .addString(prompt.getDescription())
                                     .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
-                                    .addString(prompt.getLanguageCode().name())
+                                    .addString(prompt.getLanguageTag().name())
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
                                     .addString(prompt.getTitle())
@@ -247,7 +247,7 @@ public class PromptRepository extends AsyncRepository {
         doc.setPrompt(row.getString("prompt"));
         doc.setDescription(row.getString("description"));
         doc.setPromptType(PromptType.valueOf(row.getString("prompt_type")));
-        doc.setLanguageCode(LanguageCode.valueOf(row.getString("language_code")));
+        doc.setLanguageTag(LanguageTag.fromTag(row.getString("language_tag")));
         doc.setMaster(row.getBoolean("is_master"));
         doc.setLocked(row.getBoolean("locked"));
         doc.setTitle(row.getString("title"));

@@ -16,6 +16,7 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
@@ -100,7 +101,7 @@ public class AiHelperService {
         return listenerService.getAiBrandListenerByTelegramName(telegramName);
     }
 
-    public Uni<AvailableStationsAiDTO> getAllStations(List<RadioStationStatus> statuses, String country, LanguageCode djLanguage, String query) {
+    public Uni<AvailableStationsAiDTO> getAllStations(List<RadioStationStatus> statuses, String country, LanguageTag djLanguage, String query) {
         return brandService.getAllDTOFiltered(1000, 0, SuperUser.build(), country, query)
                 .flatMap(stations -> {
                     if (stations == null || stations.isEmpty()) {
@@ -122,7 +123,7 @@ public class AiHelperService {
                                     return aiAgentService.getById(dto.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                                             .map(agent -> {
                                                 boolean supports = agent.getPreferredLang().stream()
-                                                        .anyMatch(p -> p.getCode() == djLanguage);
+                                                        .anyMatch(p -> p.getLanguageTag() == djLanguage);
                                                 if (!supports) {
                                                     return null;
                                                 }
@@ -214,9 +215,9 @@ public class AiHelperService {
         b.setRadioStationStatus(brandDTO.getStatus());
         if (agent != null) {
             b.setDjName(agent.getName());
-            List<LanguageCode> langs = agent.getPreferredLang().stream()
+            List<LanguageTag> langs = agent.getPreferredLang().stream()
                     .sorted(Comparator.comparingDouble(LanguagePreference::getWeight).reversed())
-                    .map(LanguagePreference::getCode)
+                    .map(LanguagePreference::getLanguageTag)
                     .collect(Collectors.toList());
             b.setAiAgentLang(langs);
         }

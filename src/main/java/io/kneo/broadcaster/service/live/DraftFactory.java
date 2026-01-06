@@ -11,6 +11,7 @@ import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.RadioStream;
@@ -73,18 +74,18 @@ public class DraftFactory {
             AiAgent agent,
             IStream stream,
             UUID draftId,
-            LanguageCode selectedLanguage,
+            LanguageTag selectedLanguage,
             Map<String, Object> userVariables
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
-                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
+                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();
         
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, stream.getSlugName(), LanguageCode.en),  //the drafts always un ENG
                         profileService.getById(stream.getProfileId()),
-                        resolveGenreNames(song, selectedLanguage),
+                        resolveGenreNames(song, selectedLanguage.toLanguageCode()),
                         copilotUni,
                         listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null)
                 )
@@ -123,7 +124,7 @@ public class DraftFactory {
             SoundFragment song,
             AiAgent agent,
             Brand station,
-            LanguageCode selectedLanguage,
+            LanguageTag selectedLanguage,
             Map<String, Object> userVariables
     ) {
         RadioStream radioStream = new RadioStream();
@@ -131,13 +132,13 @@ public class DraftFactory {
         radioStream.setCountry(station.getCountry());
         radioStream.setLocalizedName(station.getLocalizedName());
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
-                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage)
+                ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();
         
         return Uni.combine().all()
                 .unis(
                         profileService.getById(station.getProfileId()),
-                        resolveGenreNames(song, selectedLanguage),
+                        resolveGenreNames(song, selectedLanguage.toLanguageCode()),
                         copilotUni,
                         listenerService.getBrandListeners(station.getSlugName(), 500, 0, SuperUser.build(), null)
                 )
@@ -193,7 +194,7 @@ public class DraftFactory {
             Profile profile,
             List<String> genres,
             List<BrandListenerDTO> listeners,
-            LanguageCode selectedLanguage,
+            LanguageTag selectedLanguage,
             Map<String, Object> userVariables
     ) {
         String countryIso = stream.getCountry().getIsoCode();

@@ -91,7 +91,7 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
                 if (inputStream == null) {
                     throw new RuntimeException("voices.json file not found in resources");
                 }
-                return objectMapper.readValue(inputStream, new TypeReference<List<VoiceDTO>>() {});
+                return objectMapper.readValue(inputStream, new TypeReference<>() {});
             } catch (IOException e) {
                 throw new RuntimeException("Error reading voices.json", e);
             }
@@ -145,10 +145,6 @@ public class RefService extends AbstractService<Genre, GenreDTO> implements IRES
 
     public Uni<Integer> getAllLabelsCount() {
         return labelRepository.getAllCount();
-    }
-
-    public Uni<LabelDTO> getLabelById(UUID uuid) {
-        return labelRepository.findById(uuid).chain(this::mapLabelToDTO);
     }
 
     private Uni<LabelDTO> mapLabelToDTO(Label doc) {

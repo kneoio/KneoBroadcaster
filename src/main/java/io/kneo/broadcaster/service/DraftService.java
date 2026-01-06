@@ -5,7 +5,9 @@ import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.ScriptVariable;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
 import io.kneo.broadcaster.service.live.DraftFactory;
@@ -126,8 +128,8 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         return repository.archive(UUID.fromString(id), user);
     }
 
-    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
-        return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived);
+    public Uni<Draft> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag, boolean includeArchived) {
+        return repository.findByMasterAndLanguage(masterId, languageTag, includeArchived);
     }
 
     private Uni<DraftDTO> mapToDTO(Draft doc) {
@@ -144,7 +146,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
             dto.setTitle(doc.getTitle());
             dto.setContent(doc.getContent());
             dto.setDescription(doc.getDescription());
-            dto.setLanguageCode(doc.getLanguageCode());
+            dto.setLanguageTag(doc.getLanguageTag());
             dto.setArchived(doc.getArchived());
             dto.setEnabled(doc.isEnabled());
             dto.setMaster(doc.isMaster());
@@ -160,7 +162,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         doc.setTitle(dto.getTitle());
         doc.setContent(dto.getContent());
         doc.setDescription(dto.getDescription());
-        doc.setLanguageCode(dto.getLanguageCode());
+        doc.setLanguageTag(dto.getLanguageTag());
         doc.setArchived(dto.getArchived());
         doc.setEnabled(dto.isEnabled());
         doc.setMaster(dto.isMaster());
@@ -175,7 +177,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                 .chain(station -> soundFragmentService.getById(dto.getSongId(), user)
                         .chain(song -> aiAgentService.getById(dto.getAgentId(), user, LanguageCode.en)
                                 .chain(agent -> {
-                                    LanguageCode selectedLanguage = selectLanguageByWeight(agent);
+                                    LanguageTag selectedLanguage = selectLanguageByWeight(agent);
                                     return draftFactory.createDraftFromCode(
                                             dto.getCode(),
                                             song,
@@ -189,15 +191,15 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
                 );
     }
 
-    private LanguageCode selectLanguageByWeight(io.kneo.broadcaster.model.aiagent.AiAgent agent) {
+    private LanguageTag selectLanguageByWeight(AiAgent agent) {
         List<LanguagePreference> preferences = agent.getPreferredLang();
         if (preferences == null || preferences.isEmpty()) {
             LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
-            return LanguageCode.en;
+            return LanguageTag.EN_GB;
         }
 
         if (preferences.size() == 1) {
-            return preferences.getFirst().getCode();
+            return preferences.getFirst().getLanguageTag();
         }
 
         double totalWeight = preferences.stream()
@@ -206,7 +208,7 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
 
         if (totalWeight <= 0) {
             LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
-            return preferences.getFirst().getCode();
+            return preferences.getFirst().getLanguageTag();
         }
 
         Random random = new Random();
@@ -215,11 +217,11 @@ public class DraftService extends AbstractService<Draft, DraftDTO> {
         for (LanguagePreference pref : preferences) {
             cumulativeWeight += pref.getWeight();
             if (randomValue <= cumulativeWeight) {
-                return pref.getCode();
+                return pref.getLanguageTag();
             }
         }
 
-        return preferences.getFirst().getCode();
+        return preferences.getFirst().getLanguageTag();
     }
 
     private Uni<Void> updateScriptsRequiredVariables(UUID draftId) {

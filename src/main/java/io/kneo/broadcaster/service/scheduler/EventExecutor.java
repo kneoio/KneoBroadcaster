@@ -16,6 +16,7 @@ import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventType;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -182,7 +183,7 @@ public class EventExecutor {
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> aiAgentService.getById(stationStream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                         .chain(agent -> {
-                            LanguageCode broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
+                            LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                             return draftFactory.createDraft(fragment, agent, stationStream, prompt.getDraftId(), broadcastingLanguage, null)
                                     .chain(draft -> generateText(prompt, draft))
                                     .chain(ttsText -> {

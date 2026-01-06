@@ -12,6 +12,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class LanguagePreferenceDTO {
-    private String code;
+    private String languageTag;
     private double weight;
 }

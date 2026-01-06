@@ -4,9 +4,9 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
-import io.kneo.core.localization.LanguageCode;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -156,9 +156,9 @@ public class AiHelperController {
             if (djLangParam == null) {
                 djLangParam = rc.queryParam("djlanguage").isEmpty() ? null : rc.queryParam("djlanguage").getFirst();
             }
-            LanguageCode djLanguage = null;
+            LanguageTag djLanguage = null;
             if (djLangParam != null && !djLangParam.trim().isEmpty()) {
-                djLanguage = LanguageCode.valueOf(djLangParam.trim().toLowerCase());
+                djLanguage = LanguageTag.valueOf(djLangParam.trim().toLowerCase());
             }
 
             String query = rc.queryParam("q").isEmpty() ? null : rc.queryParam("q").getFirst();

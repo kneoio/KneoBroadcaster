@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.Prompt;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -84,7 +85,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         return repository.delete(UUID.fromString(id), user);
     }
 
-    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageCode languageCode, boolean includeArchived) {
+    public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageCode, boolean includeArchived) {
         return repository.findByMasterAndLanguage(masterId, languageCode, includeArchived);
     }
 
@@ -103,7 +104,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
             dto.setPrompt(doc.getPrompt());
             dto.setDescription(doc.getDescription());
             dto.setPromptType(doc.getPromptType());
-            dto.setLanguageCode(doc.getLanguageCode());
+            dto.setLanguageTag(doc.getLanguageTag());
             dto.setMaster(doc.isMaster());
             dto.setLocked(doc.isLocked());
             dto.setTitle(doc.getTitle());
@@ -123,7 +124,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         doc.setPrompt(dto.getPrompt());
         doc.setDescription(dto.getDescription());
         doc.setPromptType(dto.getPromptType());
-        doc.setLanguageCode(dto.getLanguageCode());
+        doc.setLanguageTag(dto.getLanguageTag());
         doc.setMaster(dto.isMaster());
         doc.setLocked(dto.isLocked());
         doc.setTitle(dto.getTitle());

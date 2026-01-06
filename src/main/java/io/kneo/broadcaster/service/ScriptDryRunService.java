@@ -10,6 +10,7 @@ import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.brand.Brand;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.service.live.DraftFactory;
@@ -259,7 +260,7 @@ public class ScriptDryRunService {
                     emptyMemory.setMessages(List.of());
                     emptyMemory.setEvents(List.of());
                     
-                    return draftFactory.createDraftFromCode(draft.getContent(), song, context.agent, context.station, LanguageCode.en, null)
+                    return draftFactory.createDraftFromCode(draft.getContent(), song, context.agent, context.station, LanguageTag.EN_US, null)
                             .onFailure().invoke(err -> {
                                 assert song != null;
                                 String errorDetail = String.format("Failed to render draft template. Prompt: '%s', Draft: '%s', Station: '%s', Song: %s, Agent: %s. Error: %s",

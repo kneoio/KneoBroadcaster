@@ -3,8 +3,8 @@ package io.kneo.broadcaster.util;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.stream.IStream;
-import io.kneo.core.localization.LanguageCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,15 +23,15 @@ public final class AiHelperUtils {
         return randomValue < jingleProbability;
     }
 
-    public static LanguageCode selectLanguageByWeight(AiAgent agent) {
+    public static LanguageTag selectLanguageByWeight(AiAgent agent) {
         List<LanguagePreference> preferences = agent.getPreferredLang();
         if (preferences == null || preferences.isEmpty()) {
             LOGGER.warn("Agent '{}' has no language preferences, defaulting to English", agent.getName());
-            return LanguageCode.en;
+            return LanguageTag.EN_GB;
         }
 
         if (preferences.size() == 1) {
-            return preferences.getFirst().getCode();
+            return preferences.getFirst().getLanguageTag();
         }
 
         double totalWeight = preferences.stream()
@@ -40,7 +40,7 @@ public final class AiHelperUtils {
 
         if (totalWeight <= 0) {
             LOGGER.warn("Agent '{}' has invalid weights (total <= 0), using first language", agent.getName());
-            return preferences.getFirst().getCode();
+            return preferences.getFirst().getLanguageTag();
         }
 
         double randomValue = new Random().nextDouble() * totalWeight;
@@ -48,11 +48,11 @@ public final class AiHelperUtils {
         for (LanguagePreference pref : preferences) {
             cumulativeWeight += pref.getWeight();
             if (randomValue <= cumulativeWeight) {
-                return pref.getCode();
+                return pref.getLanguageTag();
             }
         }
 
-        return preferences.getFirst().getCode();
+        return preferences.getFirst().getLanguageTag();
     }
 
     public static String resolvePrimaryVoiceId(IStream currentStream, AiAgent agent) {

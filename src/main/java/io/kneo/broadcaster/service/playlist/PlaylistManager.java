@@ -96,7 +96,7 @@ public class PlaylistManager {
     private boolean isWaitingStateActive = false;
     private List<String> waitingMessages = new ArrayList<>();
     private int currentMessageIndex = 0;
-    private Map<Long, List<HlsSegment>> originalWaitingSegments = new ConcurrentHashMap<>();
+    private final Map<Long, List<HlsSegment>> originalWaitingSegments = new ConcurrentHashMap<>();
 
 
     public PlaylistManager(HlsPlaylistConfig hlsPlaylistConfig,
@@ -384,7 +384,7 @@ public class PlaylistManager {
             Files.copy(resourceStream, tempWaitingFile, StandardCopyOption.REPLACE_EXISTING);
             resourceStream.close();
 
-            SongMetadata waitingMetadata = new SongMetadata(getNextWaitingMessage(), "System");
+            SongMetadata waitingMetadata = new SongMetadata(getNextWaitingMessage(), "");
             segmentationService.slice(waitingMetadata, tempWaitingFile, List.of(stream.getBitRate()))
                     .subscribe().with(
                             segments -> {
@@ -418,13 +418,7 @@ public class PlaylistManager {
         try {
             InputStream messageStream = getClass().getClassLoader().getResourceAsStream("waiting_messages.txt");
             if (messageStream == null) {
-                LOGGER.warn("waiting_messages.txt not found in resources, using default messages");
-                waitingMessages = List.of(
-                    "DJ is preparing the show...",
-                    "Your DJ is getting ready!",
-                    "Setting up the studio...",
-                    "Almost ready to go live!"
-                );
+                LOGGER.warn("the entity for waiting messages not found in resources");
                 return;
             }
 
@@ -461,7 +455,7 @@ public class PlaylistManager {
 
         LiveSoundFragment loopedFragment = new LiveSoundFragment();
         loopedFragment.setSoundFragmentId(waitingStateFragment.getSoundFragmentId());
-        loopedFragment.setMetadata(new SongMetadata(waitingStateFragment.getMetadata().getTitle(), "System"));
+        loopedFragment.setMetadata(new SongMetadata(waitingStateFragment.getMetadata().getTitle(), ""));
         loopedFragment.setSourceFilePath(waitingStateFragment.getSourceFilePath());
         loopedFragment.setPriority(999);
 

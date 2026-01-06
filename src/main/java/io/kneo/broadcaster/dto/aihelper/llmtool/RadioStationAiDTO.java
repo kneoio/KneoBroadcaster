@@ -2,6 +2,7 @@ package io.kneo.broadcaster.dto.aihelper.llmtool;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.core.localization.LanguageCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -27,5 +28,5 @@ public class RadioStationAiDTO {
     private String djName;
     private String overriddenDjName;
     private String additionalUserInstruction;
-    private List<LanguageCode> aiAgentLang;
+    private List<LanguageTag> aiAgentLang;
 }

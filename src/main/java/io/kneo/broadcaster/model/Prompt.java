@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model;
 
 import io.kneo.broadcaster.model.aiagent.PromptType;
-import io.kneo.core.localization.LanguageCode;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.core.model.SecureDataEntity;
 import io.vertx.core.json.JsonObject;
 import lombok.Getter;
@@ -16,7 +16,7 @@ public class Prompt extends SecureDataEntity<UUID> {
     private String prompt;
     private String description;
     private PromptType promptType;
-    private LanguageCode languageCode;
+    private LanguageTag languageTag;
     private boolean master;
     private boolean locked;
     private String title;

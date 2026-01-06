@@ -178,7 +178,7 @@ public abstract class ChatService {
                 String djCopilotName = "";
                 djLanguages = agent.getPreferredLang().stream()
                         .sorted(java.util.Comparator.comparingDouble(io.kneo.broadcaster.model.aiagent.LanguagePreference::getWeight).reversed())
-                        .map(lp -> lp.getCode().name())
+                        .map(lp -> lp.getLanguageTag().name())
                         .reduce((a, b) -> a + "," + b).orElse("");
                 djPrimaryVoices = agent.getPrimaryVoice().stream()
                         .findFirst()

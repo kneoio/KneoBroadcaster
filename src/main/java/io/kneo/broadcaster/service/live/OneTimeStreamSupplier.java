@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -13,7 +14,6 @@ import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -58,7 +58,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     public Uni<Tuple2<List<SongPromptDTO>, String>> fetchOneTimeStreamPrompt(
             OneTimeStream stream,
             AiAgent agent,
-            LanguageCode broadcastingLanguage,
+            LanguageTag broadcastingLanguage,
             String additionalInstruction
     ) {
         SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
@@ -167,7 +167,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                 .map(id ->
                                         promptService.getById(id, SuperUser.build())
                                                 .flatMap(master -> {
-                                                    if (master.getLanguageCode() == broadcastingLanguage) {
+                                                    if (master.getLanguageTag() == broadcastingLanguage) {
                                                         return Uni.createFrom().item(master);
                                                     }
                                                     return promptService

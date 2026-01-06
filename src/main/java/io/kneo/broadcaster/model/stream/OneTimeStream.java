@@ -13,8 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,16 +46,15 @@ public class OneTimeStream extends AbstractStream {
         this.userVariables = userVariables;
         this.createdAt = LocalDateTime.now();
         this.managedBy = ManagedBy.DJ;
-        String displayName = buildDisplayName();
+        String displayName = script.getName();
         if (displayName.length() > 40) {
-            displayName = displayName.substring(0, 40);
+            displayName = displayName.substring(0, 40) + "...";
         }
-        EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-        String slugBase = displayName + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF));
-        this.slugName = WebHelper.generateSlug(slugBase);
+        this.slugName = WebHelper.generateSlug(displayName) + "-" + Integer.toHexString((int) (Math.random() * 0xFFFFFF));
         if (this.slugName.length() > 50) {
             this.slugName = this.slugName.substring(0, 50);
         }
+        EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
         localizedName.put(LanguageCode.en, displayName);
         this.localizedName = localizedName;
         this.timeZone = masterBrand.getTimeZone();
@@ -104,28 +101,4 @@ public class OneTimeStream extends AbstractStream {
         fetchedSongsByScene.remove(sceneId);
     }
 
-    private String buildDisplayName() {
-        String base =
-                script.getSlugName() != null && !script.getSlugName().trim().isEmpty()
-                        ? script.getSlugName()
-                        : script.getName();
-
-        List<String> parts = new ArrayList<>();
-        parts.add(base);
-
-        if (userVariables != null && !userVariables.isEmpty()) {
-            userVariables.entrySet().stream()
-                    .sorted(Comparator.comparing(Map.Entry::getKey))
-                    .forEach(e -> {
-                        Object v = e.getValue();
-                        if (v != null) {
-                            String s = v.toString().trim();
-                            if (!s.isEmpty()) {
-                                parts.add(s);
-                            }
-                        }
-                    });
-        }
-        return String.join(" ", parts);
-    }
 }

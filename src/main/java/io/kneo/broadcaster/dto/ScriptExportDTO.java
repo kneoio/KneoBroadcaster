@@ -47,7 +47,7 @@ public class ScriptExportDTO {
         private boolean active;
         private BigDecimal weight;
         private String prompt;
-        private String languageCode;
+        private String languageTag;
         private PromptDraftDTO draft;
     }
 
@@ -58,7 +58,7 @@ public class ScriptExportDTO {
     public static class PromptDraftDTO {
         private UUID id;
         private String content;
-        private String languageCode;
+        private String languageTag;
     }
 }
 

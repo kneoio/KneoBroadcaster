@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.aiagent.SearchEngineType;
 import io.kneo.broadcaster.model.aiagent.Voice;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.AiAgentRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
@@ -97,7 +98,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             
             if (doc.getPreferredLang() != null && !doc.getPreferredLang().isEmpty()) {
                 List<LanguagePreferenceDTO> langPrefDTOs = doc.getPreferredLang().stream()
-                        .map(pref -> new LanguagePreferenceDTO(pref.getCode().name(), pref.getWeight()))
+                        .map(pref -> new LanguagePreferenceDTO(pref.getLanguageTag().tag(), pref.getWeight()))
                         .toList();
                 dto.setPreferredLang(langPrefDTOs);
             }
@@ -131,9 +132,12 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         
         if (dto.getPreferredLang() != null && !dto.getPreferredLang().isEmpty()) {
             List<LanguagePreference> langPrefs = dto.getPreferredLang().stream()
-                    .map(prefDto -> new LanguagePreference(
-                            LanguageCode.valueOf(prefDto.getCode()),
-                            prefDto.getWeight()))
+                    .map(prefDto -> {
+                            LanguagePreference pref = new LanguagePreference();
+                            pref.setWeight(prefDto.getWeight());
+                            pref.setLanguageTag(LanguageTag.fromTag(prefDto.getLanguageTag()));
+                            return pref;
+                    })
                     .collect(Collectors.toList());
             doc.setPreferredLang(langPrefs);
         }

@@ -445,7 +445,7 @@ public class RadioService {
                             slugName,
                             managedByType,
                             djName,
-                            selectedLang.name().toUpperCase(),
+                            selectedLang.toLanguageCode().name(),
                             resolvedAgentStatus,
                             currentStatus,
                             stationCountryCode,

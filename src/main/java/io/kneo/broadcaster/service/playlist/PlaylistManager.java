@@ -123,10 +123,10 @@ public class PlaylistManager {
         }
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
-        LOGGER.info("Created PlaylistManager for brand: {} with waiting message language: {}", brandSlug, waitingMessageLang.tag());
-        
+
         if (stream instanceof OneTimeStream) {
             initializeWaitingState(waitingMessageLang);
+            LOGGER.info("Created PlaylistManager for brand: {} with waiting message language: {}", brandSlug, waitingMessageLang.tag());
         }
     }
 

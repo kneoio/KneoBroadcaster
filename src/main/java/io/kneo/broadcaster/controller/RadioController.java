@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.model.cnst.RatingAction;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.ScriptService;
@@ -236,11 +236,11 @@ public class RadioController {
                                             LOGGER.warn("Stream {} not found in OneTimeStreamService either", brand);
                                             return Uni.createFrom().failure(ex);
                                         }
-                                        if (oneTimeStream.getStatus() == RadioStationStatus.OFF_LINE) {
-                                            LOGGER.info("OneTimeStream {} is OFF_LINE (was stopped), not restarting", brand);
+                                        if (oneTimeStream.getStatus() == StreamStatus.OFF_LINE || oneTimeStream.getStatus() == StreamStatus.FINISHED) {
+                                            LOGGER.info("OneTimeStream {} is {} (was stopped/finished), not restarting", brand, oneTimeStream.getStatus());
                                             return Uni.createFrom().failure(ex);
                                         }
-                                        if (oneTimeStream.getStatus() == RadioStationStatus.PENDING) {
+                                        if (oneTimeStream.getStatus() == StreamStatus.PENDING) {
                                             LOGGER.info("Found PENDING OneTimeStream {}, starting it now for first listener", brand);
                                             return oneTimeStreamService.start(oneTimeStream)
                                                     .chain(started -> service.getStreamManager(brand));

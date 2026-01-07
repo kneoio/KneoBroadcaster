@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.dto.stream;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.core.localization.LanguageCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -28,7 +28,7 @@ public class OneTimeStreamDTO {
     private List<BrandScriptEntry> scripts;
     private String timeZone;
     private long bitRate;
-    private RadioStationStatus status = RadioStationStatus.OFF_LINE;
+    private StreamStatus status = StreamStatus.OFF_LINE;
     private UUID baseBrandId;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;

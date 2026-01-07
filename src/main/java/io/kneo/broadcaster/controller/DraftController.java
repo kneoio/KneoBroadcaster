@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.agentrest.DraftTestReqDTO;
 import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.DraftFilterDTO;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.TranslateService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -170,7 +172,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                 .chain(user -> {
                     if ("new".equals(id)) {
                         DraftDTO dto = new DraftDTO();
-                        dto.setLanguageCode(LanguageCode.en);
+                        dto.setLanguageTag(LanguageTag.EN_US);
                         dto.setArchived(0);
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }
@@ -365,12 +367,11 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
         resp.putHeader("Cache-Control", "no-cache");
         resp.putHeader("Connection", "keep-alive");
 
-        java.util.function.Consumer<io.kneo.broadcaster.service.TranslateService.SseEvent> consumer = ev -> {
+        Consumer<TranslateService.SseEvent> consumer = ev -> {
             try {
-                StringBuilder sb = new StringBuilder();
-                sb.append("event: ").append(ev.type()).append('\n');
-                sb.append("data: ").append(ev.data() != null ? ev.data().encode() : "{}").append('\n').append('\n');
-                resp.write(sb.toString());
+                String sb = "event: " + ev.type() + '\n' +
+                        "data: " + (ev.data() != null ? ev.data().encode() : "{}") + '\n' + '\n';
+                resp.write(sb);
             } catch (Exception ignored) { }
         };
 

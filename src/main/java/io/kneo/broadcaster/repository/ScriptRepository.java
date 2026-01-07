@@ -7,9 +7,9 @@ import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.ScriptFilter;
 import io.kneo.broadcaster.model.ScriptVariable;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.repository.AsyncRepository;
@@ -52,11 +52,11 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final ScriptFilter filter) {
         String sql = """
-            SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
-            FROM %s t
-            JOIN %s rls ON t.id = rls.entity_id
-            WHERE rls.reader = %s
-        """.formatted(entityData.getTableName(), entityData.getRlsName(), user.getId());
+                    SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
+                    FROM %s t
+                    JOIN %s rls ON t.id = rls.entity_id
+                    WHERE rls.reader = %s
+                """.formatted(entityData.getTableName(), entityData.getRlsName(), user.getId());
 
         if (!includeArchived) {
             sql += " AND t.archived = 0";
@@ -127,7 +127,9 @@ public class ScriptRepository extends AsyncRepository {
         if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
             conditions.append(" AND EXISTS (SELECT 1 FROM mixpla_script_labels sl2 WHERE sl2.script_id = t.id AND sl2.label_id IN (");
             for (int i = 0; i < filter.getLabels().size(); i++) {
-                if (i > 0) conditions.append(", ");
+                if (i > 0) {
+                    conditions.append(", ");
+                }
                 conditions.append("'").append(filter.getLabels().get(i).toString()).append("'");
             }
             conditions.append("))");
@@ -150,12 +152,12 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user, final ScriptFilter filter) {
         String sql = """
-            SELECT t.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
-            FROM %s t
-            WHERE (t.access_level = 1 OR EXISTS (
-                SELECT 1 FROM %s rls WHERE rls.entity_id = t.id AND rls.reader = %s
-            )) AND t.archived = 0
-        """.formatted(entityData.getTableName(), entityData.getRlsName(), user.getId());
+                    SELECT t.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels
+                    FROM %s t
+                    WHERE (t.access_level = 1 OR EXISTS (
+                        SELECT 1 FROM %s rls WHERE rls.entity_id = t.id AND rls.reader = %s
+                    )) AND t.archived = 0
+                """.formatted(entityData.getTableName(), entityData.getRlsName(), user.getId());
 
         if (filter != null && filter.isActivated()) {
             sql += buildFilterConditions(filter);
@@ -208,11 +210,11 @@ public class ScriptRepository extends AsyncRepository {
 
     public Uni<Script> findById(UUID id, IUser user, boolean includeArchived) {
         String sql = """
-            SELECT theTable.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = theTable.id) AS labels
-            FROM %s theTable
-            JOIN %s rls ON theTable.id = rls.entity_id
-            WHERE rls.reader = $1 AND theTable.id = $2
-        """.formatted(entityData.getTableName(), entityData.getRlsName());
+                    SELECT theTable.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = theTable.id) AS labels
+                    FROM %s theTable
+                    JOIN %s rls ON theTable.id = rls.entity_id
+                    WHERE rls.reader = $1 AND theTable.id = $2
+                """.formatted(entityData.getTableName(), entityData.getRlsName());
 
         if (!includeArchived) {
             sql += " AND theTable.archived = 0";
@@ -271,7 +273,7 @@ public class ScriptRepository extends AsyncRepository {
         return Uni.createFrom().deferred(() -> {
             try {
                 String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, name, slug_name, default_profile_id, description, access_level, language_code, timing_mode, required_variables) " +
+                        " (author, reg_date, last_mod_user, last_mod_date, name, slug_name, default_profile_id, description, access_level, language_tag, timing_mode, required_variables) " +
                         "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id";
 
                 OffsetDateTime now = OffsetDateTime.now();
@@ -291,7 +293,7 @@ public class ScriptRepository extends AsyncRepository {
                         .addUUID(script.getDefaultProfileId())
                         .addString(script.getDescription())
                         .addInteger(script.getAccessLevel())
-                        .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
+                        .addString(script.getLanguageTag().tag())
                         .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
                         .addJsonArray(requiredVarsJson);
 
@@ -331,7 +333,7 @@ public class ScriptRepository extends AsyncRepository {
                             }
 
                             String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET name=$1, slug_name=$2, default_profile_id=$3, description=$4, language_code=$5, timing_mode=$6, last_mod_user=$7, last_mod_date=$8, required_variables=$9 " +
+                                    " SET name=$1, slug_name=$2, default_profile_id=$3, description=$4, language_tag=$5, timing_mode=$6, last_mod_user=$7, last_mod_date=$8, required_variables=$9 " +
                                     "WHERE id=$10";
 
                             OffsetDateTime now = OffsetDateTime.now();
@@ -341,7 +343,7 @@ public class ScriptRepository extends AsyncRepository {
                                     .addString(script.getSlugName())
                                     .addUUID(script.getDefaultProfileId())
                                     .addString(script.getDescription())
-                                    .addString(script.getLanguageCode() != null ? script.getLanguageCode().name() : null)
+                                    .addString(script.getLanguageTag().tag())
                                     .addString(script.getTimingMode() != null ? script.getTimingMode().name() : SceneTimingMode.ABSOLUTE_TIME.name())
                                     .addLong(user.getId())
                                     .addOffsetDateTime(now)
@@ -394,10 +396,8 @@ public class ScriptRepository extends AsyncRepository {
         doc.setDescription(row.getString("description"));
         doc.setAccessLevel(row.getInteger("access_level"));
         doc.setArchived(row.getInteger("archived"));
-        String lang = row.getString("language_code");
-        if (lang != null) {
-            doc.setLanguageCode(LanguageCode.valueOf(lang));
-        }
+        String lang = row.getString("language_tag");
+        doc.setLanguageTag(LanguageTag.fromTag(lang));
         String timingMode = row.getString("timing_mode");
         if (timingMode != null) {
             doc.setTimingMode(SceneTimingMode.valueOf(timingMode));
@@ -415,7 +415,8 @@ public class ScriptRepository extends AsyncRepository {
         JsonArray requiredVarsJson = row.getJsonArray("required_variables");
         if (requiredVarsJson != null && !requiredVarsJson.isEmpty()) {
             try {
-                List<ScriptVariable> vars = mapper.readValue(requiredVarsJson.encode(), new TypeReference<>() {});
+                List<ScriptVariable> vars = mapper.readValue(requiredVarsJson.encode(), new TypeReference<>() {
+                });
                 doc.setRequiredVariables(vars);
             } catch (JsonProcessingException e) {
                 doc.setRequiredVariables(new ArrayList<>());
@@ -491,7 +492,7 @@ public class ScriptRepository extends AsyncRepository {
     }
 
     public Uni<List<BrandScript>> findForBrand(UUID brandId, final int limit, final int offset,
-                                                boolean includeArchived, IUser user) {
+                                               boolean includeArchived, IUser user) {
         String sql = "SELECT t.*, bs.rank, bs.active, bs.user_variables, " +
                 "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
                 "FROM " + entityData.getTableName() + " t " +
@@ -547,7 +548,8 @@ public class ScriptRepository extends AsyncRepository {
         JsonObject userVarsJson = row.getJsonObject("user_variables");
         if (userVarsJson != null && !userVarsJson.isEmpty()) {
             try {
-                Map<String, Object> userVars = mapper.readValue(userVarsJson.encode(), new TypeReference<>() {});
+                Map<String, Object> userVars = mapper.readValue(userVarsJson.encode(), new TypeReference<>() {
+                });
                 brandScript.setUserVariables(userVars);
             } catch (JsonProcessingException e) {
                 brandScript.setUserVariables(null);
@@ -561,7 +563,7 @@ public class ScriptRepository extends AsyncRepository {
                 "ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels " +
                 "FROM " + entityData.getTableName() + " t " +
                 "WHERE (t.access_level = 1 OR EXISTS (" +
-                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() + 
+                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() +
                 ")) AND t.archived = 0" +
                 " ORDER BY t.access_level ASC, t.last_mod_date DESC";
 
@@ -586,7 +588,7 @@ public class ScriptRepository extends AsyncRepository {
         String sql = "SELECT COUNT(*) " +
                 "FROM " + entityData.getTableName() + " t " +
                 "WHERE (t.access_level = 1 OR EXISTS (" +
-                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() + 
+                "SELECT 1 FROM " + entityData.getRlsName() + " rls WHERE rls.entity_id = t.id AND rls.reader = " + user.getId() +
                 ")) AND t.archived = 0";
 
         return client.query(sql)

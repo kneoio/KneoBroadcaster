@@ -206,7 +206,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setDefaultProfileId(script.getDefaultProfileId());
             dto.setDescription(script.getDescription());
             dto.setAccessLevel(script.getAccessLevel());
-            dto.setLanguageCode(script.getLanguageCode());
+            dto.setLanguageTag(script.getLanguageTag());
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
             dto.setTimingMode(script.getTimingMode());
@@ -222,7 +222,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         entity.setSlugName(WebHelper.generateSlug(dto.getName()));
         entity.setDefaultProfileId(dto.getDefaultProfileId());
         entity.setDescription(dto.getDescription());
-        entity.setLanguageCode(dto.getLanguageCode());
+        entity.setLanguageTag(dto.getLanguageTag());
         entity.setTimingMode(dto.getTimingMode());
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
@@ -731,7 +731,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     clonedScript.setSlugName(WebHelper.generateSlug(newTitle));
                     clonedScript.setDescription(originalScript.getDescription());
                     clonedScript.setDefaultProfileId(originalScript.getDefaultProfileId());
-                    clonedScript.setLanguageCode(originalScript.getLanguageCode());
+                    clonedScript.setLanguageTag(originalScript.getLanguageTag());
                     clonedScript.setTimingMode(originalScript.getTimingMode());
                     clonedScript.setLabels(originalScript.getLabels());
                     clonedScript.setBrands(originalScript.getBrands());

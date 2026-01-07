@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.officeframe.cnst.CountryCode;
@@ -27,7 +27,7 @@ public abstract class AbstractStream implements IStream {
     protected Brand masterBrand;
     protected String slugName;
     protected EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-    protected RadioStationStatus status = RadioStationStatus.OFF_LINE;
+    protected StreamStatus status = StreamStatus.OFF_LINE;
     protected List<StatusChangeRecord> statusHistory = new LinkedList<>();
     protected LocalDateTime startTime;
     protected IStreamManager streamManager;
@@ -49,7 +49,7 @@ public abstract class AbstractStream implements IStream {
     protected long lastAgentContactAt;
 
     @Override
-    public void setStatus(RadioStationStatus newStatus) {
+    public void setStatus(StreamStatus newStatus) {
         if (this.status != newStatus) {
             StatusChangeRecord record = new StatusChangeRecord(
                     LocalDateTime.now(),

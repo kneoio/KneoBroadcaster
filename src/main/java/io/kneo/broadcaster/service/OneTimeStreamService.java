@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
@@ -165,7 +165,7 @@ public class OneTimeStreamService {
                             .subscribe().with(
                                     station -> {
                                         if (station != null) {
-                                            station.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                            station.setStatus(StreamStatus.SYSTEM_ERROR);
                                             LOGGER.warn("Stream {} status set to SYSTEM_ERROR due to initialization failure", streamSlugName);
                                         }
                                     },
@@ -189,7 +189,7 @@ public class OneTimeStreamService {
                             stream.setProfileId(dto.getProfileId());
                             stream.setStreamSchedule(fromScheduleDTO(dto.getSchedule()));
                             if (!dto.isStartImmediately()) {
-                                stream.setStatus(RadioStationStatus.PENDING);
+                                stream.setStatus(StreamStatus.PENDING);
                             }
                             oneTimeStreamRepository.insert(stream);
                             LOGGER.info("OneTimeStream created: slugName={}, id={}, status={}", stream.getSlugName(), stream.getId(), stream.getStatus());

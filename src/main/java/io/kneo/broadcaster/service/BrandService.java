@@ -2,7 +2,6 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
@@ -12,6 +11,7 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ListenerType;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.dto.DocumentAccessDTO;
@@ -280,7 +280,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                     })
                     .collect(Collectors.toList());
             dto.setScripts(scriptDTOs);
-            RadioStationStatus liveStatus = tuple.getItem3().getStatus();
+            StreamStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
             return dto;
         });

@@ -2,7 +2,7 @@ package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
@@ -79,8 +79,8 @@ public class RadioStationPool {
                 .onItem().transformToUni(bn -> {
                     IStream stationAlreadyActive = pool.get(bn);
                     if (stationAlreadyActive != null &&
-                            (stationAlreadyActive.getStatus() == RadioStationStatus.ON_LINE ||
-                                    stationAlreadyActive.getStatus() == RadioStationStatus.WARMING_UP)) {
+                            (stationAlreadyActive.getStatus() == StreamStatus.ON_LINE ||
+                                    stationAlreadyActive.getStatus() == StreamStatus.WARMING_UP)) {
                         LOGGER.info("Radio Stream {} already active (status: {}) or warming up. Returning existing instance from initial check.", bn, stationAlreadyActive.getStatus());
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
@@ -95,8 +95,8 @@ public class RadioStationPool {
 
                                 IStream finalStationToUse = pool.compute(bn, (key, currentInPool) -> {
                                     if (currentInPool != null &&
-                                            (currentInPool.getStatus() == RadioStationStatus.ON_LINE ||
-                                                    currentInPool.getStatus() == RadioStationStatus.WARMING_UP)) {
+                                            (currentInPool.getStatus() == StreamStatus.ON_LINE ||
+                                                    currentInPool.getStatus() == StreamStatus.WARMING_UP)) {
                                         LOGGER.info("Radio stream {} was concurrently initialized and is active in pool. Using that instance.", key);
                                         return currentInPool;
                                     }
@@ -144,8 +144,8 @@ public class RadioStationPool {
                 .onItem().transformToUni(ots -> {
                     IStream stationAlreadyActive = pool.get(ots.getSlugName());
                     if (stationAlreadyActive != null &&
-                            (stationAlreadyActive.getStatus() == RadioStationStatus.ON_LINE ||
-                                    stationAlreadyActive.getStatus() == RadioStationStatus.WARMING_UP)) {
+                            (stationAlreadyActive.getStatus() == StreamStatus.ON_LINE ||
+                                    stationAlreadyActive.getStatus() == StreamStatus.WARMING_UP)) {
                         LOGGER.info("Stream {} already active (status: {}). Returning existing instance.", ots.getSlugName(), stationAlreadyActive.getStatus());
                         return Uni.createFrom().item(stationAlreadyActive);
                     }
@@ -155,8 +155,8 @@ public class RadioStationPool {
 
                                 IStream finalStationToUse = pool.compute(ots.getSlugName(), (key, currentInPool) -> {
                                     if (currentInPool != null &&
-                                            (currentInPool.getStatus() == RadioStationStatus.ON_LINE ||
-                                                    currentInPool.getStatus() == RadioStationStatus.WARMING_UP)) {
+                                            (currentInPool.getStatus() == StreamStatus.ON_LINE ||
+                                                    currentInPool.getStatus() == StreamStatus.WARMING_UP)) {
                                         LOGGER.info("Stream {} was concurrently initialized and is active in pool. Using that instance.", key);
                                         return currentInPool;
                                     }
@@ -200,14 +200,18 @@ public class RadioStationPool {
                 brand.getStreamManager().shutdown();
             }
             
-            brand.setStatus(RadioStationStatus.OFF_LINE);
+            brand.setStatus(StreamStatus.OFF_LINE);
             
-            if (brand instanceof OneTimeStream) {
+            if (brand instanceof OneTimeStream oneTimeStream) {
                 return oneTimeStreamRepository.getBySlugName(brandName)
                         .onItem().invoke(repoStream -> {
                             if (repoStream != null) {
-                                repoStream.setStatus(RadioStationStatus.OFF_LINE);
-                                LOGGER.info("Updated repository status to OFF_LINE for station: {}", brandName);
+                                // Preserve the current status if it's already FINISHED, otherwise set to OFF_LINE
+                                StreamStatus newStatus = oneTimeStream.getStatus() == StreamStatus.FINISHED 
+                                    ? StreamStatus.FINISHED 
+                                    : StreamStatus.OFF_LINE;
+                                repoStream.setStatus(newStatus);
+                                LOGGER.info("Updated repository status to {} for OneTimeStream station: {}", newStatus, brandName);
                             }
                         })
                         .replaceWith(brand);
@@ -238,7 +242,7 @@ public class RadioStationPool {
         if (brand != null) {
             stats.setStatus(brand.getStatus());
         } else {
-            stats.setStatus(RadioStationStatus.OFF_LINE);
+            stats.setStatus(StreamStatus.OFF_LINE);
             stats.setAiControlAllowed(false);
         }
         return Uni.createFrom().item(stats);

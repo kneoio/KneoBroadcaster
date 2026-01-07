@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service.dashboard;
 
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.dto.dashboard.StatsDTO;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
@@ -47,18 +47,18 @@ public class DashboardService {
             stats.setSlidingWindowSize(config.getMaxSegments());
 
             stats.setOnlineStations((int) stations.stream()
-                    .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE ||
-                            station.getStatus() == RadioStationStatus.IDLE)
+                    .filter(station -> station.getStatus() == StreamStatus.ON_LINE ||
+                            station.getStatus() == StreamStatus.IDLE)
                     .count());
 
             stats.setWarmingStations((int) stations.stream()
-                    .filter(station -> station.getStatus() == RadioStationStatus.WARMING_UP)
+                    .filter(station -> station.getStatus() == StreamStatus.WARMING_UP)
                     .count());
 
             List<StationEntry> stationStats = stations.stream()
-                    .filter(station -> station.getStatus() == RadioStationStatus.ON_LINE ||
-                            station.getStatus() == RadioStationStatus.WARMING_UP ||
-                            station.getStatus() == RadioStationStatus.IDLE)
+                    .filter(station -> station.getStatus() == StreamStatus.ON_LINE ||
+                            station.getStatus() == StreamStatus.WARMING_UP ||
+                            station.getStatus() == StreamStatus.IDLE)
                     .map(s -> new StationEntry(s.getSlugName()))
                     .collect(Collectors.toList());
 

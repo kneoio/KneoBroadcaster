@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.dto.dashboard;
 
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SceneStatus;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import io.kneo.broadcaster.service.stream.HLSSongStats;
@@ -20,7 +20,7 @@ public class StationStatsDTO {
     @Getter
     private String zoneId; // IANA zone, e.g., "Europe/Riga"
     @Getter
-    private RadioStationStatus status;
+    private StreamStatus status;
     @Getter
     private ManagedBy managedBy;
     @Getter

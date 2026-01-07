@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
@@ -81,8 +81,8 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     LOGGER.info("Stream {} completed - scheduled to go offline at {} (delay: {} seconds)", 
                             stream.getSlugName(), offlineAt, delaySeconds);
                 } else if (LocalDateTime.now().isAfter(stream.getScheduledOfflineAt())) {
-                    stream.setStatus(RadioStationStatus.OFF_LINE);
-                    LOGGER.info("Stream {} going offline - scheduled time reached", stream.getSlugName());
+                    stream.setStatus(StreamStatus.FINISHED);
+                    LOGGER.info("Stream {} finished - scheduled time reached", stream.getSlugName());
                 }
             }
             return Uni.createFrom().item(() -> null);

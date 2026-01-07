@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,7 +30,7 @@ public class Script extends SecureDataEntity<UUID> {
                     .comparingInt(Scene::getSeqNum)
                     .thenComparing(Scene::getId));
 
-    private LanguageCode languageCode;
+    private LanguageTag languageTag;
     private SceneTimingMode timingMode;
     private List<ScriptVariable> requiredVariables;
 }

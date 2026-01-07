@@ -5,7 +5,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
 import io.smallrye.mutiny.Uni;
@@ -35,11 +35,11 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Fetching online stations...");
 
-        List<RadioStationStatus> statuses = Arrays.asList(
-                RadioStationStatus.ON_LINE,
-                RadioStationStatus.WARMING_UP,
-                RadioStationStatus.QUEUE_SATURATED,
-                RadioStationStatus.IDLE
+        List<StreamStatus> statuses = Arrays.asList(
+                StreamStatus.ON_LINE,
+                StreamStatus.WARMING_UP,
+                StreamStatus.QUEUE_SATURATED,
+                StreamStatus.IDLE
         );
 
         return waiter.getOnline(statuses)
@@ -52,7 +52,7 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
                         JsonObject stationObj = new JsonObject()
                                 .put("name", station.getName())
                                 .put("slugName", station.getSlugName())
-                                .put("status", station.getRadioStationStatus().toString())
+                                .put("status", station.getStreamStatus().toString())
                                 .put("djName", station.getDjName())
                                 .put("info", station.getInfo());
                         stationsJson.add(stationObj);

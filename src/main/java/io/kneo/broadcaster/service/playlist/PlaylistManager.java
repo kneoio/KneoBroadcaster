@@ -2,13 +2,13 @@ package io.kneo.broadcaster.service.playlist;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.live.SongMetadata;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -198,7 +198,7 @@ public class PlaylistManager {
                         },
                         error -> {
                             LOGGER.error("Error during the processing of fragments for brand {}: {}", brandSlug, error.getMessage(), error);
-                            stream.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                            stream.setStatus(StreamStatus.SYSTEM_ERROR);
                         }
                 );
     }

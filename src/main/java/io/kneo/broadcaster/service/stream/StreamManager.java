@@ -2,8 +2,8 @@ package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.live.LiveSoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -91,7 +91,7 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public void initialize(IStream stream) {
-        stream.setStatus(RadioStationStatus.WARMING_UP);
+        stream.setStatus(StreamStatus.WARMING_UP);
         this.stream = stream;
         LOGGER.info("New broadcast initialized for {}", stream.getSlugName());
 
@@ -290,7 +290,7 @@ public class StreamManager implements IStreamManager {
         pendingFragmentSegmentsQueue.clear();
         LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", stream.getSlugName());
         if (stream != null) {
-            stream.setStatus(RadioStationStatus.OFF_LINE);
+            stream.setStatus(StreamStatus.OFF_LINE);
         }
     }
 

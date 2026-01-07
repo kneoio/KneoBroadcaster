@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.model.brand;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import io.kneo.core.localization.LanguageCode;
@@ -50,14 +50,14 @@ public class Brand extends SecureDataEntity<UUID> {
 
     //*transient**//
     @Deprecated //???
-    private RadioStationStatus status;
+    private StreamStatus status;
     private AiAgentStatus aiAgentStatus;
     private List<StatusChangeRecord> statusHistory = new LinkedList<>();
     private Long lastAgentContactAt;
     private LocalDateTime startTime;
 
 
-    public void setStatus(RadioStationStatus newStatus) {
+    public void setStatus(StreamStatus newStatus) {
         if (this.status != newStatus) {
             StatusChangeRecord record = new StatusChangeRecord(
                     LocalDateTime.now(),

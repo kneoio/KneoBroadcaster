@@ -1,8 +1,9 @@
 package io.kneo.broadcaster.service.maintenance;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.BrandLogger;
@@ -33,11 +34,16 @@ public class StationInactivityChecker {
     private static final int IDLE_TO_OFFLINE_THRESHOLD_MINUTES = 120;
     private static final int REMOVAL_DELAY_MINUTES = 1;
 
-    private static final Set<RadioStationStatus> ACTIVE_STATUSES = Set.of(
-            RadioStationStatus.ON_LINE,
-            RadioStationStatus.WARMING_UP,
-            RadioStationStatus.QUEUE_SATURATED,
-            RadioStationStatus.SYSTEM_ERROR
+    private static final Set<StreamStatus> ACTIVE_STATUSES = Set.of(
+            StreamStatus.ON_LINE,
+            StreamStatus.WARMING_UP,
+            StreamStatus.QUEUE_SATURATED,
+            StreamStatus.SYSTEM_ERROR
+    );
+
+    private static final Set<StreamStatus> TERMINAL_STATUSES = Set.of(
+            StreamStatus.OFF_LINE,
+            StreamStatus.FINISHED
     );
 
     @Inject
@@ -115,7 +121,7 @@ public class StationInactivityChecker {
                     return Multi.createFrom().iterable(currentOnlineStations)
                             .onItem().transformToUni(radioStation -> {
                                 String slug = radioStation.getSlugName();
-                                RadioStationStatus currentStatus = radioStation.getStatus();
+                                StreamStatus currentStatus = radioStation.getStatus();
 
                                 return brandService.findLastAccessTimeByStationName(slug)
                                         .onItem().transformToUni(lastAccessTime -> {
@@ -123,32 +129,37 @@ public class StationInactivityChecker {
                                                 Instant lastAccessInstant = lastAccessTime.toInstant();
                                                 boolean isPastIdleThreshold = lastAccessInstant.isBefore(idleThreshold);
 
-                                                if (!isPastIdleThreshold && currentStatus != RadioStationStatus.OFF_LINE) {
-                                                    if (currentStatus != RadioStationStatus.ON_LINE) {
-                                                        radioStation.setStatus(RadioStationStatus.ON_LINE);
+                                                if (!isPastIdleThreshold && currentStatus != StreamStatus.OFF_LINE) {
+                                                    if (currentStatus != StreamStatus.ON_LINE) {
+                                                        radioStation.setStatus(StreamStatus.ON_LINE);
                                                         stationsMarkedForRemoval.remove(slug);
                                                         idleStatusTime.remove(slug);
                                                     }
                                                     return Uni.createFrom().voidItem();
                                                 }
 
-                                                if (currentStatus == RadioStationStatus.OFF_LINE)
+                                                if (TERMINAL_STATUSES.contains(currentStatus))
                                                     return Uni.createFrom().voidItem();
 
-                                                if (currentStatus == RadioStationStatus.IDLE) {
+                                                if (currentStatus == StreamStatus.IDLE) {
                                                     Instant idleStartTime = idleStatusTime.get(slug);
                                                     if (idleStartTime != null && idleStartTime.isBefore(idleToOfflineThreshold)
                                                             && !broadcasterConfig.getStationWhitelist().contains(slug)) {
-                                                        radioStation.setStatus(RadioStationStatus.OFF_LINE);
+                                                        radioStation.setStatus(StreamStatus.OFF_LINE);
                                                         stationsMarkedForRemoval.put(slug, now);
                                                         idleStatusTime.remove(slug);
                                                         stationStartTime.remove(slug);
                                                     }
                                                 } else if (ACTIVE_STATUSES.contains(currentStatus)) {
                                                     if (isPastIdleThreshold) {
-                                                        radioStation.setStatus(RadioStationStatus.IDLE);
+                                                        radioStation.setStatus(StreamStatus.IDLE);
                                                         idleStatusTime.put(slug, now);
                                                     }
+                                                } else if (currentStatus == StreamStatus.FINISHED && radioStation instanceof OneTimeStream) {
+                                                    // Handle finished OneTimeStream - mark for removal after 1 minute
+                                                    stationsMarkedForRemoval.put(slug, now);
+                                                    idleStatusTime.remove(slug);
+                                                    stationStartTime.remove(slug);
                                                 }
                                             } else {
                                                 stationStartTime.putIfAbsent(slug, now);
@@ -156,15 +167,15 @@ public class StationInactivityChecker {
                                                 boolean hasBeenRunning5Min = startTime.isBefore(idleThreshold);
                                                 
                                                 if (ACTIVE_STATUSES.contains(currentStatus) && hasBeenRunning5Min) {
-                                                    radioStation.setStatus(RadioStationStatus.IDLE);
+                                                    radioStation.setStatus(StreamStatus.IDLE);
                                                     idleStatusTime.put(slug, now);
                                                 }
                                                 
-                                                if (currentStatus == RadioStationStatus.IDLE) {
+                                                if (currentStatus == StreamStatus.IDLE) {
                                                     Instant idleStartTime = idleStatusTime.get(slug);
                                                     if (idleStartTime != null && idleStartTime.isBefore(idleToOfflineThreshold)
                                                             && !broadcasterConfig.getStationWhitelist().contains(slug)) {
-                                                        radioStation.setStatus(RadioStationStatus.OFF_LINE);
+                                                        radioStation.setStatus(StreamStatus.OFF_LINE);
                                                         stationsMarkedForRemoval.put(slug, now);
                                                         idleStatusTime.remove(slug);
                                                         stationStartTime.remove(slug);

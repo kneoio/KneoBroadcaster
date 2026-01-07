@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.core.dto.AbstractDTO;
 import io.kneo.core.dto.validation.ValidCountry;
@@ -55,7 +55,7 @@ public class BrandDTO extends AbstractDTO {
     private String titleFont;
     private long bitRate;
     private double popularityRate;
-    private RadioStationStatus status = RadioStationStatus.OFF_LINE;
+    private StreamStatus status = StreamStatus.OFF_LINE;
     private SubmissionPolicy oneTimeStreamPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy submissionPolicy = SubmissionPolicy.NOT_ALLOWED;
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;

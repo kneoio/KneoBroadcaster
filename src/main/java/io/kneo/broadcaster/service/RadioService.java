@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
 import io.kneo.broadcaster.model.FileMetadata;
@@ -16,6 +15,7 @@ import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
@@ -82,7 +82,7 @@ public class RadioService {
                 .onFailure().invoke(f ->
                         radioStationPool.get(brand)
                                 .subscribe().with(s -> {
-                                    if (s != null) s.setStatus(RadioStationStatus.SYSTEM_ERROR);
+                                    if (s != null) s.setStatus(StreamStatus.SYSTEM_ERROR);
                                 })
                 );
     }
@@ -123,7 +123,7 @@ public class RadioService {
                             .toList();
 
                     allOneTimeStreams.stream()
-                            .filter(ots -> ots.getStatus() == RadioStationStatus.PENDING)
+                            .filter(ots -> ots.getStatus() == StreamStatus.PENDING)
                             .filter(ots -> !onlineSlugs.contains(ots.getSlugName()))
                             .forEach(ots -> unis.add(oneTimeStreamToStatusDTO(ots)));
 
@@ -316,48 +316,48 @@ public class RadioService {
                         .build());
     }
 
-    public Uni<RadioStationStatusDTO> toStatusDTO(IStream s, boolean anim, Brand b) {
-        if (s == null) return Uni.createFrom().nullItem();
+    public Uni<RadioStationStatusDTO> toStatusDTO(IStream stream, boolean anim, Brand brand) {
+        if (stream == null) return Uni.createFrom().nullItem();
         return buildStatusDTO(
-                s.getLocalizedName().getOrDefault(
-                        s.getCountry().getPreferredLanguage(), s.getSlugName()),
-                s.getSlugName(),
-                s.getManagedBy().toString(),
-                s.getAiAgentId(),
-                s.getAiOverriding(),
-                s.getAiAgentStatus(),
-                s.getStatus(),
-                s.getCountry().name(),
-                s.getColor(),
-                s.getDescription(),
+                stream.getLocalizedName().getOrDefault(
+                        stream.getCountry().getPreferredLanguage(), stream.getSlugName()),
+                stream.getSlugName(),
+                stream.getManagedBy().toString(),
+                stream.getAiAgentId(),
+                stream.getAiOverriding(),
+                stream.getAiAgentStatus(),
+                stream.getStatus(),
+                stream.getCountry().name(),
+                stream.getColor(),
+                stream.getDescription(),
                 anim,
-                b != null ? b.getOneTimeStreamPolicy() : null,
-                b != null ? b.getSubmissionPolicy() : null,
-                b != null ? b.getMessagingPolicy() : null,
-                b != null ? b.getBitRate() : 0,
-                b != null ? b.getPopularityRate() : 0.0);
+                brand != null ? brand.getOneTimeStreamPolicy() : null,
+                brand != null ? brand.getSubmissionPolicy() : null,
+                brand != null ? brand.getMessagingPolicy() : null,
+                brand != null ? brand.getBitRate() : 0,
+                brand != null ? brand.getPopularityRate() : 0.0);
     }
 
-    public Uni<RadioStationStatusDTO> brandToStatusDTO(Brand b, boolean anim) {
-        if (b == null) return Uni.createFrom().nullItem();
+    public Uni<RadioStationStatusDTO> brandToStatusDTO(Brand brand, boolean anim) {
+        if (brand == null) return Uni.createFrom().nullItem();
         return buildStatusDTO(
-                b.getLocalizedName().getOrDefault(
-                        b.getCountry().getPreferredLanguage(), b.getSlugName()),
-                b.getSlugName(),
-                b.getManagedBy().toString(),
-                b.getAiAgentId(),
-                b.getAiOverriding(),
-                b.getAiAgentStatus(),
-                b.getStatus(),
-                b.getCountry().name(),
-                b.getColor(),
-                b.getDescription(),
+                brand.getLocalizedName().getOrDefault(
+                        brand.getCountry().getPreferredLanguage(), brand.getSlugName()),
+                brand.getSlugName(),
+                brand.getManagedBy().toString(),
+                brand.getAiAgentId(),
+                brand.getAiOverriding(),
+                brand.getAiAgentStatus(),
+                brand.getStatus(),
+                brand.getCountry().name(),
+                brand.getColor(),
+                brand.getDescription(),
                 anim,
-                b.getOneTimeStreamPolicy(),
-                b.getSubmissionPolicy(),
-                b.getMessagingPolicy(),
-                b.getBitRate(),
-                b.getPopularityRate());
+                brand.getOneTimeStreamPolicy(),
+                brand.getSubmissionPolicy(),
+                brand.getMessagingPolicy(),
+                brand.getBitRate(),
+                brand.getPopularityRate());
     }
 
     private Uni<RadioStationStatusDTO> oneTimeStreamToStatusDTO(OneTimeStream ots) {
@@ -389,7 +389,7 @@ public class RadioService {
             UUID aiAgentId,
             AiOverriding overriddenAiDj,
             AiAgentStatus agentStatus,
-            RadioStationStatus stationStatus,
+            StreamStatus stationStatus,
             String stationCountryCode,
             String color,
             String description,
@@ -402,7 +402,7 @@ public class RadioService {
     ) {
         String currentStatus = stationStatus != null
                 ? stationStatus.name()
-                : RadioStationStatus.OFF_LINE.name();
+                : StreamStatus.OFF_LINE.name();
 
         String resolvedAgentStatus = agentStatus != null
                 ? agentStatus.name()

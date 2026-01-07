@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.service.stream.IStreamManager;
 import io.kneo.core.localization.LanguageCode;
@@ -31,9 +31,9 @@ public interface ILivePlaylist {
 
     ManagedBy getManagedBy();
 
-    RadioStationStatus getStatus();
+    StreamStatus getStatus();
 
-    void setStatus(RadioStationStatus status);
+    void setStatus(StreamStatus status);
 
     IStreamManager getStreamManager();
 

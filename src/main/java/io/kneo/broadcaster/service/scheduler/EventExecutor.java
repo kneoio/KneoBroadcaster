@@ -8,7 +8,6 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.Model;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
@@ -18,6 +17,7 @@ import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
@@ -120,10 +120,10 @@ public class EventExecutor {
                         LOGGER.info("Station {} is offline, skipping event {}", station.getSlugName(), event.getId());
                         return Uni.createFrom().voidItem();
                     }
-                    RadioStationStatus status = stationStream.getStatus();
-                    if (status != RadioStationStatus.WARMING_UP && 
-                        status != RadioStationStatus.ON_LINE && 
-                        status != RadioStationStatus.QUEUE_SATURATED) {
+                    StreamStatus status = stationStream.getStatus();
+                    if (status != StreamStatus.WARMING_UP &&
+                        status != StreamStatus.ON_LINE &&
+                        status != StreamStatus.QUEUE_SATURATED) {
                         LOGGER.info("Station {} has status {}, skipping event {}", station.getSlugName(), status, event.getId());
                         return Uni.createFrom().voidItem();
                     }

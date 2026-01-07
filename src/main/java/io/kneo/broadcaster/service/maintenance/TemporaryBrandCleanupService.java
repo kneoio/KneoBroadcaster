@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.maintenance;
 
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
@@ -100,7 +100,7 @@ public class TemporaryBrandCleanupService {
         oneTimeStreamRepository.getAll(1000, 0)
                 .onItem().transformToUni(streams -> {
                     List<Uni<Void>> deleteOps = streams.stream()
-                            .filter(stream -> stream.getStatus() == RadioStationStatus.PENDING)
+                            .filter(stream -> stream.getStatus() == StreamStatus.PENDING)
                             .filter(stream -> isPendingTooLong(stream, cutoffTime))
                             .map(stream -> {
                                 LOGGER.info("Deleting stale PENDING OneTimeStream: slugName={}, id={}, pending since={}",
@@ -137,7 +137,7 @@ public class TemporaryBrandCleanupService {
         
         for (int i = history.size() - 1; i >= 0; i--) {
             StatusChangeRecord record = history.get(i);
-            if (record.newStatus() == RadioStationStatus.PENDING) {
+            if (record.newStatus() == StreamStatus.PENDING) {
                 return record.timestamp();
             }
         }

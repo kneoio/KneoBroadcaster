@@ -43,7 +43,7 @@ public class GetStationsToolHandler extends BaseToolHandler {
                                 .put("name", station.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
                                 .put("slugName", station.getSlugName())
                                 .put("country", station.getCountry())
-                                .put("status", station.getRadioStationStatus().toString());
+                                .put("status", station.getStreamStatus().toString());
                         stationsJson.add(stationObj);
                     });
 

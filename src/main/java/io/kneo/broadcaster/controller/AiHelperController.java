@@ -3,8 +3,8 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
 import io.vertx.core.json.Json;
@@ -46,15 +46,15 @@ public class AiHelperController {
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", "text/plain")
-                    .end("Query parameter 'statuses' is required. Valid values: " + Arrays.toString(RadioStationStatus.values()));
+                    .end("Query parameter 'statuses' is required. Valid values: " + Arrays.toString(StreamStatus.values()));
             return;
         }
 
         try {
-            List<RadioStationStatus> statuses = Arrays.stream(statusesParam.split(","))
+            List<StreamStatus> statuses = Arrays.stream(statusesParam.split(","))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
-                    .map(RadioStationStatus::valueOf)
+                    .map(StreamStatus::valueOf)
                     .collect(Collectors.toList());
 
             airSupplier.getOnline(statuses)
@@ -75,7 +75,7 @@ public class AiHelperController {
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", "text/plain")
-                    .end("Invalid statuses. Valid values: " + Arrays.toString(RadioStationStatus.values()));
+                    .end("Invalid statuses. Valid values: " + Arrays.toString(StreamStatus.values()));
         }
     }
 
@@ -137,12 +137,12 @@ public class AiHelperController {
     private void getAllStations(RoutingContext rc) {
         try {
             String statusesParam = rc.queryParam("statuses").isEmpty() ? null : rc.queryParam("statuses").getFirst();
-            List<RadioStationStatus> statuses = null;
+            List<StreamStatus> statuses = null;
             if (statusesParam != null && !statusesParam.trim().isEmpty()) {
                 statuses = Arrays.stream(statusesParam.split(","))
                         .map(String::trim)
                         .filter(s -> !s.isEmpty())
-                        .map(RadioStationStatus::valueOf)
+                        .map(StreamStatus::valueOf)
                         .collect(Collectors.toList());
             }
 

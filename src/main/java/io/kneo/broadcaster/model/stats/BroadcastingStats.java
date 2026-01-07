@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.stats;
 
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,7 +12,7 @@ import java.time.ZonedDateTime;
 @Getter
 @NoArgsConstructor
 public class BroadcastingStats {
-    private RadioStationStatus status = RadioStationStatus.OFF_LINE;
+    private StreamStatus status = StreamStatus.OFF_LINE;
     private int fragmentsInQueue;
     private ZonedDateTime started;
     private SoundFragment current;

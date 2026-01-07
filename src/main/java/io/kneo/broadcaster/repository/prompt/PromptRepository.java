@@ -130,14 +130,16 @@ public class PromptRepository extends AsyncRepository {
 
     public Uni<Prompt> findByMasterAndLanguage(UUID masterId, LanguageTag languageTag, boolean includeArchived) {
         String sql = "SELECT * FROM " + entityData.getTableName() +
-                " WHERE master_id = $1 AND language_code = $2";
+                " WHERE master_id = $1 AND language_tag = $2";
+
 
         if (!includeArchived) {
             sql += " AND archived = 0";
         }
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(masterId, languageTag.name()))
+                .execute(Tuple.of(masterId, languageTag.tag()))
+                .onFailure().transform(e -> e)
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
@@ -146,6 +148,7 @@ public class PromptRepository extends AsyncRepository {
                         return Uni.createFrom().nullItem();
                     }
                 });
+
     }
 
     public Uni<Prompt> insert(Prompt prompt, IUser user) {
@@ -357,11 +360,11 @@ public class PromptRepository extends AsyncRepository {
                     for (int i = 0; i < validPrompts.size(); i++) {
                         Action prompt = validPrompts.get(i);
                         batches.add(Tuple.of(
-                            sceneId, 
-                            prompt.getPromptId(), 
-                            prompt.getRank() != 0 ? prompt.getRank() : i,
-                            prompt.getWeight(),
-                            prompt.isActive()
+                                sceneId,
+                                prompt.getPromptId(),
+                                prompt.getRank() != 0 ? prompt.getRank() : i,
+                                prompt.getWeight(),
+                                prompt.isActive()
                         ));
                     }
                     return tx.preparedQuery(insertSql).executeBatch(batches);

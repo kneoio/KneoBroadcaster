@@ -6,7 +6,6 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.BrandSoundFragmentAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
-import io.kneo.broadcaster.dto.cnst.RadioStationStatus;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
@@ -18,6 +17,7 @@ import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
@@ -101,7 +101,7 @@ public class AiHelperService {
         return listenerService.getAiBrandListenerByTelegramName(telegramName);
     }
 
-    public Uni<AvailableStationsAiDTO> getAllStations(List<RadioStationStatus> statuses, String country, LanguageTag djLanguage, String query) {
+    public Uni<AvailableStationsAiDTO> getAllStations(List<StreamStatus> statuses, String country, LanguageTag djLanguage, String query) {
         return brandService.getAllDTOFiltered(1000, 0, SuperUser.build(), country, query)
                 .flatMap(stations -> {
                     if (stations == null || stations.isEmpty()) {
@@ -212,7 +212,7 @@ public class AiHelperService {
         b.setTimeZone(brandDTO.getTimeZone());
         b.setDescription(brandDTO.getDescription());
         b.setBitRate(brandDTO.getBitRate());
-        b.setRadioStationStatus(brandDTO.getStatus());
+        b.setStreamStatus(brandDTO.getStatus());
         if (agent != null) {
             b.setDjName(agent.getName());
             List<LanguageTag> langs = agent.getPreferredLang().stream()

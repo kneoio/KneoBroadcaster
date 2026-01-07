@@ -5,6 +5,7 @@ import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.service.stream.IStreamManager;
@@ -47,6 +48,7 @@ public abstract class AbstractStream implements IStream {
     protected StreamSchedule streamSchedule;
     protected AiAgentStatus aiAgentStatus;
     protected long lastAgentContactAt;
+    protected LanguageTag broadcastingLanguage;
 
     @Override
     public void setStatus(StreamStatus newStatus) {

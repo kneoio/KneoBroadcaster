@@ -1,10 +1,13 @@
 package io.kneo.broadcaster.service.playlist;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -29,9 +32,7 @@ import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -50,7 +51,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 public class PlaylistManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlaylistManager.class);
@@ -96,6 +96,7 @@ public class PlaylistManager {
     private boolean isWaitingStateActive = false;
     private List<String> waitingMessages = new ArrayList<>();
     private int currentMessageIndex = 0;
+    private LanguageTag waitingMessageLang;
     private final Map<Long, List<HlsSegment>> originalWaitingSegments = new ConcurrentHashMap<>();
 
 
@@ -414,25 +415,24 @@ public class PlaylistManager {
         }
     }
 
-    private void loadWaitingMessages() {
+    public void loadWaitingMessages() {
         try {
-            InputStream messageStream = getClass().getClassLoader().getResourceAsStream("waiting_messages.txt");
-            if (messageStream == null) {
-                LOGGER.warn("the entity for waiting messages not found in resources");
+            InputStream jsonStream = getClass().getClassLoader().getResourceAsStream("waiting_messages.json");
+            if (jsonStream != null) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                TypeReference<Map<String, List<String>>> typeRef = new TypeReference<>() {};
+                Map<String, List<String>> messagesMap = objectMapper.readValue(jsonStream, typeRef);
+                
+                waitingMessages = messagesMap.getOrDefault(waitingMessageLang.tag(),
+                    messagesMap.getOrDefault(LanguageTag.EN_US.tag(), List.of("DJ is preparing the show...")));
+                
+                LOGGER.info("Loaded {} waiting messages for language '{}' for brand: {}", 
+                    waitingMessages.size(), waitingMessageLang.tag(), brandSlug);
                 return;
             }
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(messageStream));
-            waitingMessages = reader.lines()
-                    .filter(line -> !line.trim().isEmpty())
-                    .collect(Collectors.toList());
-            reader.close();
-
-            if (waitingMessages.isEmpty()) {
-                waitingMessages = List.of("DJ is preparing the show...");
-            }
-
-            LOGGER.info("Loaded {} waiting messages for brand: {}", waitingMessages.size(), brandSlug);
+            
+            LOGGER.error("waiting_messages.json not found in resources");
+            waitingMessages = List.of("DJ is preparing the show...");
         } catch (Exception e) {
             LOGGER.error("Error loading waiting messages for brand {}: {}", brandSlug, e.getMessage(), e);
             waitingMessages = List.of("DJ is preparing the show...");

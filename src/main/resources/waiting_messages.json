@@ -1,4 +1,16 @@
 {
+  "en": [
+    "DJ is preparing the show...",
+    "Your DJ is putting on their best suit and tie",
+    "DJ is running to the studio right now!",
+    "DJ stuck in traffic, be right there!",
+    "Warming up the microphone...",
+    "DJ is having a coffee before going live",
+    "Adjusting headphones for perfect sound",
+    "DJ is reviewing today's playlist",
+    "Setting up the mixing board...",
+    "Your host is practicing their radio voice"
+  ],
   "pt": [
     "O DJ está a preparar o espetáculo...",
     "O teu DJ está a vestir o seu melhor fato e gravata",
@@ -59,7 +71,7 @@
     "Налаштування мікшера...",
     "Ведучий тренує радіоголос"
   ],
-  "kz": [
+  "kk": [
     "DJ шоуға дайындалып жатыр...",
     "DJ ең сәнді костюмін киіп жатыр",
     "DJ дәл қазір студияға жүгіріп барады!",
@@ -107,7 +119,7 @@
     "Miksera sagatavošana...",
     "Vadītājs trenē radio balsi"
   ],
-  "jp": [
+  "ja": [
     "DJが番組の準備中です…",
     "DJは最高のスーツに着替えています",
     "DJは今スタジオへ全力疾走中！",
@@ -119,7 +131,7 @@
     "ミキサーをセットアップ中…",
     "ホストがラジオボイスを練習中"
   ],
-  "ch": [
+  "zh": [
     "DJ 正在准备节目…",
     "你的 DJ 正在穿上最帅的西装",
     "DJ 正飞奔去录音室！",

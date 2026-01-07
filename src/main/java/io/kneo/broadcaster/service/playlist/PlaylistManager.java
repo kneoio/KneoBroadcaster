@@ -25,6 +25,7 @@ import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.HlsSegment;
 import io.kneo.broadcaster.service.stream.IStreamManager;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -96,7 +97,6 @@ public class PlaylistManager {
     private boolean isWaitingStateActive = false;
     private List<String> waitingMessages = new ArrayList<>();
     private int currentMessageIndex = 0;
-    private LanguageTag waitingMessageLang;
     private final Map<Long, List<HlsSegment>> originalWaitingSegments = new ConcurrentHashMap<>();
 
 
@@ -105,7 +105,8 @@ public class PlaylistManager {
                            IStreamManager streamManager,
                            ISupplier songSupplier,
                            BrandSoundFragmentUpdateService brandSoundFragmentUpdateService,
-                           AiHelperService aiHelperService
+                           AiHelperService aiHelperService,
+                           LanguageTag waitingMessageLang
     ) {
         this.soundFragmentService = streamManager.getSoundFragmentService();
         this.segmentationService = streamManager.getSegmentationService();
@@ -122,10 +123,10 @@ public class PlaylistManager {
         }
         this.tempBaseDir = broadcasterConfig.getPathUploads() + "/playlist-processing";
         this.segmentDuration = hlsPlaylistConfig.getSegmentDuration();
-        LOGGER.info("Created PlaylistManager for brand: {}", brandSlug);
+        LOGGER.info("Created PlaylistManager for brand: {} with waiting message language: {}", brandSlug, waitingMessageLang.tag());
         
         if (stream instanceof OneTimeStream) {
-            initializeWaitingState();
+            initializeWaitingState(waitingMessageLang);
         }
     }
 
@@ -371,9 +372,9 @@ public class PlaylistManager {
         }
     }
 
-    private void initializeWaitingState() {
+    private void initializeWaitingState(LanguageTag waitingMessageLang) {
         try {
-            loadWaitingMessages();
+            loadWaitingMessages(waitingMessageLang);
             
             InputStream resourceStream = getClass().getClassLoader().getResourceAsStream("Waiting_State.wav");
             if (resourceStream == null) {
@@ -415,7 +416,7 @@ public class PlaylistManager {
         }
     }
 
-    public void loadWaitingMessages() {
+    public void loadWaitingMessages(LanguageTag waitingMessageLang) {
         try {
             InputStream jsonStream = getClass().getClassLoader().getResourceAsStream("waiting_messages.json");
             if (jsonStream != null) {
@@ -423,8 +424,8 @@ public class PlaylistManager {
                 TypeReference<Map<String, List<String>>> typeRef = new TypeReference<>() {};
                 Map<String, List<String>> messagesMap = objectMapper.readValue(jsonStream, typeRef);
                 
-                waitingMessages = messagesMap.getOrDefault(waitingMessageLang.tag(),
-                    messagesMap.getOrDefault(LanguageTag.EN_US.tag(), List.of("DJ is preparing the show...")));
+                waitingMessages = messagesMap.getOrDefault(waitingMessageLang.toLanguageCode().name(),
+                    messagesMap.getOrDefault(LanguageCode.en.name(), List.of("DJ is preparing the show...")));
                 
                 LOGGER.info("Loaded {} waiting messages for language '{}' for brand: {}", 
                     waitingMessages.size(), waitingMessageLang.tag(), brandSlug);

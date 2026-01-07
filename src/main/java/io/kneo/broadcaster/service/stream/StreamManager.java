@@ -101,7 +101,8 @@ public class StreamManager implements IStreamManager {
                 this,
                 songSupplier,
                 updateService,
-                aiHelperService
+                aiHelperService,
+                stream.getStreamLanguage()
         );
         if (stream.getManagedBy() == ManagedBy.ITSELF) {
             playlistManager.startSelfManaging();

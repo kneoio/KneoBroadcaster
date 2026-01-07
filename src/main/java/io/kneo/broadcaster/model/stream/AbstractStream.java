@@ -49,6 +49,7 @@ public abstract class AbstractStream implements IStream {
     protected AiAgentStatus aiAgentStatus;
     protected long lastAgentContactAt;
     protected LanguageTag broadcastingLanguage;
+    protected LanguageTag streamLanguage;
 
     @Override
     public void setStatus(StreamStatus newStatus) {

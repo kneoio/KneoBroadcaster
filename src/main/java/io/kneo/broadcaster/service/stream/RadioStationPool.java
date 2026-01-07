@@ -2,12 +2,14 @@ package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stats.BroadcastingStats;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
+import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -15,6 +17,8 @@ import io.kneo.broadcaster.service.manipulation.segmentation.AudioSegmentationSe
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentUpdateService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
+import io.kneo.broadcaster.util.AiHelperUtils;
+import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -71,6 +75,9 @@ public class RadioStationPool {
 
     @Inject
     private OneTimeStreamRepository oneTimeStreamRepository;
+
+    @Inject
+    private AiAgentService aiAgentService;
 
     public Uni<IStream> initializeRadio(String brandName) {
         LOGGER.info("Attempting to initialize Radio Stream for brand: {}", brandName);
@@ -152,6 +159,32 @@ public class RadioStationPool {
 
                     return oneTimeStreamService.getBySlugName(ots.getSlugName())
                             .onItem().transformToUni(stream -> {
+                                
+                                if (stream.getAiAgentId() != null) {
+                                    return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
+                                            .onItem().transform(agent -> {
+                                                LanguageTag selectedLanguage = AiHelperUtils.selectLanguageByWeight(agent);
+                                                stream.setStreamLanguage(selectedLanguage);
+                                                LOGGER.info("Set stream language to '{}' for stream '{}' based on AI agent '{}'", 
+                                                    selectedLanguage.tag(), stream.getSlugName(), agent.getName());
+                                                return stream;
+                                            })
+                                            .onFailure().invoke(failure -> {
+                                                LOGGER.warn("Failed to resolve AI agent for stream '{}', using default language: {}", 
+                                                    stream.getSlugName(), failure.getMessage());
+                                                stream.setStreamLanguage(LanguageTag.EN_US);
+                                            })
+                                            .onFailure().recoverWithItem(() -> {
+                                                stream.setStreamLanguage(LanguageTag.EN_US);
+                                                return stream;
+                                            });
+                                } else {
+                                    LOGGER.warn("No AI Agent ID set for stream '{}', using default language", stream.getSlugName());
+                                    stream.setStreamLanguage(LanguageTag.EN_US);
+                                    return Uni.createFrom().item(stream);
+                                }
+                            })
+                            .onItem().transformToUni(stream -> {
 
                                 IStream finalStationToUse = pool.compute(ots.getSlugName(), (key, currentInPool) -> {
                                     if (currentInPool != null &&
@@ -173,7 +206,7 @@ public class RadioStationPool {
                                             updateService,
                                             aiHelperService
                                     );
-                                    streamManager.initialize(ots);
+                                    streamManager.initialize(stream);
                                     stream.setStreamManager(streamManager);
                                     LOGGER.info("RadioStationPool: StreamManager for {} instance created and StreamManager.initialize() called. Status should be WARMING_UP.", key);
                                     return stream;

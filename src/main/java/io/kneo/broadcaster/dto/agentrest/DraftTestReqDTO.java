@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.dto.agentrest;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,7 +19,7 @@ public class DraftTestReqDTO {
     @NotNull
     private UUID stationId;
     @NotNull
-    private LanguageCode languageCode;
+    private String languageTag;
     @NotNull
     private String code;
     private Map<String, Object> userVariables;

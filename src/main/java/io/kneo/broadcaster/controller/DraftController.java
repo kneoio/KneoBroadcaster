@@ -172,7 +172,7 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
                 .chain(user -> {
                     if ("new".equals(id)) {
                         DraftDTO dto = new DraftDTO();
-                        dto.setLanguageTag(LanguageTag.EN_US);
+                        dto.setLanguageTag(LanguageTag.EN_US.tag());
                         dto.setArchived(0);
                         return Uni.createFrom().item(Tuple2.of(dto, user));
                     }

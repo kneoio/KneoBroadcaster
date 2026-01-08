@@ -876,7 +876,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         DraftDTO clonedDraftDTO = new DraftDTO();
         clonedDraftDTO.setTitle(originalDraft.getTitle());
         clonedDraftDTO.setContent(originalDraft.getContent());
-        clonedDraftDTO.setLanguageTag(originalDraft.getLanguageTag());
+        clonedDraftDTO.setLanguageTag(originalDraft.getLanguageTag().tag());
         clonedDraftDTO.setEnabled(originalDraft.isEnabled());
         clonedDraftDTO.setMaster(originalDraft.isMaster());
         clonedDraftDTO.setLocked(originalDraft.isLocked());

@@ -215,7 +215,7 @@ public class PromptRepository extends AsyncRepository {
                                     .addString(prompt.getPrompt())
                                     .addString(prompt.getDescription())
                                     .addString(prompt.getPromptType() != null ? prompt.getPromptType().name() : "SONG")
-                                    .addString(prompt.getLanguageTag().name())
+                                    .addString(prompt.getLanguageTag().tag())
                                     .addBoolean(prompt.isMaster())
                                     .addBoolean(prompt.isLocked())
                                     .addString(prompt.getTitle())

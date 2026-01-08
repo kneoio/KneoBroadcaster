@@ -1,8 +1,7 @@
 package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.core.dto.AbstractReferenceDTO;
+import io.kneo.core.dto.AbstractDTO;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,11 +10,11 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Setter
 @Getter
-public class DraftDTO  extends AbstractReferenceDTO {
+public class DraftDTO  extends AbstractDTO {
     private String title;
     private String content;
     private String description;
-    private LanguageTag languageTag;
+    private String languageTag;
     private Integer archived;
     private boolean enabled;
     private boolean master;

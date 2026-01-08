@@ -206,10 +206,10 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setDefaultProfileId(script.getDefaultProfileId());
             dto.setDescription(script.getDescription());
             dto.setAccessLevel(script.getAccessLevel());
-            dto.setLanguageTag(script.getLanguageTag());
+            dto.setLanguageTag(script.getLanguageTag().tag());
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
-            dto.setTimingMode(script.getTimingMode());
+            dto.setTimingMode(script.getTimingMode().name());
             dto.setScenes(tuple.getItem3());
             dto.setRequiredVariables(script.getRequiredVariables());
             return dto;
@@ -222,8 +222,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         entity.setSlugName(WebHelper.generateSlug(dto.getName()));
         entity.setDefaultProfileId(dto.getDefaultProfileId());
         entity.setDescription(dto.getDescription());
-        entity.setLanguageTag(dto.getLanguageTag());
-        entity.setTimingMode(dto.getTimingMode());
+        entity.setLanguageTag(LanguageTag.fromTag(dto.getLanguageTag()));
+        entity.setTimingMode(SceneTimingMode.valueOf(dto.getTimingMode()));
         entity.setLabels(dto.getLabels());
         entity.setBrands(dto.getBrands());
         return entity;

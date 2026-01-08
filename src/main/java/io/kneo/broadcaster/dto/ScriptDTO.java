@@ -2,10 +2,9 @@ package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.model.ScriptVariable;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.core.dto.AbstractDTO;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,9 +23,9 @@ public class ScriptDTO extends AbstractDTO {
     private String description;
     private Integer accessLevel = 0;
     @NotBlank
-    private LanguageTag languageTag;
-    @NotBlank
-    private SceneTimingMode timingMode;
+    private String languageTag;
+    @NotNull
+    private String timingMode;
     private List<UUID> labels;
     private List<UUID> brands;
     private List<SceneDTO> scenes;

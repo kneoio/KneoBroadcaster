@@ -95,7 +95,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         filter.setActivated(dto.isActivated());
         filter.setLabels(dto.getLabels());
         filter.setTimingMode(dto.getTimingMode());
-        filter.setLanguageCode(dto.getLanguageCode());
+        filter.setLanguageTag(dto.getLanguageTag());
         filter.setSearchTerm(dto.getSearchTerm());
 
         return filter;

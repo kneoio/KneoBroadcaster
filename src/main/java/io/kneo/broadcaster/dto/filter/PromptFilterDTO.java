@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.filter;
 
 import io.kneo.broadcaster.model.aiagent.PromptType;
-import io.kneo.core.localization.LanguageCode;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,7 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PromptFilterDTO implements IFilterDTO {
     private boolean activated = false;
-    private LanguageCode languageCode;
+    private LanguageTag languageTag;
     private PromptType promptType;
     private boolean enabled;
     private boolean master;
@@ -24,7 +24,7 @@ public class PromptFilterDTO implements IFilterDTO {
 
     @Override
     public boolean hasAnyFilter() {
-        return languageCode != null ||
+        return languageTag != null ||
                 promptType != null ||
                 enabled ||
                 master ||

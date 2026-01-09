@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.filter;
 
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
-import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,7 +21,7 @@ public class ScriptFilterDTO implements IFilterDTO {
 
     private SceneTimingMode timingMode;
 
-    private LanguageCode languageCode;
+    private LanguageTag languageTag;
 
     private String searchTerm;
 
@@ -34,7 +34,7 @@ public class ScriptFilterDTO implements IFilterDTO {
     public boolean hasAnyFilter() {
         return (labels != null && !labels.isEmpty()) ||
                 timingMode != null ||
-                languageCode != null ||
+                languageTag != null ||
                 (searchTerm != null && !searchTerm.trim().isEmpty());
     }
 }

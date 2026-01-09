@@ -32,9 +32,9 @@ public class PromptQueryBuilder {
     String buildFilterConditions(PromptFilterDTO filter) {
         StringBuilder conditions = new StringBuilder();
 
-        if (filter.getLanguageCode() != null) {
-            conditions.append(" AND t.language_code = '")
-                    .append(filter.getLanguageCode().name())
+        if (filter.getLanguageTag() != null) {
+            conditions.append(" AND t.language_tag = '")
+                    .append(filter.getLanguageTag().tag())
                     .append("'");
         }
 

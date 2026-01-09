@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
-import io.kneo.core.localization.LanguageCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,7 +16,7 @@ public class ScriptFilter {
     private boolean activated = false;
     private List<UUID> labels;
     private SceneTimingMode timingMode;
-    private LanguageCode languageCode;
+    private LanguageTag languageTag;
     private String searchTerm;
 
     public boolean isActivated() {
@@ -33,7 +33,7 @@ public class ScriptFilter {
         if (timingMode != null) {
             return true;
         }
-        if (languageCode != null) {
+        if (languageTag != null) {
             return true;
         }
         return searchTerm != null && !searchTerm.trim().isEmpty();

@@ -126,8 +126,8 @@ public class DraftController extends AbstractSecuredController<Draft, DraftDTO> 
             LOGGER.debug("Parsing filter parameter: {} -> decoded: {}", filterParam, decodedFilter);
             JsonObject json = new JsonObject(decodedFilter);
             
-            if (json.containsKey("languageCode")) {
-                dto.setLanguageCode(LanguageCode.valueOf(json.getString("languageCode")));
+            if (json.containsKey("languageTag")) {
+                dto.setLanguageTag(LanguageTag.fromTag(json.getString("languageTag")));
                 any = true;
             }
             

@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.dto.filter;
 
-import io.kneo.core.localization.LanguageCode;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,7 +11,7 @@ import lombok.Setter;
 public class DraftFilterDTO implements IFilterDTO {
     private boolean activated = false;
 
-    private LanguageCode languageCode;
+    private LanguageTag languageTag;
     private Integer archived;
     private boolean enabled;
     private boolean master;
@@ -24,7 +24,7 @@ public class DraftFilterDTO implements IFilterDTO {
 
     @Override
     public boolean hasAnyFilter() {
-        return languageCode != null || 
+        return languageTag != null ||
                archived != null || 
                enabled || 
                master || 

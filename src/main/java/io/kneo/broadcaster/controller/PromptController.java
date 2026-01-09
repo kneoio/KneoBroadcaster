@@ -7,6 +7,7 @@ import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.PromptType;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.TranslateService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
@@ -120,8 +121,8 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
             LOGGER.debug("Parsing filter parameter: {}", filterParam);
             JsonObject json = new JsonObject(filterParam);
 
-            if (json.containsKey("languageCode")) {
-                dto.setLanguageCode(LanguageCode.valueOf(json.getString("languageCode")));
+            if (json.containsKey("languageTag")) {
+                dto.setLanguageTag(LanguageTag.fromTag(json.getString("languageTag")));
                 any = true;
             }
 
@@ -266,7 +267,7 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
                 rc.fail(400, new IllegalArgumentException("Invalid request: expected a JSON array"));
                 return;
             }
-            java.util.List<TranslateReqDTO> dtos = new java.util.ArrayList<>();
+            List<TranslateReqDTO> dtos = new ArrayList<>();
             for (int i = 0; i < array.size(); i++) {
                 JsonObject obj = array.getJsonObject(i);
                 dtos.add(obj.mapTo(TranslateReqDTO.class));
@@ -275,7 +276,7 @@ public class PromptController extends AbstractSecuredController<Prompt, PromptDT
             for (TranslateReqDTO dto : dtos) {
                 Set<ConstraintViolation<TranslateReqDTO>> violations = validator.validate(dto);
                 if (violations != null && !violations.isEmpty()) {
-                    Map<String, java.util.List<String>> fieldErrors = new HashMap<>();
+                    Map<String, List<String>> fieldErrors = new HashMap<>();
                     for (ConstraintViolation<TranslateReqDTO> v : violations) {
                         String field = v.getPropertyPath().toString();
                         fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());

@@ -11,7 +11,7 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,21 +123,21 @@ public class TranslateService {
         }
 
         TranslateReqDTO dto = dtos.get(idx);
-        LanguageTag lang = dto.getLanguageTag();
+        LanguageTag lang = LanguageTag.fromTag(dto.getLanguageTag());
 
         return translator.apply(dto, user)
                 .onItem().invoke(result -> {
                     JobState st = jobs.get(jobId);
                     if (st != null) st.done += 1;
                     JsonObject payload = new JsonObject()
-                            .put("language", lang != null ? lang.name() : null)
+                            .put("language", lang.tag())
                             .put("masterId", dto.getMasterId() != null ? dto.getMasterId().toString() : null)
                             .put("success", result != null);
                     emit(jobId, "language_done", payload);
                 })
                 .onFailure().invoke(err -> {
                     emit(jobId, "language_done", new JsonObject()
-                            .put("language", lang != null ? lang.name() : null)
+                            .put("language", lang.tag())
                             .put("masterId", dto.getMasterId() != null ? dto.getMasterId().toString() : null)
                             .put("success", false)
                             .put("message", err.getMessage()));
@@ -147,19 +147,20 @@ public class TranslateService {
     }
 
     private Uni<Draft> translateAndUpsertDraft(TranslateReqDTO dto, IUser user) {
+        LanguageTag targetTranslation = LanguageTag.fromTag(dto.getLanguageTag());
         return draftService.getById(dto.getMasterId(), user)
                 .chain(originalDraft -> {
-                    if (originalDraft.getLanguageTag() == dto.getLanguageTag()) {
+                    if (originalDraft.getLanguageTag() == targetTranslation) {
                         return Uni.createFrom().nullItem();
                     }
 
-                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageTag(), dto.getCountryCode())
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), targetTranslation, dto.getCountryCode())
                             .chain(resp -> {
                                 String translatedContent = resp != null ? resp.getResult() : null;
                                 if (translatedContent == null || translatedContent.isBlank()) {
                                     return Uni.createFrom().nullItem();
                                 }
-                                return draftService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageTag(), false)
+                                return draftService.findByMasterAndLanguage(dto.getMasterId(), targetTranslation, false)
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
@@ -168,11 +169,11 @@ public class TranslateService {
                                             } else {
                                                 Draft doc = new Draft();
                                                 doc.setContent(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                                doc.setLanguageTag(dto.getLanguageTag());
+                                                doc.setLanguageTag(targetTranslation);
                                                 doc.setEnabled(true);
                                                 doc.setMaster(false);
                                                 doc.setLocked(true);
-                                                doc.setTitle(updateTitleWithLanguage(originalDraft.getTitle(), dto.getLanguageTag()));
+                                                doc.setTitle(updateTitleWithLanguage(originalDraft.getTitle(), targetTranslation));
                                                 doc.setMasterId(originalDraft.getId());
                                                 doc.setVersion(dto.getVersion());
                                                 return draftService.insert(doc, user);
@@ -183,36 +184,39 @@ public class TranslateService {
     }
 
     private Uni<Prompt> translateAndUpsertPrompt(TranslateReqDTO dto, IUser user) {
+        LanguageTag targetTranslation = LanguageTag.fromTag(dto.getLanguageTag());
         return promptService.getById(dto.getMasterId(), user)
-                .chain(sourcePrompt -> {
-                    if (sourcePrompt.getLanguageTag() == dto.getLanguageTag()) {
+                .chain(master -> {
+                    if (master.getLanguageTag() == targetTranslation) {
                         return Uni.createFrom().nullItem();
                     }
 
-                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), dto.getLanguageTag(), dto.getCountryCode())
+                    return agentClient.translate(dto.getToTranslate(), dto.getTranslationType(), targetTranslation, dto.getCountryCode())
                             .chain(resp -> {
                                 String translatedContent = resp != null ? resp.getResult() : null;
                                 if (translatedContent == null || translatedContent.isBlank()) {
                                     return Uni.createFrom().nullItem();
                                 }
-                                return promptService.findByMasterAndLanguage(dto.getMasterId(), dto.getLanguageTag(), false)
+                                return promptService.findByMasterAndLanguage(dto.getMasterId(), targetTranslation, false)
                                         .chain(existing -> {
                                             if (existing != null && existing.isLocked()) {
                                                 existing.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                                existing.setVersion(sourcePrompt.getVersion());
-                                                existing.setPodcast(sourcePrompt.isPodcast());
+                                                existing.setVersion(master.getVersion());
+                                                existing.setPodcast(master.isPodcast());
+                                                existing.setDraftId(master.getDraftId());
                                                 return promptService.update(existing.getId(), existing, user);
                                             } else {
                                                 Prompt doc = new Prompt();
                                                 doc.setPrompt(StringEscapeUtils.unescapeHtml4(translatedContent));
-                                                doc.setLanguageTag(dto.getLanguageTag());
+                                                doc.setLanguageTag(targetTranslation);
                                                 doc.setEnabled(true);
                                                 doc.setMaster(false);
                                                 doc.setLocked(true);
-                                                doc.setTitle(updateTitleWithLanguage(sourcePrompt.getTitle(), dto.getLanguageTag()));
-                                                doc.setMasterId(sourcePrompt.getId());
-                                                doc.setVersion(sourcePrompt.getVersion());
-                                                doc.setPodcast(sourcePrompt.isPodcast());
+                                                doc.setTitle(updateTitleWithLanguage(master.getTitle(), targetTranslation));
+                                                doc.setMasterId(master.getId());
+                                                doc.setVersion(master.getVersion());
+                                                doc.setPodcast(master.isPodcast());
+                                                doc.setDraftId(master.getDraftId());
                                                 return promptService.insert(doc, user);
                                             }
                                         });

@@ -8,6 +8,7 @@ import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.TreeNodeDTO;
 import io.kneo.broadcaster.dto.filter.ScriptFilterDTO;
 import io.kneo.broadcaster.model.Script;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.service.ScriptDryRunService;
 import io.kneo.broadcaster.service.ScriptService;
@@ -151,10 +152,10 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
                 }
             }
 
-            String languageCode = json.getString("language");
-            if (languageCode != null && !languageCode.trim().isEmpty()) {
+            String languageTag = json.getString("languageTag");
+            if (languageTag != null && !languageTag.trim().isEmpty()) {
                 try {
-                    dto.setLanguageCode(LanguageCode.valueOf(languageCode));
+                    dto.setLanguageTag(LanguageTag.fromTag(languageTag));
                     any = true;
                 } catch (IllegalArgumentException ignored) {
                 }

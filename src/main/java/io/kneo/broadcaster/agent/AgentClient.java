@@ -106,4 +106,15 @@ public class AgentClient {
                     }
                 });
     }
+
+    public Uni<Boolean> checkHealth() {
+        String endpoint = config.getAgentUrl() + "/health";
+        
+        return webClient
+                .getAbs(endpoint)
+                .timeout(3000)
+                .send()
+                .map(response -> response.statusCode() == 200)
+                .onFailure().recoverWithItem(false);
+    }
 }

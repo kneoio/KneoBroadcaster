@@ -139,15 +139,11 @@ public class ScriptRepository extends AsyncRepository {
             conditions.append(" AND t.timing_mode = '").append(filter.getTimingMode().name()).append("'");
         }
 
-        if (filter.getLanguageCode() != null) {
-            conditions.append(" AND t.language_code = '").append(filter.getLanguageCode().name()).append("'");
+        if (filter.getLanguageTag() != null) {
+            conditions.append(" AND t.language_tag = '").append(filter.getLanguageTag().tag()).append("'");
         }
 
         return conditions.toString();
-    }
-
-    public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user) {
-        return getAllShared(limit, offset, user, null);
     }
 
     public Uni<List<Script>> getAllShared(int limit, int offset, final IUser user, final ScriptFilter filter) {

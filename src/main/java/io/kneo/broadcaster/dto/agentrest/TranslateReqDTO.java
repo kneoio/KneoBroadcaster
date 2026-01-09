@@ -2,8 +2,6 @@ package io.kneo.broadcaster.dto.agentrest;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.kneo.broadcaster.dto.cnst.TranslationType;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.core.localization.LanguageCode;
 import io.kneo.officeframe.cnst.CountryCode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,9 +21,7 @@ public class TranslateReqDTO {
     @NotNull
     private TranslationType translationType;
     @NotNull
-    private LanguageTag languageTag;
-    @Deprecated
-    private LanguageCode languageCode;
+    private String languageTag;
     @NotNull
     private CountryCode countryCode;
     private double version;

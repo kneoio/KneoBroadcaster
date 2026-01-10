@@ -131,6 +131,7 @@ public class DraftFactory {
         radioStream.setMasterBrand(station);
         radioStream.setCountry(station.getCountry());
         radioStream.setLocalizedName(station.getLocalizedName());
+        radioStream.setSlugName(station.getSlugName());
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();
@@ -207,7 +208,7 @@ public class DraftFactory {
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
         data.put("listeners", listeners);
-        String brand = stream.getLocalizedName().get(selectedLanguage);
+        String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {
             brand = stream.getLocalizedName().values().iterator().next();
         }
@@ -228,6 +229,7 @@ public class DraftFactory {
             data.put("profileDescription", profile.getDescription());
         }
         data.put("stationBrand", brand);
+        data.put("slugName", stream.getSlugName());
         data.put("country", stream.getCountry());
         data.put("language", selectedLanguage);
         data.put("random", random);

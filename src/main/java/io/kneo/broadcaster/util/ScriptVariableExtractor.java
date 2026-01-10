@@ -17,7 +17,7 @@ public class ScriptVariableExtractor {
             "coPilotName", "coPilotVoiceId", "listeners",
             "djName", "djVoiceId", "profileName", "profileDescription",
             "stationBrand", "country", "language", "random",
-            "perplexity", "weather", "news"
+            "perplexity", "weather", "news", "slugName"
     );
 
     private static final Pattern MARKER_PATTERN =

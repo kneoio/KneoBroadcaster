@@ -74,9 +74,6 @@ public class RadioService {
     @Inject UserService userService;
     @Inject OneTimeStreamRepository oneTimeStreamRepository;
 
-    private static final List<String> FEATURED_STATIONS =
-            List.of("sacana","bratan","aye-ayes-ear","lumisonic","v-o-i-d","malucra");
-
     public Uni<IStream> initializeStation(String brand) {
         return radioStationPool.initializeRadio(brand)
                 .onFailure().invoke(f ->

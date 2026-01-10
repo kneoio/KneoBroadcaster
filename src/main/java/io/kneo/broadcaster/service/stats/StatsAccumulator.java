@@ -30,24 +30,26 @@ public class StatsAccumulator implements IStatsService {
 
     public void recordAccess(String stationName, String userAgent, String ipAddress, String countryCode) {
         OffsetDateTime now = OffsetDateTime.now();
-        
-        accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
-        lastUserAgents.put(stationName, userAgent);
-        lastIpAddresses.put(stationName, ipAddress);
-        lastCountryCodes.put(stationName, countryCode);
-        lastAccessTimes.put(stationName, now);
 
-        activeListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
-                .put(ipAddress, now);
+        if (!userAgent.startsWith("TuneIn-DirMon")) {  //TODO can be optimized
+            accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
+            lastUserAgents.put(stationName, userAgent);
+            lastIpAddresses.put(stationName, ipAddress);
+            lastCountryCodes.put(stationName, countryCode);
+            lastAccessTimes.put(stationName, now);
 
-        if (!"UNKNOWN".equals(countryCode)) {
-            countryListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
-                    .computeIfAbsent(countryCode, k -> new ConcurrentHashMap<>())
-                    .put(ipAddress, Boolean.TRUE);
+            activeListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
+                    .put(ipAddress, now);
+
+            if (!"UNKNOWN".equals(countryCode)) {
+                countryListeners.computeIfAbsent(stationName, k -> new ConcurrentHashMap<>())
+                        .computeIfAbsent(countryCode, k -> new ConcurrentHashMap<>())
+                        .put(ipAddress, Boolean.TRUE);
+            }
+
+            LOGGER.debug("Recorded access for station: {} from IP: {} ({}) (total pending: {})",
+                    stationName, ipAddress, countryCode, accessCounts.get(stationName).get());
         }
-
-        LOGGER.debug("Recorded access for station: {} from IP: {} ({}) (total pending: {})",
-                stationName, ipAddress, countryCode, accessCounts.get(stationName).get());
     }
 
     public Uni<Void> flushAllStats() {

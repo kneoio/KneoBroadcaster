@@ -86,7 +86,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                            final IUser user, final SoundFragmentFilter filter) {
         assert queryBuilder != null;
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),
-                user, includeArchived, filter, limit, offset, false);
+                user, includeArchived, filter, limit, offset);
         
         if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
             return client.preparedQuery(sql)

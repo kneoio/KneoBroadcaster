@@ -11,7 +11,6 @@ public enum LanguageTag {
     PT_BR("pt-BR"),
 
     RU_RU("ru-RU"),
-    RU_KZ("ru-KZ"),
 
     KK_KZ("kk-KZ"),
 
@@ -59,7 +58,7 @@ public enum LanguageTag {
         return switch (this) {
             case EN_US, EN_GB -> LanguageCode.en;
             case PT_PT, PT_BR -> LanguageCode.pt;
-            case RU_RU, RU_KZ -> LanguageCode.ru;
+            case RU_RU -> LanguageCode.ru;
             case KK_KZ -> LanguageCode.kk;
             case UK_UA -> LanguageCode.uk;
             case DE_DE -> LanguageCode.de;

@@ -64,6 +64,19 @@ public class ChatSummaryService {
                 );
     }
 
+    @Scheduled(every = "15m")
+    public void scheduledUserSummary() {
+        if (anthropicClient == null) {
+            return;
+        }
+
+        chatRepository.getActiveUsers()
+                .subscribe().with(
+                        users -> users.forEach(this::checkAndSummarizeUser),
+                        error -> LOGGER.error("Failed to get active users for summarization", error)
+                );
+    }
+
     @Scheduled(cron = "0 0 3 * * ?")
     public void scheduledCleanup() {
         chatRepository.deleteOldSummarizedMessages(MESSAGE_RETENTION_DAYS)
@@ -86,6 +99,22 @@ public class ChatSummaryService {
                             }
                         },
                         error -> LOGGER.error("Failed to count messages for brand {}", brandName, error)
+                );
+    }
+
+    private void checkAndSummarizeUser(ChatRepository.ActiveUserSession session) {
+        chatRepository.countUnsummarizedUserMessages(session.userId(), session.brandName(), session.chatType())
+                .subscribe().with(
+                        count -> {
+                            if (count >= USER_SUMMARY_THRESHOLD) {
+                                summarizeUserMessages(session.userId(), session.brandName(), session.chatType())
+                                        .subscribe().with(
+                                                v -> LOGGER.info("Summarized {} messages for user {} on brand {}", count, session.userId(), session.brandName()),
+                                                error -> LOGGER.error("Failed to summarize user {} on brand {}", session.userId(), session.brandName(), error)
+                                        );
+                            }
+                        },
+                        error -> LOGGER.error("Failed to count messages for user {} on brand {}", session.userId(), session.brandName(), error)
                 );
     }
 

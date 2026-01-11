@@ -20,6 +20,8 @@ import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
+import io.kneo.broadcaster.service.chat.tools.RegisterListenerTool;
+import io.kneo.broadcaster.service.chat.tools.RegisterListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.external.MailService;
@@ -162,7 +164,8 @@ public class PublicChatService extends ChatService {
                 GetOnlineStations.toTool(),
                 SearchBrandSoundFragments.toTool(),
                 AddToQueueTool.toTool(),
-                PerplexitySearchTool.toTool()
+                PerplexitySearchTool.toTool(),
+                RegisterListenerTool.toTool()
         );
     }
 
@@ -214,6 +217,10 @@ public class PublicChatService extends ChatService {
         } else if ("perplexity_search".equals(toolUse.name())) {
             return PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("register_listener".equals(toolUse.name())) {
+            return RegisterListenerToolHandler.handle(
+                    toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

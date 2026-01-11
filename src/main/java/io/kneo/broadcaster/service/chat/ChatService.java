@@ -37,6 +37,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,8 @@ public abstract class ChatService {
     protected AirSupplier waiter;
     @Inject
     protected PerplexitySearchHelper perplexitySearchHelper;
+    @Inject
+    protected ChatSummaryService chatSummaryService;
 
     protected ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
         if (config != null) {
@@ -203,10 +206,10 @@ public abstract class ChatService {
                 assistantNameByConnectionId.put(connectionId, djName);
                 assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);
 
-                List<MessageParam> history = chatRepository.getConversationHistory(user.getId(), getChatType());
-                return buildMessageCreateParams(renderedPrompt, history);
+                return loadConversationHistoryWithSummary(user.getId(), slugName, getChatType())
+                        .map(history -> buildMessageCreateParams(renderedPrompt, history));
             });
-        }).flatMap(params ->
+        }).flatMap(paramsUni -> paramsUni).flatMap(params ->
                 Uni.createFrom().completionStage(() -> anthropicClient.async().messages().create(params))
                         .flatMap(message -> {
                             Optional<ToolUseBlock> toolUse = message.content().stream()
@@ -331,6 +334,31 @@ public abstract class ChatService {
                     .onCompleteFuture();
 
         }).runSubscriptionOn(getDefaultWorkerPool());
+    }
+
+    protected Uni<List<MessageParam>> loadConversationHistoryWithSummary(long userId, String brandName, ChatType chatType) {
+        List<MessageParam> currentHistory = chatRepository.getConversationHistory(userId, chatType);
+        
+        return chatSummaryService.getLatestUserSummary(userId, brandName, chatType)
+                .map(summaryText -> {
+                    if (summaryText != null && !summaryText.isBlank() && currentHistory.size() > 10) {
+                        List<MessageParam> historyWithSummary = new ArrayList<>();
+                        
+                        MessageParam summaryMessage = MessageParam.builder()
+                                .role(MessageParam.Role.USER)
+                                .content(MessageParam.Content.ofString(
+                                        "[Previous conversation summary]\n" + summaryText + "\n[End of summary]"
+                                ))
+                                .build();
+                        historyWithSummary.add(summaryMessage);
+                        
+                        int recentMessagesStart = Math.max(0, currentHistory.size() - 10);
+                        historyWithSummary.addAll(currentHistory.subList(recentMessagesStart, currentHistory.size()));
+                        
+                        return historyWithSummary;
+                    }
+                    return currentHistory;
+                });
     }
 
     protected JsonObject createMessage(MessageType type, String username, String content, long timestamp, String connectionId) {

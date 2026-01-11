@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class PublicChatSessionManager {
     private static final long CODE_EXPIRY_SECONDS = 300;
-    private static final long SESSION_EXPIRY_SECONDS = 3600;
+    private static final long SESSION_EXPIRY_SECONDS = 86400;  //24 hours
     private static final int MAX_ATTEMPTS = 3;
     
     private final Map<String, VerificationCode> verificationCodes = new ConcurrentHashMap<>();

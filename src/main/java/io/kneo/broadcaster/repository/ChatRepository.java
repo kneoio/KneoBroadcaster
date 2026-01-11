@@ -227,4 +227,21 @@ public class ChatRepository extends AsyncRepository {
                 .onItem().transform(row -> row.getString("brand_name"))
                 .collect().asList();
     }
+
+    public Uni<List<ActiveUserSession>> getActiveUsers() {
+        String sql = "SELECT DISTINCT user_id, brand_name, chat_type FROM " + entityData.getTableName() +
+                " WHERE summarized_at IS NULL AND user_id IS NOT NULL";
+
+        return client.preparedQuery(sql)
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> new ActiveUserSession(
+                        row.getLong("user_id"),
+                        row.getString("brand_name"),
+                        ChatType.valueOf(row.getString("chat_type"))
+                ))
+                .collect().asList();
+    }
+
+    public record ActiveUserSession(long userId, String brandName, ChatType chatType) {}
 }

@@ -31,7 +31,8 @@ public class StatsAccumulator implements IStatsService {
     public void recordAccess(String stationName, String userAgent, String ipAddress, String countryCode) {
         OffsetDateTime now = OffsetDateTime.now();
 
-        if (!userAgent.startsWith("TuneIn-DirMon")) {  //TODO can be optimized
+        if (!userAgent.startsWith("TuneIn-DirMon")
+                && !userAgent.startsWith("Lavf/")) {            //TODO can be optimized
             accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
             lastUserAgents.put(stationName, userAgent);
             lastIpAddresses.put(stationName, ipAddress);

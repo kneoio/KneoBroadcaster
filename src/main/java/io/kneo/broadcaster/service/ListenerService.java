@@ -276,6 +276,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
             dto.setTelegramName(doc.getTelegramName());
+            dto.setEmail(doc.getEmail());
             dto.setCountry(doc.getCountry().name());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
@@ -292,6 +293,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setCountry(CountryCode.fromString(dto.getCountry()));
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
+        doc.setEmail(dto.getEmail());
         doc.setNickName(dto.getNickName());
         doc.setSlugName(dto.getSlugName());
         doc.setTelegramName(dto.getTelegramName());

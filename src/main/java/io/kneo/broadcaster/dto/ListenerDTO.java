@@ -21,9 +21,9 @@ import java.util.UUID;
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ListenerDTO extends AbstractReferenceDTO {
-    long userId;
-    String telegramName;
-    String email;
+    private long userId;
+    private String telegramName;
+    private String email;
     @NotNull(message = "Country is required")
     @NotBlank(message = "Country cannot be empty")
     @ValidCountry(message = "Country is not supported")

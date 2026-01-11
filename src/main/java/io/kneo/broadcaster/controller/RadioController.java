@@ -535,7 +535,7 @@ public class RadioController {
 
     private void getSkill(RoutingContext rc) {
         JsonObject requestJson = rc.body().asJsonObject();
-        String brand = "lumisonic";
+        String brand = "sacana";
 
         try {
             if (requestJson.containsKey("request")) {

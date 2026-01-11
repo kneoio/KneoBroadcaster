@@ -212,22 +212,12 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
                     }
                     SoundFragmentFilter filter = toFilter(filterDTO);
-                    String filterStatus = (filter != null && filter.isActivated()) ? "active" : "none";
-                    BrandLogger.logActivity(brandName, "brand_fragments_request",
-                            "Requesting fragments (limit: %d, offset: %d, filter: %s) for user: %s",
-                            limit, offset, filterStatus, user.getUserName());
                     UUID brandId = radioStation.getId();
                     return repository.getForBrand(brandId, limit, offset, false, user, filter)
                             .chain(fragments -> {
                                 if (fragments.isEmpty()) {
-                                    BrandLogger.logActivity(brandName, "no_brand_fragments",
-                                            "No fragments found for this brand with applied filter");
                                     return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
                                 }
-
-                                BrandLogger.logActivity(brandName, "brand_fragments_retrieved",
-                                        "Retrieved %d fragments", fragments.size());
-
                                 List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
                                         .map(this::mapToBrandSoundFragmentDTO)
                                         .collect(Collectors.toList());

@@ -57,7 +57,7 @@ public class AiHelperController {
                     .map(StreamStatus::valueOf)
                     .collect(Collectors.toList());
 
-            airSupplier.getOnline(statuses)
+            airSupplier.getLiveRadioStationInfo(statuses)
                     .subscribe().with(
                             liveContainer -> rc.response()
                                     .setStatusCode(200)

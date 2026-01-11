@@ -1,12 +1,9 @@
 package io.kneo.broadcaster.service.chat.tools;
 
-import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import io.kneo.broadcaster.dto.aihelper.LiveContainerDTO;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
-import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -14,7 +11,6 @@ import io.vertx.core.json.JsonObject;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -22,8 +18,6 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
-            Map<String, JsonValue> inputMap,
-            AiHelperService aiHelperService,
             AirSupplier waiter,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -43,18 +37,16 @@ public class GetOnlineStationsToolHandler extends BaseToolHandler {
         );
 
         return waiter.getOnline(statuses)
-                .flatMap((LiveContainerDTO liveData) -> {
-                    int count = liveData.getRadioStations().size();
+                .flatMap(stations -> {
+                    int count = stations.size();
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " online station" + (count != 1 ? "s" : ""));
 
                     JsonArray stationsJson = new JsonArray();
-                    liveData.getRadioStations().forEach(station -> {
+                    stations.forEach(station -> {
                         JsonObject stationObj = new JsonObject()
-                                .put("name", station.getName())
+                                .put("name", station.getLocalizedName().values().stream().findFirst().orElse("Unknown"))
                                 .put("slugName", station.getSlugName())
-                                .put("status", station.getStreamStatus().toString())
-                                .put("djName", station.getDjName())
-                                .put("info", station.getInfo());
+                                .put("status", station.getStatus().toString());
                         stationsJson.add(stationObj);
                     });
 

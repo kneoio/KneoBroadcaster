@@ -12,6 +12,7 @@ import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,12 @@ public class RegisterListenerToolHandler extends BaseToolHandler {
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
         RegisterListenerToolHandler handler = new RegisterListenerToolHandler();
+        String action = inputMap.getOrDefault("action", JsonValue.from("register")).toString().replace("\"", "");
+
+        if ("list_listeners".equals(action)) {
+            return handleListListeners(toolUse, inputMap, listenerService, stationSlug, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, handler);
+        }
+
         String nickname = inputMap.getOrDefault("nickname", JsonValue.from("")).toString().replace("\"", "");
 
         LOGGER.info("[RegisterListener] Starting registration - userId: {}, nickname: {}, stationSlug: {}, connectionId: {}",
@@ -101,6 +108,139 @@ public class RegisterListenerToolHandler extends BaseToolHandler {
                     handler.addToolResultToHistory(toolUse, errorPayload.encode(), conversationHistory);
 
                     LOGGER.debug("[RegisterListener] Calling follow-up LLM stream for error response");
+                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                    return streamFn.apply(secondCallParams);
+                });
+    }
+
+    private static Uni<Void> handleListListeners(
+            ToolUseBlock toolUse,
+            Map<String, JsonValue> inputMap,
+            ListenerService listenerService,
+            String stationSlug,
+            Consumer<String> chunkHandler,
+            String connectionId,
+            List<MessageParam> conversationHistory,
+            String systemPromptCall2,
+            Function<MessageCreateParams, Uni<Void>> streamFn,
+            RegisterListenerToolHandler handler
+    ) {
+        String searchTerm = inputMap.getOrDefault("search_term", JsonValue.from("")).toString().replace("\"", "");
+        String listenerTypeStr = inputMap.getOrDefault("listener_type", JsonValue.from("")).toString().replace("\"", "");
+        
+        ListenerType listenerType = null;
+        if (listenerTypeStr != null && !listenerTypeStr.isEmpty()) {
+            try {
+                listenerType = ListenerType.valueOf(listenerTypeStr);
+            } catch (IllegalArgumentException e) {
+                LOGGER.warn("Invalid listener type: {}", listenerTypeStr);
+            }
+        }
+
+        LOGGER.info("[ListListeners] Searching listeners - searchTerm: {}, listenerType: {}, stationSlug: {}, connectionId: {}",
+                searchTerm, listenerType, stationSlug, connectionId);
+
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Searching listeners...");
+
+        String finalSearchTerm = searchTerm.isEmpty() ? null : searchTerm;
+        ListenerType finalListenerType = listenerType;
+
+        return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
+                .map(brandListeners -> brandListeners.stream()
+                        .map(bl -> bl.getListenerDTO())
+                        .collect(java.util.stream.Collectors.toList()))
+                .map(allListeners -> {
+                    List<ListenerDTO> filtered = allListeners.stream()
+                            .filter(listener -> listener.getArchived() == 0)
+                            .filter(listener -> {
+                                if (finalListenerType != null) {
+                                    String type = listener.getListenerType();
+                                    return type != null && type.equals(finalListenerType.name());
+                                }
+                                return true;
+                            })
+                            .filter(listener -> {
+                                if (finalSearchTerm == null) {
+                                    return true;
+                                }
+                                String term = finalSearchTerm.toLowerCase();
+                                
+                                if (listener.getEmail() != null && listener.getEmail().toLowerCase().contains(term)) {
+                                    return true;
+                                }
+                                if (listener.getTelegramName() != null && listener.getTelegramName().toLowerCase().contains(term)) {
+                                    return true;
+                                }
+                                if (listener.getSlugName() != null && listener.getSlugName().toLowerCase().contains(term)) {
+                                    return true;
+                                }
+                                if (listener.getLocalizedName() != null) {
+                                    for (String name : listener.getLocalizedName().values()) {
+                                        if (name != null && name.toLowerCase().contains(term)) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                                if (listener.getNickName() != null) {
+                                    for (String nickname : listener.getNickName().values()) {
+                                        if (nickname != null && nickname.toLowerCase().contains(term)) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                                return false;
+                            })
+                            .toList();
+                    
+                    return filtered;
+                })
+                .flatMap(listeners -> {
+                    int count = listeners.size();
+                    handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " listener" + (count != 1 ? "s" : ""));
+
+                    JsonArray listenersJson = new JsonArray();
+                    listeners.forEach(listener -> {
+                        JsonObject listenerObj = new JsonObject()
+                                .put("id", listener.getId().toString())
+                                .put("email", listener.getEmail())
+                                .put("slugName", listener.getSlugName())
+                                .put("listenerType", listener.getListenerType())
+                                .put("country", listener.getCountry());
+                        
+                        if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
+                            listenerObj.put("nickname", listener.getNickName().get(LanguageCode.en));
+                        }
+                        if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
+                            listenerObj.put("name", listener.getLocalizedName().get(LanguageCode.en));
+                        }
+                        if (listener.getTelegramName() != null) {
+                            listenerObj.put("telegramName", listener.getTelegramName());
+                        }
+                        
+                        listenersJson.add(listenerObj);
+                    });
+
+                    JsonObject payload = new JsonObject()
+                            .put("ok", true)
+                            .put("count", count)
+                            .put("listeners", listenersJson);
+
+                    handler.addToolUseToHistory(toolUse, conversationHistory);
+                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                    LOGGER.debug("[ListListeners] Calling follow-up LLM stream");
+                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                    return streamFn.apply(secondCallParams);
+                })
+                .onFailure().recoverWithUni(err -> {
+                    LOGGER.error("[ListListeners] Failed to list listeners", err);
+                    JsonObject errorPayload = new JsonObject()
+                            .put("ok", false)
+                            .put("error", "Failed to list listeners: " + err.getMessage());
+
+                    handler.addToolUseToHistory(toolUse, conversationHistory);
+                    handler.addToolResultToHistory(toolUse, errorPayload.encode(), conversationHistory);
+
                     MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                     return streamFn.apply(secondCallParams);
                 });

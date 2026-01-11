@@ -23,6 +23,7 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -145,10 +147,10 @@ public class ListenerController extends AbstractSecuredController<Listener, List
             ListenerDTO dto = rc.body().asJsonObject().mapTo(ListenerDTO.class);
             String id = rc.pathParam("id");
 
-            java.util.Set<jakarta.validation.ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
+            Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
             if (violations != null && !violations.isEmpty()) {
                 Map<String, List<String>> fieldErrors = new HashMap<>();
-                for (jakarta.validation.ConstraintViolation<ListenerDTO> v : violations) {
+                for (ConstraintViolation<ListenerDTO> v : violations) {
                     String field = v.getPropertyPath().toString();
                     fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
                 }

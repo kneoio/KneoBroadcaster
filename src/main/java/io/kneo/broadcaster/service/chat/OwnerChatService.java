@@ -8,6 +8,7 @@ import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.model.cnst.ChatType;
+import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
@@ -18,9 +19,12 @@ import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlTool;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlToolHandler;
+import io.kneo.broadcaster.service.chat.tools.RegisterListenerTool;
+import io.kneo.broadcaster.service.chat.tools.RegisterListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.live.AiHelperService;
+import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -36,6 +40,12 @@ public class OwnerChatService extends ChatService {
     protected OwnerChatService() {
         super(null, null);
     }
+
+    @Inject
+    ListenerService listenerService;
+
+    @Inject
+    UserService userService;
 
     @Inject
     public OwnerChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
@@ -55,7 +65,8 @@ public class OwnerChatService extends ChatService {
                 SearchBrandSoundFragments.toTool(),
                 AddToQueueTool.toTool(),
                 RadioStationControlTool.toTool(),
-                PerplexitySearchTool.toTool()
+                PerplexitySearchTool.toTool(),
+                RegisterListenerTool.toTool()
         );
     }
 
@@ -93,7 +104,7 @@ public class OwnerChatService extends ChatService {
             );
         } else if ("get_online_stations".equals(toolUse.name())) {
             return GetOnlineStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, waiter, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+                    toolUse, waiter, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
             return SearchBrandSoundFragmentsToolHandler.handle(
@@ -111,6 +122,10 @@ public class OwnerChatService extends ChatService {
         } else if ("perplexity_search".equals(toolUse.name())) {
             return PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+            );
+        } else if ("register_listener".equals(toolUse.name())) {
+            return RegisterListenerToolHandler.handle(
+                    toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

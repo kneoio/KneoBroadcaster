@@ -176,8 +176,7 @@ public abstract class ChatService {
                 String hlsUrl = config.getHost() + "/" + stationSlug + "/radio/stream.m3u8";
                 String mixplaUrl = "https://player.mixpla.io/?radio=" + stationSlug;
 
-                String djLanguages = "";
-                String djPrimaryVoices = "";
+                String djLanguages, djPrimaryVoices;
                 String djCopilotName = "";
                 djLanguages = agent.getPreferredLang().stream()
                         .sorted(java.util.Comparator.comparingDouble(io.kneo.broadcaster.model.aiagent.LanguagePreference::getWeight).reversed())
@@ -191,7 +190,6 @@ public abstract class ChatService {
                 String renderedPrompt = getMainPrompt()
                         .replace("{{djName}}", djName)
                         .replace("{{radioStationName}}", radioStationName)
-                        .replace("{{owner}}", user.getUserName())
                         .replace("{{radioStationSlug}}", stationSlug)
                         .replace("{{radioStationCountry}}", stationCountry)
                         .replace("{{radioStationBitRate}}", stationBitRate)
@@ -201,7 +199,8 @@ public abstract class ChatService {
                         .replace("{{radioStationHlsUrl}}", hlsUrl)
                         .replace("{{radioStationMixplaUrl}}", mixplaUrl)
                         .replace("{{djLanguages}}", djLanguages)
-                        .replace("{{djCopilotName}}", djCopilotName);
+                        .replace("{{djCopilotName}}", djCopilotName)
+                        .replace("{{userName}}", user.getUserName());
 
                 assistantNameByConnectionId.put(connectionId, djName);
                 assistantNameByConnectionId.put(connectionId + "_voice", djPrimaryVoices);

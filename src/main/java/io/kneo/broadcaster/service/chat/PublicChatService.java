@@ -203,7 +203,7 @@ public class PublicChatService extends ChatService {
             );
         } else if ("get_online_stations".equals(toolUse.name())) {
             return GetOnlineStationsToolHandler.handle(
-                    toolUse, inputMap, aiHelperService, waiter, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, waiter, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
             return SearchBrandSoundFragmentsToolHandler.handle(

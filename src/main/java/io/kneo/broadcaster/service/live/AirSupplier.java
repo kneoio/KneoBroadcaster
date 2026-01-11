@@ -59,7 +59,7 @@ public class AirSupplier {
         this.radioStreamSupplier = radioStreamSupplier;
     }
 
-    public Uni<LiveContainerDTO> getOnline(List<StreamStatus> statuses) {
+    public Uni<LiveContainerDTO> getLiveRadioStationInfo(List<StreamStatus> statuses) {
         return Uni.createFrom().item(() ->
                 radioStationPool.getOnlineStationsSnapshot().stream()
                         .filter(station -> station.getManagedBy() != ManagedBy.ITSELF)
@@ -92,6 +92,13 @@ public class AirSupplier {
                         return container;
                     });
         });
+    }
+
+    public Uni<List<IStream>> getOnline(List<StreamStatus> statuses) {
+        return Uni.createFrom().item(() ->
+                radioStationPool.getOnlineStationsSnapshot().stream()
+                        .filter(station -> statuses.contains(station.getStatus()))
+                        .collect(Collectors.toList()));
     }
 
     private Uni<LiveRadioStationDTO> buildLiveRadioStation(IStream stream) {

@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.GenreDTO;
 import io.kneo.broadcaster.dto.LabelDTO;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
@@ -14,11 +13,8 @@ import io.kneo.broadcaster.service.RefService;
 import io.kneo.core.controller.BaseController;
 import io.kneo.core.dto.actions.ActionBox;
 import io.kneo.core.dto.cnst.PayloadType;
-import io.kneo.core.dto.form.FormPage;
 import io.kneo.core.dto.view.View;
 import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.util.RuntimeUtil;
 import io.kneo.officeframe.cnst.CountryCode;
@@ -32,7 +28,6 @@ import jakarta.inject.Inject;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static io.kneo.core.util.RuntimeUtil.countMaxPage;
@@ -51,25 +46,6 @@ public class RefController extends BaseController {
 
     public void setupRoutes(Router router) {
         router.route(HttpMethod.GET, "/api/dictionary/:type").handler(this::getDictionary);
-        router.route(HttpMethod.GET, "/api/genres/:id").handler(this::get);
-        router.route(HttpMethod.POST, "/api/genres").handler(this::upsert);
-        router.route(HttpMethod.DELETE, "/api/genres/:id").handler(this::delete);
-
-    }
-
-    private void get(RoutingContext rc) {
-        FormPage page = new FormPage();
-        page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
-
-        service.getDTO(UUID.fromString(rc.pathParam("id")), AnonymousUser.build(), resolveLanguage(rc))
-                .onItem().transform(dto -> {
-                    page.addPayload(PayloadType.DOC_DATA, dto);
-                    return page;
-                })
-                .subscribe().with(
-                        formPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(formPage).encode()),
-                        rc::fail
-                );
     }
 
     private void getDictionary(RoutingContext rc) {
@@ -131,28 +107,6 @@ public class RefController extends BaseController {
                                 rc::fail
                         );
                 break;
-
-            case "genres":
-                service.getAllCount(AnonymousUser.build())
-                        .onItem().transformToUni(count -> {
-                            int maxPage = countMaxPage(count, size);
-                            int offset = RuntimeUtil.calcStartEntry(page, size);
-                            LanguageCode languageCode = resolveLanguage(rc);
-                            return service.getAll(size, offset, languageCode)
-                                    .onItem().transform(dtoList -> {
-                                        ViewPage viewPage = new ViewPage();
-                                        viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
-                                        View<GenreDTO> dtoEntries = new View<>(dtoList, count, page, maxPage, size);
-                                        viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                                        return viewPage;
-                                    });
-                        })
-                        .subscribe().with(
-                                viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
-                                rc::fail
-                        );
-                break;
-
             case "labels":
                 service.getAllLabelsCount()
                         .onItem().transformToUni(count -> {
@@ -228,14 +182,6 @@ public class RefController extends BaseController {
             default:
                 rc.response().setStatusCode(404).end();
         }
-    }
-
-
-    private void upsert(RoutingContext rc) {
-    }
-
-    private void delete(RoutingContext rc) {
-        rc.response().setStatusCode(200).end();
     }
 
 }

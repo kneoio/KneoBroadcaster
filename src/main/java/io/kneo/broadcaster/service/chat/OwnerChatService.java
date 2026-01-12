@@ -15,12 +15,12 @@ import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.ListenerTool;
+import io.kneo.broadcaster.service.chat.tools.ListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlTool;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlToolHandler;
-import io.kneo.broadcaster.service.chat.tools.RegisterListenerTool;
-import io.kneo.broadcaster.service.chat.tools.RegisterListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -66,7 +66,7 @@ public class OwnerChatService extends ChatService {
                 AddToQueueTool.toTool(),
                 RadioStationControlTool.toTool(),
                 PerplexitySearchTool.toTool(),
-                RegisterListenerTool.toTool()
+                ListenerTool.toTool()
         );
     }
 
@@ -123,8 +123,8 @@ public class OwnerChatService extends ChatService {
             return PerplexitySearchToolHandler.handle(
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
-        } else if ("register_listener".equals(toolUse.name())) {
-            return RegisterListenerToolHandler.handle(
+        } else if ("listener".equals(toolUse.name())) {
+            return ListenerToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {

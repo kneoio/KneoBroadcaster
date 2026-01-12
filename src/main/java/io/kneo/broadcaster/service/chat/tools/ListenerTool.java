@@ -6,7 +6,7 @@ import com.anthropic.models.messages.Tool;
 import java.util.List;
 import java.util.Map;
 
-public class RegisterListenerTool {
+public class ListenerTool {
 
     public static Tool toTool() {
         Tool.InputSchema schema = Tool.InputSchema.builder()
@@ -30,7 +30,7 @@ public class RegisterListenerTool {
                 .build();
 
         return Tool.builder()
-                .name("register_listener")
+                .name("listener")
                 .description("Register the current user as a listener OR list/search all registered listeners. Use action='register' to register current user with the radio station. Use action='list_listeners' to search and view all registered listeners (max 100, only non-archived). To find the station owner, use action='list_listeners' with listener_type='OWNER'. Listeners can be searched by name, nickname, email, telegram name, or filtered by type.")
                 .inputSchema(schema)
                 .build();

@@ -22,9 +22,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class RegisterListenerToolHandler extends BaseToolHandler {
+public class ListenerToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RegisterListenerToolHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -39,7 +39,7 @@ public class RegisterListenerToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        RegisterListenerToolHandler handler = new RegisterListenerToolHandler();
+        ListenerToolHandler handler = new ListenerToolHandler();
         String action = inputMap.getOrDefault("action", JsonValue.from("register")).toString().replace("\"", "");
 
         if ("list_listeners".equals(action)) {
@@ -123,7 +123,7 @@ public class RegisterListenerToolHandler extends BaseToolHandler {
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn,
-            RegisterListenerToolHandler handler
+            ListenerToolHandler handler
     ) {
         String searchTerm = inputMap.getOrDefault("search_term", JsonValue.from("")).toString().replace("\"", "");
         String listenerTypeStr = inputMap.getOrDefault("listener_type", JsonValue.from("")).toString().replace("\"", "");

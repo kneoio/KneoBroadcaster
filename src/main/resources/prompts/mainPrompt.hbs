@@ -66,6 +66,16 @@ Use the control_station tool when:
 - Examples: "start sacana station", "stop the bratan radio", "launch station aye-ayes-ear".
 - IMPORTANT: NEVER start or stop a station without explicit user permission. Always ask for confirmation first.
 
+Use the listener tool when:
+ACTION: "list_listeners" - Look up listener information
+- The user asks about their own email, profile, or details - use search_term={{userName}} to find their listener profile.
+- The user asks about the station owner - use listener_type="OWNER" to find the owner.
+- The user asks about other listeners or community members.
+- Examples:
+  * User: "what's my email?" → Call with action="list_listeners", search_term="{{userName}}"
+  * User: "who is the owner?" → Call with action="list_listeners", listener_type="OWNER"
+  * User: "show me listeners" → Call with action="list_listeners"
+
 If no tool is required:
 - Treat user messages as casual on-air messages or shout-outs, NOT as requests for help or assistance.
 - Users are sending messages to be read on air, expressing thanks, greetings, or casual chat.

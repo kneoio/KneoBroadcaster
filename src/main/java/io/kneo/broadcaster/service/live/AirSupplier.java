@@ -42,6 +42,7 @@ public class AirSupplier {
     private final AiAgentService aiAgentService;
     private final OneTimeStreamSupplier oneTimeStreamSupplier;
     private final RadioStreamSupplier radioStreamSupplier;
+    private final AiHelperService aiHelperService;
 
     private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
     private final Map<String, Integer> lastDeliveredSongsDurationTracker = new ConcurrentHashMap<>();
@@ -51,12 +52,14 @@ public class AirSupplier {
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
             OneTimeStreamSupplier oneTimeStreamSupplier,
-            RadioStreamSupplier radioStreamSupplier
+            RadioStreamSupplier radioStreamSupplier,
+            AiHelperService aiHelperService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
         this.oneTimeStreamSupplier = oneTimeStreamSupplier;
         this.radioStreamSupplier = radioStreamSupplier;
+        this.aiHelperService = aiHelperService;
     }
 
     public Uni<LiveContainerDTO> getLiveRadioStationInfo(List<StreamStatus> statuses) {
@@ -167,6 +170,7 @@ public class AirSupplier {
                                 stream.getAiOverriding().getPrompt();
                     }
 
+                    aiHelperService.addAiDj(stream.getSlugName(), agent.getName());
                     Uni<Void> fetchPromptsUni;
 
                     if (stream instanceof OneTimeStream oneTimeStream) {

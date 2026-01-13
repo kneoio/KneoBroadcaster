@@ -60,7 +60,7 @@ public class AiHelperService {
     public record DjRequestInfo(LocalDateTime requestTime, String djName) {
     }
 
-    private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
+    private Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
     private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
     private final Map<String, List<UUID>> oneTimeRunTracker = new ConcurrentHashMap<>();
     private LocalDate lastReset = LocalDate.now();
@@ -293,6 +293,10 @@ public class AiHelperService {
         }
         // No distinct later start time today; signal end-of-day by returning null.
         return null;
+    }
+
+    public void addAiDj(String brand, String djName) {
+        this.aiDjStatsRequestTracker.put(brand, new DjRequestInfo(LocalDateTime.now(), djName));
     }
 
     public Uni<AiDjStatsDTO> getAiDjStats(IStream stream) {

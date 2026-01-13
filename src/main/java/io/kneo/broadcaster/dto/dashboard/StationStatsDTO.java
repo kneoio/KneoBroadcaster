@@ -9,6 +9,7 @@ import io.kneo.broadcaster.service.stream.HLSSongStats;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.LinkedList;
 import java.util.List;
@@ -54,8 +55,8 @@ public class StationStatsDTO {
         private int songsCount;
         private int fetchedSongsCount;
 
-        private java.time.LocalDateTime actualStartTime;
-        private java.time.LocalDateTime actualEndTime;
+        private LocalDateTime actualStartTime;
+        private LocalDateTime actualEndTime;
         private SceneStatus status;
         private Long timingOffsetSeconds;
     }

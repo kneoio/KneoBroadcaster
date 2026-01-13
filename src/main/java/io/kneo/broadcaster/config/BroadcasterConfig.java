@@ -78,7 +78,7 @@ public interface BroadcasterConfig {
     String getElevenLabsVoiceId();
 
     @WithName("elevenlabs.model-id")
-    @WithDefault("eleven_multilingual_v2")
+    @WithDefault("eleven_v3")
     String getElevenLabsModelId();
 
     @WithName("elevenlabs.output-format")

@@ -21,6 +21,7 @@ import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
+import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
@@ -236,6 +237,7 @@ public class DraftFactory {
         data.put("perplexity", new PerplexitySearchHelper(perplexityApiClient));
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
+        data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         
         data.put("songTitle", song.getTitle());
         data.put("songArtist", song.getArtist());

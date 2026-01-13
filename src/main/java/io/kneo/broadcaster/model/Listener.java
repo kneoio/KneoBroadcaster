@@ -10,6 +10,7 @@ import lombok.Setter;
 
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Setter
@@ -21,11 +22,9 @@ public class Listener extends SecureDataEntity<UUID> {
     private String telegramName;
     private CountryCode country;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-    private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
+    private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
     private List<UUID> radioStations;
     private ListenerType listenerType;
-
-
 }

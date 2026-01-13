@@ -10,6 +10,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Set;
 
 @Setter
 @Getter
@@ -20,7 +21,7 @@ public class ListenerAiDTO extends AbstractReferenceDTO {
     String telegramName;
     private String country;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-    private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
+    private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private List<List<String>> listenerOf;
 

@@ -17,6 +17,7 @@ import io.kneo.core.repository.table.EntityData;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
@@ -30,7 +31,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,6 +42,7 @@ import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.L
 
 @ApplicationScoped
 public class ListenersRepository extends AsyncRepository {
+
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(LISTENER);
 
     @Inject
@@ -162,19 +167,6 @@ public class ListenersRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<List<UUID>> getBrandsForListener(UUID listenerId, Long userId) {
-        String sql = "SELECT lb.brand_id " +
-                "FROM kneobroadcaster__listener_brands lb " +
-                "JOIN " + entityData.getRlsName() + " rls ON lb.listener_id = rls.entity_id " +
-                "WHERE lb.listener_id = $1 AND rls.reader = $2";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(listenerId, userId))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(row -> row.getUUID("brand_id"))
-                .collect().asList();
-    }
-
     public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived) {
         return findForBrandCount(slugName, user, includeArchived, null);
     }
@@ -200,14 +192,28 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
+    public Uni<List<UUID>> getBrandsForListener(UUID listenerId, Long userId) {
+        String sql = "SELECT lb.brand_id " +
+                "FROM kneobroadcaster__listener_brands lb " +
+                "JOIN " + entityData.getRlsName() + " rls ON lb.listener_id = rls.entity_id " +
+                "WHERE lb.listener_id = $1 AND rls.reader = $2";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(listenerId, userId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("brand_id"))
+                .collect().asList();
+    }
+
     public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
                 " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, telegram_name, listener_type, archived) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
+
         JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
-        JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
+        JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
 
         Tuple params = Tuple.tuple()
                 .addLong(listener.getUserId())
@@ -229,13 +235,13 @@ public class ListenersRepository extends AsyncRepository {
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, user, nowTime))
+                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, nowTime))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
-    private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, IUser user, LocalDateTime nowTime) {
+    private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
         if (representedInBrands == null || representedInBrands.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
@@ -263,7 +269,7 @@ public class ListenersRepository extends AsyncRepository {
 
                             LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
                             JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
-                            JsonObject localizedNickNameJson = JsonObject.mapFrom(listener.getNickName());
+                            JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
 
                             return client.withTransaction(tx -> {
                                 String sql = "UPDATE " + entityData.getTableName() +
@@ -271,7 +277,7 @@ public class ListenersRepository extends AsyncRepository {
                                         "WHERE id=$9";
 
                                 Tuple params = Tuple.tuple()
-                                        .addString(listener.getCountry().name())
+                                        .addString(listener.getCountry() != null ? listener.getCountry().name() : CountryCode.PT.name())
                                         .addJsonObject(localizedNameJson)
                                         .addJsonObject(localizedNickNameJson)
                                         .addString(listener.getSlugName())
@@ -288,7 +294,7 @@ public class ListenersRepository extends AsyncRepository {
                                             if (rowSet.rowCount() == 0) {
                                                 return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                             }
-                                            return updateBrandAssociations(tx, id, representedInBrands, user, nowTime);
+                                            return updateBrandAssociations(tx, id, representedInBrands, nowTime);
                                         });
                             }).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
@@ -299,7 +305,7 @@ public class ListenersRepository extends AsyncRepository {
         });
     }
 
-    private Uni<Void> updateBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, IUser user, LocalDateTime nowTime) {
+    private Uni<Void> updateBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
         if (representedInBrands == null) {
             return Uni.createFrom().voidItem();
         }
@@ -311,6 +317,7 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transformToUni(currentRows -> {
                     List<UUID> currentBrands = new ArrayList<>();
                     currentRows.forEach(row -> currentBrands.add(row.getUUID("brand_id")));
+
                     List<UUID> brandsToAdd = representedInBrands.stream()
                             .filter(brand -> !currentBrands.contains(brand))
                             .toList();
@@ -378,6 +385,7 @@ public class ListenersRepository extends AsyncRepository {
         doc.setTelegramName(row.getString("telegram_name"));
         doc.setCountry(CountryCode.valueOf(row.getString("country")));
         doc.setSlugName(row.getString("slug_name"));
+
         String lt = row.getString("listener_type");
         if (lt != null) {
             doc.setListenerType(ListenerType.valueOf(lt));
@@ -392,16 +400,79 @@ public class ListenersRepository extends AsyncRepository {
         }
 
         JsonObject nickName = row.getJsonObject("nickname");
-        if (nickName != null) {
-            EnumMap<LanguageCode, String> localizedNickName = new EnumMap<>(LanguageCode.class);
-            nickName.getMap().forEach((key, value) ->
-                    localizedNickName.put(LanguageCode.valueOf(key), (String) value));
-            doc.setNickName(localizedNickName);
-        }
+        doc.setNickName(fromNickNameJson(nickName));
 
         doc.setArchived(row.getInteger("archived"));
-
         return Uni.createFrom().item(doc);
+    }
+
+    private JsonObject toNickNameJson(EnumMap<LanguageCode, Set<String>> nick) {
+        JsonObject json = new JsonObject();
+        if (nick == null || nick.isEmpty()) {
+            return json;
+        }
+        nick.forEach((lang, set) -> {
+            if (lang == null || set == null || set.isEmpty()) {
+                return;
+            }
+            JsonArray arr = new JsonArray();
+            for (String s : set) {
+                if (s == null) {
+                    continue;
+                }
+                String v = s.trim();
+                if (!v.isEmpty()) {
+                    arr.add(v);
+                }
+            }
+            if (!arr.isEmpty()) {
+                json.put(lang.name(), arr);
+            }
+        });
+        return json;
+    }
+
+    private EnumMap<LanguageCode, Set<String>> fromNickNameJson(JsonObject json) {
+        EnumMap<LanguageCode, Set<String>> out = new EnumMap<>(LanguageCode.class);
+        if (json == null || json.isEmpty()) {
+            return out;
+        }
+
+        json.getMap().forEach((k, v) -> {
+            if (k == null || v == null) {
+                return;
+            }
+
+            LanguageCode lang = LanguageCode.valueOf(k);
+            LinkedHashSet<String> set = new LinkedHashSet<>();
+
+            if (v instanceof JsonArray ja) {
+                for (int i = 0; i < ja.size(); i++) {
+                    String s = Objects.toString(ja.getValue(i), "").trim();
+                    if (!s.isEmpty()) {
+                        set.add(s);
+                    }
+                }
+            } else if (v instanceof Iterable<?> it) {
+                for (Object item : it) {
+                    String s = Objects.toString(item, "").trim();
+                    if (!s.isEmpty()) {
+                        set.add(s);
+                    }
+                }
+            } else {
+                String s = Objects.toString(v, "").trim();
+                if (!s.isEmpty()) {
+                    set.add(s);
+                }
+            }
+
+            if (!set.isEmpty()) {
+                out.put(lang, set);
+            }
+        });
+
+        return out;
     }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {

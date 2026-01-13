@@ -40,6 +40,7 @@ import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -95,7 +96,7 @@ public class PublicChatService extends ChatService {
         dto.setListenerType(String.valueOf(ListenerType.REGULAR));
         dto.getLocalizedName().put(LanguageCode.en, email);
         if (nickname != null && !nickname.isBlank()) {
-            dto.getNickName().put(LanguageCode.en, nickname);
+            dto.getNickName().put(LanguageCode.en, Set.of(nickname));
         }
 
         return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())

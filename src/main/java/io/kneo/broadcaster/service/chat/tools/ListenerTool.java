@@ -17,7 +17,7 @@ public class ListenerTool {
                                 "description", "Action to perform: 'register' to register current user as listener, 'list_listeners' to search/list all registered listeners"),
                         "nickname", Map.of(
                                 "type", "string",
-                                "description", "For 'register' action: Listener's preferred name or nickname (optional, defaults to email if not provided)"),
+                                "description", "For 'register' action: Listener's preferred name or nickname (optional, defaults to email if not provided). You can provide multiple names separated by commas if they have multiple nicknames"),
                         "search_term", Map.of(
                                 "type", "string",
                                 "description", "For 'list_listeners' action: Search term to filter listeners by name, nickname, email, telegram name, or slug (optional, returns all if not provided, max 100 results)"),

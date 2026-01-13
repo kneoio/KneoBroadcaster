@@ -13,6 +13,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Setter
@@ -29,7 +30,7 @@ public class ListenerDTO extends AbstractReferenceDTO {
     @ValidCountry(message = "Country is not supported")
     private String country;
 
-    private EnumMap<LanguageCode, String> nickName = new EnumMap<>(LanguageCode.class);
+    private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private Integer archived;
     private List<UUID> listenerOf;

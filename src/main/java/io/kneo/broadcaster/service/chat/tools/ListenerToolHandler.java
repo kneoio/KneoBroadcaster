@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -68,7 +69,11 @@ public class ListenerToolHandler extends BaseToolHandler {
                     dto.setListenerType(String.valueOf(ListenerType.REGULAR));
                     dto.getLocalizedName().put(LanguageCode.en, email);
                     if (nickname != null && !nickname.isBlank()) {
-                        dto.getNickName().put(LanguageCode.en, nickname);
+                        Set<String> nicknames = java.util.Arrays.stream(nickname.split(","))
+                                .map(String::trim)
+                                .filter(s -> !s.isEmpty())
+                                .collect(java.util.stream.Collectors.toSet());
+                        dto.getNickName().put(LanguageCode.en, nicknames);
                     }
 
                     return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build());
@@ -182,9 +187,13 @@ public class ListenerToolHandler extends BaseToolHandler {
                                     }
                                 }
                                 if (listener.getNickName() != null) {
-                                    for (String nickname : listener.getNickName().values()) {
-                                        if (nickname != null && nickname.toLowerCase().contains(term)) {
-                                            return true;
+                                    for (Set<String> nicknames : listener.getNickName().values()) {
+                                        if (nicknames != null) {
+                                            for (String nickname : nicknames) {
+                                                if (nickname != null && nickname.toLowerCase().contains(term)) {
+                                                    return true;
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -208,7 +217,10 @@ public class ListenerToolHandler extends BaseToolHandler {
                                 .put("country", listener.getCountry());
                         
                         if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
-                            listenerObj.put("nickname", listener.getNickName().get(LanguageCode.en));
+                            Set<String> nicknames = listener.getNickName().get(LanguageCode.en);
+                            if (nicknames != null && !nicknames.isEmpty()) {
+                                listenerObj.put("nickname", String.join(", ", nicknames));
+                            }
                         }
                         if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
                             listenerObj.put("name", listener.getLocalizedName().get(LanguageCode.en));

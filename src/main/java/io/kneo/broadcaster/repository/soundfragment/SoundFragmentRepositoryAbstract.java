@@ -90,21 +90,21 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
                     .onItem().transform(rowSet -> {
                         List<FileMetadata> files = new ArrayList<>();
                         for (Row fileRow : rowSet) {
-                            FileMetadata f = new FileMetadata();
-                            f.setId(fileRow.getLong("id"));
-                            f.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
-                            f.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
-                            f.setParentTable(fileRow.getString("parent_table"));
-                            f.setParentId(fileRow.getUUID("parent_id"));
-                            f.setArchived(fileRow.getInteger("archived"));
+                            FileMetadata fileMetadata = new FileMetadata();
+                            fileMetadata.setId(fileRow.getLong("id"));
+                            fileMetadata.setRegDate(fileRow.getLocalDateTime("reg_date").atZone(ZoneId.systemDefault()));
+                            fileMetadata.setLastModifiedDate(fileRow.getLocalDateTime("last_mod_date").atZone(ZoneId.systemDefault()));
+                            fileMetadata.setParentTable(fileRow.getString("parent_table"));
+                            fileMetadata.setParentId(fileRow.getUUID("parent_id"));
+                            fileMetadata.setArchived(fileRow.getInteger("archived"));
                             if (fileRow.getLocalDateTime("archived_date") != null)
-                                f.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
-                            f.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
-                            f.setMimeType(fileRow.getString("mime_type"));
-                            f.setSlugName(fileRow.getString("slug_name"));
-                            f.setFileOriginalName(fileRow.getString("file_original_name"));
-                            f.setFileKey(fileRow.getString("file_key"));
-                            files.add(f);
+                                fileMetadata.setArchivedDate(fileRow.getLocalDateTime("archived_date"));
+                            fileMetadata.setFileStorageType(FileStorageType.valueOf(fileRow.getString("storage_type")));
+                            fileMetadata.setMimeType(fileRow.getString("mime_type"));
+                            fileMetadata.setSlugName(fileRow.getString("slug_name"));
+                            fileMetadata.setFileOriginalName(fileRow.getString("file_original_name"));
+                            fileMetadata.setFileKey(fileRow.getString("file_key"));
+                            files.add(fileMetadata);
                         }
                         d.setFileMetadataList(files);
                         if (files.isEmpty()) markAsCorrupted(d.getId()).subscribe().with(r -> {}, e -> {});

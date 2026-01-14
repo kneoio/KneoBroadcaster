@@ -222,4 +222,21 @@ public class SongSupplier implements ISupplier {
         filter.setSearchTerm(playlistRequest.getSearchTerm());
         return filter;
     }
+
+    public List<SoundFragment> getPlayedSongsForBrand(String brandName) {
+        Map<PlaylistItemType, List<SupplierSongMemory>> brandMemory = brandPlaylistMemory.get(brandName);
+        if (brandMemory == null || brandMemory.isEmpty()) {
+            return List.of();
+        }
+
+        List<SoundFragment> allPlayedSongs = new ArrayList<>();
+        for (Map.Entry<PlaylistItemType, List<SupplierSongMemory>> entry : brandMemory.entrySet()) {
+            List<SupplierSongMemory> memoryList = entry.getValue();
+            if (memoryList != null && !memoryList.isEmpty()) {
+                SupplierSongMemory memory = memoryList.getFirst();
+                allPlayedSongs.addAll(memory.getPlayedSongs());
+            }
+        }
+        return allPlayedSongs;
+    }
 }

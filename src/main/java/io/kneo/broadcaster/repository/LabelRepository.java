@@ -14,6 +14,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.UUID;
 
+@Deprecated
 @ApplicationScoped
 public class LabelRepository extends AsyncRepository {
     private static final String LABELS_TABLE = "__labels";

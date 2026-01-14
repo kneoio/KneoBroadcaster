@@ -34,7 +34,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -110,7 +109,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
 
         if (!includeArchived) {
-            sql += " AND t.archived = 0 ";
+            sql += " AND t.archived = 0";
         }
 
         if (filter != null && filter.isActivated()) {
@@ -607,49 +606,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return tx.preparedQuery(updateSql).execute(params);
     }
 
-    public Uni<Integer> getSearchCount(String searchTerm, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
-        String sql = "SELECT COUNT(DISTINCT t.id) FROM " + entityData.getTableName() + " t " +
-                "LEFT JOIN mixpla__sound_fragment_genres sfg ON t.id = sfg.sound_fragment_id " +
-                "LEFT JOIN __genres g ON sfg.genre_id = g.id " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE rls.reader = " + user.getId();
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            String normalizedTerm = searchTerm.trim().toLowerCase();
-            sql += " AND (LOWER(t.title) LIKE '%" + normalizedTerm + "%' OR LOWER(t.artist) LIKE '%" + normalizedTerm +
-                    "%' OR LOWER(g.identifier) LIKE '%" + normalizedTerm + "%' OR CAST(t.id AS TEXT) LIKE '%" + normalizedTerm + "%')";
-        }
-
-        if (!includeArchived) {
-            sql += " AND (t.archived IS NULL OR t.archived = 0)";
-        }
-
-        if (filter != null && filter.isActivated()) {
-            sql += buildFilterConditions(filter);
-        }
-
-        return client.query(sql)
-                .execute()
-                .onItem().transform(rows -> rows.iterator().next().getInteger(0));
-    }
-
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
-    }
-
-    private String formatDurationForPostgres(Duration duration) {
-        if (duration == null) {
-            return null;
-        }
-        long hours = duration.toHours();
-        long minutes = duration.toMinutesPart();
-        long seconds = duration.toSecondsPart();
-        int millis = duration.toMillisPart();
-        
-        if (millis > 0) {
-            return String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, millis);
-        } else {
-            return String.format("%02d:%02d:%02d", hours, minutes, seconds);
-        }
     }
 }

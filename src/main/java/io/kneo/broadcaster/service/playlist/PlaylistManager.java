@@ -340,7 +340,7 @@ public class PlaylistManager {
     }
 
     public PlaylistManagerStats getStats() {
-        return new PlaylistManagerStats(this, segmentDuration);
+        return new PlaylistManagerStats(this, segmentDuration, (SongSupplier) songSupplier);
     }
 
     private void moveFragmentToProcessedList(LiveSoundFragment fragmentToPlay) {

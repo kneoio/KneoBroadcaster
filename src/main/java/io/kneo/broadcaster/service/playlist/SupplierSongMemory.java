@@ -20,4 +20,8 @@ public class SupplierSongMemory {
     public void reset() {
         playedSongs.clear();
     }
+
+    public Set<SoundFragment> getPlayedSongs() {
+        return playedSongs;
+    }
 }

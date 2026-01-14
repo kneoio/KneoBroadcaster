@@ -394,8 +394,8 @@ public class ListenersRepository extends AsyncRepository {
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {
             EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
-            localizedNameJson.getMap().forEach((key, value) ->
-                    localizedName.put(LanguageCode.valueOf(key), (String) value));
+            localizedNameJson.getMap().forEach((key, value) -> 
+                localizedName.put(LanguageCode.valueOf(key), (String) value));
             doc.setLocalizedName(localizedName);
         }
 
@@ -459,11 +459,6 @@ public class ListenersRepository extends AsyncRepository {
                     if (!s.isEmpty()) {
                         set.add(s);
                     }
-                }
-            } else {
-                String s = Objects.toString(v, "").trim();
-                if (!s.isEmpty()) {
-                    set.add(s);
                 }
             }
 

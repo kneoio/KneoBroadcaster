@@ -77,10 +77,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 });
     }
 
-    public Uni<Integer> getAllCount(final IUser user) {
-        return getAllCount(user, null);
-    }
-
     public Uni<Integer> getAllCount(final IUser user, final ListenerFilterDTO filterDTO) {
         assert repository != null;
         ListenerFilter filter = toFilter(filterDTO);

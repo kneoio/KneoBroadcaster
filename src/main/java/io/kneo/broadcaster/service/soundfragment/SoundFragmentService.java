@@ -68,35 +68,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         this.refService = null;
     }
 
-    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
-        assert repository != null;
-        assert brandService != null;
-
-        return brandService.getBySlugName(brandName)
-                .onItem().transformToUni(radioStation -> {
-                    if (radioStation == null) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
-                    }
-                    UUID brandId = radioStation.getId();
-                    return repository.getForBrandBySimilarity(brandId, keyword, limit, offset, false, SuperUser.build())
-                            .chain(fragments -> {
-                                if (fragments.isEmpty()) {
-                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
-                                }
-
-                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
-                                        .map(this::mapToBrandSoundFragmentDTO)
-                                        .collect(Collectors.toList());
-
-                                return Uni.join().all(unis).andFailFast();
-                            });
-                })
-                .onFailure().recoverWithUni(failure -> {
-                    LOGGER.error("Failed to similarity-search fragments for brand: {}", brandName, failure);
-                    return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
-                });
-    }
-
     @Inject
     public SoundFragmentService(UserService userService,
                                 BrandService brandService, GenreService genreService,
@@ -267,10 +238,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     LOGGER.error("Failed to get fragments count for brand: {}", brand, failure);
                     return Uni.createFrom().failure(failure);
                 });
-    }
-
-    public Uni<Integer> getBrandSoundFragmentsCount(final String brand, final SoundFragmentFilterDTO filterDTO) {
-        return getBrandSoundFragmentsCount(brand, filterDTO, SuperUser.build());
     }
 
     public Uni<SoundFragmentDTO> upsert(String id, SoundFragmentDTO dto, IUser user, LanguageCode code) {
@@ -548,6 +515,35 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     dto.setDefaultBrandId(doc.getDefaultBrandId());
                     dto.setRepresentedInBrands(doc.getRepresentedInBrands());
                     return dto;
+                });
+    }
+
+    public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragmentsBySimilarity(String brandName, String keyword, int limit, int offset) {
+        assert repository != null;
+        assert brandService != null;
+
+        return brandService.getBySlugName(brandName)
+                .onItem().transformToUni(radioStation -> {
+                    if (radioStation == null) {
+                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                    }
+                    UUID brandId = radioStation.getId();
+                    return repository.getForBrandBySimilarity(brandId, keyword, limit, offset, false, SuperUser.build())
+                            .chain(fragments -> {
+                                if (fragments.isEmpty()) {
+                                    return Uni.createFrom().item(Collections.<BrandSoundFragmentDTO>emptyList());
+                                }
+
+                                List<Uni<BrandSoundFragmentDTO>> unis = fragments.stream()
+                                        .map(this::mapToBrandSoundFragmentDTO)
+                                        .collect(Collectors.toList());
+
+                                return Uni.join().all(unis).andFailFast();
+                            });
+                })
+                .onFailure().recoverWithUni(failure -> {
+                    LOGGER.error("Failed to similarity-search fragments for brand: {}", brandName, failure);
+                    return Uni.<List<BrandSoundFragmentDTO>>createFrom().failure(failure);
                 });
     }
 

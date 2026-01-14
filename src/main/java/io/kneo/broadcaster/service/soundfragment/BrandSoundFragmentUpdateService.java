@@ -5,14 +5,11 @@ import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
 
 @ApplicationScoped
 public class BrandSoundFragmentUpdateService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(BrandSoundFragmentUpdateService.class);
 
     @Inject
     PgPool client;

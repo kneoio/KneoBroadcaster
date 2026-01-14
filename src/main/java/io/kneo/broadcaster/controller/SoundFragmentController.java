@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
+import io.kneo.broadcaster.dto.BrandSoundFragmentFlatDTO;
 import io.kneo.broadcaster.dto.BulkBrandUpdateDTO;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.dto.actions.SoundFragmentActionsFactory;
@@ -9,6 +9,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.service.soundfragment.BrandSoundFragmentService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.util.FileDownloadService;
 import io.kneo.broadcaster.service.util.FileUploadService;
@@ -53,6 +54,7 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     private static final int STREAM_BUFFER_SIZE = 524288; // 512KB buffer for file streaming
 
     private SoundFragmentService service;
+    private BrandSoundFragmentService brandSoundFragmentService;
     private FileUploadService fileUploadService;
     private FileDownloadService fileDownloadService;
     private ValidationService validationService;
@@ -65,12 +67,14 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
     @Inject
     public SoundFragmentController(UserService userService,
                                    SoundFragmentService service,
+                                   BrandSoundFragmentService brandSoundFragmentService,
                                    FileUploadService fileUploadService,
                                    FileDownloadService fileDownloadService,
                                    ValidationService validationService,
                                    Vertx vertx) {
         super(userService);
         this.service = service;
+        this.brandSoundFragmentService = brandSoundFragmentService;
         this.fileUploadService = fileUploadService;
         this.fileDownloadService = fileDownloadService;
         this.validationService = validationService;
@@ -152,11 +156,11 @@ public class SoundFragmentController extends AbstractSecuredController<SoundFrag
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getBrandSoundFragments(brandName, size, (page - 1) * size, filter, user),
-                        service.getBrandSoundFragmentsCount(brandName, filter, user)
+                        brandSoundFragmentService.getBrandSoundFragmentsFlat(brandName, size, (page - 1) * size, filter, user),
+                        brandSoundFragmentService.getBrandSoundFragmentsCount(brandName, filter, user)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
-                    View<BrandSoundFragmentDTO> dtoEntries = new View<>(tuple.getItem1(),
+                    View<BrandSoundFragmentFlatDTO> dtoEntries = new View<>(tuple.getItem1(),
                             tuple.getItem2(), page,
                             RuntimeUtil.countMaxPage(tuple.getItem2(), size),
                             size);

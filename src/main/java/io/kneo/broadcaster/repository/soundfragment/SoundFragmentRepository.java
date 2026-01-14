@@ -440,9 +440,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findForBrand(brandId, limit, offset, includeArchived, user, filter);
     }
 
-    public Uni<Integer> getForBrandCount(UUID brandId, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
+    public Uni<Integer> getForBrandCount(UUID brandId, IUser user, SoundFragmentFilter filter) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findForBrandCount(brandId, includeArchived, user, filter);
+        return brandRepository.findForBrandCount(brandId, user, filter);
     }
 
     public Uni<List<SoundFragment>> getBrandSongs(UUID brandId, PlaylistItemType fragmentType) {

@@ -226,7 +226,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                         return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brand));
                     }
                     UUID brandId = radioStation.getId();
-                    return repository.getForBrandCount(brandId, false, user, filter)
+                    return repository.getForBrandCount(brandId, user, filter)
                             .invoke(count -> {
                                 BrandLogger.logActivity(brand, "fragment_count",
                                         "Found %d fragments for this brand", count);

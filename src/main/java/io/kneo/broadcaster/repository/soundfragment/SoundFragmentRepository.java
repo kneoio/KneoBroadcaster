@@ -305,7 +305,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                 return Uni.combine().all().unis(deleteFileUnis).discardItems();
                             }).onItem().transformToUni(v -> {
                                 return client.withTransaction(tx -> {
-                                    String deleteGenresSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
+                                    String deleteGenresSql = "DELETE FROM mixpla__sound_fragment_genres WHERE sound_fragment_id = $1";
                                     String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
                                     String deleteFilesSql = "DELETE FROM _files WHERE parent_id = $1";
                                     String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
@@ -370,7 +370,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return Uni.createFrom().voidItem();
         }
 
-        String insertSql = "INSERT INTO kneobroadcaster__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
+        String insertSql = "INSERT INTO mixpla__sound_fragment_genres (sound_fragment_id, genre_id) VALUES ($1, $2)";
         List<Tuple> params = genreIds.stream()
                 .map(id -> Tuple.of(soundFragmentId, id))
                 .collect(Collectors.toList());
@@ -381,7 +381,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     }
 
     private Uni<Void> updateGenreAssociations(SqlClient tx, UUID soundFragmentId, List<UUID> genreIds) {
-        String deleteSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
+        String deleteSql = "DELETE FROM mixpla__sound_fragment_genres WHERE sound_fragment_id = $1";
         return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(soundFragmentId))
                 .onItem().transformToUni(ignored -> insertGenreAssociations(tx, soundFragmentId, genreIds));
@@ -609,8 +609,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     public Uni<Integer> getSearchCount(String searchTerm, boolean includeArchived, IUser user, SoundFragmentFilter filter) {
         String sql = "SELECT COUNT(DISTINCT t.id) FROM " + entityData.getTableName() + " t " +
-                "LEFT JOIN kneobroadcaster__sound_fragment_genres sfg ON t.id = sfg.sound_fragment_id " +
-                "LEFT JOIN kneobroadcaster__genres g ON sfg.genre_id = g.id " +
+                "LEFT JOIN mixpla__sound_fragment_genres sfg ON t.id = sfg.sound_fragment_id " +
+                "LEFT JOIN __genres g ON sfg.genre_id = g.id " +
                 "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
                 "WHERE rls.reader = " + user.getId();
 

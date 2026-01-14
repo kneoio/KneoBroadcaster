@@ -10,7 +10,6 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     public static final String PROFILE = "profile";
     public static final String MEMORY = "memory";
     public static final String BRAND_STATS = "brand agent statistics";
-    public static final String GENRE = "genre";
     public static final String AI_AGENT = "ai agent";
     public static final String EVENT = "event";
     public static final String SCRIPT = "script";
@@ -31,7 +30,6 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
     private static final String PROFILE_ACCESS_TABLE_NAME = "kneobroadcaster__profile_readers";
     private static final String MEMORY_TABLE_NAME = "kneobroadcaster__memories";
     private static final String BRAND_STATS_TABLE_NAME = "kneobroadcaster__brand_agent_stats";
-    private static final String GENRE_TABLE_NAME = "kneobroadcaster__genres";
     private static final String AI_AGENT_TABLE_NAME = "kneobroadcaster__ai_agents";
     private static final String AI_AGENT_ACCESS_TABLE_NAME = "kneobroadcaster__ai_agent_readers";
     private static final String EVENT_TABLE_NAME = "kneobroadcaster__events";
@@ -72,9 +70,6 @@ public class KneoBroadcasterNameResolver extends TableNameResolver {
             );
             case BRAND_STATS -> new EntityData(
                     BRAND_STATS_TABLE_NAME
-            );
-            case GENRE -> new EntityData(
-                    GENRE_TABLE_NAME
             );
             case AI_AGENT -> new EntityData(
                     AI_AGENT_TABLE_NAME,

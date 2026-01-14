@@ -9,15 +9,15 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.UUID;
 
-import static io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver.GENRE;
+import static io.kneo.officeframe.repository.table.OfficeFrameNameResolver.GENRE;
 
-@ApplicationScoped
+
+//@ApplicationScoped
 public class GenreRepository extends AsyncRepository {
     private static final EntityData entityData = KneoBroadcasterNameResolver.create().getEntityNames(GENRE);
     private static final String BASE_REQUEST = String.format("SELECT * FROM %s t ", entityData.getTableName());

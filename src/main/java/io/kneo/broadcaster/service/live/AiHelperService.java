@@ -31,6 +31,8 @@ import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.stream.StreamManagerStats;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.officeframe.service.GenreService;
+import io.kneo.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -72,6 +74,8 @@ public class AiHelperService {
     private final ScriptService scriptService;
     private final SoundFragmentService soundFragmentService;
     private final RefService refService;
+    private final GenreService genreService;
+    private final LabelService labelService;
 
     @Inject
     StatsAccumulator statsAccumulator;
@@ -84,9 +88,11 @@ public class AiHelperService {
             AiAgentService aiAgentService,
             ScriptService scriptService,
             BrandService brandService,
-            io.kneo.broadcaster.service.ListenerService listenerService,
-            io.kneo.broadcaster.service.soundfragment.SoundFragmentService soundFragmentService,
-            io.kneo.broadcaster.service.RefService refService
+            ListenerService listenerService,
+            SoundFragmentService soundFragmentService,
+            RefService refService,
+            GenreService genreService,
+            LabelService labelService
     ) {
         this.radioStationPool = radioStationPool;
         this.aiAgentService = aiAgentService;
@@ -95,6 +101,8 @@ public class AiHelperService {
         this.listenerService = listenerService;
         this.soundFragmentService = soundFragmentService;
         this.refService = refService;
+        this.genreService = genreService;
+        this.labelService = labelService;
     }
 
     public Uni<ListenerAiDTO> getListenerByTelegramName(String telegramName) {
@@ -466,7 +474,7 @@ public class AiHelperService {
 
         Uni<List<String>> genresUni = (genreIds != null && !genreIds.isEmpty())
                 ? Uni.join().all(genreIds.stream()
-                .map(genreId -> refService.getById(genreId)
+                .map(genreId -> genreService.getById(genreId)
                         .map(genre -> genre.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
                         .onFailure().recoverWithItem("Unknown"))
                 .collect(Collectors.toList())).andFailFast()
@@ -474,7 +482,7 @@ public class AiHelperService {
 
         Uni<List<String>> labelsUni = (labelIds != null && !labelIds.isEmpty())
                 ? Uni.join().all(labelIds.stream()
-                .map(labelId -> refService.getById(labelId)
+                .map(labelId -> labelService.getById(labelId)
                         .map(label -> label.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
                         .onFailure().recoverWithItem("Unknown"))
                 .collect(Collectors.toList())).andFailFast()

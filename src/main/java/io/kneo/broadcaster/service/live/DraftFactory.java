@@ -24,6 +24,7 @@ import io.kneo.broadcaster.template.GroovyTemplateEngine;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -44,6 +45,7 @@ public class DraftFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(DraftFactory.class);
 
     private final RefService refService;
+    private final GenreService genreService;
     private final ProfileService profileService;
     private final DraftService draftService;
     private final AiAgentService aiAgentService;
@@ -55,11 +57,12 @@ public class DraftFactory {
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
-    public DraftFactory(RefService refService, ProfileService profileService, DraftService draftService,
+    public DraftFactory(RefService refService, GenreService genreService, ProfileService profileService, DraftService draftService,
                         AiAgentService aiAgentService, WeatherApiClient weatherApiClient,
                         WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient,
                         ListenerService listenerService) {
         this.refService = refService;
+        this.genreService = genreService;
         this.profileService = profileService;
         this.draftService = draftService;
         this.aiAgentService = aiAgentService;
@@ -75,7 +78,7 @@ public class DraftFactory {
             AiAgent agent,
             IStream stream,
             UUID draftId,
-            LanguageTag selectedLanguage,
+            LanguageTag selectedLanguage,  //always EN
             Map<String, Object> userVariables
     ) {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
@@ -113,7 +116,7 @@ public class DraftFactory {
                                 userVariables
                         );
                     } else {
-                        String msg = String.format("No draft template found for language=%s. Fallbacks are disabled.", selectedLanguage);
+                        String msg = "No draft template found. Fallbacks are disabled.";
                         LOGGER.error(msg);
                         throw new IllegalStateException(msg);
                     }
@@ -255,7 +258,7 @@ public class DraftFactory {
         }
         
         List<Uni<String>> genreUnis = genreIds.stream()
-                .map(genreId -> refService.getById(genreId)
+                .map(genreId -> genreService.getById(genreId)
                         .map(genre -> genre.getLocalizedName().get(selectedLanguage)))
                 .collect(Collectors.toList());
         

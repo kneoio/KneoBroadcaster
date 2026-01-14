@@ -128,8 +128,8 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
 
 
     private Uni<List<UUID>> loadGenres(UUID soundFragmentId) {
-        String sql = "SELECT g.id FROM kneobroadcaster__genres g " +
-                "JOIN kneobroadcaster__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
+        String sql = "SELECT g.id FROM __genres g " +
+                "JOIN mixpla__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
                 "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
 
         return client.preparedQuery(sql)

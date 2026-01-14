@@ -22,11 +22,13 @@ import io.kneo.broadcaster.util.BrandLogger;
 import io.kneo.broadcaster.util.FileSecurityUtils;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.DataEntity;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.WebHelper;
+import io.kneo.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -51,13 +53,15 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     private final SoundFragmentRepository repository;
     private final BrandService brandService;
+    private final GenreService genreService;
     private final LocalFileCleanupService localFileCleanupService;
     private final RefService refService;
     private String uploadDir;
     Validator validator;
 
-    protected SoundFragmentService(UserService userService) {
+    protected SoundFragmentService(UserService userService, GenreService genreService) {
         super(userService);
+        this.genreService = genreService;
         this.localFileCleanupService = null;
         this.repository = null;
         this.brandService = null;
@@ -95,13 +99,14 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
 
     @Inject
     public SoundFragmentService(UserService userService,
-                                BrandService brandService,
+                                BrandService brandService, GenreService genreService,
                                 LocalFileCleanupService localFileCleanupService,
                                 Validator validator,
                                 SoundFragmentRepository repository,
                                 BroadcasterConfig config,
                                 io.kneo.broadcaster.service.RefService refService) {
         super(userService);
+        this.genreService = genreService;
         this.localFileCleanupService = localFileCleanupService;
         this.validator = validator;
         this.repository = repository;
@@ -613,8 +618,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         List<UUID> brandIds = brandId != null ? List.of(brandId) : List.of();
         
         assert refService != null;
-        return refService.resolveGenresByName(metadata.getGenre())
-                .chain(genreIds -> {
+        return genreService.getByFuzzyIdentifier(metadata.getGenre())
+                .chain(genres -> {
+                    List<UUID> genreIds = genres.stream().map(DataEntity::getId).collect(java.util.stream.Collectors.toList());
                     fragment.setGenres(genreIds);
                     assert repository != null;
                     return repository.insert(fragment, brandIds, user);

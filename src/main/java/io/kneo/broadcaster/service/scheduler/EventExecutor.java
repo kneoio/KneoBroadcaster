@@ -183,8 +183,7 @@ public class EventExecutor {
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> aiAgentService.getById(stationStream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                         .chain(agent -> {
-                            LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                            return draftFactory.createDraft(fragment, agent, stationStream, prompt.getDraftId(), broadcastingLanguage, null)
+                            return draftFactory.createDraft(fragment, agent, stationStream, prompt.getDraftId(), LanguageTag.EN_US, null)
                                     .chain(draft -> generateText(prompt, draft))
                                     .chain(ttsText -> {
                                         String voiceId = AiHelperUtils.resolvePrimaryVoiceId(stationStream, agent);

@@ -190,7 +190,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                                 agent,
                                                                 stream,
                                                                 selected.getDraftId(),
-                                                                broadcastingLanguage,
+                                                                LanguageTag.EN_US,
                                                                 userVariables
                                                         )
                                                         .map(draft -> {

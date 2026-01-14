@@ -127,7 +127,7 @@ public class RadioStreamSupplier extends StreamSupplier {
                                                                     agent,
                                                                     stream,
                                                                     selectedPrompt.getDraftId(),
-                                                                    broadcastingLanguage,
+                                                                    LanguageTag.EN_US,
                                                                     Map.of()
                                                             )
                                                             .map(draft -> new SongPromptDTO(

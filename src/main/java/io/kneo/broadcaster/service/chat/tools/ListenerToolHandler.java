@@ -17,11 +17,13 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ListenerToolHandler extends BaseToolHandler {
 
@@ -60,19 +62,16 @@ public class ListenerToolHandler extends BaseToolHandler {
                         return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
                     }
                     IUser user = userOptional.get();
-                    String email = user.getUserName();
-
-                    LOGGER.info("[RegisterListener] Retrieved user email: {}", email);
+                    String userName = user.getUserName();
 
                     ListenerDTO dto = new ListenerDTO();
-                    dto.setEmail(email);
                     dto.setListenerType(String.valueOf(ListenerType.REGULAR));
-                    dto.getLocalizedName().put(LanguageCode.en, email);
-                    if (nickname != null && !nickname.isBlank()) {
-                        Set<String> nicknames = java.util.Arrays.stream(nickname.split(","))
+                    dto.getLocalizedName().put(LanguageCode.en, userName);
+                    if (!nickname.isBlank()) {
+                        Set<String> nicknames = Arrays.stream(nickname.split(","))
                                 .map(String::trim)
                                 .filter(s -> !s.isEmpty())
-                                .collect(java.util.stream.Collectors.toSet());
+                                .collect(Collectors.toSet());
                         dto.getNickName().put(LanguageCode.en, nicknames);
                     }
 
@@ -82,7 +81,7 @@ public class ListenerToolHandler extends BaseToolHandler {
                     LOGGER.info("[RegisterListener] Registration successful - listenerId: {}, userId: {}, slugName: {}",
                             listenerDTO.getId(), listenerDTO.getUserId(), listenerDTO.getSlugName());
 
-                    String displayName = nickname != null && !nickname.isBlank() ? nickname : listenerDTO.getLocalizedName().get(LanguageCode.en);
+                    String displayName = !nickname.isBlank() ? nickname : listenerDTO.getLocalizedName().get(LanguageCode.en);
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
                             .put("listenerId", String.valueOf(listenerDTO.getId()))

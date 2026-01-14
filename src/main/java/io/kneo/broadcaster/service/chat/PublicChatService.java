@@ -40,7 +40,6 @@ import jakarta.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -85,7 +84,7 @@ public class PublicChatService extends ChatService {
         return sessionManager.verifyCode(email, code);
     }
 
-    public Uni<RegistrationResult> registerListener(String sessionToken, String stationSlug, String nickname) {
+    public Uni<RegistrationResult> registerListener(String sessionToken, String stationSlug, String userName) {
         String email = sessionManager.validateSessionAndGetEmail(sessionToken);
         if (email == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired session"));
@@ -94,14 +93,11 @@ public class PublicChatService extends ChatService {
         ListenerDTO dto = new ListenerDTO();
         dto.setEmail(email);
         dto.setListenerType(String.valueOf(ListenerType.REGULAR));
-        dto.getLocalizedName().put(LanguageCode.en, email);
-        if (nickname != null && !nickname.isBlank()) {
-            dto.getNickName().put(LanguageCode.en, Set.of(nickname));
-        }
+        dto.getLocalizedName().put(LanguageCode.en, userName);
 
         return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
-                    String slugName = WebHelper.generateSlug(nickname != null && !nickname.isBlank() ? nickname : email);
+                    String slugName = WebHelper.generateSlug(userName != null && !userName.isBlank() ? userName : email);
                     return userService.findByLogin(slugName)
                             .onItem().transformToUni(existingUser -> {
                                 if (existingUser.getId() == 0) {

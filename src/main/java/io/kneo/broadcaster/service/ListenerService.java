@@ -20,6 +20,7 @@ import io.kneo.core.model.user.UndefinedUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
+import io.kneo.core.util.WebHelper;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -151,7 +152,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     List<UUID> stationIds = new ArrayList<>();
                     stationIds.add(station.getId());
                     
-                    String slugName = generatePersonSlug(listener.getLocalizedName().get(LanguageCode.en));
+                    String slugName = WebHelper.generatePersonSlug(listener.getLocalizedName().get(LanguageCode.en));
 
                     listener.setSlugName(slugName);
                     
@@ -173,7 +174,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                                         if (listenerType == ListenerType.OWNER) {
                                                             existingListener.setListenerType(ListenerType.OWNER);
                                                         }
-                                                        existingListener.setArchived(0);
                                                         return repository.update(existingListener.getId(), existingListener, stationIds, user);
                                                     } else {
                                                         listener.setUserId(existingUser.getId());
@@ -211,7 +211,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             return Uni.createFrom().failure(new IllegalArgumentException("Validation failed: " + errorMessage));
         }
 
-        String slugName = generatePersonSlug(dto.getLocalizedName().get(LanguageCode.en));
+        String slugName = WebHelper.generatePersonSlug(dto.getLocalizedName().get(LanguageCode.en));
         dto.setSlugName(slugName);
 
         if (id == null) {
@@ -370,33 +370,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                 .map(this::mapToDocumentAccessDTO)
                                 .collect(Collectors.toList())
                 );
-    }
-
-    @Deprecated
-    public static String generatePersonSlug(String input) {
-        if (input == null || input.trim().isEmpty()) {
-            return "";
-        }
-
-        int atIndex = input.indexOf('@');
-        if (atIndex > 0) {
-            input = input.substring(0, atIndex);
-        }
-
-        String extension = "";
-        int lastDotIndex = input.lastIndexOf('.');
-        if (lastDotIndex > 0 && lastDotIndex < input.length() - 1) {
-            extension = input.substring(lastDotIndex).toLowerCase();
-            input = input.substring(0, lastDotIndex);
-        }
-
-        String slug = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-                .toLowerCase()
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-+|-+$", "");
-
-        return slug + extension;
     }
 
 

@@ -9,8 +9,8 @@ import com.anthropic.models.messages.Model;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
-import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.Event;
+import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.cnst.ActionType;
@@ -99,13 +99,13 @@ public class EventExecutor {
         LOGGER.info("Executing event: {} ({})", event.getDescription(), event.getId());
 
 
-        List<Action> actions = event.getActions();
-        if (actions == null || actions.isEmpty()) {
+        List<LivePrompt> livePrompts = event.getLivePrompts();
+        if (livePrompts == null || livePrompts.isEmpty()) {
             LOGGER.debug("No actions for event: {}", event.getId());
             return Uni.createFrom().voidItem();
         }
 
-        return executeActions(event, actions.stream().filter(Action::isActive).toList());
+        return executeActions(event, livePrompts.stream().filter(LivePrompt::isActive).toList());
     }
 
     private Uni<Void> executeScheduledEvent(Event event, PlaylistItemType fragmentType) {
@@ -137,18 +137,18 @@ public class EventExecutor {
                             SoundFragment fragment = Randomizator.pickRandom(fragments);
                             LOGGER.info("Selected {} fragment: {} - {}", fragmentType, fragment.getTitle(), fragment.getId());
 
-                            List<Action> activeActions = event.getActions().stream()
-                                    .filter(Action::isActive)
+                            List<LivePrompt> activeLivePrompts = event.getLivePrompts().stream()
+                                    .filter(LivePrompt::isActive)
                                     .filter(a -> a.getActionType() == ActionType.QUEUE_UP)
                                     .toList();
 
-                            if (activeActions.isEmpty()) {
+                            if (activeLivePrompts.isEmpty()) {
                                 LOGGER.info("No RUN_PROMPT actions, queuing fragment without TTS");
                                 return queueFragmentWithoutTts(stationStream, fragment);
                             }
 
-                            Action selectedAction = Randomizator.pickRandom(activeActions);
-                            return executeWithPrompt(stationStream, fragment, selectedAction);
+                            LivePrompt selectedLivePrompt = Randomizator.pickRandom(activeLivePrompts);
+                            return executeWithPrompt(stationStream, fragment, selectedLivePrompt);
                         });
                 });
     }
@@ -177,8 +177,8 @@ public class EventExecutor {
         throw new IllegalStateException("Unknown sourcing type: " + sourcing);
     }
 
-    private Uni<Void> executeWithPrompt(IStream stationStream, SoundFragment fragment, Action action) {
-        UUID promptId = action.getPromptId();
+    private Uni<Void> executeWithPrompt(IStream stationStream, SoundFragment fragment, LivePrompt livePrompt) {
+        UUID promptId = livePrompt.getPromptId();
 
         return promptService.getById(promptId, SuperUser.build())
                 .chain(prompt -> aiAgentService.getById(stationStream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
@@ -273,22 +273,22 @@ public class EventExecutor {
                 .replaceWithVoid();
     }
 
-    private Uni<Void> executeActions(Event event, List<Action> actions) {
-        if (actions.isEmpty()) {
+    private Uni<Void> executeActions(Event event, List<LivePrompt> livePrompts) {
+        if (livePrompts.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
         Uni<Void> chain = Uni.createFrom().voidItem();
 
-        for (Action action : actions) {
-            chain = chain.chain(() -> executeAction(event, action));
+        for (LivePrompt livePrompt : livePrompts) {
+            chain = chain.chain(() -> executeAction(event, livePrompt));
         }
 
         return chain;
     }
 
-    private Uni<Void> executeAction(Event event, Action action) {
-        ActionType type = action.getActionType();
+    private Uni<Void> executeAction(Event event, LivePrompt livePrompt) {
+        ActionType type = livePrompt.getActionType();
         LOGGER.info("Executing action {} for event {}", type, event.getId());
 
         if (type == ActionType.QUEUE_UP) {
@@ -300,14 +300,14 @@ public class EventExecutor {
             }
         }
         if (type == ActionType.COMMAND_STOP_STREAM) {
-            return executeStopStream(event, action);
+            return executeStopStream(event, livePrompt);
         }
 
         LOGGER.warn("Unknown action type: {} for event: {}", type, event.getId());
         return Uni.createFrom().voidItem();
     }
 
-    private Uni<Void> executeStopStream(Event event, Action action) {
+    private Uni<Void> executeStopStream(Event event, LivePrompt livePrompt) {
         LOGGER.info("COMMAND_STOP_STREAM action triggered for event: {}", event.getId());
         return Uni.createFrom().voidItem();
     }

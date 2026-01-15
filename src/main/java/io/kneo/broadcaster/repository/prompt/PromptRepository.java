@@ -2,7 +2,7 @@ package io.kneo.broadcaster.repository.prompt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
-import io.kneo.broadcaster.model.Action;
+import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.PromptType;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
@@ -318,23 +318,23 @@ public class PromptRepository extends AsyncRepository {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 
-    public Uni<List<Action>> getPromptsForScene(UUID sceneId) {
+    public Uni<List<LivePrompt>> getPromptsForScene(UUID sceneId) {
         String sql = "SELECT prompt_id, rank, weight, active FROM mixpla__script_scene_actions WHERE script_scene_id = $1 AND prompt_id IS NOT NULL ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(sceneId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> {
-                    Action action = new Action();
-                    action.setPromptId(row.getUUID("prompt_id"));
-                    action.setRank(row.getInteger("rank"));
-                    action.setWeight(row.getBigDecimal("weight"));
-                    action.setActive(row.getBoolean("active"));
-                    return action;
+                    LivePrompt livePrompt = new LivePrompt();
+                    livePrompt.setPromptId(row.getUUID("prompt_id"));
+                    livePrompt.setRank(row.getInteger("rank"));
+                    livePrompt.setWeight(row.getBigDecimal("weight"));
+                    livePrompt.setActive(row.getBoolean("active"));
+                    return livePrompt;
                 })
                 .collect().asList();
     }
 
-    public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<Action> prompts) {
+    public Uni<Void> updatePromptsForScene(io.vertx.mutiny.sqlclient.SqlClient tx, UUID sceneId, List<LivePrompt> prompts) {
         String deleteSql = "DELETE FROM mixpla__script_scene_actions WHERE script_scene_id = $1";
         if (prompts == null || prompts.isEmpty()) {
             return tx.preparedQuery(deleteSql)
@@ -342,7 +342,7 @@ public class PromptRepository extends AsyncRepository {
                     .replaceWithVoid();
         }
 
-        List<Action> validPrompts = prompts.stream()
+        List<LivePrompt> validPrompts = prompts.stream()
                 .filter(p -> p != null && p.getPromptId() != null)
                 .toList();
 
@@ -358,7 +358,7 @@ public class PromptRepository extends AsyncRepository {
                 .chain(() -> {
                     List<Tuple> batches = new java.util.ArrayList<>();
                     for (int i = 0; i < validPrompts.size(); i++) {
-                        Action prompt = validPrompts.get(i);
+                        LivePrompt prompt = validPrompts.get(i);
                         batches.add(Tuple.of(
                                 sceneId,
                                 prompt.getPromptId(),

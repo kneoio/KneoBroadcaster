@@ -9,9 +9,9 @@ import io.kneo.broadcaster.dto.ScriptDTO;
 import io.kneo.broadcaster.dto.ScriptExportDTO;
 import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.filter.ScriptFilterDTO;
-import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Draft;
+import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.Scene;
@@ -424,7 +424,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         .chain(scenes -> {
                             List<UUID> promptIds = scenes.stream()
                                     .flatMap(scene -> scene.getPrompts() != null ? scene.getPrompts().stream() : java.util.stream.Stream.empty())
-                                    .map(Action::getPromptId)
+                                    .map(LivePrompt::getPromptId)
                                     .distinct()
                                     .collect(Collectors.toList());
                             
@@ -498,11 +498,11 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         return dto;
     }
 
-    private ScriptExportDTO.ScenePromptExportDTO mapPromptToExportDTO(Action action, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
+    private ScriptExportDTO.ScenePromptExportDTO mapPromptToExportDTO(LivePrompt livePrompt, Map<UUID, Prompt> promptMap, Map<UUID, Draft> draftMap, boolean extended) {
         ScriptExportDTO.ScenePromptExportDTO dto = new ScriptExportDTO.ScenePromptExportDTO();
-        dto.setId(action.getPromptId());
+        dto.setId(livePrompt.getPromptId());
         
-        Prompt prompt = promptMap.get(action.getPromptId());
+        Prompt prompt = promptMap.get(livePrompt.getPromptId());
         if (prompt != null) {
             dto.setTitle(prompt.getTitle());
             if (extended) {
@@ -522,8 +522,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             }
         }
         
-        dto.setActive(action.isActive());
-        dto.setWeight(action.getWeight());
+        dto.setActive(livePrompt.isActive());
+        dto.setWeight(livePrompt.getWeight());
         return dto;
     }
 
@@ -686,7 +686,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                         return Uni.createFrom().item(List.of());
                     }
                     List<UUID> promptIds = scene.getPrompts().stream()
-                            .map(Action::getPromptId)
+                            .map(LivePrompt::getPromptId)
                             .filter(Objects::nonNull)
                             .distinct()
                             .collect(Collectors.toList());
@@ -770,7 +770,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         }
 
         List<UUID> promptIds = originalScene.getPrompts().stream()
-                .map(Action::getPromptId)
+                .map(LivePrompt::getPromptId)
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());

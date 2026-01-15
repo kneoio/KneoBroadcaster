@@ -129,7 +129,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
 
     private Uni<List<UUID>> loadGenres(UUID soundFragmentId) {
         String sql = "SELECT g.id FROM __genres g " +
-                "JOIN mixpla__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
+                "JOIN kneobroadcaster__sound_fragment_genres sfg ON g.id = sfg.genre_id " +
                 "WHERE sfg.sound_fragment_id = $1 ORDER BY g.identifier";
 
         return client.preparedQuery(sql)
@@ -198,55 +198,5 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         }
 
         return conditions.toString();
-    }
-
-    private Duration parsePostgresIntervalToDuration(String intervalStr) {
-        if (intervalStr == null || intervalStr.trim().isEmpty()) {
-            return null;
-        }
-        
-        try {
-            // PostgreSQL INTERVAL typically returns in HH:MM:SS or HH:MM:SS.mmm format
-            if (intervalStr.contains(":")) {
-                String[] parts = intervalStr.split(":");
-                if (parts.length == 3) {
-                    long hours = Long.parseLong(parts[0]);
-                    long minutes = Long.parseLong(parts[1]);
-                    
-                    // Handle fractional seconds (e.g., "45.632")
-                    String secondsPart = parts[2];
-                    if (secondsPart.contains(".")) {
-                        String[] secondsAndMillis = secondsPart.split("\\.");
-                        long seconds = Long.parseLong(secondsAndMillis[0]);
-                        int millis = Integer.parseInt(secondsAndMillis[1]);
-                        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds).plusMillis(millis);
-                    } else {
-                        long seconds = Long.parseLong(secondsPart);
-                        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds(seconds);
-                    }
-                } else if (parts.length == 2) {
-                    long minutes = Long.parseLong(parts[0]);
-                    String secondsPart = parts[1];
-                    if (secondsPart.contains(".")) {
-                        String[] secondsAndMillis = secondsPart.split("\\.");
-                        long seconds = Long.parseLong(secondsAndMillis[0]);
-                        int millis = Integer.parseInt(secondsAndMillis[1]);
-                        return Duration.ofMinutes(minutes).plusSeconds(seconds).plusMillis(millis);
-                    } else {
-                        long seconds = Long.parseLong(secondsPart);
-                        return Duration.ofMinutes(minutes).plusSeconds(seconds);
-                    }
-                }
-            }
-            
-            // Fallback: try to parse as seconds if it's a numeric value
-            long seconds = Long.parseLong(intervalStr);
-            return Duration.ofSeconds(seconds);
-            
-        } catch (Exception e) {
-            // Log error but return null to avoid breaking the whole entity loading
-            LOGGER.warn("Failed to parse PostgreSQL interval: {}", intervalStr, e);
-            return null;
-        }
     }
 }

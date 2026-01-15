@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model;
 
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,8 @@ import java.util.UUID;
 public class Scene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
-    private List<Action> prompts;
+    private List<LivePrompt> prompts;
+    private SceneTimingMode timingMode;
     private PlaylistRequest playlistRequest;
     private LocalTime startTime;
     private int durationSeconds;

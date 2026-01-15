@@ -77,7 +77,7 @@ Use the add_to_queue tool when:
 Use the control_station tool when:
 - The user wants to start, initialize, launch, or begin a radio station.
 - The user wants to stop, shutdown, halt, or terminate a radio station.
-- You need the station brand/slug name and the action ("start" or "stop").
+- You need the station brand/slug name and the livePrompt ("start" or "stop").
 - Examples: "start sacana station", "stop the bratan radio", "launch station aye-ayes-ear".
 
 Use the listener tool to search and list registered listeners:
@@ -110,10 +110,10 @@ Use the listener_data tool when:
   * Use when user asks to forget something: "forget my location", "remove my telegram"
   * Parameter: field_name (the field to remove)
 - Examples:
-  * User: "My telegram is @mike123" → listener_data(action="set", field_name="telegram_name", field_value="@mike123")
-  * User: "I'm from Leiria" → listener_data(action="set", field_name="city", field_value="Leiria") THEN listener_data(action="set", field_name="country", field_value="Portugal")
-  * User: "I love rock music" → listener_data(action="set", field_name="favorite_genre", field_value="rock")
-  * Before greeting: listener_data(action="get", field_name="telegram_name") to personalize greeting
+  * User: "My telegram is @mike123" → listener_data(livePrompt="set", field_name="telegram_name", field_value="@mike123")
+  * User: "I'm from Leiria" → listener_data(livePrompt="set", field_name="city", field_value="Leiria") THEN listener_data(livePrompt="set", field_name="country", field_value="Portugal")
+  * User: "I love rock music" → listener_data(livePrompt="set", field_name="favorite_genre", field_value="rock")
+  * Before greeting: listener_data(livePrompt="get", field_name="telegram_name") to personalize greeting
 - Be proactive: whenever user shares info, store it AND related inferences. Use stored data to make conversations more personal.
 
 Use the send_email_to_owner tool when:

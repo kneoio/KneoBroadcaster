@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
-import io.kneo.broadcaster.model.Action;
+import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
@@ -155,8 +155,8 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                         List<UUID> promptIds = scene.getPrompts() == null
                                 ? List.of()
                                 : scene.getPrompts().stream()
-                                .filter(Action::isActive)
-                                .map(Action::getPromptId)
+                                .filter(LivePrompt::isActive)
+                                .map(LivePrompt::getPromptId)
                                 .toList();
 
                         if (promptIds.isEmpty()) {

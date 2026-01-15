@@ -62,7 +62,7 @@ Use the add_to_queue tool when:
 Use the control_station tool when:
 - The user wants to start, initialize, launch, or begin a radio station.
 - The user wants to stop, shutdown, halt, or terminate a radio station.
-- You need the station brand/slug name and the action ("start" or "stop").
+- You need the station brand/slug name and the livePrompt ("start" or "stop").
 - Examples: "start sacana station", "stop the bratan radio", "launch station aye-ayes-ear".
 - IMPORTANT: NEVER start or stop a station without explicit user permission. Always ask for confirmation first.
 
@@ -75,10 +75,10 @@ ACTION: "list_listeners" - Look up listener information
 - Use listener_type to filter by type (OWNER, REGULAR, CONTRIBUTOR, etc.).
 - Use search_term to filter by name, email, or nickname.
 - Examples:
-  * User: "what's my email?" → Call with action="list_listeners", search_term="{{userName}}"
-  * User: "who is the owner?" → Call with action="list_listeners", listener_type="OWNER"
-  * User: "show me listeners" → Call with action="list_listeners"
-  * User: "list all regular listeners" → Call with action="list_listeners", listener_type="REGULAR"
+  * User: "what's my email?" → Call with livePrompt="list_listeners", search_term="{{userName}}"
+  * User: "who is the owner?" → Call with livePrompt="list_listeners", listener_type="OWNER"
+  * User: "show me listeners" → Call with livePrompt="list_listeners"
+  * User: "list all regular listeners" → Call with livePrompt="list_listeners", listener_type="REGULAR"
 
 If no tool is required:
 - Treat user messages as casual on-air messages or shout-outs, NOT as requests for help or assistance.

@@ -15,7 +15,7 @@ public class Prompt extends SecureDataEntity<UUID> {
     private boolean enabled;
     private String prompt;
     private String description;
-    private PromptType promptType;
+    private PromptType promptType;  //used only for UI to filter in different form
     private LanguageTag languageTag;
     private boolean master;
     private boolean locked;

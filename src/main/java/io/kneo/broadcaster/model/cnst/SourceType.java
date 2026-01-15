@@ -1,4 +1,4 @@
-    package io.kneo.broadcaster.model.cnst;
+package io.kneo.broadcaster.model.cnst;
 
-    public enum SourceType {
-        USER_UPLOAD, RECOVERED_FROM_STORAGE, SUNO_PROMPT, TEXT_FOR_TTS, CONTRIBUTION, TEMPORARY_MIX    }
+public enum SourceType {
+    USER_UPLOAD, RECOVERED_FROM_STORAGE, CONTRIBUTION, TEMPORARY_MIX    }

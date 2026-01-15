@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.StagePlaylistDTO;
-import io.kneo.broadcaster.model.Action;
+import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
@@ -126,11 +126,11 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         });
     }
 
-    private List<ScenePromptDTO> mapScenePromptsToDTOs(List<Action> actions) {
-        if (actions == null) {
+    private List<ScenePromptDTO> mapScenePromptsToDTOs(List<LivePrompt> livePrompts) {
+        if (livePrompts == null) {
             return null;
         }
-        return actions.stream()
+        return livePrompts.stream()
                 .map(sp -> {
                     ScenePromptDTO dto = new ScenePromptDTO();
                     dto.setPromptId(sp.getPromptId());
@@ -157,13 +157,13 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         return entity;
     }
 
-    private List<Action> mapScenePromptDTOsToEntities(List<ScenePromptDTO> dtos) {
+    private List<LivePrompt> mapScenePromptDTOsToEntities(List<ScenePromptDTO> dtos) {
         if (dtos == null) {
             return List.of();
         }
         return dtos.stream()
                 .map(dto -> {
-                    Action sp = new Action();
+                    LivePrompt sp = new LivePrompt();
                     sp.setPromptId(dto.getPromptId());
                     sp.setRank(dto.getRank());
                     sp.setWeight(dto.getWeight());

@@ -9,8 +9,8 @@ import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
-import io.kneo.broadcaster.model.Action;
 import io.kneo.broadcaster.model.BrandScript;
+import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
@@ -352,8 +352,8 @@ public class AiHelperService {
                             final Scene scene = activeScene;
                             final LocalTime sceneStart = useRelativeTiming ? null : scene.getStartTime();
                             final LocalTime sceneEnd = useRelativeTiming ? null : findNextSceneStartTime(stream.getSlugName(), currentDayOfWeek, scene, scenes);
-                            final int promptCount = scene.getPrompts() != null ? 
-                                (int) scene.getPrompts().stream().filter(Action::isActive).count() : 0;
+                            final int promptCount = scene.getPrompts() != null ?
+                                (int) scene.getPrompts().stream().filter(LivePrompt::isActive).count() : 0;
                             final String nextSceneTitle = useRelativeTiming ? 
                                 findNextSceneTitleByDuration(stream, scene, scenes) :
                                 findNextSceneTitle(stream.getSlugName(), currentDayOfWeek, scene, scenes);

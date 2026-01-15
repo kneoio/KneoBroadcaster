@@ -62,12 +62,12 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
                     return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
                             .map(brandListeners -> brandListeners.stream()
-                                    .map(bl -> bl.getListenerDTO())
-                                    .filter(listener -> listener.getArchived() == 0)
-                                    .filter(listener -> {
-                                        String type = listener.getListenerType();
+                                    .filter(bl -> bl.getListenerDTO().getArchived() == 0)
+                                    .filter(bl -> {
+                                        String type = bl.getListenerType();
                                         return type != null && type.equals(ListenerType.OWNER.name());
                                     })
+                                    .map(bl -> bl.getListenerDTO())
                                     .findFirst()
                                     .orElse(null))
                             .chain(ownerListener -> {

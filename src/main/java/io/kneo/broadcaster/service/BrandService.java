@@ -172,12 +172,10 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
 
         return saveOperation.chain(savedEntity -> {
             ListenerDTO listenerDTO = new ListenerDTO();
-            listenerDTO.setCountry(savedEntity.getCountry().name());
             listenerDTO.setUserId(user.getId());
             EnumMap<LanguageCode, String> names = new EnumMap<>(LanguageCode.class);
             names.put(LanguageCode.en, user.getUserName());
             listenerDTO.setLocalizedName(names);
-            //listenerDTO.setNickName(names);
 
             return listenerService.get().upsertWithStationSlug(null, listenerDTO, savedEntity.getSlugName(), ListenerType.OWNER, user)
                     .onFailure().invoke(t -> LOGGER.error("Failed to ensure owner listener for station: {}", savedEntity.getSlugName(), t))

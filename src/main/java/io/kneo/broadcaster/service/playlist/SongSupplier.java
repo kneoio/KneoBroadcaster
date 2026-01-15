@@ -24,13 +24,16 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class SongSupplier implements ISupplier {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(SongSupplier.class);
     private static final int CACHE_TTL_MINUTES = 5;
 
     private final SoundFragmentRepository repository;
     private final BrandService brandService;
-    private final Map<String, Map<PlaylistItemType, List<SupplierSongMemory>>> brandPlaylistMemory = new ConcurrentHashMap<>();
+
+    private final Map<String, Map<PlaylistItemType, SupplierSongMemory>> playlistMemory = new ConcurrentHashMap<>();
     private final Map<String, CachedBrandData> brandCache = new ConcurrentHashMap<>();
+
     private final SecureRandom secureRandom = new SecureRandom();
 
     private static class CachedBrandData {
@@ -54,11 +57,10 @@ public class SongSupplier implements ISupplier {
         this.brandService = brandService;
     }
 
-    private SupplierSongMemory getMemory(String brandName, PlaylistItemType fragmentType) {
-        return brandPlaylistMemory
-                .computeIfAbsent(brandName, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(fragmentType, k -> new ArrayList<>(List.of(new SupplierSongMemory())))
-                .getFirst();
+    private SupplierSongMemory getMemory(String key, PlaylistItemType fragmentType) {
+        return playlistMemory
+                .computeIfAbsent(key, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(fragmentType, k -> new SupplierSongMemory());
     }
 
     @Override
@@ -74,7 +76,7 @@ public class SongSupplier implements ISupplier {
                             .limit(quantity)
                             .collect(Collectors.toList());
 
-                    updateMemory(brandName, fragmentType, selected);
+                    getMemory("brand:" + brandName, fragmentType).updateLastSelected(selected);
                     return selected;
                 });
     }
@@ -82,22 +84,16 @@ public class SongSupplier implements ISupplier {
     public Uni<List<SoundFragment>> getNextSong(String brandName, PlaylistItemType fragmentType, int quantity) {
         return getUnplayedFragments(brandName, null, fragmentType)
                 .map(unplayed -> {
-                    if (unplayed.isEmpty()) {
-                        return List.of();
-                    }
+                    if (unplayed.isEmpty()) return List.of();
 
-                    List<SoundFragment> selected;
-                    if (quantity >= unplayed.size()) {
-                        selected = unplayed;
-                    } else {
-                        List<SoundFragment> shuffled = new ArrayList<>(unplayed);
-                        Collections.shuffle(shuffled, secureRandom);
-                        selected = shuffled.stream()
-                                .limit(quantity)
-                                .collect(Collectors.toList());
-                    }
+                    List<SoundFragment> shuffled = new ArrayList<>(unplayed);
+                    Collections.shuffle(shuffled, secureRandom);
 
-                    updateMemory(brandName, fragmentType, selected);
+                    List<SoundFragment> selected = shuffled.stream()
+                            .limit(quantity)
+                            .collect(Collectors.toList());
+
+                    getMemory("brand:" + brandName, fragmentType).updateLastSelected(selected);
                     return selected;
                 });
     }
@@ -105,21 +101,20 @@ public class SongSupplier implements ISupplier {
     private Uni<List<SoundFragment>> getUnplayedFragments(String brandName, UUID brandId, PlaylistItemType fragmentType) {
         return getBrandDataCached(brandName, brandId, fragmentType)
                 .map(fragments -> {
-                    if (fragments.isEmpty()) {
-                        return List.of();
-                    }
+                    if (fragments.isEmpty()) return List.of();
 
-                    SupplierSongMemory memory = getMemory(brandName, fragmentType);
-                    List<SoundFragment> unplayedFragments = fragments.stream()
-                            .filter(fragment -> !memory.wasPlayed(fragment))
+                    SupplierSongMemory memory = getMemory("brand:" + brandName, fragmentType);
+
+                    List<SoundFragment> unplayed = fragments.stream()
+                            .filter(f -> !memory.wasPlayed(f))
                             .collect(Collectors.toList());
 
-                    if (unplayedFragments.isEmpty()) {
+                    if (unplayed.isEmpty()) {
                         memory.reset();
-                        unplayedFragments = fragments;
+                        unplayed = fragments;
                     }
 
-                    return unplayedFragments;
+                    return unplayed;
                 });
     }
 
@@ -134,12 +129,9 @@ public class SongSupplier implements ISupplier {
         if (brandId != null) {
             BrandLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
             return repository.getBrandSongsRandomPage(brandId, fragmentType)
-                    .flatMap(fragments -> {
-                        if (fragments.isEmpty()) {
-                            return repository.getBrandSongs(brandId, fragmentType);
-                        }
-                        return Uni.createFrom().item(fragments);
-                    })
+                    .flatMap(f -> f.isEmpty()
+                            ? repository.getBrandSongs(brandId, fragmentType)
+                            : Uni.createFrom().item(f))
                     .map(fragments -> {
                         Collections.shuffle(fragments, secureRandom);
                         brandCache.put(cacheKey, new CachedBrandData(brandId, fragments));
@@ -148,68 +140,97 @@ public class SongSupplier implements ISupplier {
         }
 
         return brandService.getBySlugName(brandName)
-                .onItem().transformToUni(radioStation -> {
-                    if (radioStation == null) {
-                        BrandLogger.logActivity(brandName, "brand_not_found", "Brand not found");
-                        return Uni.createFrom().failure(new IllegalArgumentException("Brand not found: " + brandName));
+                .onItem().transformToUni(brand -> {
+                    if (brand == null) {
+                        return Uni.createFrom().failure(
+                                new IllegalArgumentException("Brand not found: " + brandName));
                     }
-                    UUID resolvedBrandId = radioStation.getId();
+                    UUID resolvedBrandId = brand.getId();
                     BrandLogger.logActivity(brandName, "fetching_fragments", "Fetching : %s", fragmentType);
 
                     return repository.getBrandSongsRandomPage(resolvedBrandId, fragmentType)
-                            .flatMap(fragments -> {
-                                if (fragments.isEmpty()) {
-                                    return repository.getBrandSongs(resolvedBrandId, fragmentType);
-                                }
-                                return Uni.createFrom().item(fragments);
-                            })
+                            .flatMap(f -> f.isEmpty()
+                                    ? repository.getBrandSongs(resolvedBrandId, fragmentType)
+                                    : Uni.createFrom().item(f))
                             .map(fragments -> {
                                 Collections.shuffle(fragments, secureRandom);
                                 brandCache.put(cacheKey, new CachedBrandData(resolvedBrandId, fragments));
                                 return fragments;
                             });
-
                 });
     }
 
-    private void updateMemory(String brandName, PlaylistItemType fragmentType, List<SoundFragment> selected) {
-        getMemory(brandName, fragmentType).updateLastSelected(selected);
-    }
-
     public Uni<List<SoundFragment>> getNextSongByQuery(UUID brandId, PlaylistRequest playlistRequest, int quantity) {
+        List<PlaylistItemType> types = playlistRequest.getType();
+        if (types == null || types.isEmpty() || types.get(0) == null) {
+            return Uni.createFrom().item(List.of());
+        }
+
+        PlaylistItemType fragmentType = types.get(0);
+        SupplierSongMemory memory = getMemory("brandId:" + brandId, fragmentType);
+
         SoundFragmentFilter filter = buildFilterFromStagePlaylist(playlistRequest);
-        return repository.findByFilter(brandId, filter, quantity)
+        int fetch = Math.max(quantity * 3, quantity);
+
+        return repository.findByFilter(brandId, filter, fetch)
                 .map(fragments -> {
-                    if (fragments.isEmpty()) {
-                        LOGGER.warn("No fragments found for query filter, brandId: {}", brandId);
-                        return List.of();
+                    if (fragments.isEmpty()) return List.of();
+
+                    List<SoundFragment> unplayed = fragments.stream()
+                            .filter(f -> !memory.wasPlayed(f))
+                            .collect(Collectors.toList());
+
+                    if (unplayed.isEmpty()) {
+                        memory.reset();
+                        unplayed = fragments;
                     }
-                    List<SoundFragment> shuffled = new ArrayList<>(fragments);
-                    Collections.shuffle(shuffled, secureRandom);
-                    if (quantity >= shuffled.size()) {
-                        return shuffled;
-                    }
-                    return shuffled.stream().limit(quantity).collect(Collectors.toList());
+
+                    Collections.shuffle(unplayed, secureRandom);
+
+                    List<SoundFragment> selected = unplayed.stream()
+                            .limit(quantity)
+                            .collect(Collectors.toList());
+
+                    memory.updateLastSelected(selected);
+                    return selected;
                 });
     }
 
     public Uni<List<SoundFragment>> getNextSongFromStaticList(List<UUID> soundFragmentIds, int quantity) {
         if (soundFragmentIds == null || soundFragmentIds.isEmpty()) {
-            LOGGER.warn("Static list is empty or null");
             return Uni.createFrom().item(List.of());
         }
+
+        String key = "static:" + soundFragmentIds.stream()
+                .map(UUID::toString)
+                .sorted()
+                .collect(Collectors.joining(","))
+                .hashCode();
+
+        PlaylistItemType fragmentType = PlaylistItemType.SONG;
+        SupplierSongMemory memory = getMemory(key, fragmentType);
+
         return repository.findByIds(soundFragmentIds)
                 .map(fragments -> {
-                    if (fragments.isEmpty()) {
-                        LOGGER.warn("No fragments found for static list IDs");
-                        return List.of();
+                    if (fragments.isEmpty()) return List.of();
+
+                    List<SoundFragment> unplayed = fragments.stream()
+                            .filter(f -> !memory.wasPlayed(f))
+                            .collect(Collectors.toList());
+
+                    if (unplayed.isEmpty()) {
+                        memory.reset();
+                        unplayed = fragments;
                     }
-                    List<SoundFragment> shuffled = new ArrayList<>(fragments);
-                    Collections.shuffle(shuffled, secureRandom);
-                    if (quantity >= shuffled.size()) {
-                        return shuffled;
-                    }
-                    return shuffled.stream().limit(quantity).collect(Collectors.toList());
+
+                    Collections.shuffle(unplayed, secureRandom);
+
+                    List<SoundFragment> selected = unplayed.stream()
+                            .limit(quantity)
+                            .collect(Collectors.toList());
+
+                    memory.updateLastSelected(selected);
+                    return selected;
                 });
     }
 
@@ -224,19 +245,15 @@ public class SongSupplier implements ISupplier {
     }
 
     public List<SoundFragment> getPlayedSongsForBrand(String brandName) {
-        Map<PlaylistItemType, List<SupplierSongMemory>> brandMemory = brandPlaylistMemory.get(brandName);
-        if (brandMemory == null || brandMemory.isEmpty()) {
+        Map<PlaylistItemType, SupplierSongMemory> mem = playlistMemory.get("brand:" + brandName);
+        if (mem == null || mem.isEmpty()) {
             return List.of();
         }
 
-        List<SoundFragment> allPlayedSongs = new ArrayList<>();
-        for (Map.Entry<PlaylistItemType, List<SupplierSongMemory>> entry : brandMemory.entrySet()) {
-            List<SupplierSongMemory> memoryList = entry.getValue();
-            if (memoryList != null && !memoryList.isEmpty()) {
-                SupplierSongMemory memory = memoryList.getFirst();
-                allPlayedSongs.addAll(memory.getPlayedSongs());
-            }
+        List<SoundFragment> played = new ArrayList<>();
+        for (SupplierSongMemory m : mem.values()) {
+            played.addAll(m.getPlayedSongs());
         }
-        return allPlayedSongs;
+        return played;
     }
 }

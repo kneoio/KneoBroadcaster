@@ -18,6 +18,8 @@ import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.ListenerDataTool;
+import io.kneo.broadcaster.service.chat.tools.ListenerDataToolHandler;
 import io.kneo.broadcaster.service.chat.tools.ListenerTool;
 import io.kneo.broadcaster.service.chat.tools.ListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
@@ -102,8 +104,8 @@ public class PublicChatService extends ChatService {
 
         ListenerDTO dto = new ListenerDTO();
         dto.setEmail(email);
-        dto.setListenerType(String.valueOf(ListenerType.REGULAR));
         dto.getLocalizedName().put(LanguageCode.en, userName);
+        dto.getUserData().put("email", email);
 
         return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
@@ -173,6 +175,7 @@ public class PublicChatService extends ChatService {
                 AddToQueueTool.toTool(),
                 PerplexitySearchTool.toTool(),
                 ListenerTool.toTool(),
+                ListenerDataTool.toTool(),
                 SendEmailToOwnerTool.toTool()
         );
     }
@@ -229,6 +232,10 @@ public class PublicChatService extends ChatService {
         } else if ("listener".equals(toolUse.name())) {
             return ListenerToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("listener_data".equals(toolUse.name())) {
+            return ListenerDataToolHandler.handle(
+                    toolUse, inputMap, listenerService, userService, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(

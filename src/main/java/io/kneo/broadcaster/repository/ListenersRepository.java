@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
+import io.kneo.broadcaster.model.UserData;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
@@ -14,7 +15,6 @@ import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -125,12 +125,8 @@ public class ListenersRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived) {
-        return findForBrand(slugName, limit, offset, user, includeArchived, null);
-    }
-
     public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived, ListenerFilter filter) {
-        String sql = "SELECT l.* " +
+        String sql = "SELECT l.*, lb.listener_type " +
                 "FROM " + entityData.getTableName() + " l " +
                 "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
                 "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
@@ -160,15 +156,15 @@ public class ListenersRepository extends AsyncRepository {
                         BrandListener brandListener = new BrandListener();
                         brandListener.setId(row.getUUID("id"));
                         brandListener.setListener(listener);
+                        String listenerTypeStr = row.getString("listener_type");
+                        if (listenerTypeStr != null) {
+                            brandListener.setListenerType(ListenerType.valueOf(listenerTypeStr));
+                        }
                         return brandListener;
                     });
                 })
                 .concatenate()
                 .collect().asList();
-    }
-
-    public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived) {
-        return findForBrandCount(slugName, user, includeArchived, null);
     }
 
     public Uni<Integer> findForBrandCount(String slugName, IUser user, boolean includeArchived, ListenerFilter filter) {
@@ -206,14 +202,19 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
+        return insert(listener, representedInBrands, ListenerType.REGULAR, user);
+    }
+
+    public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, ListenerType listenerType, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (user_id, author, reg_date, last_mod_user, last_mod_date, country, loc_name, nickname, slug_name, telegram_name, listener_type, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id";
+                " (user_id, author, reg_date, last_mod_user, last_mod_date, loc_name, nickname, slug_name, user_data, archived) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
         JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
         JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
+        JsonObject userDataJson = toUserDataJson(listener.getUserData());
 
         Tuple params = Tuple.tuple()
                 .addLong(listener.getUserId())
@@ -221,12 +222,10 @@ public class ListenersRepository extends AsyncRepository {
                 .addLocalDateTime(nowTime)
                 .addLong(user.getId())
                 .addLocalDateTime(nowTime)
-                .addString(listener.getCountry() != null ? listener.getCountry().name() : CountryCode.PT.name())
                 .addJsonObject(localizedNameJson)
                 .addJsonObject(localizedNickNameJson)
                 .addString(listener.getSlugName())
-                .addString(listener.getTelegramName())
-                .addString(listener.getListenerType() != null ? listener.getListenerType().name() : ListenerType.REGULAR.name())
+                .addJsonObject(userDataJson)
                 .addInteger(0);
 
         return client.withTransaction(tx ->
@@ -235,20 +234,20 @@ public class ListenersRepository extends AsyncRepository {
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, nowTime))
+                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, listenerType, nowTime))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
-    private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
+    private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, ListenerType listenerType, LocalDateTime nowTime) {
         if (representedInBrands == null || representedInBrands.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
-        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
+        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank, listener_type) VALUES ($1, $2, $3, $4, $5)";
         List<Tuple> insertParams = representedInBrands.stream()
-                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99, listenerType.name()))
                 .collect(Collectors.toList());
 
         return tx.preparedQuery(insertBrandsSql)
@@ -257,6 +256,10 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> update(UUID id, Listener listener, List<UUID> representedInBrands, IUser user) {
+        return update(id, listener, representedInBrands, null, user);
+    }
+
+    public Uni<Listener> update(UUID id, Listener listener, List<UUID> representedInBrands, ListenerType listenerType, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
@@ -270,21 +273,21 @@ public class ListenersRepository extends AsyncRepository {
                             LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
                             JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
                             JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
+                            JsonObject userDataJson = toUserDataJson(listener.getUserData());
 
                             return client.withTransaction(tx -> {
                                 String sql = "UPDATE " + entityData.getTableName() +
-                                        " SET country=$1, loc_name=$2, nickname=$3, slug_name=$4, telegram_name=$5, listener_type=COALESCE($6, listener_type), last_mod_user=$7, last_mod_date=$8 " +
-                                        "WHERE id=$9";
+                                        " SET loc_name=$1, nickname=$2, slug_name=$3, user_data=$4, last_mod_user=$5, last_mod_date=$6, archived=$7 " +
+                                        "WHERE id=$8";
 
                                 Tuple params = Tuple.tuple()
-                                        .addString(listener.getCountry() != null ? listener.getCountry().name() : CountryCode.PT.name())
                                         .addJsonObject(localizedNameJson)
                                         .addJsonObject(localizedNickNameJson)
                                         .addString(listener.getSlugName())
-                                        .addString(listener.getTelegramName())
-                                        .addString(listener.getListenerType() != null ? listener.getListenerType().name() : null)
+                                        .addJsonObject(userDataJson)
                                         .addLong(user.getId())
                                         .addLocalDateTime(nowTime)
+                                        .addInteger(listener.getArchived())
                                         .addUUID(id);
 
                                 return tx.preparedQuery(sql)
@@ -294,7 +297,7 @@ public class ListenersRepository extends AsyncRepository {
                                             if (rowSet.rowCount() == 0) {
                                                 return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                             }
-                                            return updateBrandAssociations(tx, id, representedInBrands, nowTime);
+                                            return updateBrandAssociations(tx, id, representedInBrands, listenerType, nowTime);
                                         });
                             }).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
@@ -305,7 +308,7 @@ public class ListenersRepository extends AsyncRepository {
         });
     }
 
-    private Uni<Void> updateBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
+    private Uni<Void> updateBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, ListenerType listenerType, LocalDateTime nowTime) {
         if (representedInBrands == null) {
             return Uni.createFrom().voidItem();
         }
@@ -337,9 +340,10 @@ public class ListenersRepository extends AsyncRepository {
 
                     Uni<Void> addUni = Uni.createFrom().voidItem();
                     if (!brandsToAdd.isEmpty()) {
-                        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
+                        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank, listener_type) VALUES ($1, $2, $3, $4, $5)";
+                        ListenerType typeToUse = listenerType != null ? listenerType : ListenerType.REGULAR;
                         List<Tuple> insertParams = brandsToAdd.stream()
-                                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99, typeToUse.name()))
                                 .collect(Collectors.toList());
 
                         addUni = tx.preparedQuery(insertBrandsSql)
@@ -347,7 +351,16 @@ public class ListenersRepository extends AsyncRepository {
                                 .onItem().ignore().andContinueWithNull();
                     }
 
-                    return Uni.combine().all().unis(removeUni, addUni).discardItems();
+                    Uni<Void> updateTypeUni = Uni.createFrom().voidItem();
+                    if (listenerType != null && !representedInBrands.isEmpty()) {
+                        String updateTypeSql = "UPDATE kneobroadcaster__listener_brands SET listener_type = $1 WHERE listener_id = $2 AND brand_id = ANY($3)";
+                        UUID[] brandIds = representedInBrands.toArray(new UUID[0]);
+                        updateTypeUni = tx.preparedQuery(updateTypeSql)
+                                .execute(Tuple.of(listenerType.name(), listenerId, brandIds))
+                                .onItem().ignore().andContinueWithNull();
+                    }
+
+                    return Uni.combine().all().unis(removeUni, addUni, updateTypeUni).discardItems();
                 });
     }
 
@@ -382,14 +395,7 @@ public class ListenersRepository extends AsyncRepository {
         Listener doc = new Listener();
         setDefaultFields(doc, row);
         doc.setUserId(row.getLong("user_id"));
-        doc.setTelegramName(row.getString("telegram_name"));
-        doc.setCountry(CountryCode.valueOf(row.getString("country")));
         doc.setSlugName(row.getString("slug_name"));
-
-        String lt = row.getString("listener_type");
-        if (lt != null) {
-            doc.setListenerType(ListenerType.valueOf(lt));
-        }
 
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {
@@ -401,6 +407,9 @@ public class ListenersRepository extends AsyncRepository {
 
         JsonObject nickName = row.getJsonObject("nickname");
         doc.setNickName(fromNickNameJson(nickName));
+
+        JsonObject userDataJson = row.getJsonObject("user_data");
+        doc.setUserData(fromUserDataJson(userDataJson));
 
         doc.setArchived(row.getInteger("archived"));
         return Uni.createFrom().item(doc);
@@ -474,11 +483,11 @@ public class ListenersRepository extends AsyncRepository {
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 
-    public Uni<Listener> findByTelegramName(String telegramName) {
-        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t WHERE t.telegram_name = $1 LIMIT 1";
+    public Uni<Listener> findByUserDataField(String fieldName, String fieldValue) {
+        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t WHERE t.user_data->$1 = $2 LIMIT 1";
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(telegramName))
+                .execute(Tuple.of(fieldName, fieldValue))
                 .onItem().transformToUni(rows -> {
                     var it = rows.iterator();
                     if (it.hasNext()) {
@@ -490,7 +499,7 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<Listener> findByUserId(Long userId) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE user_id = $1";
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE user_id = $1 AND archived = 0";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(userId))
                 .onItem().transformToUni(rows -> {
@@ -521,5 +530,27 @@ public class ListenersRepository extends AsyncRepository {
         }
 
         return conditions.toString();
+    }
+
+    private JsonObject toUserDataJson(UserData userData) {
+        JsonObject json = new JsonObject();
+        if (userData == null || userData.getData() == null || userData.getData().isEmpty()) {
+            return json;
+        }
+        userData.getData().forEach(json::put);
+        return json;
+    }
+
+    private UserData fromUserDataJson(JsonObject json) {
+        UserData userData = new UserData();
+        if (json == null || json.isEmpty()) {
+            return userData;
+        }
+        json.getMap().forEach((key, value) -> {
+            if (key != null && value != null) {
+                userData.put(key, value.toString());
+            }
+        });
+        return userData;
     }
 }

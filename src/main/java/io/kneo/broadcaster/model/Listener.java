@@ -1,9 +1,7 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.SecureDataEntity;
-import io.kneo.officeframe.cnst.CountryCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,12 +17,10 @@ import java.util.UUID;
 public class Listener extends SecureDataEntity<UUID> {
     private long userId;
     private String email;
-    private String telegramName;
-    private CountryCode country;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
+    private UserData userData;
     private String slugName;
     private Integer archived;
     private List<UUID> radioStations;
-    private ListenerType listenerType;
 }

@@ -19,6 +19,7 @@ import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.ListenerService;
@@ -70,6 +71,7 @@ public class AiHelperService {
     private final RadioStationPool radioStationPool;
     private final BrandService brandService;
     private final ListenerService listenerService;
+    private final ListenersRepository listenerRepository;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
     private final SoundFragmentService soundFragmentService;
@@ -89,6 +91,7 @@ public class AiHelperService {
             ScriptService scriptService,
             BrandService brandService,
             ListenerService listenerService,
+            ListenersRepository listenerRepository,
             SoundFragmentService soundFragmentService,
             RefService refService,
             GenreService genreService,
@@ -99,6 +102,7 @@ public class AiHelperService {
         this.scriptService = scriptService;
         this.brandService = brandService;
         this.listenerService = listenerService;
+        this.listenerRepository = listenerRepository;
         this.soundFragmentService = soundFragmentService;
         this.refService = refService;
         this.genreService = genreService;
@@ -106,7 +110,18 @@ public class AiHelperService {
     }
 
     public Uni<ListenerAiDTO> getListenerByTelegramName(String telegramName) {
-        return listenerService.getAiBrandListenerByTelegramName(telegramName);
+        return listenerRepository.findByUserDataField("telegram_name", telegramName)
+                .onItem().transform(listener -> {
+                    if (listener == null) {
+                        return null;
+                    }
+                    ListenerAiDTO aiDto = new ListenerAiDTO();
+                    aiDto.setTelegramName(telegramName);
+                    aiDto.setLocalizedName(listener.getLocalizedName());
+                    aiDto.setNickName(listener.getNickName());
+                    aiDto.setSlugName(listener.getSlugName());
+                    return aiDto;
+                });
     }
 
     public Uni<AvailableStationsAiDTO> getAllStations(List<StreamStatus> statuses, String country, LanguageTag djLanguage, String query) {

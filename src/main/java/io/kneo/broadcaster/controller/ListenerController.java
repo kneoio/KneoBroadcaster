@@ -60,6 +60,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         router.route(path + "*").handler(this::addHeaders);
         router.get(path).handler(this::get);
         router.get(path + "/available-listeners").handler(this::getForBrand);
+        router.get(path + "/available-listeners/:id").handler(this::getForBrandById);
 
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
@@ -136,6 +137,31 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 }))
                 .subscribe().with(
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                        rc::fail
+                );
+    }
+
+    private void getForBrandById(RoutingContext rc) {
+        String id = rc.pathParam("id");
+        String brandName = rc.request().getParam("brand");
+
+        getContextUser(rc, false, true)
+                .chain(user -> service.getBrandListeners(brandName, 100, 0, user, null)
+                        .map(brandListeners -> brandListeners.stream()
+                                .filter(bl -> bl.getListenerDTO().getId().toString().equals(id))
+                                .findFirst()
+                                .orElse(null)))
+                .subscribe().with(
+                        brandListener -> {
+                            if (brandListener == null) {
+                                rc.response().setStatusCode(404).end();
+                                return;
+                            }
+                            FormPage page = new FormPage();
+                            page.addPayload(PayloadType.DOC_DATA, brandListener);
+                            page.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            rc.response().setStatusCode(200).end(JsonObject.mapFrom(page).encode());
+                        },
                         rc::fail
                 );
     }

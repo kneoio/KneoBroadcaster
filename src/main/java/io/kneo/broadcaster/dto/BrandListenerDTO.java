@@ -12,4 +12,5 @@ public class BrandListenerDTO {
     private UUID id;
     @JsonProperty("listener")
     private ListenerDTO listenerDTO;
+    private String listenerType;
 }

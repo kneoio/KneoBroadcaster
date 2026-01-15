@@ -8,7 +8,6 @@ import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -17,13 +16,11 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ListenerToolHandler extends BaseToolHandler {
 
@@ -43,78 +40,7 @@ public class ListenerToolHandler extends BaseToolHandler {
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
         ListenerToolHandler handler = new ListenerToolHandler();
-        String action = inputMap.getOrDefault("action", JsonValue.from("register")).toString().replace("\"", "");
-
-        if ("list_listeners".equals(action)) {
-            return handleListListeners(toolUse, inputMap, listenerService, stationSlug, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, handler);
-        }
-
-        String nickname = inputMap.getOrDefault("nickname", JsonValue.from("")).toString().replace("\"", "");
-
-        LOGGER.info("[RegisterListener] Starting registration - userId: {}, nickname: {}, stationSlug: {}, connectionId: {}",
-                userId, nickname, stationSlug, connectionId);
-
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Registering listener...");
-
-        return userService.findById(userId)
-                .chain(userOptional -> {
-                    if (userOptional.isEmpty()) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
-                    }
-                    IUser user = userOptional.get();
-                    String userName = user.getUserName();
-
-                    ListenerDTO dto = new ListenerDTO();
-                    dto.setListenerType(String.valueOf(ListenerType.REGULAR));
-                    dto.getLocalizedName().put(LanguageCode.en, userName);
-                    if (!nickname.isBlank()) {
-                        Set<String> nicknames = Arrays.stream(nickname.split(","))
-                                .map(String::trim)
-                                .filter(s -> !s.isEmpty())
-                                .collect(Collectors.toSet());
-                        dto.getNickName().put(LanguageCode.en, nicknames);
-                    }
-
-                    return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build());
-                })
-                .flatMap(listenerDTO -> {
-                    LOGGER.info("[RegisterListener] Registration successful - listenerId: {}, userId: {}, slugName: {}",
-                            listenerDTO.getId(), listenerDTO.getUserId(), listenerDTO.getSlugName());
-
-                    String displayName = !nickname.isBlank() ? nickname : listenerDTO.getLocalizedName().get(LanguageCode.en);
-                    JsonObject payload = new JsonObject()
-                            .put("ok", true)
-                            .put("listenerId", String.valueOf(listenerDTO.getId()))
-                            .put("userId", listenerDTO.getUserId())
-                            .put("slugName", listenerDTO.getSlugName())
-                            .put("displayName", displayName);
-
-                    handler.sendProcessingChunk(chunkHandler, connectionId, "Listener registered successfully!");
-
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
-
-                    LOGGER.debug("[RegisterListener] Calling follow-up LLM stream for success response");
-                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
-                })
-                .onFailure().recoverWithUni(err -> {
-                    LOGGER.error("[RegisterListener] Registration failed - userId: {}, stationSlug: {}", userId, stationSlug, err);
-                    String errorMessage = "I could not register you due to a technical issue: " + err.getMessage();
-
-                    JsonObject errorPayload = new JsonObject()
-                            .put("ok", false)
-                            .put("error", errorMessage)
-                            .put("userId", userId)
-                            .put("stationSlug", stationSlug);
-
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, errorPayload.encode(), conversationHistory);
-
-                    LOGGER.debug("[RegisterListener] Calling follow-up LLM stream for error response");
-                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
-                });
+        return handleListListeners(toolUse, inputMap, listenerService, stationSlug, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, handler);
     }
 
     private static Uni<Void> handleListListeners(
@@ -133,7 +59,7 @@ public class ListenerToolHandler extends BaseToolHandler {
         String listenerTypeStr = inputMap.getOrDefault("listener_type", JsonValue.from("")).toString().replace("\"", "");
         
         ListenerType listenerType = null;
-        if (listenerTypeStr != null && !listenerTypeStr.isEmpty()) {
+        if (!listenerTypeStr.isEmpty()) {
             try {
                 listenerType = ListenerType.valueOf(listenerTypeStr);
             } catch (IllegalArgumentException e) {
@@ -150,29 +76,24 @@ public class ListenerToolHandler extends BaseToolHandler {
         ListenerType finalListenerType = listenerType;
 
         return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
-                .map(brandListeners -> brandListeners.stream()
-                        .map(bl -> bl.getListenerDTO())
-                        .collect(java.util.stream.Collectors.toList()))
-                .map(allListeners -> {
-                    List<ListenerDTO> filtered = allListeners.stream()
-                            .filter(listener -> listener.getArchived() == 0)
-                            .filter(listener -> {
+                .map(brandListeners -> {
+                    return brandListeners.stream()
+                            .filter(bl -> bl.getListenerDTO().getArchived() == 0)
+                            .filter(bl -> {
                                 if (finalListenerType != null) {
-                                    String type = listener.getListenerType();
+                                    String type = bl.getListenerType();
                                     return type != null && type.equals(finalListenerType.name());
                                 }
                                 return true;
                             })
-                            .filter(listener -> {
+                            .filter(bl -> {
                                 if (finalSearchTerm == null) {
                                     return true;
                                 }
                                 String term = finalSearchTerm.toLowerCase();
-                                
+                                ListenerDTO listener = bl.getListenerDTO();
+
                                 if (listener.getEmail() != null && listener.getEmail().toLowerCase().contains(term)) {
-                                    return true;
-                                }
-                                if (listener.getTelegramName() != null && listener.getTelegramName().toLowerCase().contains(term)) {
                                     return true;
                                 }
                                 if (listener.getSlugName() != null && listener.getSlugName().toLowerCase().contains(term)) {
@@ -199,22 +120,20 @@ public class ListenerToolHandler extends BaseToolHandler {
                                 return false;
                             })
                             .toList();
-                    
-                    return filtered;
                 })
-                .flatMap(listeners -> {
-                    int count = listeners.size();
+                .flatMap(brandListeners -> {
+                    int count = brandListeners.size();
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " listener" + (count != 1 ? "s" : ""));
 
                     JsonArray listenersJson = new JsonArray();
-                    listeners.forEach(listener -> {
+                    brandListeners.forEach(bl -> {
+                        ListenerDTO listener = bl.getListenerDTO();
                         JsonObject listenerObj = new JsonObject()
                                 .put("id", listener.getId().toString())
                                 .put("email", listener.getEmail())
                                 .put("slugName", listener.getSlugName())
-                                .put("listenerType", listener.getListenerType())
-                                .put("country", listener.getCountry());
-                        
+                                .put("listenerType", bl.getListenerType());
+
                         if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
                             Set<String> nicknames = listener.getNickName().get(LanguageCode.en);
                             if (nicknames != null && !nicknames.isEmpty()) {
@@ -224,8 +143,10 @@ public class ListenerToolHandler extends BaseToolHandler {
                         if (listener.getLocalizedName() != null && !listener.getLocalizedName().isEmpty()) {
                             listenerObj.put("name", listener.getLocalizedName().get(LanguageCode.en));
                         }
-                        if (listener.getTelegramName() != null) {
-                            listenerObj.put("telegramName", listener.getTelegramName());
+                        if (listener.getUserData() != null && !listener.getUserData().isEmpty()) {
+                            JsonObject userDataJson = new JsonObject();
+                            listener.getUserData().forEach(userDataJson::put);
+                            listenerObj.put("userData", userDataJson);
                         }
                         
                         listenersJson.add(listenerObj);

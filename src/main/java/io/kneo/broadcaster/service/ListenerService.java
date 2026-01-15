@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.ListenerFilterDTO;
-import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
@@ -15,18 +14,18 @@ import io.kneo.core.dto.document.UserDTO;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.AnonymousUser;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.model.user.UndefinedUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.AbstractService;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.WebHelper;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +35,7 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ListenerService extends AbstractService<Listener, ListenerDTO> {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerService.class);
     private final ListenersRepository repository;
     private final Validator validator;
     private BrandService brandService;
@@ -143,7 +143,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     }
                     
                     Listener listener = buildEntity(dto);
-                    listener.setCountry(station.getCountry());
                     
                     List<UUID> stationIds = new ArrayList<>();
                     stationIds.add(station.getId());
@@ -167,14 +166,10 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                         return repository.findByUserId(existingUser.getId())
                                                 .chain(existingListener -> {
                                                     if (existingListener != null) {
-                                                        if (listenerType == ListenerType.OWNER) {
-                                                            existingListener.setListenerType(ListenerType.OWNER);
-                                                        }
-                                                        return repository.update(existingListener.getId(), existingListener, stationIds, user);
+                                                        return repository.update(existingListener.getId(), existingListener, stationIds, listenerType, user);
                                                     } else {
                                                         listener.setUserId(existingUser.getId());
-                                                        listener.setListenerType(listenerType);
-                                                        return repository.insert(listener, stationIds, user);
+                                                        return repository.insert(listener, stationIds, listenerType, user);
                                                     }
                                                 });
                                     }
@@ -184,13 +179,12 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                     return userService.add(listenerUserDTO, true)
                                             .chain(userId -> {
                                                 listener.setUserId(userId);
-                                                listener.setListenerType(listenerType);
-                                                return repository.insert(listener, stationIds, user);
+                                                return repository.insert(listener, stationIds, listenerType, user);
                                             });
                                 })
                                 .chain(this::mapToDTO);
                     } else {
-                        return repository.update(UUID.fromString(id), listener, stationIds, user)
+                        return repository.update(UUID.fromString(id), listener, stationIds, listenerType, user)
                                 .chain(this::mapToDTO);
                     }
                 });
@@ -224,7 +218,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     })
                     .chain(userId -> {
                         Listener entity = buildEntity(dto);
-                        entity.setListenerType(ListenerType.REGULAR);
                         entity.setUserId(userId);
                         return repository.insert(entity, dto.getListenerOf(), user);
                     })
@@ -261,90 +254,43 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
-            dto.setTelegramName(doc.getTelegramName());
             dto.setEmail(doc.getEmail());
-            dto.setCountry(doc.getCountry().name());
             dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setNickName(doc.getNickName());
+            if (doc.getUserData() != null) {
+                dto.setUserData(doc.getUserData().getData());
+            }
             dto.setListenerOf(tuple.getItem3());
-            dto.setListenerType(doc.getListenerType() != null ? doc.getListenerType().name() : null);
             return dto;
         });
     }
 
     private Listener buildEntity(ListenerDTO dto) {
         Listener doc = new Listener();
-        doc.setCountry(CountryCode.fromString(dto.getCountry()));
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setEmail(dto.getEmail());
         doc.setNickName(dto.getNickName());
         doc.setSlugName(dto.getSlugName());
-        doc.setTelegramName(dto.getTelegramName());
+        if (dto.getUserData() != null && !dto.getUserData().isEmpty()) {
+            doc.setUserData(new io.kneo.broadcaster.model.UserData(dto.getUserData()));
+        }
         return doc;
     }
 
     private Uni<BrandListenerDTO> mapToBrandListenerDTO(BrandListener brandListener) {
         return mapToDTO(brandListener.getListener())
-                .onItem().transform(soundFragmentDTO -> {
+                .onItem().transform(listenerDTO -> {
                     BrandListenerDTO dto = new BrandListenerDTO();
                     dto.setId(brandListener.getId());
-                    dto.setListenerDTO(soundFragmentDTO);
+                    dto.setListenerType(brandListener.getListenerType() != null ? brandListener.getListenerType().name() : null);
+                    dto.setListenerDTO(listenerDTO);
                     return dto;
                 });
     }
 
-    public Uni<ListenerAiDTO> getAiBrandListenerByTelegramName(String telegramName) {
-        assert repository != null;
-        assert brandService != null;
-        return repository.findByTelegramName(telegramName)
-                .onItem().transformToUni(listener -> {
-                    if (listener == null) {
-                        return Uni.createFrom().nullItem();
-                    }
-                    return repository.getBrandsForListener(listener.getId(), listener.getAuthor())
-                            .chain(brandIds -> {
-                                if (brandIds == null || brandIds.isEmpty()) {
-                                    ListenerAiDTO aiDto = new ListenerAiDTO();
-                                    aiDto.setTelegramName(listener.getTelegramName());
-                                    aiDto.setCountry(listener.getCountry().name());
-                                    aiDto.setLocalizedName(listener.getLocalizedName());
-                                    aiDto.setNickName(listener.getNickName());
-                                    aiDto.setSlugName(listener.getSlugName());
-                                    aiDto.setListenerOf(List.of());
-                                    return Uni.createFrom().item(aiDto);
-                                }
-
-                                List<Uni<List<String>>> brandUnis = brandIds.stream()
-                                        .map(brandId -> brandService.getDTO(brandId, SuperUser.build(), LanguageCode.en)
-                                                .onItem().transform(rsDto -> {
-                                                    if (rsDto == null) return null;
-                                                    List<String> entry = new ArrayList<>();
-                                                    entry.add(rsDto.getSlugName());
-                                                    if (rsDto.getLocalizedName() != null) {
-                                                        entry.addAll(rsDto.getLocalizedName().values());
-                                                    }
-                                                    return entry;
-                                                }))
-                                        .collect(Collectors.toList());
-
-                                return Uni.join().all(brandUnis).andFailFast()
-                                        .onItem().transform(list -> list.stream().filter(java.util.Objects::nonNull).collect(Collectors.toList()))
-                                        .onItem().transform(stationEntries -> {
-                                            ListenerAiDTO aiDto = new ListenerAiDTO();
-                                            aiDto.setTelegramName(listener.getTelegramName());
-                                            aiDto.setCountry(listener.getCountry().name());
-                                            aiDto.setLocalizedName(listener.getLocalizedName());
-                                            aiDto.setNickName(listener.getNickName());
-                                            aiDto.setSlugName(listener.getSlugName());
-                                            aiDto.setListenerOf(stationEntries);
-                                            return aiDto;
-                                        });
-                            });
-                });
-    }
 
     private ListenerFilter toFilter(ListenerFilterDTO dto) {
         if (dto == null) {

@@ -24,6 +24,8 @@ import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.SendEmailToOwnerTool;
+import io.kneo.broadcaster.service.chat.tools.SendEmailToOwnerToolHandler;
 import io.kneo.broadcaster.service.external.MailService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.util.ResourceUtil;
@@ -34,9 +36,11 @@ import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.WebHelper;
+import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,12 @@ public class PublicChatService extends ChatService {
 
     @Inject
     ListenerService listenerService;
+
+    @Inject
+    ReactiveMailer reactiveMailer;
+
+    @ConfigProperty(name = "quarkus.mailer.from")
+    String fromAddress;
 
     @Override
     protected ChatType getChatType() {
@@ -162,7 +172,8 @@ public class PublicChatService extends ChatService {
                 SearchBrandSoundFragments.toTool(),
                 AddToQueueTool.toTool(),
                 PerplexitySearchTool.toTool(),
-                ListenerTool.toTool()
+                ListenerTool.toTool(),
+                SendEmailToOwnerTool.toTool()
         );
     }
 
@@ -218,6 +229,10 @@ public class PublicChatService extends ChatService {
         } else if ("listener".equals(toolUse.name())) {
             return ListenerToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+            );
+        } else if ("send_email_to_owner".equals(toolUse.name())) {
+            return SendEmailToOwnerToolHandler.handle(
+                    toolUse, inputMap, listenerService, userService, reactiveMailer, fromAddress, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

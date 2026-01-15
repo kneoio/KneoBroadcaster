@@ -136,6 +136,7 @@ public class DraftFactory {
         radioStream.setCountry(station.getCountry());
         radioStream.setLocalizedName(station.getLocalizedName());
         radioStream.setSlugName(station.getSlugName());
+        radioStream.setTimeZone(station.getTimeZone());
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();

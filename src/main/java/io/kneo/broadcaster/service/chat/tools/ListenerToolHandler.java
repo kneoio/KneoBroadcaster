@@ -78,7 +78,6 @@ public class ListenerToolHandler extends BaseToolHandler {
         return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
                 .map(brandListeners -> {
                     return brandListeners.stream()
-                            .filter(bl -> bl.getListenerDTO().getArchived() == 0)
                             .filter(bl -> {
                                 if (finalListenerType != null) {
                                     String type = bl.getListenerType();

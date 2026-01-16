@@ -4,6 +4,7 @@ import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.model.Listener;
+import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -29,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -172,6 +174,20 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
             ListenerDTO dto = rc.body().asJsonObject().mapTo(ListenerDTO.class);
             String id = rc.pathParam("id");
+            
+            List<UUID> listenerOf = null;
+            String listenerOfParam = rc.request().getParam("listenerOf");
+            if (listenerOfParam != null && !listenerOfParam.isEmpty()) {
+                listenerOf = Arrays.stream(listenerOfParam.split(","))
+                        .map(UUID::fromString)
+                        .collect(Collectors.toList());
+            }
+            
+            ListenerType listenerType = null;
+            String listenerTypeParam = rc.request().getParam("listenerType");
+            if (listenerTypeParam != null && !listenerTypeParam.isEmpty()) {
+                listenerType = ListenerType.valueOf(listenerTypeParam);
+            }
 
             Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
             if (violations != null && !violations.isEmpty()) {
@@ -187,8 +203,16 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 return;
             }
 
+            List<UUID> finalListenerOf = listenerOf;
+            ListenerType finalListenerType = listenerType;
             getContextUser(rc, false, true)
-                    .chain(user -> service.upsert(id, dto, user))
+                    .chain(user -> {
+                        if (finalListenerOf != null && !finalListenerOf.isEmpty()) {
+                            return service.upsertWithBrands(id, dto, finalListenerOf, finalListenerType, user);
+                        } else {
+                            return service.upsert(id, dto, user);
+                        }
+                    })
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
                             throwable -> handleUpsertFailure(rc, throwable)

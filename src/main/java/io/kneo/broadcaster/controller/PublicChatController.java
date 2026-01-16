@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.UUID.randomUUID;
@@ -27,6 +28,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
     private static final Logger LOG = LoggerFactory.getLogger(PublicChatController.class);
     private final PublicChatService publicChatService;
     private final Map<String, ServerWebSocket> activeConnections = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> userStationRegistrations = new ConcurrentHashMap<>();
 
     public PublicChatController() {
         super(null);
@@ -45,8 +47,8 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         router.route(path + "*").handler(this::addHeaders);
         router.post(path + "/send-code/:email").handler(this::sendCode);
         router.post(path + "/verify-code").handler(this::verifyCode);
-        router.post(path + "/validate-token").handler(this::validateToken);
-        router.post(path + "/register-listener").handler(this::registerListener);
+        router.post(path + "/validate-token").handler(this::validateToken);  //when a user enter to chat it cheks
+        router.post(path + "/register-listener").handler(this::registerListener);  //join chat button
         router.post(path + "/refresh-token").handler(this::refreshToken);
         
         router.route("/api/ws/public-chat").handler(rc -> {
@@ -65,7 +67,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                                             });
                                 },
                                 err -> {
-                                    LOG.error("Authentication failed for token: {}", token, err);
+                                    LOG.warn("Authentication failed for token: {}", token, err);
                                     rc.response().setStatusCode(401).end("Invalid or expired token");
                                 }
                         );
@@ -322,12 +324,14 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
 
         webSocket.closeHandler(v -> {
             activeConnections.remove(connectionId);
+            userStationRegistrations.remove(connectionId);
             LOG.info("Public chat WebSocket closed: {}", connectionId);
         });
 
         webSocket.exceptionHandler(err -> {
             LOG.error("WebSocket error for {}", connectionId, err);
             activeConnections.remove(connectionId);
+            userStationRegistrations.remove(connectionId);
         });
     }
 
@@ -342,7 +346,19 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
         }
 
         assert publicChatService != null;
-        publicChatService.processUserMessage(username, content, connectionId, brandSlug, user)
+        
+        Set<String> registeredStations = userStationRegistrations.computeIfAbsent(connectionId, k -> ConcurrentHashMap.newKeySet());
+        
+        Uni<Void> ensureRegistration;
+        if (!registeredStations.contains(brandSlug)) {
+            ensureRegistration = publicChatService.ensureUserIsListenerOfStation(user.getId(), brandSlug)
+                    .invoke(() -> registeredStations.add(brandSlug));
+        } else {
+            ensureRegistration = Uni.createFrom().voidItem();
+        }
+        
+        ensureRegistration
+                .chain(() -> publicChatService.processUserMessage(username, content, connectionId, brandSlug, user))
                 .subscribe().with(
                         response -> {
                             webSocket.writeTextMessage(response);

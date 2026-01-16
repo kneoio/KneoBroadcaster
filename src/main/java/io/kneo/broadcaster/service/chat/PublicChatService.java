@@ -10,6 +10,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.ListenerType;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager.VerificationResult;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
@@ -71,6 +72,9 @@ public class PublicChatService extends ChatService {
     ListenerService listenerService;
 
     @Inject
+    BrandService brandService;
+
+    @Inject
     ReactiveMailer reactiveMailer;
 
     @ConfigProperty(name = "quarkus.mailer.from")
@@ -106,7 +110,7 @@ public class PublicChatService extends ChatService {
         dto.getLocalizedName().put(LanguageCode.en, userName);
         dto.getUserData().put("email", email);
 
-        return listenerService.upsertWithStationSlug(null, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())
+        return listenerService.upsertWithStationSlug(email, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
                     String slugName = WebHelper.generateSlug(userName != null && !userName.isBlank() ? userName : email);
                     return userService.findByLogin(slugName)
@@ -165,6 +169,31 @@ public class PublicChatService extends ChatService {
         return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
     }
 
+    public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {
+        return listenerService.getByUserId(userId)
+                .chain(listener -> {
+                    if (listener == null) {
+                        return Uni.createFrom().voidItem();
+                    }
+
+                    return brandService.getBySlugName(stationSlug)
+                            .chain(station -> {
+                                if (station == null) {
+                                    return Uni.createFrom().voidItem();
+                                }
+
+                                return listenerService.getListenersBrands(listener.getId(), userId)
+                                        .chain(currentStations -> {
+                                            if (!currentStations.contains(station.getId())) {
+                                                return listenerService.addBrandToListener(listener.getId(), station.getId());
+                                            }
+
+                                            return Uni.createFrom().voidItem();
+                                        });
+                            });
+                });
+    }
+
     @Override
     protected List<Tool> getAvailableTools() {
         return List.of(
@@ -186,22 +215,22 @@ public class PublicChatService extends ChatService {
                 .system(renderedPrompt)
                 .messages(history)
                 .model(Model.CLAUDE_HAIKU_4_5_20251001);
-        
+
         for (Tool tool : getAvailableTools()) {
             builder.addTool(tool);
         }
-        
+
         return builder.build();
     }
 
     @Override
     protected Uni<Void> handleToolCall(ToolUseBlock toolUse,
-                                      Consumer<String> chunkHandler,
-                                      Consumer<String> completionHandler,
-                                      String connectionId,
-                                      String brandName,
-                                      long userId,
-                                      List<MessageParam> conversationHistory) {
+                                       Consumer<String> chunkHandler,
+                                       Consumer<String> completionHandler,
+                                       String connectionId,
+                                       String brandName,
+                                       long userId,
+                                       List<MessageParam> conversationHistory) {
 
         Map<String, JsonValue> inputMap = extractInputMap(toolUse);
         Function<MessageCreateParams, Uni<Void>> streamFn =

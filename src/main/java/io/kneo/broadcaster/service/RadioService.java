@@ -210,7 +210,7 @@ public class RadioService {
 
         return listenerService
                 .upsertWithStationSlug(
-                        null,
+                        email,
                         dto,
                         stationSlug,
                         ListenerType.CONTRIBUTOR,

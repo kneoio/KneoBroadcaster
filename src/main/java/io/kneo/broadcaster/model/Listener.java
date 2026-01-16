@@ -21,5 +21,5 @@ public class Listener extends SecureDataEntity<UUID> {
     private UserData userData;
     private String slugName;
     private Integer archived;
-    private List<UUID> radioStations;
+    private List<UUID> listenerOf;
 }

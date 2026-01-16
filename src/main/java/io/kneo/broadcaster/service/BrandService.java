@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
@@ -10,7 +9,6 @@ import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
@@ -25,7 +23,6 @@ import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.inject.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +30,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -47,9 +43,6 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
     private final BroadcasterConfig broadcasterConfig;
 
     private final RadioStationPool radiostationPool;
-
-    @Inject
-    Provider<ListenerService> listenerService;
 
     ScriptService scriptService;
 
@@ -170,21 +163,7 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             saveOperation = repository.update(UUID.fromString(id), entity, user);
         }
 
-        return saveOperation.chain(savedEntity -> {
-            ListenerDTO listenerDTO = new ListenerDTO();
-            listenerDTO.setUserId(user.getId());
-            EnumMap<LanguageCode, String> names = new EnumMap<>(LanguageCode.class);
-            names.put(LanguageCode.en, user.getUserName());
-            listenerDTO.setLocalizedName(names);
-            listenerDTO.getUserData().put("email", user.getEmail());
-
-            return listenerService.get().upsertWithStationSlug(null, listenerDTO, savedEntity.getSlugName(), ListenerType.OWNER, user)
-                    .onFailure().invoke(t -> LOGGER.error("Failed to ensure owner listener for station: {}", savedEntity.getSlugName(), t))
-                    .onItem().ignore().andContinueWithNull()
-                    .chain(() -> {
-                        return Uni.createFrom().item(savedEntity);
-                    });
-        }).chain(this::mapToDTO);
+        return saveOperation.chain(this::mapToDTO);
     }
 
     public Uni<Integer> archive(String id, IUser user) {

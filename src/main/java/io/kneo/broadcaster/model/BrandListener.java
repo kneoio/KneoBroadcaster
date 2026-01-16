@@ -10,6 +10,8 @@ import java.util.UUID;
 @Getter
 public class BrandListener {
     private UUID id;
+    private UUID brandId;
+    private int rank;
     private Listener listener;
     private ListenerType listenerType;
 }

@@ -10,6 +10,7 @@ import java.util.UUID;
 @Getter
 public class BrandListenerDTO {
     private UUID id;
+    private UUID brandId;
     @JsonProperty("listener")
     private ListenerDTO listenerDTO;
     private String listenerType;

@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 @Setter
 @Getter
@@ -26,6 +25,6 @@ public class ListenerDTO extends AbstractReferenceDTO {
     private Map<String, String> userData = new HashMap<>();
     private String slugName;
     private Integer archived;
-    private List<UUID> listenerOf;
+    private List<ListenerOfBrandDTO> listenerOf;
 
 }

@@ -143,12 +143,9 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     }
                     
                     Listener listener = buildEntity(dto);
-                    
                     List<UUID> stationIds = new ArrayList<>();
                     stationIds.add(station.getId());
-                    
                     String slugName = WebHelper.generatePersonSlug(listener.getLocalizedName().get(LanguageCode.en));
-
                     listener.setSlugName(slugName);
                     
                     if (id == null) {

@@ -24,7 +24,7 @@ public class PublicChatSessionManager {
         return code;
     }
 
-    public VerificationResult verifyCode(String email, String code) {
+    public VerificationResult verifyCode(String code, String email) {
         cleanupExpiredCodes();
         
         String normalizedEmail = email.toLowerCase();

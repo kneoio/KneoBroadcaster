@@ -205,8 +205,8 @@ public class RadioService {
 
     private Uni<IUser> registerContributor(String email, String stationSlug) {
         ListenerDTO dto = new ListenerDTO();
-        dto.setEmail(email);
         dto.getLocalizedName().put(LanguageCode.en, email);
+        dto.getUserData().put("email", email);
 
         return listenerService
                 .upsertWithStationSlug(

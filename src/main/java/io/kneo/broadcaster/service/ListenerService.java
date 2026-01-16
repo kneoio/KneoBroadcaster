@@ -176,6 +176,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                                     
                                     UserDTO listenerUserDTO = new UserDTO();
                                     listenerUserDTO.setLogin(slugName);
+                                    listenerUserDTO.setEmail(dto.getUserData().get("email"));
                                     return userService.add(listenerUserDTO, true)
                                             .chain(userId -> {
                                                 listener.setUserId(userId);
@@ -214,6 +215,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
 
                         UserDTO listenerUserDTO = new UserDTO();
                         listenerUserDTO.setLogin(slugName);
+                        listenerUserDTO.setEmail(dto.getUserData().get("email"));
                         return userService.add(listenerUserDTO, true);
                     })
                     .chain(userId -> {

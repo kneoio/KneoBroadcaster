@@ -123,7 +123,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             }
 
             assert publicChatService != null;
-            PublicChatSessionManager.VerificationResult result = publicChatService.verifyCode(email, code);
+            PublicChatSessionManager.VerificationResult result = publicChatService.verifyCode(code, email);
 
             if (result.success()) {
                 rc.response()

@@ -163,8 +163,6 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
             return Uni.createFrom().failure(new IllegalStateException("No token provided"));
         }
 
-        // Validate the token and extract username
-        // This depends on your JWT validation logic
         try {
             String username = validateTokenAndGetUsername(token);
 

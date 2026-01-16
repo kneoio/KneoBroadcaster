@@ -10,9 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @ApplicationScoped
 public class PublicChatTokenService {
     private static final long TOKEN_EXPIRY_SECONDS = 86400 * 30;
-    private static final String DEBUG_TOKEN = "debug-token-12345";
-    private static final long DEBUG_USER_ID = 1L;
-    private static final String DEBUG_USERNAME = "debug-user";
     private final Map<String, UserToken> tokens = new ConcurrentHashMap<>();
 
     public String generateToken(long userId, String username) {
@@ -22,10 +19,6 @@ public class PublicChatTokenService {
     }
 
     public TokenValidationResult validateToken(String token) {
-        if (DEBUG_TOKEN.equals(token)) {
-            return new TokenValidationResult(true, DEBUG_USER_ID, null);
-        }
-        
         UserToken userToken = tokens.get(token);
         if (userToken == null || userToken.isExpired()) {
             if (userToken != null) {

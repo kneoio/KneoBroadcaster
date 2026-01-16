@@ -59,7 +59,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                         return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
                     }
                     IUser user = userOptional.get();
-                    String userEmail = user.getLogin();
+                    String userEmail = user.getEmail();
 
                     return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
                             .map(brandListeners -> brandListeners.stream()

@@ -171,22 +171,18 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         }
 
         return saveOperation.chain(savedEntity -> {
-            return userService.findById(user.getId())
-                    .chain(userOpt -> {
-                        ListenerDTO listenerDTO = new ListenerDTO();
-                        listenerDTO.setUserId(user.getId());
-                        EnumMap<LanguageCode, String> names = new EnumMap<>(LanguageCode.class);
-                        names.put(LanguageCode.en, user.getUserName());
-                        listenerDTO.setLocalizedName(names);
+            ListenerDTO listenerDTO = new ListenerDTO();
+            listenerDTO.setUserId(user.getId());
+            EnumMap<LanguageCode, String> names = new EnumMap<>(LanguageCode.class);
+            names.put(LanguageCode.en, user.getUserName());
+            listenerDTO.setLocalizedName(names);
+            listenerDTO.getUserData().put("email", user.getEmail());
 
-                        userOpt.ifPresent(iUser -> listenerDTO.setEmail(iUser.getLogin()));
-
-                        return listenerService.get().upsertWithStationSlug(null, listenerDTO, savedEntity.getSlugName(), ListenerType.OWNER, user)
-                                .onFailure().invoke(t -> LOGGER.error("Failed to ensure owner listener for station: {}", savedEntity.getSlugName(), t))
-                                .onItem().ignore().andContinueWithNull()
-                                .chain(() -> {
-                                    return Uni.createFrom().item(savedEntity);
-                                });
+            return listenerService.get().upsertWithStationSlug(null, listenerDTO, savedEntity.getSlugName(), ListenerType.OWNER, user)
+                    .onFailure().invoke(t -> LOGGER.error("Failed to ensure owner listener for station: {}", savedEntity.getSlugName(), t))
+                    .onItem().ignore().andContinueWithNull()
+                    .chain(() -> {
+                        return Uni.createFrom().item(savedEntity);
                     });
         }).chain(this::mapToDTO);
     }

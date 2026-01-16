@@ -22,7 +22,6 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ListenerDTO extends AbstractReferenceDTO {
     private long userId;
-    private String email;
     private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private Map<String, String> userData = new HashMap<>();
     private String slugName;

@@ -92,9 +92,6 @@ public class ListenerToolHandler extends BaseToolHandler {
                                 String term = finalSearchTerm.toLowerCase();
                                 ListenerDTO listener = bl.getListenerDTO();
 
-                                if (listener.getEmail() != null && listener.getEmail().toLowerCase().contains(term)) {
-                                    return true;
-                                }
                                 if (listener.getSlugName() != null && listener.getSlugName().toLowerCase().contains(term)) {
                                     return true;
                                 }
@@ -129,7 +126,6 @@ public class ListenerToolHandler extends BaseToolHandler {
                         ListenerDTO listener = bl.getListenerDTO();
                         JsonObject listenerObj = new JsonObject()
                                 .put("id", listener.getId().toString())
-                                .put("email", listener.getEmail())
                                 .put("slugName", listener.getSlugName())
                                 .put("listenerType", bl.getListenerType());
 

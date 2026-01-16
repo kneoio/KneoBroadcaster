@@ -16,7 +16,6 @@ import java.util.UUID;
 @NoArgsConstructor
 public class Listener extends SecureDataEntity<UUID> {
     private long userId;
-    private String email;
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private UserData userData;

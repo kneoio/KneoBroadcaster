@@ -4,6 +4,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
+import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.model.user.IUser;
@@ -67,7 +68,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                                         String type = bl.getListenerType();
                                         return type != null && type.equals(ListenerType.OWNER.name());
                                     })
-                                    .map(bl -> bl.getListenerDTO())
+                                    .map(BrandListenerDTO::getListenerDTO)
                                     .findFirst()
                                     .orElse(null))
                             .chain(ownerListener -> {
@@ -75,7 +76,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                                     return Uni.createFrom().failure(new IllegalArgumentException("Station owner not found"));
                                 }
 
-                                String ownerEmail = ownerListener.getEmail();
+                                String ownerEmail = ownerListener.getUserData().get("email");
                                 if (ownerEmail == null || ownerEmail.isBlank()) {
                                     return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
                                 }

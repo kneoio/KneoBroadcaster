@@ -103,7 +103,6 @@ public class PublicChatService extends ChatService {
         }
 
         ListenerDTO dto = new ListenerDTO();
-        dto.setEmail(email);
         dto.getLocalizedName().put(LanguageCode.en, userName);
         dto.getUserData().put("email", email);
 

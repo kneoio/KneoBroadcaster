@@ -181,7 +181,7 @@ public class PublicChatService extends ChatService {
                                     return Uni.createFrom().voidItem();
                                 }
 
-                                return listenerService.getListenersBrands(listener.getId(), userId)
+                                return listenerService.getListenersBrands(listener.getId())
                                         .chain(currentStations -> {
                                             if (!currentStations.contains(station.getId())) {
                                                 return listenerService.addBrandToListener(listener.getId(), station.getId());

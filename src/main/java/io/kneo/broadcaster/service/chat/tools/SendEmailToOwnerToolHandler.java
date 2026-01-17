@@ -5,7 +5,6 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.BrandListenerDTO;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
@@ -64,10 +63,6 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
                     return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
                             .map(brandListeners -> brandListeners.stream()
                                     .filter(bl -> bl.getListenerDTO().getArchived() == 0)
-                                    .filter(bl -> {
-                                        String type = bl.getListenerType();
-                                        return type != null && type.equals(ListenerType.OWNER.name());
-                                    })
                                     .map(BrandListenerDTO::getListenerDTO)
                                     .findFirst()
                                     .orElse(null))

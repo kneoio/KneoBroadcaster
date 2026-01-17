@@ -5,7 +5,6 @@ import io.kneo.broadcaster.model.BrandListener;
 import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
 import io.kneo.broadcaster.model.UserData;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -30,7 +29,6 @@ import jakarta.inject.Inject;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -127,7 +125,7 @@ public class ListenersRepository extends AsyncRepository {
     }
 
     public Uni<List<BrandListener>> findForBrand(String slugName, final int limit, final int offset, IUser user, boolean includeArchived, ListenerFilter filter) {
-        String sql = "SELECT l.*, lb.listener_type, lb.brand_id, lb.rank " +
+        String sql = "SELECT l.*, lb.brand_id, lb.rank " +
                 "FROM " + entityData.getTableName() + " l " +
                 "JOIN kneobroadcaster__listener_brands lb ON l.id = lb.listener_id " +
                 "JOIN kneobroadcaster__brands b ON b.id = lb.brand_id " +
@@ -159,10 +157,6 @@ public class ListenersRepository extends AsyncRepository {
                         brandListener.setBrandId(row.getUUID("brand_id"));
                         brandListener.setRank(row.getInteger("rank"));
                         brandListener.setListener(listener);
-                        String listenerTypeStr = row.getString("listener_type");
-                        if (listenerTypeStr != null) {
-                            brandListener.setListenerType(ListenerType.valueOf(listenerTypeStr));
-                        }
                         return brandListener;
                     });
                 })
@@ -191,25 +185,25 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
-    public Uni<List<UUID>> getBrandsForListener(UUID listenerId, long userId) {
+    public Uni<List<UUID>> getBrandsForListener(UUID listenerId) {
         String sql = "SELECT lb.brand_id " +
                 "FROM kneobroadcaster__listener_brands lb " +
-                "JOIN " + entityData.getRlsName() + " rls ON lb.listener_id = rls.entity_id " +
-                "WHERE lb.listener_id = $1 AND rls.reader = $2";
+                "WHERE lb.listener_id = $1";
 
         return client.preparedQuery(sql)
-                .execute(Tuple.of(listenerId, userId))
+                .execute(Tuple.of(listenerId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> row.getUUID("brand_id"))
                 .collect().asList();
     }
 
-    public Uni<Listener> insert(Listener listener, IUser user) {
+
+    public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (user_id, author, reg_date, last_mod_user, last_mod_date, loc_name, nickname, slug_name, user_data, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+                " (user_id, author, reg_date, last_mod_user, last_mod_date, loc_name, nickname, user_data, archived) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id";
 
         JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
         JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
@@ -223,7 +217,6 @@ public class ListenersRepository extends AsyncRepository {
                 .addLocalDateTime(nowTime)
                 .addJsonObject(localizedNameJson)
                 .addJsonObject(localizedNickNameJson)
-                .addString(listener.getSlugName())
                 .addJsonObject(userDataJson)
                 .addInteger(0);
 
@@ -233,54 +226,20 @@ public class ListenersRepository extends AsyncRepository {
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
+                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, nowTime))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
-    public Uni<Listener> insertWithBrands(Listener listener, List<UUID> representedInBrands, ListenerType listenerType, IUser user) {
-        LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
-
-        String sql = "INSERT INTO " + entityData.getTableName() +
-                " (user_id, author, reg_date, last_mod_user, last_mod_date, loc_name, nickname, slug_name, user_data, archived) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
-
-        JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
-        JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
-        JsonObject userDataJson = toUserDataJson(listener.getUserData());
-
-        Tuple params = Tuple.tuple()
-                .addLong(listener.getUserId())
-                .addLong(user.getId())
-                .addLocalDateTime(nowTime)
-                .addLong(user.getId())
-                .addLocalDateTime(nowTime)
-                .addJsonObject(localizedNameJson)
-                .addJsonObject(localizedNickNameJson)
-                .addString(listener.getSlugName())
-                .addJsonObject(userDataJson)
-                .addInteger(0);
-
-        return client.withTransaction(tx ->
-                tx.preparedQuery(sql)
-                        .execute(params)
-                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id ->
-                                insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, listenerType, nowTime))
-                                        .onItem().transform(ignored -> id)
-                        )
-        ).onItem().transformToUni(id -> findById(id, user, true));
-    }
-
-    private Uni<Void> insertBrandAssociations(io.vertx.mutiny.sqlclient.SqlClient tx, UUID listenerId, List<UUID> representedInBrands, ListenerType listenerType, LocalDateTime nowTime) {
+    private Uni<Void> insertBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
         if (representedInBrands == null || representedInBrands.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
-        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank, listener_type) VALUES ($1, $2, $3, $4, $5)";
+        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
         List<Tuple> insertParams = representedInBrands.stream()
-                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99, listenerType.name()))
+                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
                 .collect(Collectors.toList());
 
         return tx.preparedQuery(insertBrandsSql)
@@ -288,7 +247,7 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().ignore().andContinueWithNull();
     }
 
-    public Uni<Listener> update(UUID id, Listener listener, IUser user) {
+    public Uni<Listener> update(UUID id, Listener doc, List<UUID> representedInBrands, IUser user) {
         return Uni.createFrom().deferred(() -> {
             try {
                 return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
@@ -300,70 +259,21 @@ public class ListenersRepository extends AsyncRepository {
                             }
 
                             LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
-                            JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
-                            JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
-                            JsonObject userDataJson = toUserDataJson(listener.getUserData());
-
-                            String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET loc_name=$1, nickname=$2, slug_name=$3, user_data=$4, last_mod_user=$5, last_mod_date=$6, archived=$7 " +
-                                    "WHERE id=$8";
-
-                            Tuple params = Tuple.tuple()
-                                    .addJsonObject(localizedNameJson)
-                                    .addJsonObject(localizedNickNameJson)
-                                    .addString(listener.getSlugName())
-                                    .addJsonObject(userDataJson)
-                                    .addLong(user.getId())
-                                    .addLocalDateTime(nowTime)
-                                    .addInteger(listener.getArchived())
-                                    .addUUID(id);
-
-                            return client.preparedQuery(sql)
-                                    .execute(params)
-                                    .onFailure().invoke(throwable -> LOGGER.error("Failed to update listener: {} by user: {}", id, user.getId(), throwable))
-                                    .onItem().transformToUni(rowSet -> {
-                                        if (rowSet.rowCount() == 0) {
-                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                        }
-                                        return findById(id, user, true);
-                                    });
-                        });
-            } catch (Exception e) {
-                LOGGER.error("Failed to prepare update parameters for listener: {} by user: {}", id, user.getId(), e);
-                return Uni.createFrom().failure(e);
-            }
-        });
-    }
-
-    public Uni<Listener> updateWithBrands(UUID id, Listener listener, List<UUID> representedInBrands, ListenerType listenerType, IUser user) {
-        return Uni.createFrom().deferred(() -> {
-            try {
-                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                        .onFailure().invoke(throwable -> LOGGER.error("Failed to check RLS permissions for update listener: {} by user: {}", id, user.getId(), throwable))
-                        .onItem().transformToUni(permissions -> {
-                            if (!permissions[0]) {
-                                return Uni.createFrom().failure(new DocumentModificationAccessException(
-                                        "User does not have edit permission", user.getUserName(), id));
-                            }
-
-                            LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
-                            JsonObject localizedNameJson = JsonObject.mapFrom(listener.getLocalizedName());
-                            JsonObject localizedNickNameJson = toNickNameJson(listener.getNickName());
-                            JsonObject userDataJson = toUserDataJson(listener.getUserData());
+                            JsonObject localizedNameJson = JsonObject.mapFrom(doc.getLocalizedName());
+                            JsonObject localizedNickNameJson = toNickNameJson(doc.getNickName());
+                            JsonObject userDataJson = toUserDataJson(doc.getUserData());
 
                             return client.withTransaction(tx -> {
                                 String sql = "UPDATE " + entityData.getTableName() +
-                                        " SET loc_name=$1, nickname=$2, slug_name=$3, user_data=$4, last_mod_user=$5, last_mod_date=$6, archived=$7 " +
-                                        "WHERE id=$8";
+                                        " SET loc_name=$1, nickname=$2, user_data=$3, last_mod_user=$4, last_mod_date=$5 " +
+                                        "WHERE id=$6";
 
                                 Tuple params = Tuple.tuple()
                                         .addJsonObject(localizedNameJson)
                                         .addJsonObject(localizedNickNameJson)
-                                        .addString(listener.getSlugName())
                                         .addJsonObject(userDataJson)
                                         .addLong(user.getId())
                                         .addLocalDateTime(nowTime)
-                                        .addInteger(listener.getArchived())
                                         .addUUID(id);
 
                                 return tx.preparedQuery(sql)
@@ -373,7 +283,7 @@ public class ListenersRepository extends AsyncRepository {
                                             if (rowSet.rowCount() == 0) {
                                                 return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                             }
-                                            return updateBrandAssociations(tx, id, representedInBrands, listenerType, nowTime);
+                                            return updateBrandAssociations(tx, id, representedInBrands, nowTime);
                                         });
                             }).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
@@ -384,69 +294,37 @@ public class ListenersRepository extends AsyncRepository {
         });
     }
 
-    private Uni<Void> updateBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, ListenerType listenerType, LocalDateTime nowTime) {
+    private Uni<Void> updateBrandAssociations(SqlClient tx, UUID listenerId, List<UUID> representedInBrands, LocalDateTime nowTime) {
         if (representedInBrands == null) {
             return Uni.createFrom().voidItem();
         }
 
-        String getCurrentBrandsSql = "SELECT brand_id FROM kneobroadcaster__listener_brands WHERE listener_id = $1";
+        String deleteSql = "DELETE FROM kneobroadcaster__listener_brands WHERE listener_id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) VALUES ($1, $2, $3, $4)";
 
-        return tx.preparedQuery(getCurrentBrandsSql)
+        return tx.preparedQuery(deleteSql)
                 .execute(Tuple.of(listenerId))
-                .onItem().transformToUni(currentRows -> {
-                    List<UUID> currentBrands = new ArrayList<>();
-                    currentRows.forEach(row -> currentBrands.add(row.getUUID("brand_id")));
-
-                    List<UUID> brandsToAdd = representedInBrands.stream()
-                            .filter(brand -> !currentBrands.contains(brand))
-                            .toList();
-
-                    List<UUID> brandsToRemove = currentBrands.stream()
-                            .filter(brand -> !representedInBrands.contains(brand))
-                            .toList();
-
-                    Uni<Void> removeUni = Uni.createFrom().voidItem();
-                    if (!brandsToRemove.isEmpty()) {
-                        String deleteBrandsSql = "DELETE FROM kneobroadcaster__listener_brands WHERE listener_id = $1 AND brand_id = ANY($2)";
-                        UUID[] brandsToRemoveArray = brandsToRemove.toArray(new UUID[0]);
-                        removeUni = tx.preparedQuery(deleteBrandsSql)
-                                .execute(Tuple.of(listenerId, brandsToRemoveArray))
-                                .onItem().ignore().andContinueWithNull();
+                .onItem().transformToUni(ignored -> {
+                    if (representedInBrands.isEmpty()) {
+                        return Uni.createFrom().voidItem();
                     }
-
-                    Uni<Void> addUni = Uni.createFrom().voidItem();
-                    if (!brandsToAdd.isEmpty()) {
-                        String insertBrandsSql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank, listener_type) VALUES ($1, $2, $3, $4, $5)";
-                        List<Tuple> insertParams = brandsToAdd.stream()
-                                .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99, listenerType.name()))
-                                .collect(Collectors.toList());
-
-                        addUni = tx.preparedQuery(insertBrandsSql)
-                                .executeBatch(insertParams)
-                                .onItem().ignore().andContinueWithNull();
-                    }
-
-                    Uni<Void> updateTypeUni = Uni.createFrom().voidItem();
-                    if (listenerType != null && !representedInBrands.isEmpty()) {
-                        String updateTypeSql = "UPDATE kneobroadcaster__listener_brands SET listener_type = $1 WHERE listener_id = $2 AND brand_id = ANY($3)";
-                        UUID[] brandIds = representedInBrands.toArray(new UUID[0]);
-                        updateTypeUni = tx.preparedQuery(updateTypeSql)
-                                .execute(Tuple.of(listenerType.name(), listenerId, brandIds))
-                                .onItem().ignore().andContinueWithNull();
-                    }
-
-                    return Uni.combine().all().unis(removeUni, addUni, updateTypeUni).discardItems();
+                    List<Tuple> insertParams = representedInBrands.stream()
+                            .map(brandId -> Tuple.of(listenerId, brandId, nowTime, 99))
+                            .collect(Collectors.toList());
+                    return tx.preparedQuery(insertSql)
+                            .executeBatch(insertParams)
+                            .onItem().ignore().andContinueWithNull();
                 });
     }
 
     public Uni<Void> addBrandToListener(UUID listenerId, UUID brandId) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
-        String sql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank, listener_type) " +
-                     "VALUES ($1, $2, $3, $4, $5) " +
+        String sql = "INSERT INTO kneobroadcaster__listener_brands (listener_id, brand_id, reg_date, rank) " +
+                     "VALUES ($1, $2, $3, $4) " +
                      "ON CONFLICT (listener_id, brand_id) DO NOTHING";
         
         return client.preparedQuery(sql)
-                .execute(Tuple.of(listenerId, brandId, nowTime, 99, ListenerType.REGULAR.name()))
+                .execute(Tuple.of(listenerId, brandId, nowTime, 99))
                 .replaceWithVoid();
     }
 
@@ -481,7 +359,6 @@ public class ListenersRepository extends AsyncRepository {
         Listener doc = new Listener();
         setDefaultFields(doc, row);
         doc.setUserId(row.getLong("user_id"));
-        doc.setSlugName(row.getString("slug_name"));
 
         JsonObject localizedNameJson = row.getJsonObject(COLUMN_LOCALIZED_NAME);
         if (localizedNameJson != null) {

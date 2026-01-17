@@ -5,7 +5,6 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.ListenerDTO;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -56,35 +55,17 @@ public class ListenerToolHandler extends BaseToolHandler {
             ListenerToolHandler handler
     ) {
         String searchTerm = inputMap.getOrDefault("search_term", JsonValue.from("")).toString().replace("\"", "");
-        String listenerTypeStr = inputMap.getOrDefault("listener_type", JsonValue.from("")).toString().replace("\"", "");
-        
-        ListenerType listenerType = null;
-        if (!listenerTypeStr.isEmpty()) {
-            try {
-                listenerType = ListenerType.valueOf(listenerTypeStr);
-            } catch (IllegalArgumentException e) {
-                LOGGER.warn("Invalid listener type: {}", listenerTypeStr);
-            }
-        }
 
-        LOGGER.info("[ListListeners] Searching listeners - searchTerm: {}, listenerType: {}, stationSlug: {}, connectionId: {}",
-                searchTerm, listenerType, stationSlug, connectionId);
+        LOGGER.info("[ListListeners] Searching listeners - searchTerm: {}, stationSlug: {}, connectionId: {}",
+                searchTerm, stationSlug, connectionId);
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Searching listeners...");
 
         String finalSearchTerm = searchTerm.isEmpty() ? null : searchTerm;
-        ListenerType finalListenerType = listenerType;
 
         return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
                 .map(brandListeners -> {
                     return brandListeners.stream()
-                            .filter(bl -> {
-                                if (finalListenerType != null) {
-                                    String type = bl.getListenerType();
-                                    return type != null && type.equals(finalListenerType.name());
-                                }
-                                return true;
-                            })
                             .filter(bl -> {
                                 if (finalSearchTerm == null) {
                                     return true;
@@ -126,8 +107,7 @@ public class ListenerToolHandler extends BaseToolHandler {
                         ListenerDTO listener = bl.getListenerDTO();
                         JsonObject listenerObj = new JsonObject()
                                 .put("id", listener.getId().toString())
-                                .put("slugName", listener.getSlugName())
-                                .put("listenerType", bl.getListenerType());
+                                .put("slugName", listener.getSlugName());
 
                         if (listener.getNickName() != null && !listener.getNickName().isEmpty()) {
                             Set<String> nicknames = listener.getNickName().get(LanguageCode.en);

@@ -6,7 +6,7 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.service.ListenerService;
-import io.kneo.core.service.UserService;
+import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -26,7 +26,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             ListenerService listenerService,
-            UserService userService,
+            String stationSlug,
             long userId,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -46,7 +46,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         LOGGER.info("[ListenerData] Action: {}, fieldName: {}, userId: {}, connectionId: {}",
                 action, fieldName, userId, connectionId);
 
-        return listenerService.getAll(1, 0, io.kneo.core.model.user.SuperUser.build())
+        return listenerService.getAll(1, 0, SuperUser.build())
                 .chain(listeners -> {
                     ListenerDTO listener = listeners.stream()
                             .filter(l -> l.getUserId() == userId)
@@ -58,11 +58,11 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                     }
 
                     if ("set".equals(action)) {
-                        return handleSet(toolUse, listener, fieldName, fieldValue, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        return handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                     } else if ("get".equals(action)) {
                         return handleGet(toolUse, listener, fieldName, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                     } else if ("remove".equals(action)) {
-                        return handleRemove(toolUse, listener, fieldName, listenerService, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        return handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                     } else {
                         return handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
                     }
@@ -71,10 +71,11 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
     private static Uni<Void> handleSet(
             ToolUseBlock toolUse,
-            ListenerDTO listener,
+            ListenerDTO listenerDTO,
             String fieldName,
             String fieldValue,
             ListenerService listenerService,
+            String stationSlug,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -88,14 +89,14 @@ public class ListenerDataToolHandler extends BaseToolHandler {
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Storing user data...");
 
-        if (listener.getUserData() == null) {
-            listener.setUserData(new HashMap<>());
+        if (listenerDTO.getUserData() == null) {
+            listenerDTO.setUserData(new HashMap<>());
         }
-        listener.getUserData().put(fieldName, fieldValue);
+        listenerDTO.getUserData().put(fieldName, fieldValue);
 
-        return listenerService.upsert(listener.getId().toString(), listener, io.kneo.core.model.user.SuperUser.build())
+        return listenerService.upsert(null, listenerDTO, stationSlug, SuperUser.build())
                 .flatMap(updatedListener -> {
-                    LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listener.getId());
+                    LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listenerDTO.getId());
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)
@@ -153,6 +154,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             ListenerDTO listener,
             String fieldName,
             ListenerService listenerService,
+            String stationSlug,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -182,7 +184,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             return streamFn.apply(secondCallParams);
         }
 
-        return listenerService.upsert(listener.getId().toString(), listener, io.kneo.core.model.user.SuperUser.build())
+        return listenerService.upsert(null, listener, stationSlug, SuperUser.build())
                 .flatMap(updatedListener -> {
                     LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listener.getId());
 

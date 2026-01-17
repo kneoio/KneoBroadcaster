@@ -9,7 +9,6 @@ import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.model.cnst.ChatType;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager.VerificationResult;
@@ -107,10 +106,10 @@ public class PublicChatService extends ChatService {
         }
 
         ListenerDTO dto = new ListenerDTO();
+        dto.setEmail(email);
         dto.getLocalizedName().put(LanguageCode.en, userName);
-        dto.getUserData().put("email", email);
 
-        return listenerService.upsertWithStationSlug(email, dto, stationSlug, ListenerType.REGULAR, SuperUser.build())
+        return listenerService.upsert(null,dto, stationSlug, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class).recoverWithUni(throwable -> {
                     String slugName = WebHelper.generateSlug(userName != null && !userName.isBlank() ? userName : email);
                     return userService.findByLogin(slugName)
@@ -263,7 +262,7 @@ public class PublicChatService extends ChatService {
             );
         } else if ("listener_data".equals(toolUse.name())) {
             return ListenerDataToolHandler.handle(
-                    toolUse, inputMap, listenerService, userService, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(

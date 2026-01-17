@@ -119,7 +119,6 @@ public class AiHelperService {
                     aiDto.setTelegramName(telegramName);
                     aiDto.setLocalizedName(listener.getLocalizedName());
                     aiDto.setNickName(listener.getNickName());
-                    aiDto.setSlugName(listener.getSlugName());
                     return aiDto;
                 });
     }

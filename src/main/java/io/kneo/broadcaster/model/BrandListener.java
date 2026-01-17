@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -13,5 +12,4 @@ public class BrandListener {
     private UUID brandId;
     private int rank;
     private Listener listener;
-    private ListenerType listenerType;
 }

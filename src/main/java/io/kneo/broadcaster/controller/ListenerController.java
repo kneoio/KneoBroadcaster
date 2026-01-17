@@ -4,7 +4,6 @@ import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.model.Listener;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
@@ -30,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -170,61 +168,51 @@ public class ListenerController extends AbstractSecuredController<Listener, List
 
     private void upsert(RoutingContext rc) {
         try {
-            if (!validateJsonBody(rc)) return;
-
-            ListenerDTO dto = rc.body().asJsonObject().mapTo(ListenerDTO.class);
-            String id = rc.pathParam("id");
-            
-            List<UUID> listenerOf = null;
-            String listenerOfParam = rc.request().getParam("listenerOf");
-            if (listenerOfParam != null && !listenerOfParam.isEmpty()) {
-                listenerOf = Arrays.stream(listenerOfParam.split(","))
-                        .map(UUID::fromString)
-                        .collect(Collectors.toList());
-            }
-            
-            ListenerType listenerType = null;
-            String listenerTypeParam = rc.request().getParam("listenerType");
-            if (listenerTypeParam != null && !listenerTypeParam.isEmpty()) {
-                listenerType = ListenerType.valueOf(listenerTypeParam);
-            }
-
-            Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
-            if (violations != null && !violations.isEmpty()) {
-                Map<String, List<String>> fieldErrors = new HashMap<>();
-                for (ConstraintViolation<ListenerDTO> v : violations) {
-                    String field = v.getPropertyPath().toString();
-                    fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
-                }
-                String detail = fieldErrors.entrySet().stream()
-                        .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
-                        .collect(Collectors.joining(", "));
-                ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+            if (!validateJsonBody(rc)) {
                 return;
             }
 
-            List<UUID> finalListenerOf = listenerOf;
-            ListenerType finalListenerType = listenerType;
+            ListenerDTO dto = rc.body().asJsonObject().mapTo(ListenerDTO.class);
+            String id = rc.pathParam("id");
+            String contextBrandSlug = parseNullableParam(rc, "contextBrandSlug");
+
+            if (!validateAndRespond(rc, dto)) {
+                return;
+            }
+
             getContextUser(rc, false, true)
-                    .chain(user -> {
-                        if (finalListenerOf != null && !finalListenerOf.isEmpty()) {
-                            return service.upsertWithBrands(id, dto, finalListenerOf, finalListenerType, user);
-                        } else {
-                            return service.upsert(id, dto, user);
-                        }
-                    })
+                    .chain(user -> service.upsert(id, dto, contextBrandSlug, user))
                     .subscribe().with(
                             doc -> sendUpsertResponse(rc, doc, id),
                             throwable -> handleUpsertFailure(rc, throwable)
                     );
 
         } catch (Exception e) {
-            if (e instanceof IllegalArgumentException) {
-                rc.fail(400, e);
-            } else {
-                rc.fail(400, new IllegalArgumentException("Invalid JSON payload"));
-            }
+            rc.fail(400, e instanceof IllegalArgumentException ? e : new IllegalArgumentException("Invalid JSON payload"));
         }
+    }
+
+    private String parseNullableParam(RoutingContext rc, String paramName) {
+        String value = rc.request().getParam(paramName);
+        return (value == null || value.isEmpty()) ? null : value;
+    }
+
+    private boolean validateAndRespond(RoutingContext rc, ListenerDTO dto) {
+        Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
+        if (violations == null || violations.isEmpty()) {
+            return true;
+        }
+
+        Map<String, List<String>> fieldErrors = new HashMap<>();
+        for (ConstraintViolation<ListenerDTO> v : violations) {
+            String field = v.getPropertyPath().toString();
+            fieldErrors.computeIfAbsent(field, k -> new ArrayList<>()).add(v.getMessage());
+        }
+        String detail = fieldErrors.entrySet().stream()
+                .flatMap(e -> e.getValue().stream().map(msg -> e.getKey() + ": " + msg))
+                .collect(Collectors.joining(", "));
+        ProblemDetailsUtil.respondValidationError(rc, detail, fieldErrors);
+        return false;
     }
 
     private void delete(RoutingContext rc) {

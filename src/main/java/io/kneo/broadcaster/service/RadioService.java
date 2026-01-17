@@ -11,7 +11,6 @@ import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -205,17 +204,8 @@ public class RadioService {
 
     private Uni<IUser> registerContributor(String email, String stationSlug) {
         ListenerDTO dto = new ListenerDTO();
-        dto.getLocalizedName().put(LanguageCode.en, email);
-        dto.getUserData().put("email", email);
-
-        return listenerService
-                .upsertWithStationSlug(
-                        email,
-                        dto,
-                        stationSlug,
-                        ListenerType.CONTRIBUTOR,
-                        SuperUser.build()
-                )
+        dto.setEmail(email);
+        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
                 .onFailure(UserAlreadyExistsException.class)
                 .recoverWithUni(e -> {
                     String slugName = WebHelper.generateSlug(email);

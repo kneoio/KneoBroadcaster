@@ -19,7 +19,6 @@ public class Listener extends SecureDataEntity<UUID> {
     private EnumMap<LanguageCode, String> localizedName = new EnumMap<>(LanguageCode.class);
     private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private UserData userData;
-    private String slugName;
     private Integer archived;
     private List<UUID> listenerOf;
 }

@@ -8,7 +8,6 @@ import io.kneo.broadcaster.model.Listener;
 import io.kneo.broadcaster.model.ListenerFilter;
 import io.kneo.broadcaster.model.UserData;
 import io.kneo.broadcaster.model.brand.Brand;
-import io.kneo.broadcaster.model.cnst.ListenerType;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.core.dto.DocumentAccessDTO;
 import io.kneo.core.dto.document.UserDTO;
@@ -21,12 +20,13 @@ import io.kneo.core.util.WebHelper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -109,9 +109,9 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.findByUserId(id);
     }
 
-    public Uni<List<UUID>> getListenersBrands(UUID listener, long userId) {
+    public Uni<List<UUID>> getListenersBrands(UUID listener) {
         assert repository != null;
-        return repository.getBrandsForListener(listener, userId);
+        return repository.getBrandsForListener(listener);
     }
 
     public Uni<Void> addBrandToListener(UUID listenerId, UUID brandId) {
@@ -144,111 +144,91 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         return repository.findForBrandCount(brand, user, false, filter);
     }
 
-    public Uni<ListenerDTO> upsertWithStationSlug(String email, ListenerDTO dto, String stationSlug, ListenerType listenerType, IUser user) {
+    public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, String stationSlug, IUser user) {
         assert brandService != null;
         assert repository != null;
+        Listener listener = buildEntity(dto);
+
+        if (id == null) {
+            if (stationSlug == null) {
+                return ensureUserExists(listener, dto.getEmail())
+                        .chain(userId -> {
+                            listener.setUserId(userId);
+                            return repository.insert(listener, dto.getListenerOf(), user);
+                        })
+                        .chain(this::mapToDTO);
+            } else {
+                return getBrand(stationSlug)
+                        .chain(station -> ensureUserExists(listener, dto.getEmail())
+                                .chain(userId -> {
+                                    listener.setUserId(userId);
+                                    return repository.insert(listener, List.of(station.getId()), user);
+                                }))
+                        .chain(this::mapToDTO);
+            }
+        } else {
+            UUID listenerUUID = UUID.fromString(id);
+            if (stationSlug == null) {
+                return repository.update(listenerUUID, listener, dto.getListenerOf(), user)
+                        .chain(updatedListener -> {
+                            if (dto.getEmail() != null && !dto.getEmail().isEmpty()) {
+                                return userService.updateEmail(dto.getUserId(), dto.getEmail(), user)
+                                        .replaceWith(updatedListener);
+                            }
+                            return Uni.createFrom().item(updatedListener);
+                        })
+                        .chain(this::mapToDTO);
+            } else {
+                return getBrand(stationSlug)
+                        .chain(station -> repository.getBrandsForListener(listenerUUID)
+                                .chain(stationIds -> {
+                                    return repository.update(listenerUUID, listener, stationIds, user);
+                                }))
+                        .chain(this::mapToDTO);
+            }
+        }
+    }
+
+    private Uni<Brand> getBrand(String stationSlug) {
         return brandService.getBySlugName(stationSlug)
                 .chain(station -> {
                     if (station == null) {
                         return Uni.createFrom().failure(new IllegalArgumentException("Station not found: " + stationSlug));
                     }
-                    Listener listener = buildEntity(dto);
-                    String slugName = WebHelper.generatePersonSlug(listener.getLocalizedName().get(LanguageCode.en));
-                    listener.setSlugName(slugName);
-
-                    return userService.findByEmail(email)
-                            .chain(existingUser -> {
-                                if (existingUser.getId() != UndefinedUser.ID) {
-                                    return repository.findByUserId(existingUser.getId())
-                                            .chain(existingListener -> {
-                                                if (existingListener != null) {
-                                                    return repository.getBrandsForListener(existingListener.getId(), existingUser.getId())
-                                                            .chain(stationIds -> {
-                                                                if (!stationIds.contains(station.getId())) {
-                                                                    stationIds.add(station.getId());
-                                                                }
-                                                                return repository.updateWithBrands(existingListener.getId(), listener, stationIds, listenerType, user);
-                                                            });
-                                                } else {
-                                                    listener.setUserId(existingUser.getId());
-                                                    listener.setSlugName(slugName);
-                                                    return repository.insertWithBrands(listener, List.of(station.getId()), listenerType, user);
-                                                }
-                                            });
-                                } else {
-                                    UserDTO listenerUserDTO = new UserDTO();
-                                    listenerUserDTO.setLogin(slugName);
-                                    listenerUserDTO.setEmail(dto.getUserData().get("email"));
-                                    return userService.add(listenerUserDTO, true)
-                                            .chain(userId -> {
-                                                listener.setUserId(userId);
-                                                listener.setSlugName(slugName);
-                                                return repository.insertWithBrands(listener, List.of(station.getId()), listenerType, user);
-                                            });
-                                }
-                            })
-                            .chain(this::mapToDTO);
+                    return Uni.createFrom().item(station);
                 });
     }
 
-    public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, List<UUID> listenerOf, ListenerType listenerType, IUser user) {
-        assert repository != null;
-        assert validator != null;
-        Set<ConstraintViolation<ListenerDTO>> violations = validator.validate(dto);
-        if (!violations.isEmpty()) {
-            String errorMessage = violations.stream()
-                    .map(ConstraintViolation::getMessage)
-                    .collect(Collectors.joining(", "));
-            return Uni.createFrom().failure(new IllegalArgumentException("Validation failed: " + errorMessage));
-        }
+    private Uni<Long> ensureUserExists(Listener listener, String email) {
+        return userService.findByEmail(email)
+                .chain(existingUser -> {
+                    if (existingUser.getId() != UndefinedUser.ID) {
+                        return Uni.createFrom().item(existingUser.getId());
+                    }
+                    return createNewUser(listener, email);
+                });
+    }
 
-        String slugName = WebHelper.generatePersonSlug(dto.getLocalizedName().get(LanguageCode.en));
-        dto.setSlugName(slugName);
+    private Uni<Long> createNewUser(Listener listener, String email) {
+        UserDTO userDTO = new UserDTO();
+        String slugName = WebHelper.generatePersonSlug(listener.getLocalizedName().get(LanguageCode.en));
+        userDTO.setLogin(slugName);
+        userDTO.setEmail(email);
+        return userService.add(userDTO, true);
+    }
 
-        boolean hasBrands = listenerOf != null && !listenerOf.isEmpty();
-        ListenerType type = hasBrands ? (listenerType != null ? listenerType : ListenerType.REGULAR) : null;
-
-        if (id == null) {
-            String email = dto.getUserData().get("email");
-            return userService.findByEmail(email)
-                    .chain(existingUser -> {
-                        if (existingUser.getId() != UndefinedUser.ID) {
-                            Listener entity = buildEntity(dto);
-                            entity.setUserId(existingUser.getId());
-                            entity.setSlugName(slugName);
-                            return hasBrands
-                                ? repository.insertWithBrands(entity, listenerOf, type, user)
-                                : repository.insert(entity, user);
-                        }
-
-                        UserDTO listenerUserDTO = new UserDTO();
-                        listenerUserDTO.setLogin(slugName);
-                        listenerUserDTO.setEmail(email);
-                        return userService.add(listenerUserDTO, true)
-                                .chain(userId -> {
-                                    Listener entity = buildEntity(dto);
-                                    entity.setUserId(userId);
-                                    entity.setSlugName(slugName);
-                                    return hasBrands
-                                        ? repository.insertWithBrands(entity, listenerOf, type, user)
-                                        : repository.insert(entity, user);
-                                });
-                    })
-                    .chain(this::mapToDTO);
-        } else {
-            Listener entity = buildEntity(dto);
-            return hasBrands
-                ? repository.updateWithBrands(UUID.fromString(id), entity, listenerOf, type, user)
-                : repository.update(UUID.fromString(id), entity, user)
-                    .chain(this::mapToDTO);
-        }
+    private List<UUID> addBrandToList(List<UUID> existingBrands, UUID brandId) {
+        List<UUID> updated = new ArrayList<>(existingBrands);
+        updated.add(brandId);
+        return updated;
     }
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier()),
-                repository.getBrandsForListener(doc.getId(), doc.getAuthor())
+                repository.getBrandsForListener(doc.getId()),
+                userService.get(doc.getUserId())
         ).asTuple().map(tuple -> {
             ListenerDTO dto = new ListenerDTO();
             dto.setId(doc.getId());
@@ -257,13 +237,19 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             dto.setLastModifier(tuple.getItem2());
             dto.setLastModifiedDate(doc.getLastModifiedDate());
             dto.setUserId(doc.getUserId());
-            dto.setSlugName(doc.getSlugName());
             dto.setArchived(doc.getArchived());
             dto.setLocalizedName(doc.getLocalizedName());
             dto.setNickName(doc.getNickName());
             if (doc.getUserData() != null) {
                 dto.setUserData(doc.getUserData().getData());
             }
+            List<UUID> brandIds = tuple.getItem3();
+            dto.setListenerOf(brandIds);
+            Optional<IUser> userOptional = tuple.getItem4();
+            userOptional.ifPresent(user -> {
+                dto.setEmail(user.getEmail());
+                dto.setSlugName(user.getLogin());
+            });
             return dto;
         });
     }
@@ -273,9 +259,11 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         doc.setArchived(dto.getArchived());
         doc.setLocalizedName(dto.getLocalizedName());
         doc.setNickName(dto.getNickName());
-        doc.setSlugName(dto.getSlugName());
         if (dto.getUserData() != null && !dto.getUserData().isEmpty()) {
             doc.setUserData(new UserData(dto.getUserData()));
+        }
+        if (dto.getListenerOf() != null) {
+            doc.setListenerOf(dto.getListenerOf());
         }
         return doc;
     }
@@ -285,7 +273,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                 .onItem().transform(listenerDTO -> {
                     BrandListenerDTO dto = new BrandListenerDTO();
                     dto.setId(brandListener.getId());
-                    dto.setListenerType(brandListener.getListenerType() != null ? brandListener.getListenerType().name() : null);
                     dto.setListenerDTO(listenerDTO);
                     return dto;
                 });

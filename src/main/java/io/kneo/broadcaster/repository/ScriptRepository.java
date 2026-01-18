@@ -46,10 +46,6 @@ public class ScriptRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
-        return getAll(limit, offset, includeArchived, user, null);
-    }
-
     public Uni<List<Script>> getAll(int limit, int offset, boolean includeArchived, final IUser user, final ScriptFilter filter) {
         String sql = """
                     SELECT t.*, rls.*, ARRAY(SELECT label_id FROM mixpla_script_labels sl WHERE sl.script_id = t.id) AS labels

@@ -98,7 +98,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user, filter),
-                        service.getAll(size, (page - 1) * size, user, filter)
+                        service.getAllDTO(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<ScriptDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -492,7 +492,7 @@ public class ScriptController extends AbstractSecuredController<Script, ScriptDT
         getContextUser(rc, false, true)
                 .chain(user -> {
                     if (parentKey == null || parentKey.isEmpty()) {
-                        return service.getAll(Integer.MAX_VALUE, 0, user)
+                        return service.getAllDTO(Integer.MAX_VALUE, 0, user)
                                 .map(scripts -> scripts.stream()
                                         .map(this::scriptToTreeNode)
                                         .collect(Collectors.toList()));

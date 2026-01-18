@@ -67,11 +67,11 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         this.draftService = draftService;
     }
 
-    public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user) {
-        return getAll(limit, offset, user, null);
+    public Uni<List<ScriptDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
+        return getAllDTO(limit, offset, user, null);
     }
 
-    public Uni<List<ScriptDTO>> getAll(final int limit, final int offset, final IUser user, final ScriptFilterDTO filterDTO) {
+    public Uni<List<ScriptDTO>> getAllDTO(final int limit, final int offset, final IUser user, final ScriptFilterDTO filterDTO) {
         assert repository != null;
         ScriptFilter filter = toFilter(filterDTO);
         return repository.getAll(limit, offset, false, user, filter)
@@ -189,11 +189,9 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
     }
 
     private Uni<ScriptDTO> mapToDTO(Script script, IUser user) {
-        assert scriptSceneService != null;
         return Uni.combine().all().unis(
                 userService.getUserName(script.getAuthor()),
-                userService.getUserName(script.getLastModifier()),
-                scriptSceneService.getAllByScript(script.getId(), 100, 0, user)
+                userService.getUserName(script.getLastModifier())
         ).asTuple().map(tuple -> {
             ScriptDTO dto = new ScriptDTO();
             dto.setId(script.getId());
@@ -210,7 +208,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
             dto.setLabels(script.getLabels());
             dto.setBrands(script.getBrands());
             dto.setTimingMode(script.getTimingMode().name());
-            dto.setScenes(tuple.getItem3());
             dto.setRequiredVariables(script.getRequiredVariables());
             return dto;
         });

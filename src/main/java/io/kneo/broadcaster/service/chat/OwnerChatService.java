@@ -113,7 +113,7 @@ public class OwnerChatService extends ChatService {
         } else if ("add_to_queue".equals(toolUse.name())) {
             String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
             return AddToQueueToolHandler.handle(
-                    toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+                    toolUse, inputMap, queueService, aiHelperService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else if ("control_station".equals(toolUse.name())) {
             return RadioStationControlToolHandler.handle(

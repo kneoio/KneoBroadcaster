@@ -39,41 +39,34 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         String fieldName = inputMap.getOrDefault("field_name", JsonValue.from("")).toString().replace("\"", "");
         String fieldValue = inputMap.getOrDefault("field_value", JsonValue.from("")).toString().replace("\"", "");
 
-        if (fieldName.isEmpty()) {
-            return handleError(toolUse, "field_name is required", handler, conversationHistory, systemPromptCall2, streamFn);
-        }
-
         LOGGER.info("[ListenerData] Action: {}, fieldName: {}, userId: {}, connectionId: {}",
                 action, fieldName, userId, connectionId);
 
-        return listenerService.getAllDTO(1, 0, SuperUser.build(), null)
-                .chain(listeners -> {
-                    ListenerDTO listener = listeners.stream()
-                            .filter(l -> l.getUserId() == userId)
-                            .findFirst()
-                            .orElse(null);
-
+        return listenerService.getByUserId(userId)
+                .flatMap(listener -> {
                     if (listener == null) {
                         return handleError(toolUse, "Listener not found. User must be registered first.", handler, conversationHistory, systemPromptCall2, streamFn);
                     }
 
-                    return switch (action) {
-                        case "get" ->
-                                handleGet(toolUse, listener, fieldName, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                        case "set" ->
-                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                        case "remove" ->
-                                handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                        default ->
-                                handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
-                    };
+                    return listenerService.getDTO(listener.getId(), SuperUser.build(), null)
+                            .flatMap(listenerDTO -> {
+                                return switch (action) {
+                                    case "get" ->
+                                            handleGet(toolUse, listenerDTO, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                    case "set" ->
+                                            handleSet(toolUse, listenerDTO, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                    case "remove" ->
+                                            handleRemove(toolUse, listenerDTO, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                    default ->
+                                            handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
+                                };
+                            });
                 });
     }
 
     private static Uni<Void> handleGet(
             ToolUseBlock toolUse,
-            ListenerDTO listener,
-            String fieldName,
+            ListenerDTO listenerDTO,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -81,19 +74,17 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving user data...");
-
-        String value = null;
-        if (listener.getUserData() != null) {
-            value = listener.getUserData().get(fieldName);
-        }
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving listener data...");
 
         JsonObject payload = new JsonObject()
                 .put("ok", true)
-                .put("action", "get")
-                .put("field_name", fieldName)
-                .put("field_value", value)
-                .put("found", value != null);
+                .put("listener_id", listenerDTO.getId().toString())
+                .put("user_id", listenerDTO.getUserId())
+                .put("email", listenerDTO.getEmail())
+                .put("slug_name", listenerDTO.getSlugName())
+                .put("localized_name", JsonObject.mapFrom(listenerDTO.getLocalizedName()))
+                .put("nick_name", JsonObject.mapFrom(listenerDTO.getNickName()))
+                .put("user_data", listenerDTO.getUserData() != null ? JsonObject.mapFrom(listenerDTO.getUserData()) : new JsonObject());
 
         handler.addToolUseToHistory(toolUse, conversationHistory);
         handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
@@ -116,6 +107,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
+        if (fieldName.isEmpty()) {
+            return handleError(toolUse, "field_name is required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
+        }
         if (fieldValue.isEmpty()) {
             return handleError(toolUse, "field_value is required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
         }
@@ -127,7 +121,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         }
         listenerDTO.getUserData().put(fieldName, fieldValue);
 
-        return listenerService.upsert(null, listenerDTO, stationSlug, SuperUser.build())
+        return listenerService.upsert(listenerDTO.getId().toString(), listenerDTO, stationSlug, SuperUser.build())
                 .flatMap(updatedListener -> {
                     LOGGER.info("[ListenerData] Set field '{}' = '{}' for listener {}", fieldName, fieldValue, listenerDTO.getId());
 
@@ -150,11 +144,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                 });
     }
 
-
-
     private static Uni<Void> handleRemove(
             ToolUseBlock toolUse,
-            ListenerDTO listener,
+            ListenerDTO listenerDTO,
             String fieldName,
             ListenerService listenerService,
             String stationSlug,
@@ -165,11 +157,15 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
+        if (fieldName.isEmpty()) {
+            return handleError(toolUse, "field_name is required for 'remove' action", handler, conversationHistory, systemPromptCall2, streamFn);
+        }
+
         handler.sendProcessingChunk(chunkHandler, connectionId, "Removing user data...");
 
         boolean removed = false;
-        if (listener.getUserData() != null) {
-            removed = listener.getUserData().remove(fieldName) != null;
+        if (listenerDTO.getUserData() != null) {
+            removed = listenerDTO.getUserData().remove(fieldName) != null;
         }
 
         if (!removed) {
@@ -187,9 +183,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             return streamFn.apply(secondCallParams);
         }
 
-        return listenerService.upsert(null, listener, stationSlug, SuperUser.build())
+        return listenerService.upsert(listenerDTO.getId().toString(), listenerDTO, stationSlug, SuperUser.build())
                 .flatMap(updatedListener -> {
-                    LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listener.getId());
+                    LOGGER.info("[ListenerData] Removed field '{}' for listener {}", fieldName, listenerDTO.getId());
 
                     JsonObject payload = new JsonObject()
                             .put("ok", true)

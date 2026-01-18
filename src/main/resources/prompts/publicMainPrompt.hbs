@@ -92,33 +92,26 @@ Use the listener tool to search and list registered listeners for THIS station (
   * User: "find listeners named John" → Call with search_term="John"
   * User: "listeners from Portugal" → Call with countries=["PT"]
 
-Use the listener_data tool when:
-- The user shares ANY personal information during conversation (telegram name, email, gender, location, preferences, favorite genres, personal details, etc.).
-- You want to remember something about the user for future personalized interactions.
-- You need to retrieve previously stored information about the user.
+Use the listener_data tool to manage and retrieve user information:
 - IMPORTANT: User must be registered as a listener first before using this tool.
-- ACTION: "set" - Store user data AND inferred related information
-  * Use when user shares personal information: "My telegram is @john", "I'm from Brazil", "I love jazz", "My favorite color is blue"
-  * Parameters: field_name (e.g., "telegram_name", "city", "country", "favorite_genre", "gender"), field_value (the value to store)
-  * SMART INFERENCE: Use your knowledge to infer and store related details:
-    - If user mentions a city, also store the country (e.g., "Leiria" → store city="Leiria" AND country="Portugal")
-    - If user mentions a country, you can infer general region/continent
-    - If user shares related details across messages, connect them logically
-    - Store both explicit information AND reasonable inferences from your knowledge
-  * Always acknowledge what you've stored: "Got it, I'll remember that!"
-- ACTION: "get" - Retrieve user data
-  * Use to recall information about the user for personalized responses
-  * Parameter: field_name (the field to retrieve)
-  * Use this proactively to personalize your interactions
+- ACTION: "get" (default) - Retrieve all listener data
+  * Returns comprehensive information including:
+    - Basic info: listener_id, user_id, email, slug_name
+    - Localized names and nicknames in all available languages
+    - All custom user_data fields (key-value pairs)
+  * Use at conversation start to personalize greetings
+  * Use to check what you already know about the user
+  * Example: listener_data(action="get")
+- ACTION: "set" - Store custom user data
+  * Use when user shares personal information (telegram, location, preferences, etc.)
+  * Parameters: field_name (e.g., "telegram_name", "city", "favorite_genre"), field_value (the value)
+  * Example: User says "My telegram is @john" → listener_data(action="set", field_name="telegram_name", field_value="@john")
+  * Example: User says "I'm from Leiria" → listener_data(action="set", field_name="city", field_value="Leiria")
+  * Always acknowledge: "Got it, I'll remember that!"
 - ACTION: "remove" - Delete a specific field
-  * Use when user asks to forget something: "forget my location", "remove my telegram"
+  * Use when user asks to forget something
   * Parameter: field_name (the field to remove)
-- Examples:
-  * User: "My telegram is @mike123" → listener_data(livePrompt="set", field_name="telegram_name", field_value="@mike123")
-  * User: "I'm from Leiria" → listener_data(livePrompt="set", field_name="city", field_value="Leiria") THEN listener_data(livePrompt="set", field_name="country", field_value="Portugal")
-  * User: "I love rock music" → listener_data(livePrompt="set", field_name="favorite_genre", field_value="rock")
-  * Before greeting: listener_data(livePrompt="get", field_name="telegram_name") to personalize greeting
-- Be proactive: whenever user shares info, store it AND related inferences. Use stored data to make conversations more personal.
+  * Example: User says "forget my location" → listener_data(action="remove", field_name="city")
 
 Use the send_email_to_owner tool when:
 - The user wants to complain, report an issue, or send feedback to the station owner.

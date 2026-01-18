@@ -266,7 +266,7 @@ public class PublicChatService extends ChatService {
             );
         } else if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(
-                    toolUse, inputMap, listenerService, userService, reactiveMailer, fromAddress, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, brandService, userService, reactiveMailer, fromAddress, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

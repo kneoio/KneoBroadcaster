@@ -4,9 +4,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import io.kneo.broadcaster.dto.BrandListenerDTO;
-import io.kneo.broadcaster.service.ListenerService;
-import io.kneo.core.model.user.IUser;
+import io.kneo.broadcaster.service.BrandService;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
 import io.quarkus.mailer.Mail;
@@ -28,7 +26,7 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
-            ListenerService listenerService,
+            BrandService brandService,
             UserService userService,
             ReactiveMailer reactiveMailer,
             String fromAddress,
@@ -52,60 +50,52 @@ public class SendEmailToOwnerToolHandler extends BaseToolHandler {
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Sending email to owner...");
 
-        return userService.findById(userId)
-                .chain(userOptional -> {
-                    if (userOptional.isEmpty()) {
-                        return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
-                    }
-                    IUser user = userOptional.get();
-                    String userEmail = user.getEmail();
+        return Uni.combine().all().unis(
+                userService.findById(userId),
+                brandService.getBySlugName(stationSlug, SuperUser.build())
+        ).asTuple().chain(tuple -> {
+            if (tuple.getItem1().isEmpty()) {
+                return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
+            }
+            if (tuple.getItem2() == null) {
+                return Uni.createFrom().failure(new IllegalArgumentException("Station not found"));
+            }
+            if (tuple.getItem2().getOwner() == null || tuple.getItem2().getOwner().getEmail() == null || tuple.getItem2().getOwner().getEmail().isBlank()) {
+                return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
+            }
 
-                    return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
-                            .map(brandListeners -> brandListeners.stream()
-                                    .filter(bl -> bl.getListenerDTO().getArchived() == 0)
-                                    .map(BrandListenerDTO::getListenerDTO)
-                                    .findFirst()
-                                    .orElse(null))
-                            .chain(ownerListener -> {
-                                if (ownerListener == null) {
-                                    return Uni.createFrom().failure(new IllegalArgumentException("Station owner not found"));
-                                }
+            String userEmail = tuple.getItem1().get().getEmail();
+            String ownerEmail = tuple.getItem2().getOwner().getEmail();
 
-                                String ownerEmail = ownerListener.getUserData().get("email");
-                                if (ownerEmail == null || ownerEmail.isBlank()) {
-                                    return Uni.createFrom().failure(new IllegalArgumentException("Owner email not configured"));
-                                }
+            String htmlBody = """
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Message from Listener</h2>
+                <p><strong>From:</strong> %s</p>
+                <p><strong>Station:</strong> %s</p>
+                <p><strong>Subject:</strong> %s</p>
+                <hr style="border: 1px solid #ddd; margin: 20px 0;">
+                <div style="white-space: pre-wrap;">%s</div>
+            </body>
+            </html>
+            """.formatted(userEmail, stationSlug, subject, message);
 
-                                String htmlBody = """
-                                <!DOCTYPE html>
-                                <html>
-                                <body style="font-family: Arial, sans-serif; padding: 20px;">
-                                    <h2>Message from Listener</h2>
-                                    <p><strong>From:</strong> %s</p>
-                                    <p><strong>Station:</strong> %s</p>
-                                    <p><strong>Subject:</strong> %s</p>
-                                    <hr style="border: 1px solid #ddd; margin: 20px 0;">
-                                    <div style="white-space: pre-wrap;">%s</div>
-                                </body>
-                                </html>
-                                """.formatted(userEmail, stationSlug, subject, message);
+            String textBody = "Message from Listener\n\n" +
+                    "From: " + userEmail + "\n" +
+                    "Station: " + stationSlug + "\n" +
+                    "Subject: " + subject + "\n\n" +
+                    message;
 
-                                String textBody = "Message from Listener\n\n" +
-                                        "From: " + userEmail + "\n" +
-                                        "Station: " + stationSlug + "\n" +
-                                        "Subject: " + subject + "\n\n" +
-                                        message;
+            Mail mail = Mail.withHtml(ownerEmail, "Listener Message: " + subject, htmlBody)
+                    .setText(textBody)
+                    .setFrom("Mixpla <" + fromAddress + ">")
+                    .setReplyTo(userEmail);
 
-                                Mail mail = Mail.withHtml(ownerEmail, "Listener Message: " + subject, htmlBody)
-                                        .setText(textBody)
-                                        .setFrom("Mixpla <" + fromAddress + ">")
-                                        .setReplyTo(userEmail);
-
-                                return reactiveMailer.send(mail)
-                                        .onFailure().invoke(failure -> LOGGER.error("Failed to send email to owner", failure))
-                                        .replaceWith(ownerEmail);
-                            });
-                })
+            return reactiveMailer.send(mail)
+                    .onFailure().invoke(failure -> LOGGER.error("Failed to send email to owner", failure))
+                    .replaceWith(ownerEmail);
+        })
                 .flatMap(ownerEmail -> {
                     LOGGER.info("[SendEmailToOwner] Email sent successfully to: {}", ownerEmail);
 

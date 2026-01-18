@@ -108,21 +108,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getAllCount(user, false, filter);
     }
 
-    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, final SoundFragmentFilterDTO filterDTO) {
-        assert repository != null;
-        SoundFragmentFilter filter = toFilter(filterDTO);
-        return repository.getAll(limit, offset, false, SuperUser.build(), filter);
-    }
-
-    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, IUser user) {
-        return getAll(limit, offset, user, null);
-    }
-
-    public Uni<List<SoundFragment>> getAll(final int limit, final int offset, IUser user, final SoundFragmentFilterDTO filterDTO) {
-        assert repository != null;
-        SoundFragmentFilter filter = toFilter(filterDTO);
-        return repository.getAll(limit, offset, false, user, filter);
-    }
     public Uni<SoundFragment> getById(UUID uuid, IUser user) {
         assert repository != null;
         return repository.findById(uuid, user.getId(), false, true, false);
@@ -318,22 +303,6 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                                 );
                     });
         }
-    }
-
-    public Uni<List<SoundFragmentDTO>> search(String searchTerm, final int limit, final int offset, final IUser user, final SoundFragmentFilterDTO filterDTO) {
-        assert repository != null;
-        SoundFragmentFilter filter = toFilter(filterDTO);
-        return repository.search(searchTerm, limit, offset, false, user, filter)
-                .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<SoundFragmentDTO>> unis = list.stream()
-                                .map(doc -> mapToDTO(doc, false, null))
-                                .collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
-                });
     }
 
     public Uni<LocalFileCleanupService.CleanupStats> getLocalFileCleanupStats() {

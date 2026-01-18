@@ -124,7 +124,7 @@ public class AiHelperService {
     }
 
     public Uni<AvailableStationsAiDTO> getAllStations(List<StreamStatus> statuses, String country, LanguageTag djLanguage, String query) {
-        return brandService.getAllDTOFiltered(1000, 0, SuperUser.build(), country, query)
+        return brandService.getAllDTO(1000, 0, SuperUser.build(), country, query)
                 .flatMap(stations -> {
                     if (stations == null || stations.isEmpty()) {
                         AvailableStationsAiDTO container = new AvailableStationsAiDTO();

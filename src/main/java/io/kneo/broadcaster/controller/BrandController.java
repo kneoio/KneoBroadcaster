@@ -78,11 +78,13 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        String country = rc.request().getParam("country");
+        String query = rc.request().getParam("query");
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        service.getAllCount(user),
-                        service.getAllDTO(size, (page - 1) * size, user)
+                        service.getAllCount(user, country, query),
+                        service.getAllDTO(size, (page - 1) * size, user, country, query)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<BrandDTO> dtoEntries = new View<>(tuple.getItem2(),

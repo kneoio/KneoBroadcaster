@@ -24,7 +24,6 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -55,11 +54,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         this.repository = repository;
     }
 
-    public Uni<List<ListenerDTO>> getAll(final int limit, final int offset, final IUser user) {
-        return getAll(limit, offset, user, null);
-    }
-
-    public Uni<List<ListenerDTO>> getAll(final int limit, final int offset, final IUser user, final ListenerFilterDTO filterDTO) {
+    public Uni<List<ListenerDTO>> getAllDTO(final int limit, final int offset, final IUser user, final ListenerFilterDTO filterDTO) {
         assert repository != null;
         ListenerFilter filter = toFilter(filterDTO);
         return repository.getAll(limit, offset, false, user, filter)
@@ -89,10 +84,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                     dto.setLastModifier(user.getUserName());
                     dto.getLocalizedName().put(LanguageCode.en, "");
                     dto.getNickName().put(LanguageCode.en, Set.of());
-
-                    List<UUID> stationIds = userRadioStations.stream()
-                            .map(Brand::getId)
-                            .toList();
                     return dto;
                 });
     }
@@ -215,12 +206,6 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         userDTO.setLogin(slugName);
         userDTO.setEmail(email);
         return userService.add(userDTO, true);
-    }
-
-    private List<UUID> addBrandToList(List<UUID> existingBrands, UUID brandId) {
-        List<UUID> updated = new ArrayList<>(existingBrands);
-        updated.add(brandId);
-        return updated;
     }
 
     private Uni<ListenerDTO> mapToDTO(Listener doc) {

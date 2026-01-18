@@ -11,12 +11,12 @@ import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
+import io.kneo.broadcaster.service.chat.tools.AudienceTool;
+import io.kneo.broadcaster.service.chat.tools.AudienceToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
-import io.kneo.broadcaster.service.chat.tools.ListenerTool;
-import io.kneo.broadcaster.service.chat.tools.ListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlTool;
@@ -66,7 +66,7 @@ public class OwnerChatService extends ChatService {
                 AddToQueueTool.toTool(),
                 RadioStationControlTool.toTool(),
                 PerplexitySearchTool.toTool(),
-                ListenerTool.toTool()
+                AudienceTool.toTool()
         );
     }
 
@@ -124,7 +124,7 @@ public class OwnerChatService extends ChatService {
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else if ("listener".equals(toolUse.name())) {
-            return ListenerToolHandler.handle(
+            return AudienceToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {

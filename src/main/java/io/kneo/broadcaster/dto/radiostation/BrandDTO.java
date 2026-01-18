@@ -70,5 +70,6 @@ public class BrandDTO extends AbstractDTO {
     @NotNull
     @NotEmpty
     private List<BrandScriptEntryDTO> scripts;
+    private OwnerDTO owner;
 
 }

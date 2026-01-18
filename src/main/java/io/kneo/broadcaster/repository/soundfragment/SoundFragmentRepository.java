@@ -86,7 +86,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         assert queryBuilder != null;
         String sql = queryBuilder.buildGetAllQuery(entityData.getTableName(), entityData.getRlsName(),
                 user, includeArchived, filter, limit, offset);
-        
+
         if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().trim().isEmpty()) {
             return client.preparedQuery(sql)
                     .execute(Tuple.of(filter.getSearchTerm()))
@@ -95,7 +95,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     .concatenate()
                     .collect().asList();
         }
-        
+
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
@@ -131,28 +131,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     public Uni<List<SoundFragment>> findByTypeAndBrand(PlaylistItemType type, UUID brandId, int limit, int offset) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.getBrandSongs(brandId, type, limit, offset);
-    }
-
-    public Uni<List<SoundFragment>> search(String searchTerm, final int limit, final int offset,
-                                           final boolean includeArchived, final IUser user,
-                                           final SoundFragmentFilter filter) {
-        assert queryBuilder != null;
-        String sql = queryBuilder.buildSearchQuery(entityData.getTableName(), entityData.getRlsName(),
-                searchTerm, includeArchived, filter, limit, offset, true);
-
-        List<Object> params = new ArrayList<>();
-        params.add(user.getId());
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            params.add(searchTerm.trim());
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.from(params))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(row -> from(row, false, false, false))
-                .concatenate()
-                .collect().asList();
     }
 
     public Uni<FileMetadata> getFirstFile(UUID id) {
@@ -333,7 +311,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             );
 
             Long lengthMillis = doc.getLength() != null ? doc.getLength().toMillis() : null;
-            
+
             Tuple params = Tuple.of(regDate, user.getId(), regDate, user.getId())
                     .addString(doc.getSource().name())
                     .addInteger(doc.getStatus())

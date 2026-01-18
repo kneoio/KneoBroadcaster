@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
+import io.kneo.broadcaster.model.brand.Owner;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
@@ -11,7 +12,6 @@ import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
 import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.AsyncRepository;
 import io.kneo.core.repository.exception.DocumentHasNotFoundException;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
@@ -50,35 +50,11 @@ public class BrandRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<Brand>> getAll(int limit, int offset, boolean includeArchived, final IUser user) {
-        String sql = "SELECT * FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
-
-      //  sql += " AND t.is_temporary = 0";
-
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
-
-        sql += " ORDER BY t.last_mod_date DESC";
-
-        if (limit > 0) {
-            sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
-        }
-
-        return client.query(sql)
-                .execute()
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve radio stations for user: {}", user.getId(), throwable))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
-                .collect().asList();
-    }
-
-    public Uni<List<Brand>> getAllFiltered(int limit, int offset, boolean includeArchived, final IUser user, String country, String query) {
+    public Uni<List<Brand>> getAll(int limit, int offset, boolean includeArchived, final IUser user, String country, String query) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(entityData.getTableName()).append(" t, ")
-           .append(entityData.getRlsName()).append(" rls ")
-           .append("WHERE t.id = rls.entity_id AND rls.reader = $1");
+                .append(entityData.getRlsName()).append(" rls ")
+                .append("WHERE t.id = rls.entity_id AND rls.reader = $1");
 
         int paramIndex = 2;
         if (!includeArchived) {
@@ -89,7 +65,7 @@ public class BrandRepository extends AsyncRepository {
         }
         if (query != null && !query.isBlank()) {
             sql.append(" AND (t.search_name LIKE $").append(paramIndex)
-               .append(" OR LOWER(t.description) LIKE $").append(paramIndex + 1).append(")");
+                    .append(" OR LOWER(t.description) LIKE $").append(paramIndex + 1).append(")");
             paramIndex += 2;
         }
         sql.append(" ORDER BY t.last_mod_date DESC");
@@ -97,7 +73,7 @@ public class BrandRepository extends AsyncRepository {
             sql.append(" LIMIT ").append(limit).append(" OFFSET ").append(offset);
         }
 
-        io.vertx.mutiny.sqlclient.Tuple params = io.vertx.mutiny.sqlclient.Tuple.tuple().addLong(user.getId());
+        Tuple params = Tuple.tuple().addLong(user.getId());
         if (country != null && !country.isBlank()) {
             params.addString(country.toUpperCase());
         }
@@ -109,24 +85,42 @@ public class BrandRepository extends AsyncRepository {
 
         return client.preparedQuery(sql.toString())
                 .execute(params)
-                .onFailure().invoke(throwable -> LOGGER.error("Failed to retrieve filtered radio stations for user: {}", user.getId(), throwable))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = " + user.getId();
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, String country, String query) {
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT COUNT(*) FROM ").append(entityData.getTableName()).append(" t, ")
+                .append(entityData.getRlsName()).append(" rls ")
+                .append("WHERE t.id = rls.entity_id AND rls.reader = $1");
 
-       // sql += " AND t.is_temporary = 0";
-
+        int paramIndex = 2;
         if (!includeArchived) {
-            sql += " AND t.archived = 0";
+            sql.append(" AND t.archived = 0");
+        }
+        if (country != null && !country.isBlank()) {
+            sql.append(" AND t.country = $").append(paramIndex++);
+        }
+        if (query != null && !query.isBlank()) {
+            sql.append(" AND (t.search_name LIKE $").append(paramIndex)
+                    .append(" OR LOWER(t.description) LIKE $").append(paramIndex + 1).append(")");
+            paramIndex += 2;
         }
 
-        return client.query(sql)
-                .execute()
+        Tuple params = Tuple.tuple().addLong(user.getId());
+        if (country != null && !country.isBlank()) {
+            params.addString(country.toUpperCase());
+        }
+        if (query != null && !query.isBlank()) {
+            String q = "%" + query.toLowerCase() + "%";
+            params.addString(q);
+            params.addString(q);
+        }
+
+        return client.preparedQuery(sql.toString())
+                .execute(params)
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
     }
 
@@ -190,129 +184,102 @@ public class BrandRepository extends AsyncRepository {
 
     public Uni<Brand> insert(Brand station, IUser user) {
         return Uni.createFrom().deferred(() -> {
-            try {
-                String sql = "INSERT INTO " + entityData.getTableName() +
-                        " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, one_time_stream_policy, submission_policy, messaging_policy, title_font, popularity_rate, is_temporary) " +
-                        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING id";
+            String sql = "INSERT INTO " + entityData.getTableName() +
+                    " (author, reg_date, last_mod_user, last_mod_date, country, time_zone, managing_mode, color, loc_name, ai_overriding, profile_overriding, bit_rate, slug_name, description, profile_id, ai_agent_id, one_time_stream_policy, submission_policy, messaging_policy, title_font, popularity_rate, is_temporary, owner) " +
+                    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) RETURNING id";
 
-                OffsetDateTime now = OffsetDateTime.now();
-                JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
-                JsonArray bitRateArray = JsonArray.of(station.getBitRate());
+            OffsetDateTime now = OffsetDateTime.now();
+            JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
+            JsonArray bitRateArray = JsonArray.of(station.getBitRate());
 
-                Tuple params = Tuple.tuple()
-                        .addLong(user.getId())
-                        .addOffsetDateTime(now)
-                        .addLong(user.getId())
-                        .addOffsetDateTime(now)
-                        .addString(station.getCountry() != null ? station.getCountry().name() : null)
-                        .addString(station.getTimeZone().getId())
-                        .addString(station.getManagedBy().name())
-                        .addString(station.getColor())
-                        .addJsonObject(localizedNameJson)
-                        .addJsonObject(station.getAiOverriding() != null ? JsonObject.mapFrom(station.getAiOverriding()) : new JsonObject())
-                        .addJsonObject(station.getProfileOverriding() != null ? JsonObject.mapFrom(station.getProfileOverriding()) : new JsonObject())
-                        .addJsonArray(bitRateArray)
-                        .addString(station.getSlugName())
-                        .addString(station.getDescription())
-                        .addUUID(station.getProfileId())
-                        .addUUID(station.getAiAgentId())
-                        .addString(station.getOneTimeStreamPolicy().name())
-                        .addString(station.getSubmissionPolicy().name())
-                        .addString(station.getMessagingPolicy().name())
-                        .addString(station.getTitleFont())
-                        .addDouble(station.getPopularityRate())
-                        .addInteger(station.getIsTemporary());
+            Tuple params = Tuple.tuple()
+                    .addLong(user.getId())
+                    .addOffsetDateTime(now)
+                    .addLong(user.getId())
+                    .addOffsetDateTime(now)
+                    .addString(station.getCountry() != null ? station.getCountry().name() : null)
+                    .addString(station.getTimeZone().getId())
+                    .addString(station.getManagedBy().name())
+                    .addString(station.getColor())
+                    .addJsonObject(localizedNameJson)
+                    .addJsonObject(station.getAiOverriding() != null ? JsonObject.mapFrom(station.getAiOverriding()) : new JsonObject())
+                    .addJsonObject(station.getProfileOverriding() != null ? JsonObject.mapFrom(station.getProfileOverriding()) : new JsonObject())
+                    .addJsonArray(bitRateArray)
+                    .addString(station.getSlugName())
+                    .addString(station.getDescription())
+                    .addUUID(station.getProfileId())
+                    .addUUID(station.getAiAgentId())
+                    .addString(station.getOneTimeStreamPolicy().name())
+                    .addString(station.getSubmissionPolicy().name())
+                    .addString(station.getMessagingPolicy().name())
+                    .addString(station.getTitleFont())
+                    .addDouble(station.getPopularityRate())
+                    .addInteger(station.getIsTemporary())
+                    .addJsonObject(station.getOwner() != null ? JsonObject.mapFrom(station.getOwner()) : new JsonObject());
 
-                return client.withTransaction(tx ->
-                                tx.preparedQuery(sql)
-                                        .execute(params)
-                                        .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                                        .onItem().transformToUni(id ->
-                                                insertRLSPermissions(tx, id, entityData, user)
-                                                        .onItem().transformToUni(ignored -> {
-                                                            LOGGER.info("Inserting radio station with scripts: {}", station.getScripts());
-                                                            if (station.getScripts() != null && !station.getScripts().isEmpty()) {
-                                                                LOGGER.info("Calling insertBrandScripts with {} scripts", station.getScripts().size());
-                                                                return insertBrandScripts(tx, id, station.getScripts())
-                                                                        .onItem().transform(v -> id);
-                                                            }
-                                                            LOGGER.warn("No scripts to insert for radio station {}", id);
-                                                            return Uni.createFrom().item(id);
-                                                        })
-                                        )
-                        )
-                        .onItem().transformToUni(id -> findById(id, user, true));
-            } catch (Exception e) {
-                return Uni.createFrom().failure(e);
-            }
+            return client.withTransaction(tx ->
+                            tx.preparedQuery(sql)
+                                    .execute(params)
+                                    .onItem().transform(result -> result.iterator().next().getUUID("id"))
+                                    .onItem().transformToUni(id ->
+                                            insertRLSPermissions(tx, id, entityData, user)
+                                                    .onItem().transform(v -> id)
+                                    )
+                    )
+                    .onItem().transformToUni(id -> findById(id, user, true));
         });
     }
 
     public Uni<Brand> update(UUID id, Brand station, IUser user) {
-        return Uni.createFrom().deferred(() -> {
-            try {
-                return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
-                        .onItem().transformToUni(permissions -> {
-                            if (!permissions[0]) {
-                                return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
-                            }
+        return rlsRepository.findById(entityData.getRlsName(), user.getId(), id)
+                .onItem().transformToUni(permissions -> {
+                    if (!permissions[0]) {
+                        return Uni.createFrom().failure(new DocumentModificationAccessException("User does not have edit permission", user.getUserName(), id));
+                    }
 
-                            String sql = "UPDATE " + entityData.getTableName() +
-                                    " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, ai_overriding=$6, profile_overriding=$7, " +
-                                    "bit_rate=$8, slug_name=$9, description=$10, profile_id=$11, ai_agent_id=$12, one_time_stream_policy=$13::submission_policy, submission_policy=$14, messaging_policy=$15, title_font=$16, is_temporary=$17, last_mod_user=$18, last_mod_date=$19 " +
-                                    "WHERE id=$20";
+                    String sql = "UPDATE " + entityData.getTableName() +
+                            " SET country=$1, time_zone=$2, managing_mode=$3, color=$4, loc_name=$5, ai_overriding=$6, profile_overriding=$7, " +
+                            "bit_rate=$8, slug_name=$9, description=$10, profile_id=$11, ai_agent_id=$12, one_time_stream_policy=$13::submission_policy, submission_policy=$14, messaging_policy=$15, title_font=$16, is_temporary=$17, last_mod_user=$18, last_mod_date=$19, owner=$20 " +
+                            "WHERE id=$21";
 
-                            OffsetDateTime now = OffsetDateTime.now();
-                            JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
-                            JsonArray bitRateArray = JsonArray.of(station.getBitRate());
+                    OffsetDateTime now = OffsetDateTime.now();
+                    JsonObject localizedNameJson = JsonObject.mapFrom(station.getLocalizedName());
+                    JsonArray bitRateArray = JsonArray.of(station.getBitRate());
 
-                            Tuple params = Tuple.tuple()
-                                    .addString(station.getCountry().name())
-                                    .addString(station.getTimeZone().getId())
-                                    .addString(station.getManagedBy().name())
-                                    .addString(station.getColor())
-                                    .addJsonObject(localizedNameJson)
-                                    .addJsonObject(station.getAiOverriding() != null ? JsonObject.mapFrom(station.getAiOverriding()) : new JsonObject())
-                                    .addJsonObject(station.getProfileOverriding() != null ? JsonObject.mapFrom(station.getProfileOverriding()) : new JsonObject())
-                                    .addJsonArray(bitRateArray)
-                                    .addString(station.getSlugName())
-                                    .addString(station.getDescription())
-                                    .addUUID(station.getProfileId())
-                                    .addUUID(station.getAiAgentId())
-                                    .addString(station.getOneTimeStreamPolicy().name())
-                                    .addString(station.getSubmissionPolicy().name())
-                                    .addString(station.getMessagingPolicy().name())
-                                    .addString(station.getTitleFont())
-                                    .addInteger(station.getIsTemporary() != null ? station.getIsTemporary() : 0)
-                                    .addLong(user.getId())
-                                    .addOffsetDateTime(now)
-                                    .addUUID(id);
+                    Tuple params = Tuple.tuple()
+                            .addString(station.getCountry().name())
+                            .addString(station.getTimeZone().getId())
+                            .addString(station.getManagedBy().name())
+                            .addString(station.getColor())
+                            .addJsonObject(localizedNameJson)
+                            .addJsonObject(station.getAiOverriding() != null ? JsonObject.mapFrom(station.getAiOverriding()) : new JsonObject())
+                            .addJsonObject(station.getProfileOverriding() != null ? JsonObject.mapFrom(station.getProfileOverriding()) : new JsonObject())
+                            .addJsonArray(bitRateArray)
+                            .addString(station.getSlugName())
+                            .addString(station.getDescription())
+                            .addUUID(station.getProfileId())
+                            .addUUID(station.getAiAgentId())
+                            .addString(station.getOneTimeStreamPolicy().name())
+                            .addString(station.getSubmissionPolicy().name())
+                            .addString(station.getMessagingPolicy().name())
+                            .addString(station.getTitleFont())
+                            .addInteger(station.getIsTemporary() != null ? station.getIsTemporary() : 0)
+                            .addLong(user.getId())
+                            .addOffsetDateTime(now)
+                            .addJsonObject(station.getOwner() != null ? JsonObject.mapFrom(station.getOwner()) : new JsonObject())
+                            .addUUID(id);
 
-                            return client.withTransaction(tx ->
-                                    tx.preparedQuery(sql)
-                                            .execute(params)
-                                            .onItem().transformToUni(rowSet -> {
-                                                if (rowSet.rowCount() == 0) {
-                                                    return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
-                                                }
-                                                LOGGER.info("Updating radio station {} with scripts: {}", id, station.getScripts());
-                                                return deleteBrandScripts(tx, id)
-                                                        .onItem().transformToUni(v -> {
-                                                            if (station.getScripts() != null && !station.getScripts().isEmpty()) {
-                                                                LOGGER.info("Calling insertBrandScripts with {} scripts for update", station.getScripts().size());
-                                                                return insertBrandScripts(tx, id, station.getScripts())
-                                                                        .onItem().transform(vv -> id);
-                                                            }
-                                                            LOGGER.warn("No scripts to insert for radio station {} during update", id);
-                                                            return Uni.createFrom().item(id);
-                                                        });
-                                            })
-                            ).onItem().transformToUni(stationId -> findById(stationId, user, true));
-                        });
-            } catch (Exception e) {
-                return Uni.createFrom().failure(e);
-            }
-        });
+                    return client.withTransaction(tx ->
+                            tx.preparedQuery(sql)
+                                    .execute(params)
+                                    .onItem().transformToUni(rowSet -> {
+                                        if (rowSet.rowCount() == 0) {
+                                            return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
+                                        }
+                                        return Uni.createFrom().item(id);
+                                    })
+                    ).onItem().transformToUni(stationId -> findById(stationId, user, true));
+                });
     }
 
     private Brand from(Row row) {
@@ -355,8 +322,7 @@ public class BrandRepository extends AsyncRepository {
                         mapper.valueToTree(aiOverridingJson.getMap()), AiOverriding.class);
                 doc.setAiOverriding(ai);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to parse ai_overriding JSON for radio station: "
-                        + row.getUUID("id"), e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -367,8 +333,7 @@ public class BrandRepository extends AsyncRepository {
                         mapper.valueToTree(profileOverridingJson.getMap()), ProfileOverriding.class);
                 doc.setProfileOverriding(profile);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to parse profile_overriding JSON for radio station: "
-                        + row.getUUID("id"), e);
+                throw new RuntimeException(e);
             }
         }
 
@@ -382,9 +347,13 @@ public class BrandRepository extends AsyncRepository {
             doc.setProfileId(profileId);
         }
 
+        JsonObject ownerJson = row.getJsonObject("owner");
+        if (ownerJson != null && !ownerJson.isEmpty()) {
+            doc.setOwner(mapper.convertValue(ownerJson.getMap(), Owner.class));
+        }
+
         return doc;
     }
-
 
     public Uni<Integer> archive(UUID id, IUser user) {
         return archive(id, entityData, user);
@@ -411,7 +380,6 @@ public class BrandRepository extends AsyncRepository {
                     });
                 });
     }
-
 
     public Uni<Void> upsertStationAccessWithCountAndGeo(String stationName, Long accessCount, OffsetDateTime lastAccessTime, String userAgent, String ipAddress, String countryCode) {
         String sql = "INSERT INTO " + brandStats.getTableName() +
@@ -441,57 +409,8 @@ public class BrandRepository extends AsyncRepository {
                 });
     }
 
-    public Uni<List<Brand>> findActiveScheduled() {
-        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t " +
-                "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                "WHERE t.archived = 0 AND rls.reader = $1";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(SuperUser.build().getId()))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
-                .collect().asList();
-    }
-
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);
-    }
-
-    private Uni<Void> insertBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId, List<BrandScriptEntry> scriptEntries) {
-        if (scriptEntries == null || scriptEntries.isEmpty()) {
-            LOGGER.warn("insertBrandScripts called with null or empty scriptEntries for brand {}", brandId);
-            return Uni.createFrom().voidItem();
-        }
-
-        LOGGER.info("Inserting {} scripts for brand {}", scriptEntries.size(), brandId);
-        String sql = "INSERT INTO kneobroadcaster__brand_scripts (brand_id, script_id, rank, active, user_variables) VALUES ($1, $2, $3, $4, $5)";
-        
-        List<Uni<Void>> insertOps = scriptEntries.stream()
-                .map(entry -> {
-                    LOGGER.debug("Inserting script {} for brand {}", entry.getScriptId(), brandId);
-                    JsonObject userVarsJson = null;
-                    if (entry.getUserVariables() != null && !entry.getUserVariables().isEmpty()) {
-                        userVarsJson = new JsonObject(entry.getUserVariables());
-                    }
-                    return tx.preparedQuery(sql)
-                            .execute(Tuple.of(brandId, entry.getScriptId(), 10, true, userVarsJson))
-                            .onItem().invoke(() -> LOGGER.info("Successfully inserted script {} for brand {}", entry.getScriptId(), brandId))
-                            .onFailure().invoke(t -> LOGGER.error("Failed to insert script {} for brand {}", entry.getScriptId(), brandId, t))
-                            .replaceWithVoid();
-                })
-                .toList();
-
-        return Uni.join().all(insertOps).andFailFast().replaceWithVoid();
-    }
-
-    private Uni<Void> deleteBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId) {
-        LOGGER.info("Deleting all scripts for brand {}", brandId);
-        String sql = "DELETE FROM kneobroadcaster__brand_scripts WHERE brand_id = $1";
-        return tx.preparedQuery(sql)
-                .execute(Tuple.of(brandId))
-                .onItem().invoke(rowSet -> LOGGER.info("Deleted {} script entries for brand {}", rowSet.rowCount(), brandId))
-                .onFailure().invoke(t -> LOGGER.error("Failed to delete scripts for brand {}", brandId, t))
-                .replaceWithVoid();
     }
 
     public Uni<List<BrandScriptEntry>> getScriptEntriesForBrand(UUID brandId) {
@@ -508,20 +427,6 @@ public class BrandRepository extends AsyncRepository {
                     }
                     return entry;
                 })
-                .collect().asList();
-    }
-
-    public Uni<List<Row>> getStationStatsByCountry(String stationName, int limit) {
-        String sql = "SELECT country_code, SUM(access_count) as total_count " +
-                "FROM " + brandStats.getTableName() + " " +
-                "WHERE station_name = $1 AND country_code IS NOT NULL " +
-                "GROUP BY country_code " +
-                "ORDER BY total_count DESC " +
-                "LIMIT $2";
-        
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(stationName, limit))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .collect().asList();
     }
 }

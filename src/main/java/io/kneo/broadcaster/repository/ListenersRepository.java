@@ -49,10 +49,6 @@ public class ListenersRepository extends AsyncRepository {
         super(client, mapper, rlsRepository);
     }
 
-    public Uni<List<Listener>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
-        return getAll(limit, offset, includeArchived, user, null);
-    }
-
     public Uni<List<Listener>> getAll(int limit, int offset, boolean includeArchived, IUser user, ListenerFilter filter) {
         String sql = "SELECT t.*, rls.* FROM " + entityData.getTableName() + " t " +
                 "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
@@ -78,10 +74,6 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transformToUni(this::from)
                 .concatenate()
                 .collect().asList();
-    }
-
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        return getAllCount(user, includeArchived, null);
     }
 
     public Uni<Integer> getAllCount(IUser user, boolean includeArchived, ListenerFilter filter) {
@@ -194,6 +186,39 @@ public class ListenersRepository extends AsyncRepository {
                 .execute(Tuple.of(listenerId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> row.getUUID("brand_id"))
+                .collect().asList();
+    }
+
+    public Uni<List<Listener>> search(String searchTerm, final int limit, final int offset,
+                                      final boolean includeArchived, final IUser user,
+                                      final ListenerFilter filter) {
+
+        String sql =
+                "SELECT t.*, rls.* " +
+                        "FROM " + entityData.getTableName() + " t " +
+                        "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
+                        "WHERE rls.reader = $1 " +
+                        "AND ($2 IS NULL OR $2 = '' OR t.search_keywords % lower($2))";
+
+        if (!includeArchived) {
+            sql += " AND t.archived = 0";
+        }
+
+        if (filter != null && filter.isActivated()) {
+            sql += buildFilterConditions(filter, "t");
+        }
+
+        sql += " ORDER BY similarity(t.search_keywords, lower($2)) DESC, t.last_mod_date DESC";
+
+        if (limit > 0) {
+            sql += " LIMIT " + limit + " OFFSET " + offset;
+        }
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(user.getId(), searchTerm))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transformToUni(this::from)
+                .concatenate()
                 .collect().asList();
     }
 

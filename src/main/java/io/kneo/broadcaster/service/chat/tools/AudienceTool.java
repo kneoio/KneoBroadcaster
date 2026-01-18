@@ -5,7 +5,7 @@ import com.anthropic.models.messages.Tool;
 
 import java.util.Map;
 
-public class ListenerTool {
+public class AudienceTool {
 
     public static Tool toTool() {
         Tool.InputSchema schema = Tool.InputSchema.builder()

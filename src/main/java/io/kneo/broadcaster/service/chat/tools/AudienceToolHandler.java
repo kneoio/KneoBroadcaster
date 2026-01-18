@@ -21,9 +21,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class ListenerToolHandler extends BaseToolHandler {
+public class AudienceToolHandler extends BaseToolHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ListenerToolHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AudienceToolHandler.class);
 
     public static Uni<Void> handle(
             ToolUseBlock toolUse,
@@ -38,7 +38,7 @@ public class ListenerToolHandler extends BaseToolHandler {
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn
     ) {
-        ListenerToolHandler handler = new ListenerToolHandler();
+        AudienceToolHandler handler = new AudienceToolHandler();
         return handleListListeners(toolUse, inputMap, listenerService, stationSlug, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, handler);
     }
 
@@ -52,13 +52,9 @@ public class ListenerToolHandler extends BaseToolHandler {
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
             Function<MessageCreateParams, Uni<Void>> streamFn,
-            ListenerToolHandler handler
+            AudienceToolHandler handler
     ) {
         String searchTerm = inputMap.getOrDefault("search_term", JsonValue.from("")).toString().replace("\"", "");
-
-        LOGGER.info("[ListListeners] Searching listeners - searchTerm: {}, stationSlug: {}, connectionId: {}",
-                searchTerm, stationSlug, connectionId);
-
         handler.sendProcessingChunk(chunkHandler, connectionId, "Searching listeners...");
 
         String finalSearchTerm = searchTerm.isEmpty() ? null : searchTerm;

@@ -46,7 +46,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         LOGGER.info("[ListenerData] Action: {}, fieldName: {}, userId: {}, connectionId: {}",
                 action, fieldName, userId, connectionId);
 
-        return listenerService.getAll(1, 0, SuperUser.build())
+        return listenerService.getAllDTO(1, 0, SuperUser.build(), null)
                 .chain(listeners -> {
                     ListenerDTO listener = listeners.stream()
                             .filter(l -> l.getUserId() == userId)
@@ -57,16 +57,49 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                         return handleError(toolUse, "Listener not found. User must be registered first.", handler, conversationHistory, systemPromptCall2, streamFn);
                     }
 
-                    if ("set".equals(action)) {
-                        return handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                    } else if ("get".equals(action)) {
-                        return handleGet(toolUse, listener, fieldName, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                    } else if ("remove".equals(action)) {
-                        return handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
-                    } else {
-                        return handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
-                    }
+                    return switch (action) {
+                        case "get" ->
+                                handleGet(toolUse, listener, fieldName, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        case "set" ->
+                                handleSet(toolUse, listener, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        case "remove" ->
+                                handleRemove(toolUse, listener, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                        default ->
+                                handleError(toolUse, "Invalid action: " + action, handler, conversationHistory, systemPromptCall2, streamFn);
+                    };
                 });
+    }
+
+    private static Uni<Void> handleGet(
+            ToolUseBlock toolUse,
+            ListenerDTO listener,
+            String fieldName,
+            ListenerDataToolHandler handler,
+            Consumer<String> chunkHandler,
+            String connectionId,
+            List<MessageParam> conversationHistory,
+            String systemPromptCall2,
+            Function<MessageCreateParams, Uni<Void>> streamFn
+    ) {
+        handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving user data...");
+
+        String value = null;
+        if (listener.getUserData() != null) {
+            value = listener.getUserData().get(fieldName);
+        }
+
+        JsonObject payload = new JsonObject()
+                .put("ok", true)
+                .put("action", "get")
+                .put("field_name", fieldName)
+                .put("field_value", value)
+                .put("found", value != null);
+
+        handler.addToolUseToHistory(toolUse, conversationHistory);
+        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+        return streamFn.apply(secondCallParams);
     }
 
     private static Uni<Void> handleSet(
@@ -117,37 +150,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                 });
     }
 
-    private static Uni<Void> handleGet(
-            ToolUseBlock toolUse,
-            ListenerDTO listener,
-            String fieldName,
-            ListenerDataToolHandler handler,
-            Consumer<String> chunkHandler,
-            String connectionId,
-            List<MessageParam> conversationHistory,
-            String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
-    ) {
-        handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving user data...");
 
-        String value = null;
-        if (listener.getUserData() != null) {
-            value = listener.getUserData().get(fieldName);
-        }
-
-        JsonObject payload = new JsonObject()
-                .put("ok", true)
-                .put("action", "get")
-                .put("field_name", fieldName)
-                .put("field_value", value)
-                .put("found", value != null);
-
-        handler.addToolUseToHistory(toolUse, conversationHistory);
-        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
-
-        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-        return streamFn.apply(secondCallParams);
-    }
 
     private static Uni<Void> handleRemove(
             ToolUseBlock toolUse,

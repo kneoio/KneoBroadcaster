@@ -47,6 +47,7 @@ public class Brand extends SecureDataEntity<UUID> {
     private SubmissionPolicy messagingPolicy = SubmissionPolicy.REVIEW_REQUIRED;
     private List<Label> labelList;
     private List<BrandScriptEntry> scripts;
+    private Owner owner;
 
     //*transient**//
     @Deprecated //???

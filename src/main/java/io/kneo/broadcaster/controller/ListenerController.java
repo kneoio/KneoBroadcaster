@@ -76,7 +76,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
                         service.getAllCount(user, filter),
-                        service.getAll(size, (page - 1) * size, user, filter)
+                        service.getAllDTO(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<ListenerDTO> dtoEntries = new View<>(tuple.getItem2(),

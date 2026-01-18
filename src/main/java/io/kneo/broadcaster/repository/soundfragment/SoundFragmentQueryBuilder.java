@@ -41,44 +41,6 @@ public class SoundFragmentQueryBuilder {
         return sql.toString();
     }
 
-    public String buildSearchQuery(String tableName, String rlsName, String searchTerm, boolean includeArchived,
-                                   SoundFragmentFilter filter, int limit, int offset, boolean includeGenresJoin) {
-        StringBuilder sql = new StringBuilder()
-                .append("SELECT t.*, rls.*");
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            sql.append(", similarity(t.search_name, $2) AS sim");
-        }
-
-        sql.append(" FROM ").append(tableName).append(" t ")
-                .append("JOIN ").append(rlsName).append(" rls ON t.id = rls.entity_id ")
-                .append("WHERE rls.reader = $1");
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            sql.append(" AND (t.search_name ILIKE '%' || $2 || '%' OR similarity(t.search_name, $2) > 0.05)");
-        }
-
-        if (!includeArchived) {
-            sql.append(" AND (t.archived IS NULL OR t.archived = 0)");
-        }
-
-        if (filter != null && filter.isActivated()) {
-            sql.append(buildFilterConditions(filter));
-        }
-
-        if (searchTerm != null && !searchTerm.trim().isEmpty()) {
-            sql.append(" ORDER BY sim DESC");
-        } else {
-            sql.append(" ORDER BY t.last_mod_date DESC");
-        }
-
-        if (limit > 0) {
-            sql.append(String.format(" LIMIT %s OFFSET %s", limit, offset));
-        }
-
-        return sql.toString();
-    }
-
     String buildFilterConditions(SoundFragmentFilter filter) {
         StringBuilder conditions = new StringBuilder();
 

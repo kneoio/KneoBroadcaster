@@ -14,14 +14,14 @@ import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager.VerificationResult;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
+import io.kneo.broadcaster.service.chat.tools.AudienceTool;
+import io.kneo.broadcaster.service.chat.tools.AudienceToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
 import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.ListenerDataTool;
 import io.kneo.broadcaster.service.chat.tools.ListenerDataToolHandler;
-import io.kneo.broadcaster.service.chat.tools.ListenerTool;
-import io.kneo.broadcaster.service.chat.tools.ListenerToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
@@ -201,7 +201,7 @@ public class PublicChatService extends ChatService {
                 SearchBrandSoundFragments.toTool(),
                 AddToQueueTool.toTool(),
                 PerplexitySearchTool.toTool(),
-                ListenerTool.toTool(),
+                AudienceTool.toTool(),
                 ListenerDataTool.toTool(),
                 SendEmailToOwnerTool.toTool()
         );
@@ -257,7 +257,7 @@ public class PublicChatService extends ChatService {
                     toolUse, inputMap, perplexitySearchHelper, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("listener".equals(toolUse.name())) {
-            return ListenerToolHandler.handle(
+            return AudienceToolHandler.handle(
                     toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("listener_data".equals(toolUse.name())) {

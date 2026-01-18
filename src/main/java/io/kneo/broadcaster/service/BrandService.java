@@ -4,10 +4,12 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandScriptEntryDTO;
+import io.kneo.broadcaster.dto.radiostation.OwnerDTO;
 import io.kneo.broadcaster.dto.radiostation.ProfileOverridingDTO;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
+import io.kneo.broadcaster.model.brand.Owner;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.repository.BrandRepository;
@@ -61,9 +63,9 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
         this.broadcasterConfig = broadcasterConfig;
     }
 
-    public Uni<List<BrandDTO>> getAllDTO(final int limit, final int offset, final IUser user) {
+    public Uni<List<BrandDTO>> getAllDTO(final int limit, final int offset, final IUser user, final String country, final String query) {
         assert repository != null;
-        return repository.getAll(limit, offset, false, user)
+        return repository.getAll(limit, offset, false, user, country, query)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -76,32 +78,17 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                 });
     }
 
-    public Uni<List<BrandDTO>> getAllDTOFiltered(final int limit, final int offset, final IUser user, final String country, final String query) {
+    public Uni<Integer> getAllCount(final IUser user, String country, final String query) {
         assert repository != null;
-        return repository.getAllFiltered(limit, offset, false, user, country, query)
-                .chain(list -> {
-                    if (list.isEmpty()) {
-                        return Uni.createFrom().item(List.of());
-                    } else {
-                        List<Uni<BrandDTO>> unis = list.stream()
-                                .map(this::mapToDTO)
-                                .collect(Collectors.toList());
-                        return Uni.join().all(unis).andFailFast();
-                    }
-                });
-    }
-
-    public Uni<Integer> getAllCount(final IUser user) {
-        assert repository != null;
-        return repository.getAllCount(user, false);
+        return repository.getAllCount(user, false, country, query);
     }
 
     public Uni<List<Brand>> getAll(final int limit, final int offset) {
-        return repository.getAll(limit, offset, false, SuperUser.build());
+        return repository.getAll(limit, offset, false, SuperUser.build(), null, null);
     }
 
     public Uni<List<Brand>> getAll(final int limit, final int offset, IUser user) {
-        return repository.getAll(limit, offset, false, user);
+        return repository.getAll(limit, offset, false, user, null, null);
     }
 
     public Uni<Brand> getById(UUID id, IUser user) {
@@ -260,6 +247,14 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
             dto.setScripts(scriptDTOs);
             StreamStatus liveStatus = tuple.getItem3().getStatus();
             dto.setStatus(liveStatus);
+
+            if (doc.getOwner() != null) {
+                OwnerDTO ownerDTO = new OwnerDTO();
+                ownerDTO.setName(doc.getOwner().getName());
+                ownerDTO.setEmail(doc.getOwner().getEmail());
+                dto.setOwner(ownerDTO);
+            }
+
             return dto;
         });
     }
@@ -305,6 +300,13 @@ public class BrandService extends AbstractService<Brand, BrandDTO> {
                     .map(e -> new BrandScriptEntry(e.getScriptId(), e.getUserVariables()))
                     .collect(Collectors.toList());
             doc.setScripts(scriptEntries);
+        }
+
+        if (dto.getOwner() != null) {
+            Owner owner = new Owner();
+            owner.setName(dto.getOwner().getName());
+            owner.setEmail(dto.getOwner().getEmail());
+            doc.setOwner(owner);
         }
 
         return doc;

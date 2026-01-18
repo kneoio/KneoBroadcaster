@@ -59,8 +59,8 @@ public class ListenerController extends AbstractSecuredController<Listener, List
         router.route(path + "*").handler(BodyHandler.create());
         router.route(path + "*").handler(this::addHeaders);
         router.get(path).handler(this::get);
-        router.get(path + "/available-listeners").handler(this::getForBrand);
-        router.get(path + "/available-listeners/:id").handler(this::getForBrandById);
+        router.get(path + "/available-listeners").handler(this::getBrandListeners);
+        router.get(path + "/available-listeners/:id").handler(this::getBrandListenerById);
 
         router.get(path + "/:id").handler(this::getById);
         router.post(path + "/:id?").handler(this::upsert);
@@ -116,7 +116,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 );
     }
 
-    private void getForBrand(RoutingContext rc) {
+    private void getBrandListeners(RoutingContext rc) {
         String brandName = rc.request().getParam("brand");
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
@@ -141,7 +141,7 @@ public class ListenerController extends AbstractSecuredController<Listener, List
                 );
     }
 
-    private void getForBrandById(RoutingContext rc) {
+    private void getBrandListenerById(RoutingContext rc) {
         String id = rc.pathParam("id");
         String brandName = rc.request().getParam("brand");
 

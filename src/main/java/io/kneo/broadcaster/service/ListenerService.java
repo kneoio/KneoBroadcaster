@@ -272,6 +272,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         ListenerFilter filter = new ListenerFilter();
         filter.setActivated(dto.isActivated());
         filter.setCountries(dto.getCountries());
+        filter.setSearchTerm(dto.getSearchTerm());
 
         return filter;
     }

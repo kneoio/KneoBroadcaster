@@ -64,12 +64,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         this.brandHandler = null;
     }
 
-    public Uni<List<BrandSoundFragment>> getForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset,
-                                                                 boolean includeArchived, IUser user) {
-        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
-        return brandRepository.findForBrandBySimilarity(brandId, keyword, limit, offset, includeArchived, user);
-    }
-
     @Inject
     public SoundFragmentRepository(PgPool client, ObjectMapper mapper, RLSRepository rlsRepository,
                                    HetznerStorage fileStorage, SoundFragmentFileHandler fileHandler,
@@ -126,6 +120,12 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return client.query(sql)
                 .execute()
                 .onItem().transform(rows -> rows.iterator().next().getInteger(0));
+    }
+
+    public Uni<List<BrandSoundFragment>> getForBrandBySimilarity(UUID brandId, String keyword, final int limit, final int offset,
+                                                                 boolean includeArchived, IUser user) {
+        SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
+        return brandRepository.findForBrandBySimilarity(brandId, keyword, limit, offset, includeArchived, user);
     }
 
     public Uni<List<SoundFragment>> findByTypeAndBrand(PlaylistItemType type, UUID brandId, int limit, int offset) {

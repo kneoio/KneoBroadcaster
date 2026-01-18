@@ -13,6 +13,7 @@ import java.util.List;
 public class ListenerFilter {
     private boolean activated = false;
     private List<CountryCode> countries;
+    private String searchTerm;
 
     public boolean isActivated() {
         if (activated) {
@@ -23,6 +24,9 @@ public class ListenerFilter {
 
     private boolean hasAnyFilter() {
         if (countries != null && !countries.isEmpty()) {
+            return true;
+        }
+        if (searchTerm != null && !searchTerm.isEmpty()) {
             return true;
         }
         return false;

@@ -132,7 +132,11 @@ public class ListenersRepository extends AsyncRepository {
             sql += buildFilterConditions(filter, "l");
         }
 
-        sql += " ORDER BY l.last_mod_date DESC";
+        if (filter != null && filter.getSearchTerm() != null && !filter.getSearchTerm().isEmpty()) {
+            sql += " ORDER BY similarity(l.search_keywords, lower('" + filter.getSearchTerm().replace("'", "''") + "')) DESC, l.last_mod_date DESC";
+        } else {
+            sql += " ORDER BY l.last_mod_date DESC";
+        }
 
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
@@ -165,7 +169,7 @@ public class ListenersRepository extends AsyncRepository {
                 "WHERE b.slug_name = $1 AND rls.reader = $2";
 
         if (!includeArchived) {
-            sql += " AND (l.archived IS NULL OR l.archived = 0)";
+            sql += " AND l.archived = 0";
         }
 
         if (filter != null && filter.isActivated()) {
@@ -188,40 +192,6 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transform(row -> row.getUUID("brand_id"))
                 .collect().asList();
     }
-
-    public Uni<List<Listener>> search(String searchTerm, final int limit, final int offset,
-                                      final boolean includeArchived, final IUser user,
-                                      final ListenerFilter filter) {
-
-        String sql =
-                "SELECT t.*, rls.* " +
-                        "FROM " + entityData.getTableName() + " t " +
-                        "JOIN " + entityData.getRlsName() + " rls ON t.id = rls.entity_id " +
-                        "WHERE rls.reader = $1 " +
-                        "AND ($2 IS NULL OR $2 = '' OR t.search_keywords % lower($2))";
-
-        if (!includeArchived) {
-            sql += " AND t.archived = 0";
-        }
-
-        if (filter != null && filter.isActivated()) {
-            sql += buildFilterConditions(filter, "t");
-        }
-
-        sql += " ORDER BY similarity(t.search_keywords, lower($2)) DESC, t.last_mod_date DESC";
-
-        if (limit > 0) {
-            sql += " LIMIT " + limit + " OFFSET " + offset;
-        }
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(user.getId(), searchTerm))
-                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(this::from)
-                .concatenate()
-                .collect().asList();
-    }
-
 
     public Uni<Listener> insert(Listener listener, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
@@ -505,6 +475,11 @@ public class ListenersRepository extends AsyncRepository {
 
     private String buildFilterConditions(ListenerFilter filter, String tableAlias) {
         StringBuilder conditions = new StringBuilder();
+
+        if (filter.getSearchTerm() != null && !filter.getSearchTerm().isEmpty()) {
+            conditions.append(" AND ").append(tableAlias).append(".search_keywords % lower('")
+                    .append(filter.getSearchTerm().replace("'", "''")).append("')");
+        }
 
         if (filter.getCountries() != null && !filter.getCountries().isEmpty()) {
             conditions.append(" AND ").append(tableAlias).append(".country IN (");

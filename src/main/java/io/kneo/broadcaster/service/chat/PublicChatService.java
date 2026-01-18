@@ -258,7 +258,7 @@ public class PublicChatService extends ChatService {
             );
         } else if ("listener".equals(toolUse.name())) {
             return AudienceToolHandler.handle(
-                    toolUse, inputMap, listenerService, userService, userId, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("listener_data".equals(toolUse.name())) {
             return ListenerDataToolHandler.handle(

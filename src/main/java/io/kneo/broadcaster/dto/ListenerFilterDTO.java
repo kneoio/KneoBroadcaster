@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.dto;
 
 import io.kneo.officeframe.cnst.CountryCode;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
@@ -17,6 +17,8 @@ public class ListenerFilterDTO {
     @NotEmpty(message = "Countries list cannot be empty when provided")
     private List<CountryCode> countries;
 
+    private String searchTerm;
+
     public boolean isActivated() {
         if (activated) {
             return true;
@@ -26,6 +28,9 @@ public class ListenerFilterDTO {
 
     private boolean hasAnyFilter() {
         if (countries != null && !countries.isEmpty()) {
+            return true;
+        }
+        if (searchTerm != null && !searchTerm.isEmpty()) {
             return true;
         }
         return false;

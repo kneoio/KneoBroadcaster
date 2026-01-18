@@ -23,7 +23,6 @@ import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.ListenerService;
-import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
@@ -75,7 +74,6 @@ public class AiHelperService {
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
     private final SoundFragmentService soundFragmentService;
-    private final RefService refService;
     private final GenreService genreService;
     private final LabelService labelService;
 
@@ -93,7 +91,6 @@ public class AiHelperService {
             ListenerService listenerService,
             ListenersRepository listenerRepository,
             SoundFragmentService soundFragmentService,
-            RefService refService,
             GenreService genreService,
             LabelService labelService
     ) {
@@ -104,7 +101,6 @@ public class AiHelperService {
         this.listenerService = listenerService;
         this.listenerRepository = listenerRepository;
         this.soundFragmentService = soundFragmentService;
-        this.refService = refService;
         this.genreService = genreService;
         this.labelService = labelService;
     }

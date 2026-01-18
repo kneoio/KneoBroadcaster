@@ -5,16 +5,18 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.ListenerDTO;
+import io.kneo.broadcaster.dto.ListenerFilterDTO;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.service.UserService;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,8 +31,6 @@ public class AudienceToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             ListenerService listenerService,
-            UserService userService,
-            long userId,
             String stationSlug,
             Consumer<String> chunkHandler,
             String connectionId,
@@ -59,41 +59,33 @@ public class AudienceToolHandler extends BaseToolHandler {
 
         String finalSearchTerm = searchTerm.isEmpty() ? null : searchTerm;
 
-        return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), null)
-                .map(brandListeners -> {
-                    return brandListeners.stream()
-                            .filter(bl -> {
-                                if (finalSearchTerm == null) {
-                                    return true;
-                                }
-                                String term = finalSearchTerm.toLowerCase();
-                                ListenerDTO listener = bl.getListenerDTO();
+        ListenerFilterDTO filter = new ListenerFilterDTO();
+        if (finalSearchTerm != null) {
+            filter.setSearchTerm(finalSearchTerm);
+        }
 
-                                if (listener.getSlugName() != null && listener.getSlugName().toLowerCase().contains(term)) {
-                                    return true;
-                                }
-                                if (listener.getLocalizedName() != null) {
-                                    for (String name : listener.getLocalizedName().values()) {
-                                        if (name != null && name.toLowerCase().contains(term)) {
-                                            return true;
-                                        }
-                                    }
-                                }
-                                if (listener.getNickName() != null) {
-                                    for (Set<String> nicknames : listener.getNickName().values()) {
-                                        if (nicknames != null) {
-                                            for (String nickname : nicknames) {
-                                                if (nickname != null && nickname.toLowerCase().contains(term)) {
-                                                    return true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                return false;
-                            })
-                            .toList();
-                })
+        if (inputMap.containsKey("countries")) {
+            var countriesOpt = inputMap.get("countries").asArray();
+            if (countriesOpt.isPresent()) {
+                List<JsonValue> countriesArray = (List<JsonValue>) countriesOpt.get();
+                if (!countriesArray.isEmpty()) {
+                    List<CountryCode> countryCodes = new ArrayList<>();
+                    for (JsonValue countryValue : countriesArray) {
+                        try {
+                            String countryStr = countryValue.toString().replace("\"", "");
+                            countryCodes.add(CountryCode.valueOf(countryStr));
+                        } catch (Exception ignored) {}
+                    }
+                    if (!countryCodes.isEmpty()) {
+                        filter.setCountries(countryCodes);
+                    }
+                }
+            }
+        }
+
+        ListenerFilterDTO finalFilter = filter.isActivated() ? filter : null;
+
+        return listenerService.getBrandListeners(stationSlug, 100, 0, SuperUser.build(), finalFilter)
                 .flatMap(brandListeners -> {
                     int count = brandListeners.size();
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Found " + count + " listener" + (count != 1 ? "s" : ""));

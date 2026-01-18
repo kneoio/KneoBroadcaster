@@ -50,6 +50,12 @@ public class IntroSongHandler {
 
     public Uni<Boolean> handle(IStream stream, AddToQueueDTO toQueueDTO) {
         PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
+        
+        if (toQueueDTO.getSoundFragments() == null || toQueueDTO.getSoundFragments().isEmpty()) {
+            LOGGER.error("No sound fragments provided in AddToQueueDTO");
+            return Uni.createFrom().failure(new IllegalArgumentException("No sound fragments provided"));
+        }
+        
         UUID soundFragmentId = toQueueDTO.getSoundFragments().get("song1");
         String ttsFilePath = toQueueDTO.getFilePaths().get("audio1");
 

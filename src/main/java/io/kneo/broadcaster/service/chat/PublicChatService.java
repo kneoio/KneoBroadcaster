@@ -250,7 +250,7 @@ public class PublicChatService extends ChatService {
         } else if ("add_to_queue".equals(toolUse.name())) {
             String djVoiceId = assistantNameByConnectionId.get(connectionId + "_voice");
             return AddToQueueToolHandler.handle(
-                    toolUse, inputMap, queueService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, queueService, aiHelperService, elevenLabsClient, config, djVoiceId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("perplexity_search".equals(toolUse.name())) {
             return PerplexitySearchToolHandler.handle(

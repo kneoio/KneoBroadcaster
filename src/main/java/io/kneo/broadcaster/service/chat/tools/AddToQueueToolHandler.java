@@ -9,6 +9,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
+import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -36,6 +37,7 @@ public class AddToQueueToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             QueueService queueService,
+            AiHelperService aiHelperService,
             ElevenLabsClient elevenLabsClient,
             BroadcasterConfig config,
             String djVoiceId,
@@ -65,22 +67,47 @@ public class AddToQueueToolHandler extends BaseToolHandler {
             var opt = inputMap.get("soundFragments").asObject();
             if (opt.isPresent()) {
                 Map<String, JsonValue> map = (Map<String, JsonValue>) opt.get();
+                LOGGER.info("[AddToQueue] soundFragments map contains {} entries", map.size());
                 for (Map.Entry<String, JsonValue> e : map.entrySet()) {
                     try {
-                        UUID fragmentId = UUID.fromString(e.getValue().toString());
+                        String rawValue = e.getValue().toString().replace("\"", "");
+                        UUID fragmentId = UUID.fromString(rawValue);
                         soundFragments.put("song1", fragmentId);
-                        LOGGER.debug("[AddToQueue] Parsed sound fragment - key: {}, id: {}", e.getKey(), fragmentId);
+                        LOGGER.info("[AddToQueue] Parsed sound fragment - key: {}, id: {}", e.getKey(), fragmentId);
                     } catch (Exception ex) {
                         LOGGER.warn("[AddToQueue] Failed to parse sound fragment UUID: {}", e.getValue(), ex);
                     }
                 }
+            } else {
+                LOGGER.warn("[AddToQueue] soundFragments parameter present but not an object");
             }
+        } else {
+            LOGGER.warn("[AddToQueue] No soundFragments parameter provided in input");
         }
-        LOGGER.info("[AddToQueue] Parsed {} sound fragments", soundFragments.size());
+        LOGGER.info("[AddToQueue] Parsed {} sound fragments total", soundFragments.size());
 
         Integer finalPriority = priority;
         
-        return queueService.isStationOnline(brandName)
+        Uni<Map<String, UUID>> soundFragmentsUni;
+        if (soundFragments.isEmpty()) {
+            LOGGER.warn("[AddToQueue] No sound fragments provided, searching for random song from brand: {}", brandName);
+            handler.sendProcessingChunk(chunkHandler, connectionId, "No specific song found, selecting a random one...");
+            soundFragmentsUni = aiHelperService.searchBrandSoundFragmentsForAi(brandName, "", 1, 0)
+                    .map(list -> {
+                        if (list.isEmpty()) {
+                            LOGGER.error("[AddToQueue] No songs found in brand catalogue: {}", brandName);
+                            throw new RuntimeException("No songs available in the station catalogue");
+                        }
+                        Map<String, UUID> fallbackFragments = new HashMap<>();
+                        fallbackFragments.put("song1", list.get(0).getId());
+                        LOGGER.info("[AddToQueue] Selected random song: {} - {}", list.get(0).getTitle(), list.get(0).getId());
+                        return fallbackFragments;
+                    });
+        } else {
+            soundFragmentsUni = Uni.createFrom().item(soundFragments);
+        }
+        
+        return soundFragmentsUni.flatMap(finalSoundFragments -> queueService.isStationOnline(brandName)
                 .flatMap(isOnline -> {
                     if (!isOnline) {
                         LOGGER.warn("[AddToQueue] Station '{}' is offline, cannot queue song", brandName);
@@ -112,11 +139,11 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                         AddToQueueDTO dto = new AddToQueueDTO();
                         dto.setMergingMethod(MergingType.INTRO_SONG);
                         dto.setFilePaths(filePaths);
-                        dto.setSoundFragments(soundFragments.isEmpty() ? null : soundFragments);
+                        dto.setSoundFragments(finalSoundFragments);
                         dto.setPriority(finalPriority != null ? finalPriority : INTERRUPT.value());
                         
                         LOGGER.info("[AddToQueue] Calling queueService.addToQueue - brandName: {}, mergingMethod: {}, priority: {}, soundFragments: {}",
-                                brandName, dto.getMergingMethod(), dto.getPriority(), soundFragments.size());
+                                brandName, dto.getMergingMethod(), dto.getPriority(), finalSoundFragments.size());
                         return queueService.addToQueue(brandName, dto, uploadId);
                     } catch (IOException e) {
                         LOGGER.error("[AddToQueue] Failed to save TTS audio file", e);
@@ -138,34 +165,35 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                     LOGGER.debug("[AddToQueue] Calling follow-up LLM stream for success response");
                     MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
                     return streamFn.apply(secondCallParams);
-                }).onFailure().recoverWithUni(err -> {
-                    LOGGER.error("[AddToQueue] Queue operation failed - uploadId: {}, brandName: {}", uploadId, brandName, err);
-                    String errorMessage;
-                    if (err instanceof RadioStationException rsException) {
-                        if (rsException.getErrorType() == RadioStationException.ErrorType.STATION_NOT_ACTIVE) {
-                            errorMessage = "Station '" + brandName + "' is currently offline.";
-                            LOGGER.warn("[AddToQueue] Station not active: {}", brandName);
-                        } else {
-                            errorMessage = "Station '" + brandName + "' is not available: " + err.getMessage();
-                            LOGGER.warn("[AddToQueue] Station not available: {} - {}", brandName, err.getMessage());
-                        }
-                    } else {
-                        errorMessage = "I could not handle your request due to a technical issue: " + err.getMessage();
-                        LOGGER.error("[AddToQueue] Technical error occurred", err);
-                    }
-                    
-                    JsonObject errorPayload = new JsonObject()
-                            .put("ok", false)
-                            .put("error", errorMessage)
-                            .put("brandName", brandName);
-                    
-                    handler.addToolUseToHistory(toolUse, conversationHistory);
-                    handler.addToolResultToHistory(toolUse, errorPayload.encode(), conversationHistory);
-                    
-                    LOGGER.debug("[AddToQueue] Calling follow-up LLM stream for error response");
-                    MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-                    return streamFn.apply(secondCallParams);
-                });
+                })
+        ).onFailure().recoverWithUni(err -> {
+            LOGGER.error("[AddToQueue] Queue operation failed - uploadId: {}, brandName: {}", uploadId, brandName, err);
+            String errorMessage;
+            if (err instanceof RadioStationException rsException) {
+                if (rsException.getErrorType() == RadioStationException.ErrorType.STATION_NOT_ACTIVE) {
+                    errorMessage = "Station '" + brandName + "' is currently offline.";
+                    LOGGER.warn("[AddToQueue] Station not active: {}", brandName);
+                } else {
+                    errorMessage = "Station '" + brandName + "' is not available: " + err.getMessage();
+                    LOGGER.warn("[AddToQueue] Station not available: {} - {}", brandName, err.getMessage());
+                }
+            } else {
+                errorMessage = "I could not handle your request due to a technical issue: " + err.getMessage();
+                LOGGER.error("[AddToQueue] Technical error occurred", err);
+            }
+            
+            JsonObject errorPayload = new JsonObject()
+                    .put("ok", false)
+                    .put("error", errorMessage)
+                    .put("brandName", brandName);
+            
+            handler.addToolUseToHistory(toolUse, conversationHistory);
+            handler.addToolResultToHistory(toolUse, errorPayload.encode(), conversationHistory);
+            
+            LOGGER.debug("[AddToQueue] Calling follow-up LLM stream for error response");
+            MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+            return streamFn.apply(secondCallParams);
+        });
 
     }
 }

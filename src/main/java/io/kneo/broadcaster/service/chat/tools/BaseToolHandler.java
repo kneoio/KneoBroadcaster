@@ -8,13 +8,18 @@ import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.function.Consumer;
 
 public abstract class BaseToolHandler {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(BaseToolHandler.class);
+
     protected void sendProcessingChunk(Consumer<String> chunkHandler, String connectionId, String message) {
+        LOGGER.info("[ProcessingChunk] connectionId: {}, message: '{}'", connectionId, message);
         chunkHandler.accept(ChatMessageDTO.processing(message, connectionId).build().toJson());
     }
 

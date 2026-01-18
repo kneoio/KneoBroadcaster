@@ -1,7 +1,9 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.SceneDTO;
+import io.kneo.broadcaster.dto.filter.SceneFilterDTO;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -61,11 +63,12 @@ public class SceneController extends AbstractSecuredController<Scene, SceneDTO> 
     private void getAll(RoutingContext rc) {
         int page = Integer.parseInt(rc.request().getParam("page", "1"));
         int size = Integer.parseInt(rc.request().getParam("size", "10"));
+        SceneFilterDTO filter = parseFilterDTO(rc);
 
         getContextUser(rc, false, true)
                 .chain(user -> Uni.combine().all().unis(
-                        sceneService.getAllCount(user),
-                        sceneService.getAll(size, (page - 1) * size, user)
+                        sceneService.getAllCount(user, filter),
+                        sceneService.getAllDTO(size, (page - 1) * size, user, filter)
                 ).asTuple().map(tuple -> {
                     ViewPage viewPage = new ViewPage();
                     View<SceneDTO> dtoEntries = new View<>(tuple.getItem2(),
@@ -80,6 +83,39 @@ public class SceneController extends AbstractSecuredController<Scene, SceneDTO> 
                         viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                         rc::fail
                 );
+    }
+
+    private SceneFilterDTO parseFilterDTO(RoutingContext rc) {
+        String filterParam = rc.request().getParam("filter");
+        if (filterParam == null || filterParam.trim().isEmpty()) {
+            return null;
+        }
+
+        SceneFilterDTO dto = new SceneFilterDTO();
+        boolean any = false;
+        try {
+            JsonObject json = new JsonObject(filterParam);
+
+            String timingMode = json.getString("timingMode");
+            if (timingMode != null && !timingMode.trim().isEmpty()) {
+                try {
+                    dto.setTimingMode(SceneTimingMode.valueOf(timingMode));
+                    any = true;
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+
+            if (json.containsKey("activated")) {
+                dto.setActivated(json.getBoolean("activated", false));
+                any = true;
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid filter JSON format: " + e.getMessage(), e);
+        }
+
+        return any ? dto : null;
     }
 
     private void getByScript(RoutingContext rc) {

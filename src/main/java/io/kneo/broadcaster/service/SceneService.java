@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.StagePlaylistDTO;
+import io.kneo.broadcaster.dto.filter.SceneFilterDTO;
 import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
@@ -33,8 +34,8 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         this.repository = repository;
     }
 
-    public Uni<List<SceneDTO>> getAll(final int limit, final int offset, final IUser user) {
-        return repository.getAll(limit, offset, false, user)
+    public Uni<List<SceneDTO>> getAllDTO(final int limit, final int offset, final IUser user, SceneFilterDTO filter) {
+        return repository.getAll(limit, offset, false, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
                         return Uni.createFrom().item(List.of());
@@ -42,6 +43,10 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
                     List<Uni<SceneDTO>> unis = list.stream().map(this::mapToDTO).collect(Collectors.toList());
                     return Uni.join().all(unis).andFailFast();
                 });
+    }
+
+    public Uni<Integer> getAllCount(final IUser user, SceneFilterDTO filter) {
+        return repository.getAllCount(user, false, filter);
     }
 
     public Uni<List<Scene>> getAllWithPromptIds(final UUID scriptId, final int limit, final int offset, final IUser user) {
@@ -62,10 +67,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
 
     public Uni<Integer> getByScriptCount(final UUID scriptId, final IUser user) {
         return repository.countByScript(scriptId, false, user);
-    }
-
-    public Uni<Integer> getAllCount(final IUser user) {
-        return repository.getAllCount(user, false);
     }
 
     @Override
@@ -97,10 +98,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
     }
 
     private Uni<SceneDTO> mapToDTO(Scene doc) {
-        return mapToDTO(doc, true);
-    }
-
-    private Uni<SceneDTO> mapToDTO(Scene doc, boolean includePrompts) {
         return Uni.combine().all().unis(
                 userService.getUserName(doc.getAuthor()),
                 userService.getUserName(doc.getLastModifier())
@@ -108,6 +105,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             SceneDTO dto = new SceneDTO();
             dto.setId(doc.getId());
             dto.setTitle(doc.getTitle());
+            dto.setScriptTitle(doc.getScriptTitle());
             dto.setAuthor(tuple.getItem1());
             dto.setRegDate(doc.getRegDate());
             dto.setLastModifier(tuple.getItem2());
@@ -118,9 +116,8 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setSeqNum(doc.getSeqNum());
             dto.setOneTimeRun(doc.isOneTimeRun());
             dto.setTalkativity(doc.getTalkativity());
-            dto.setPodcastMode(doc.getPodcastMode());
             dto.setWeekdays(doc.getWeekdays());
-            dto.setPrompts(includePrompts ? mapScenePromptsToDTOs(doc.getPrompts()) : null);
+            dto.setPrompts(mapScenePromptsToDTOs(doc.getPrompts()));
             dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getPlaylistRequest()));
             return dto;
         });
@@ -151,7 +148,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         entity.setOneTimeRun(dto.isOneTimeRun());
         entity.setWeekdays(dto.getWeekdays());
         entity.setTalkativity(dto.getTalkativity());
-        entity.setPodcastMode(dto.getPodcastMode());
         entity.setPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
         entity.setPlaylistRequest(mapDTOToStagePlaylist(dto.getStagePlaylist()));
         return entity;

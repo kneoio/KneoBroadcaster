@@ -40,28 +40,34 @@ public class SceneRepository extends AsyncRepository {
         this.promptRepository = promptRepository;
     }
 
-    public Uni<List<Scene>> getAll(int limit, int offset, boolean includeArchived, IUser user) {
-        String sql = "SELECT t.* FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = $1";
+    public Uni<List<Scene>> getAll(int limit, int offset, boolean includeArchived, IUser user, io.kneo.broadcaster.dto.filter.SceneFilterDTO filter) {
+        String sql = "SELECT t.*, s.name as script_title FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls, mixpla_scripts s " +
+                "WHERE t.id = rls.entity_id AND t.script_id = s.id AND rls.reader = $1";
         if (!includeArchived) {
             sql += " AND t.archived = 0";
         }
-        sql += " ORDER BY t.script_id ASC, t.seq_num ASC, t.start_time ";
+        if (filter != null && filter.isActivated() && filter.getTimingMode() != null) {
+            sql += " AND s.timing_mode = '" + filter.getTimingMode().name() + "'";
+        }
+        sql += " ORDER BY s.name ASC, t.seq_num ASC, t.start_time ASC";
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
         }
         return client.preparedQuery(sql)
                 .execute(Tuple.of(user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transform(this::from)
+                .onItem().transform(this::fromViewEntry)
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived) {
-        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls " +
-                "WHERE t.id = rls.entity_id AND rls.reader = $1";
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, io.kneo.broadcaster.dto.filter.SceneFilterDTO filter) {
+        String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls, mixpla_scripts s " +
+                "WHERE t.id = rls.entity_id AND t.script_id = s.id AND rls.reader = $1";
         if (!includeArchived) {
             sql += " AND t.archived = 0";
+        }
+        if (filter != null && filter.isActivated() && filter.getTimingMode() != null) {
+            sql += " AND s.timing_mode = '" + filter.getTimingMode().name() + "'";
         }
         return client.preparedQuery(sql)
                 .execute(Tuple.of(user.getId()))
@@ -137,8 +143,8 @@ public class SceneRepository extends AsyncRepository {
     public Uni<Scene> insert(Scene scene, IUser user) {
         OffsetDateTime nowTime = OffsetDateTime.now();
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, duration_seconds, seq_num, one_time_run, talkativity, podcast_mode, weekdays, stage_playlist) " +
-                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, script_id, title, start_time, duration_seconds, seq_num, one_time_run, talkativity, weekdays, stage_playlist) " +
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id";
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
                 .addOffsetDateTime(nowTime)
@@ -151,7 +157,6 @@ public class SceneRepository extends AsyncRepository {
                 .addInteger(scene.getSeqNum())
                 .addBoolean(scene.isOneTimeRun())
                 .addDouble(scene.getTalkativity())
-                .addDouble(scene.getPodcastMode())
                 .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
                 .addJsonObject(scene.getPlaylistRequest() != null ? JsonObject.mapFrom(scene.getPlaylistRequest()) : null);
         return client.withTransaction(tx ->
@@ -174,7 +179,7 @@ public class SceneRepository extends AsyncRepository {
                     }
                     OffsetDateTime nowTime = OffsetDateTime.now();
                     String sql = "UPDATE " + entityData.getTableName() +
-                            " SET title=$1, start_time=$2, duration_seconds=$3, seq_num=$4, one_time_run=$5, talkativity=$6, podcast_mode=$7, weekdays=$8, stage_playlist=$9, last_mod_user=$10, last_mod_date=$11 WHERE id=$12";
+                            " SET title=$1, start_time=$2, duration_seconds=$3, seq_num=$4, one_time_run=$5, talkativity=$6, weekdays=$7, stage_playlist=$8, last_mod_user=$9, last_mod_date=$10 WHERE id=$11";
                     Tuple params = Tuple.tuple()
                             .addString(scene.getTitle())
                             .addLocalTime(scene.getStartTime())
@@ -182,7 +187,6 @@ public class SceneRepository extends AsyncRepository {
                             .addInteger(scene.getSeqNum())
                             .addBoolean(scene.isOneTimeRun())
                             .addDouble(scene.getTalkativity())
-                            .addDouble(scene.getPodcastMode())
                             .addArrayOfInteger(scene.getWeekdays() != null ? scene.getWeekdays().toArray(new Integer[0]) : null)
                             .addJsonObject(scene.getPlaylistRequest() != null ? JsonObject.mapFrom(scene.getPlaylistRequest()) : null)
                             .addLong(user.getId())
@@ -223,6 +227,15 @@ public class SceneRepository extends AsyncRepository {
                 });
     }
 
+    private Scene fromViewEntry(Row row) {
+        Scene doc = from(row);
+        String scriptTitle = row.getString("script_title");
+        if (scriptTitle != null) {
+            doc.setScriptTitle(scriptTitle);
+        }
+        return doc;
+    }
+
     private Scene from(Row row) {
         Scene doc = new Scene();
         setDefaultFields(doc, row);
@@ -236,8 +249,6 @@ public class SceneRepository extends AsyncRepository {
         doc.setOneTimeRun(row.getBoolean("one_time_run"));
         Double talk = row.getDouble("talkativity");
         if (talk != null) doc.setTalkativity(talk);
-        Double pod = row.getDouble("podcast_mode");
-        if (pod != null) doc.setPodcastMode(pod);
         Object[] weekdaysArr = row.getArrayOfIntegers("weekdays");
         if (weekdaysArr != null && weekdaysArr.length > 0) {
             List<Integer> weekdays = new ArrayList<>();

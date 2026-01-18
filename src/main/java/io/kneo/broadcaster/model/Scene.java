@@ -16,8 +16,9 @@ import java.util.UUID;
 public class Scene extends SecureDataEntity<UUID> {
     private UUID scriptId;
     private String title;
-    private List<LivePrompt> prompts;
+    private String scriptTitle;
     private SceneTimingMode timingMode;
+    private List<LivePrompt> prompts;
     private PlaylistRequest playlistRequest;
     private LocalTime startTime;
     private int durationSeconds;
@@ -25,7 +26,6 @@ public class Scene extends SecureDataEntity<UUID> {
     private Integer archived;
     private boolean oneTimeRun;
     private double talkativity = 0.5;
-    private double podcastMode = 0.0;
     private List<Integer> weekdays;
     private List<UUID> soundFragmentIds;
 }

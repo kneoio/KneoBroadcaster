@@ -15,6 +15,7 @@ import java.util.UUID;
 public class SceneDTO extends AbstractDTO {
     private UUID scriptId;
     private String title;
+    private String scriptTitle;
     private double talkativity;
     private double podcastMode;
     private List<ScenePromptDTO> prompts;

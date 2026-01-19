@@ -9,31 +9,31 @@ import java.util.List;
 @Getter
 public class StreamSchedule {
     private final LocalDateTime createdAt;
-    private final List<SceneScheduleEntry> sceneScheduleEntries;
+    private final List<LiveScene> liveScenes;
 
     public StreamSchedule(LocalDateTime createdAt) {
         this.createdAt = createdAt;
-        this.sceneScheduleEntries = new ArrayList<>();
+        this.liveScenes = new ArrayList<>();
     }
 
-    public void addSceneSchedule(SceneScheduleEntry entry) {
-        this.sceneScheduleEntries.add(entry);
+    public void addSceneSchedule(LiveScene entry) {
+        this.liveScenes.add(entry);
     }
 
     public int getTotalScenes() {
-        return sceneScheduleEntries.size();
+        return liveScenes.size();
     }
 
     public int getTotalSongs() {
-        return sceneScheduleEntries.stream()
+        return liveScenes.stream()
                 .mapToInt(s -> s.getSongs().size())
                 .sum();
     }
 
     public LocalDateTime getEstimatedEndTime() {
-        if (sceneScheduleEntries.isEmpty()) {
+        if (liveScenes.isEmpty()) {
             return createdAt;
         }
-        return sceneScheduleEntries.getLast().getScheduledEndTime();
+        return liveScenes.getLast().getScheduledEndTime();
     }
 }

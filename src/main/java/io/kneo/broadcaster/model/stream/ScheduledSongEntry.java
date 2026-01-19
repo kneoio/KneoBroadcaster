@@ -25,15 +25,6 @@ public class ScheduledSongEntry {
             : 180;
     }
 
-    public ScheduledSongEntry(UUID id, SoundFragment soundFragment, LocalDateTime scheduledStartTime) {
-        this.id = id;
-        this.soundFragment = soundFragment;
-        this.scheduledStartTime = scheduledStartTime;
-        this.durationSeconds = soundFragment.getLength() != null 
-            ? (int) soundFragment.getLength().toSeconds() 
-            : 180;
-    }
-
     public ScheduledSongEntry(UUID id, SoundFragment soundFragment, LocalDateTime scheduledStartTime, int durationSeconds) {
         this.id = id;
         this.soundFragment = soundFragment;
@@ -41,7 +32,4 @@ public class ScheduledSongEntry {
         this.durationSeconds = durationSeconds;
     }
 
-    public int getDurationSeconds() {
-        return durationSeconds;
-    }
 }

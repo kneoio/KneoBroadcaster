@@ -15,7 +15,7 @@ public class StreamDeliveryState {
     private int deliveredSongIndex;
     private LocalDateTime lastDeliveryAt;
 
-    void reset(SceneScheduleEntry entry) {
+    void reset(LiveScene entry) {
         this.sceneId = entry.getSceneId();
         this.sceneStart = entry.getScheduledStartTime();
         this.sceneEnd = entry.getScheduledEndTime();

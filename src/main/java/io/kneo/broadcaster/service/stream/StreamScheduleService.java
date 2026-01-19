@@ -8,7 +8,7 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
+import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.service.BrandService;
@@ -109,7 +109,7 @@ public class StreamScheduleService {
             return Uni.createFrom().item(schedule);
         }
 
-        List<Uni<SceneScheduleEntry>> sceneUnis = new ArrayList<>();
+        List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
         LocalDateTime sceneStartTime = LocalDateTime.now();
 
         for (Scene scene : scenes) {
@@ -117,7 +117,7 @@ public class StreamScheduleService {
             sceneUnis.add(
                     fetchSongsForScene(sourceBrand, scene, songSupplier)
                             .map(songs -> {
-                                SceneScheduleEntry entry = new SceneScheduleEntry(scene, finalSceneStartTime);
+                                LiveScene entry = new LiveScene(scene, finalSceneStartTime);
                                 LocalDateTime songStartTime = finalSceneStartTime;
                                 for (SoundFragment song : songs) {
                                     ScheduledSongEntry songEntry = new ScheduledSongEntry(song, songStartTime);
@@ -215,7 +215,7 @@ public class StreamScheduleService {
         dto.setTotalScenes(schedule.getTotalScenes());
         dto.setTotalSongs(schedule.getTotalSongs());
 
-        List<StreamScheduleDTO.SceneScheduleDTO> sceneDTOs = schedule.getSceneScheduleEntries().stream()
+        List<StreamScheduleDTO.SceneScheduleDTO> sceneDTOs = schedule.getLiveScenes().stream()
                 .map(this::toSceneDTO)
                 .collect(Collectors.toList());
         dto.setScenes(sceneDTOs);
@@ -223,7 +223,7 @@ public class StreamScheduleService {
         return dto;
     }
 
-    private StreamScheduleDTO.SceneScheduleDTO toSceneDTO(SceneScheduleEntry scene) {
+    private StreamScheduleDTO.SceneScheduleDTO toSceneDTO(LiveScene scene) {
         StreamScheduleDTO.SceneScheduleDTO dto = new StreamScheduleDTO.SceneScheduleDTO();
         dto.setSceneId(scene.getSceneId().toString());
         dto.setSceneTitle(scene.getSceneTitle());
@@ -266,7 +266,7 @@ public class StreamScheduleService {
         return dto;
     }
 
-    private StreamScheduleDTO.ScenePlaylistRequest toScenePlaylistRequest(SceneScheduleEntry scene) {
+    private StreamScheduleDTO.ScenePlaylistRequest toScenePlaylistRequest(LiveScene scene) {
         StreamScheduleDTO.ScenePlaylistRequest request = new StreamScheduleDTO.ScenePlaylistRequest();
         request.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
         request.setPlaylistTitle(scene.getPlaylistTitle());
@@ -318,7 +318,7 @@ public class StreamScheduleService {
 
         int activeIndex = findActiveSceneIndex(sortedScenes, currentTime);
 
-        List<Uni<SceneScheduleEntry>> sceneUnis = new ArrayList<>();
+        List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
         LocalDateTime sceneStartTime = now;
 
         for (int i = 0; i < sortedScenes.size(); i++) {
@@ -343,7 +343,7 @@ public class StreamScheduleService {
             sceneUnis.add(
                     fetchSongsForSceneWithDuration(sourceBrand, scene, finalDurationSeconds, songSupplier)
                             .map(songs -> {
-                                SceneScheduleEntry entry = new SceneScheduleEntry(
+                                LiveScene entry = new LiveScene(
                                         scene.getId(),
                                         scene.getTitle(),
                                         finalSceneStartTime,
@@ -358,7 +358,8 @@ public class StreamScheduleService {
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getType() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSource() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSearchTerm() : null,
-                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSoundFragments() : null
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSoundFragments() : null,
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getPrompts() : null
                                 );
                                 LocalDateTime songStartTime = finalSceneStartTime;
                                 for (SoundFragment song : songs) {

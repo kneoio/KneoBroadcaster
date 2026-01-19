@@ -9,8 +9,8 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.repository.BrandRepository;
@@ -264,16 +264,16 @@ public class OneTimeStreamService {
         StreamSchedule schedule = new StreamSchedule(dto.getCreatedAt());
         if (dto.getScenes() != null) {
             for (StreamScheduleDTO.SceneScheduleDTO sceneDTO : dto.getScenes()) {
-                SceneScheduleEntry sceneEntry = fromSceneDTO(sceneDTO);
+                LiveScene sceneEntry = fromSceneDTO(sceneDTO);
                 schedule.addSceneSchedule(sceneEntry);
             }
         }
         return schedule;
     }
 
-    private SceneScheduleEntry fromSceneDTO(StreamScheduleDTO.SceneScheduleDTO dto) {
+    private LiveScene fromSceneDTO(StreamScheduleDTO.SceneScheduleDTO dto) {
         StreamScheduleDTO.ScenePlaylistRequest request = dto.getPlaylistRequest();
-        SceneScheduleEntry entry = new SceneScheduleEntry(
+        LiveScene entry = new LiveScene(
                 UUID.fromString(dto.getSceneId()),
                 dto.getSceneTitle(),
                 dto.getScheduledStartTime(),
@@ -288,7 +288,8 @@ public class OneTimeStreamService {
                 request != null && request.getPlaylistItemTypes() != null ? request.getPlaylistItemTypes().stream().map(PlaylistItemType::valueOf).toList() : null,
                 request != null && request.getSourceTypes() != null ? request.getSourceTypes().stream().map(SourceType::valueOf).toList() : null,
                 request != null ? request.getSearchTerm() : null,
-                request != null ? request.getSoundFragments() : null
+                request != null ? request.getSoundFragments() : null,
+                null
         );
         if (dto.getSongs() != null) {
             for (StreamScheduleDTO.ScheduledSongDTO songDTO : dto.getSongs()) {

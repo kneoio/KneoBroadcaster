@@ -23,4 +23,5 @@ public class PlaylistRequest {
     private List<SourceType> source;
     private String searchTerm;
     private List<UUID> soundFragments;
+    private List<ScenePrompt> prompts;
 }

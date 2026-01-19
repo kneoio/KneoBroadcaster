@@ -441,6 +441,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
             dto.setAlbum(doc.getAlbum());
             dto.setLength(doc.getLength());
             dto.setDescription(doc.getDescription());
+            dto.setExpiresAt(doc.getExpiresAt());
             dto.setUploadedFiles(files);
             dto.setRepresentedInBrands(representedInBrands);
             return dto;
@@ -458,6 +459,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         doc.setAlbum(dto.getAlbum());
         doc.setLength(dto.getLength());
         doc.setDescription(dto.getDescription());
+        doc.setExpiresAt(dto.getExpiresAt());
         doc.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
         return doc;
     }
@@ -580,7 +582,7 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         FileMetadata fileMetadata = new FileMetadata();
         fileMetadata.setFilePath(Paths.get(uploadFile.getFullPath()));
         fragment.setFileMetadataList(List.of(fileMetadata));
-        List<UUID> brandIds = brandId != null ? List.of(brandId) : List.of();
+        List<UUID> brandIds = brandId !=null ? List.of(brandId) : List.of();
         
         assert refService != null;
         return genreService.getByFuzzyIdentifier(metadata.getGenre())

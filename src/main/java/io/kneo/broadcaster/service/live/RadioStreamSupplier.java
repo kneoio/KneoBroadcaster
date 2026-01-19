@@ -2,13 +2,13 @@ package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
-import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.Prompt;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.RadioStream;
-import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
@@ -57,20 +57,20 @@ public class RadioStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
-        SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
-        if (activeEntry == null) {
+        LiveScene activeScene = stream.findActiveScene();
+        if (activeScene == null) {
             return Uni.createFrom().failure(
                 new IllegalStateException("No active scene found for RadioStream: " + stream.getSlugName())
             );
         }
 
-        String currentSceneTitle = activeEntry.getSceneTitle();
+        String currentSceneTitle = activeScene.getSceneTitle();
 
         Uni<List<SoundFragment>> songsUni = getSongsFromSceneEntry(
-                activeEntry, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService);
+                activeScene, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService);
 
         return songsUni.flatMap(songs ->
-                sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
+                sceneService.getById(activeScene.getSceneId(), SuperUser.build())
                         .chain(scene -> {
                             double effectiveTalkativity = scene.getTalkativity();
                             double rate = stream.getPopularityRate();
@@ -88,8 +88,8 @@ public class RadioStreamSupplier extends StreamSupplier {
 
                             List<UUID> enabledPrompts = scene.getPrompts() != null
                                     ? scene.getPrompts().stream()
-                                    .filter(LivePrompt::isActive)
-                                    .map(LivePrompt::getPromptId)
+                                    .filter(ScenePrompt::isActive)
+                                    .map(ScenePrompt::getPromptId)
                                     .toList()
                                     : List.of();
 
@@ -137,7 +137,7 @@ public class RadioStreamSupplier extends StreamSupplier {
                                                                     selectedPrompt.getPromptType(),
                                                                     agent.getLlmType(),
                                                                     agent.getSearchEngineType(),
-                                                                    activeEntry.getScheduledStartTime().toLocalTime(),
+                                                                    activeScene.getScheduledStartTime().toLocalTime(),
                                                                     false,
                                                                     selectedPrompt.isPodcast()
                                                             ));

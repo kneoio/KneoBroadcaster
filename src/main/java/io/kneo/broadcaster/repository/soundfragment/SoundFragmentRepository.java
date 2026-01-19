@@ -229,8 +229,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
         return executeInsertTransaction(doc, user, nowTime, Uni.createFrom().voidItem(), representedInBrands)
                 .onItem().transformToUni(insertedDoc -> {
-                    if (filesToProcess != null && !filesToProcess.isEmpty()) {
-                        FileMetadata meta = filesToProcess.get(0);
+                    if (filesToProcess != null) {
+                        FileMetadata meta = filesToProcess.getFirst();
                         assert fileStorage != null;
                         return fileStorage.storeFile(
                                         meta.getFileKey(),
@@ -305,8 +305,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return fileUploadCompletionUni.onItem().transformToUni(v -> {
             String sql = String.format(
                     "INSERT INTO %s (reg_date, author, last_mod_date, last_mod_user, source, status, type, " +
-                            "title, artist, album, length, description, slug_name) " +
-                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id;",
+                            "title, artist, album, length, description, slug_name, expires_at) " +
+                            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id;",
                     entityData.getTableName()
             );
 
@@ -321,7 +321,8 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     .addString(doc.getAlbum())
                     .addLong(lengthMillis)
                     .addString(doc.getDescription())
-                    .addString(doc.getSlugName());
+                    .addString(doc.getSlugName())
+                    .addLocalDateTime(doc.getExpiresAt());
 
             return client.withTransaction(tx -> tx.preparedQuery(sql)
                     .execute(params)
@@ -428,21 +429,6 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.getBrandSongs(brandId, fragmentType, 200, 0);
     }
 
-    public Uni<Integer> copyBrandSoundFragments(UUID sourceBrandId, UUID targetBrandId) {
-        String sql = "INSERT INTO kneobroadcaster__brand_sound_fragments (brand_id, sound_fragment_id, played_by_brand_count, last_time_played_by_brand) " +
-                "SELECT $2, src.sound_fragment_id, 0, NULL " +
-                "FROM kneobroadcaster__brand_sound_fragments src " +
-                "WHERE src.brand_id = $1 " +
-                "AND NOT EXISTS (" +
-                "  SELECT 1 FROM kneobroadcaster__brand_sound_fragments tgt " +
-                "  WHERE tgt.brand_id = $2 AND tgt.sound_fragment_id = src.sound_fragment_id" +
-                ")";
-
-        return client.preparedQuery(sql)
-                .execute(Tuple.of(sourceBrandId, targetBrandId))
-                .onItem().transform(RowSet::rowCount);
-    }
-
     public Uni<Integer> updateRatedByBrandCount(UUID brandId, UUID soundFragmentId, int delta, IUser user) {
         SoundFragmentBrandRepository brandRepository = new SoundFragmentBrandRepository(client, mapper, rlsRepository);
         return brandRepository.updateRatedByBrandCount(brandId, soundFragmentId, delta, user);
@@ -472,7 +458,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                             .onItem().transformToUni(existingDoc -> {
                                 final List<FileMetadata> originalFiles = doc.getFileMetadataList();
                                 final List<FileMetadata> newFiles = (originalFiles != null && !originalFiles.isEmpty())
-                                        ? List.of(originalFiles.get(0))
+                                        ? List.of(originalFiles.getFirst())
                                         : null;
 
                                 Uni<Void> fileStoredUni = handleFileUpdate(id, doc, newFiles);
@@ -510,7 +496,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
             return Uni.createFrom().voidItem();
         }
 
-        FileMetadata meta = newFiles.get(0);
+        FileMetadata meta = newFiles.getFirst();
         if (meta.getFilePath() == null) {
             return Uni.createFrom().voidItem();
         }
@@ -549,7 +535,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         String filesSql = "INSERT INTO _files (parent_table, parent_id, storage_type, " +
                 "mime_type, file_original_name, file_key, file_bin, slug_name) " +
                 "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
-        FileMetadata meta = newFiles.get(0);
+        FileMetadata meta = newFiles.getFirst();
         Tuple fileParams = Tuple.of(
                         entityData.getTableName(),
                         id,
@@ -567,7 +553,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
     private Uni<RowSet<Row>> updateSoundFragmentRecord(SqlClient tx, UUID id, SoundFragment doc, IUser user, LocalDateTime nowTime) {
         String updateSql = String.format("UPDATE %s SET last_mod_user=$1, last_mod_date=$2, " +
                         "status=$3, type=$4, title=$5, " +
-                        "artist=$6, album=$7, length=$8, description=$9, slug_name=$10 WHERE id=$11;",
+                        "artist=$6, album=$7, length=$8, description=$9, slug_name=$10, expires_at=$11 WHERE id=$12;",
                 entityData.getTableName());
 
         Tuple params = Tuple.of(user.getId(), nowTime)
@@ -579,6 +565,7 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 .addLong(doc.getLength() != null ? doc.getLength().toMillis() : null)
                 .addString(doc.getDescription())
                 .addString(doc.getSlugName())
+                .addLocalDateTime(doc.getExpiresAt())
                 .addUUID(id);
 
         return tx.preparedQuery(updateSql).execute(params);

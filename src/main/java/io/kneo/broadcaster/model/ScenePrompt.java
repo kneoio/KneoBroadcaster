@@ -13,7 +13,7 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class LivePrompt {
+public class ScenePrompt {
     private ActionType actionType;
     private UUID promptId;
     private boolean active = true;

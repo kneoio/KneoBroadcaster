@@ -4,8 +4,8 @@ import io.kneo.broadcaster.dto.dashboard.CountryStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationStatsDTO;
 import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.StreamSchedule;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
@@ -89,22 +89,22 @@ public class StationDashboardService {
 
     private List<StationStatsDTO.ScheduleEntryDTO> buildScheduleEntries(IStream station) {
         StreamSchedule schedule = station.getStreamSchedule();
-        if (schedule == null || schedule.getSceneScheduleEntries().isEmpty()) {
+        if (schedule == null || schedule.getLiveScenes().isEmpty()) {
             return List.of();
         }
 
         LocalTime now = LocalTime.now(station.getTimeZone());
-        SceneScheduleEntry activeEntry = null;
+        LiveScene activeEntry = null;
         if (station instanceof OneTimeStream) {
-            activeEntry = station.findActiveSceneEntry();
+            activeEntry = station.findActiveScene();
         }
 
         List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();
-        List<SceneScheduleEntry> scenes = schedule.getSceneScheduleEntries();
+        List<LiveScene> scenes = schedule.getLiveScenes();
 
         for (int i = 0; i < scenes.size(); i++) {
-            SceneScheduleEntry scene = scenes.get(i);
-            SceneScheduleEntry nextScene = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
+            LiveScene scene = scenes.get(i);
+            LiveScene nextScene = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
 
             StationStatsDTO.ScheduleEntryDTO dto = new StationStatsDTO.ScheduleEntryDTO();
             dto.setSceneTitle(scene.getSceneTitle());
@@ -151,7 +151,7 @@ public class StationDashboardService {
     }
 
 
-    private SceneStatus computeSceneStatus(SceneScheduleEntry scene, LocalDateTime now) {
+    private SceneStatus computeSceneStatus(LiveScene scene, LocalDateTime now) {
         if (scene.getActualEndTime() != null) {
             return SceneStatus.COMPLETED;
         }
@@ -174,7 +174,7 @@ public class StationDashboardService {
         return SceneStatus.PENDING;
     }
 
-    private Long computeTimingOffset(SceneScheduleEntry scene, LocalDateTime now) {
+    private Long computeTimingOffset(LiveScene scene, LocalDateTime now) {
         if (scene.getActualStartTime() == null) {
             return null;
         }

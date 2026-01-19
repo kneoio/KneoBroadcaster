@@ -67,8 +67,8 @@ public class OneTimeStream extends AbstractStream {
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
     }
 
-    public SceneScheduleEntry findActiveSceneEntry() {
-        List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
+    public LiveScene findActiveScene() {
+        List<LiveScene> scenes = streamSchedule.getLiveScenes();
 
         boolean anySceneStarted = scenes.stream()
                 .anyMatch(scene -> scene.getActualStartTime() != null);
@@ -77,7 +77,7 @@ public class OneTimeStream extends AbstractStream {
             return scenes.isEmpty() ? null : scenes.getFirst();
         }
 
-        for (SceneScheduleEntry entry : scenes) {
+        for (LiveScene entry : scenes) {
             if (entry.getActualStartTime() != null && entry.getActualEndTime() == null) {
                 return entry;
             }
@@ -89,7 +89,7 @@ public class OneTimeStream extends AbstractStream {
     }
 
     public boolean isCompleted() {
-        return streamSchedule.getSceneScheduleEntries().stream()
+        return streamSchedule.getLiveScenes().stream()
                 .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
     }
 

@@ -92,7 +92,7 @@ public interface IStream {
 
     void setStreamSchedule(StreamSchedule streamSchedule);
 
-    SceneScheduleEntry findActiveSceneEntry();
+    LiveScene findActiveScene();
 
     LanguageTag getStreamLanguage();
 

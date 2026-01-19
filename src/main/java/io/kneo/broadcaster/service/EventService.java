@@ -9,8 +9,8 @@ import io.kneo.broadcaster.dto.scheduler.PeriodicTriggerDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
 import io.kneo.broadcaster.dto.scheduler.TaskDTO;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -161,7 +161,7 @@ public class EventService extends AbstractService<Event, EventDTO> {
             dto.setType(doc.getType().name());
             dto.setDescription(doc.getDescription());
             dto.setPriority(doc.getPriority().name());
-            dto.setActions(mapActionsToDTOs(doc.getLivePrompts()));
+            dto.setActions(mapActionsToDTOs(doc.getScenePrompts()));
             dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getPlaylistRequest()));
 
             if (doc.getScheduler() != null) {
@@ -254,16 +254,16 @@ public class EventService extends AbstractService<Event, EventDTO> {
             }
             doc.setScheduler(schedule);
         }
-        doc.setLivePrompts(mapDTOsToActions(dto.getActions()));
+        doc.setScenePrompts(mapDTOsToActions(dto.getActions()));
         doc.setPlaylistRequest(mapDTOToStagePlaylist(dto.getStagePlaylist()));
 
         return doc;
     }
-    private List<ScenePromptDTO> mapActionsToDTOs(List<LivePrompt> livePrompts) {
-        if (livePrompts == null) {
+    private List<ScenePromptDTO> mapActionsToDTOs(List<ScenePrompt> scenePrompts) {
+        if (scenePrompts == null) {
             return null;
         }
-        return livePrompts.stream()
+        return scenePrompts.stream()
                 .map(action -> {
                     ScenePromptDTO dto = new ScenePromptDTO();
                     dto.setPromptId(action.getPromptId());
@@ -275,18 +275,18 @@ public class EventService extends AbstractService<Event, EventDTO> {
                 .collect(Collectors.toList());
     }
 
-    private List<LivePrompt> mapDTOsToActions(List<ScenePromptDTO> dtos) {
+    private List<ScenePrompt> mapDTOsToActions(List<ScenePromptDTO> dtos) {
         if (dtos == null) {
             return List.of();
         }
         return dtos.stream()
                 .map(dto -> {
-                    LivePrompt livePrompt = new LivePrompt();
-                    livePrompt.setPromptId(dto.getPromptId());
-                    livePrompt.setRank(dto.getRank());
-                    livePrompt.setWeight(dto.getWeight());
-                    livePrompt.setActive(dto.isActive());
-                    return livePrompt;
+                    ScenePrompt scenePrompt = new ScenePrompt();
+                    scenePrompt.setPromptId(dto.getPromptId());
+                    scenePrompt.setRank(dto.getRank());
+                    scenePrompt.setWeight(dto.getWeight());
+                    scenePrompt.setActive(dto.isActive());
+                    return scenePrompt;
                 })
                 .collect(Collectors.toList());
     }

@@ -2,6 +2,7 @@ package io.kneo.broadcaster.model.stream;
 
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
@@ -15,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
-public class SceneScheduleEntry {
+public class LiveScene {
     private final UUID sceneId;
     private final String sceneTitle;
     private final LocalDateTime scheduledStartTime;
@@ -38,8 +39,9 @@ public class SceneScheduleEntry {
     private final List<SourceType> sourceTypes;
     private final String searchTerm;
     private final List<UUID> soundFragments;
+    private final List<ScenePrompt> prompts;
 
-    public SceneScheduleEntry(Scene scene, LocalDateTime scheduledStartTime) {
+    public LiveScene(Scene scene, LocalDateTime scheduledStartTime) {
         this.sceneId = scene.getId();
         this.sceneTitle = scene.getTitle();
         this.scheduledStartTime = scheduledStartTime;
@@ -59,6 +61,7 @@ public class SceneScheduleEntry {
             this.sourceTypes = pr.getSource();
             this.searchTerm = pr.getSearchTerm();
             this.soundFragments = pr.getSoundFragments();
+            this.prompts = pr.getPrompts();
         } else {
             this.sourcing = null;
             this.playlistTitle = null;
@@ -69,14 +72,16 @@ public class SceneScheduleEntry {
             this.sourceTypes = null;
             this.searchTerm = null;
             this.soundFragments = null;
+            this.prompts = null;
         }
     }
 
-    public SceneScheduleEntry(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
-                              LocalTime originalStartTime, LocalTime originalEndTime,
-                              WayOfSourcing sourcing, String playlistTitle, String artist,
-                              List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
-                              List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments) {
+    public LiveScene(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
+                     LocalTime originalStartTime, LocalTime originalEndTime,
+                     WayOfSourcing sourcing, String playlistTitle, String artist,
+                     List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
+                     List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments,
+                     List<ScenePrompt> prompts) {
         this.sceneId = sceneId;
         this.sceneTitle = sceneTitle;
         this.scheduledStartTime = scheduledStartTime;
@@ -93,6 +98,7 @@ public class SceneScheduleEntry {
         this.sourceTypes = sourceTypes;
         this.searchTerm = searchTerm;
         this.soundFragments = soundFragments;
+        this.prompts = prompts;
     }
 
     public void addSong(ScheduledSongEntry song) {

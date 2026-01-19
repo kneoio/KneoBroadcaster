@@ -1,14 +1,14 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
-import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.Prompt;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
@@ -61,12 +61,12 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             LanguageTag broadcastingLanguage,
             String additionalInstruction
     ) {
-        SceneScheduleEntry activeEntry = stream.findActiveSceneEntry();
+        LiveScene activeEntry = stream.findActiveScene();
 
         if (activeEntry == null) {
             UUID prevSceneId = stream.getCurrentSceneId();
             if (prevSceneId != null) {
-                SceneScheduleEntry prev = findSceneById(stream, prevSceneId);
+                LiveScene prev = findSceneById(stream, prevSceneId);
                 if (prev != null && prev.getActualEndTime() == null) {
                     prev.setActualEndTime(LocalDateTime.now());
                 }
@@ -92,7 +92,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         UUID currentSceneId = stream.getCurrentSceneId();
 
         if (currentSceneId != null && !currentSceneId.equals(activeSceneId)) {
-            SceneScheduleEntry prev = findSceneById(stream, currentSceneId);
+            LiveScene prev = findSceneById(stream, currentSceneId);
             if (prev != null && prev.getActualEndTime() == null) {
                 prev.setActualEndTime(LocalDateTime.now());
             }
@@ -155,8 +155,8 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                         List<UUID> promptIds = scene.getPrompts() == null
                                 ? List.of()
                                 : scene.getPrompts().stream()
-                                .filter(LivePrompt::isActive)
-                                .map(LivePrompt::getPromptId)
+                                .filter(ScenePrompt::isActive)
+                                .map(ScenePrompt::getPromptId)
                                 .toList();
 
                         if (promptIds.isEmpty()) {
@@ -225,8 +225,8 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         });
     }
 
-    private SceneScheduleEntry findSceneById(OneTimeStream stream, UUID sceneId) {
-        return stream.getStreamSchedule().getSceneScheduleEntries().stream()
+    private LiveScene findSceneById(OneTimeStream stream, UUID sceneId) {
+        return stream.getStreamSchedule().getLiveScenes().stream()
                 .filter(s -> s.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);

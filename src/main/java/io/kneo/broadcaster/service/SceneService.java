@@ -4,9 +4,9 @@ import io.kneo.broadcaster.dto.SceneDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.filter.SceneFilterDTO;
-import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
@@ -123,7 +123,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         });
     }
 
-    private List<ScenePromptDTO> mapScenePromptsToDTOs(List<LivePrompt> livePrompts) {
+    private List<ScenePromptDTO> mapScenePromptsToDTOs(List<ScenePrompt> livePrompts) {
         if (livePrompts == null) {
             return null;
         }
@@ -153,13 +153,13 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         return entity;
     }
 
-    private List<LivePrompt> mapScenePromptDTOsToEntities(List<ScenePromptDTO> dtos) {
+    private List<ScenePrompt> mapScenePromptDTOsToEntities(List<ScenePromptDTO> dtos) {
         if (dtos == null) {
             return List.of();
         }
         return dtos.stream()
                 .map(dto -> {
-                    LivePrompt sp = new LivePrompt();
+                    ScenePrompt sp = new ScenePrompt();
                     sp.setPromptId(dto.getPromptId());
                     sp.setRank(dto.getRank());
                     sp.setWeight(dto.getWeight());
@@ -188,6 +188,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         dto.setSource(playlistRequest.getSource() != null ? playlistRequest.getSource().stream().map(Enum::name).toList() : null);
         dto.setSearchTerm(playlistRequest.getSearchTerm());
         dto.setSoundFragments(playlistRequest.getSoundFragments());
+        dto.setPrompts(mapScenePromptsToDTOs(playlistRequest.getPrompts()));
         return dto;
     }
 
@@ -205,6 +206,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         playlistRequest.setSource(dto.getSource() != null ? dto.getSource().stream().map(SourceType::valueOf).toList() : null);
         playlistRequest.setSearchTerm(dto.getSearchTerm());
         playlistRequest.setSoundFragments(dto.getSoundFragments());
+        playlistRequest.setPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
         return playlistRequest;
     }
 }

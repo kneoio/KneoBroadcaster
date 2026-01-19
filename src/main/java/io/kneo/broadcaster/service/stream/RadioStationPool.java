@@ -96,7 +96,7 @@ public class RadioStationPool {
                             .onItem().transformToUni(brand -> {
                                 if (brand == null) {
                                     LOGGER.warn("Brand with brandName {} not found in database. Cannot initialize.", bn);
-                                    IStream staleStation = pool.remove(bn);
+                                    pool.remove(bn);
                                     return Uni.createFrom().failure(new RuntimeException("Station not found in DB: " + bn));
                                 }
 

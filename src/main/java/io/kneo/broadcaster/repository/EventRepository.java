@@ -2,8 +2,8 @@ package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.Event;
-import io.kneo.broadcaster.model.LivePrompt;
 import io.kneo.broadcaster.model.PlaylistRequest;
+import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.cnst.ActionType;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
@@ -171,7 +171,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                 .onItem().transform(result -> result.iterator().next().getUUID("id"))
                                 .onItem().transformToUni(id ->
                                         insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transformToUni(ignored -> updateActionsForEvent(tx, id, event.getLivePrompts()))
+                                        .onItem().transformToUni(ignored -> updateActionsForEvent(tx, id, event.getScenePrompts()))
                                         .onItem().transform(ignored -> id)
                         )
                 ).onItem().transformToUni(id -> findById(id, user, true));
@@ -218,7 +218,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                                                 if (rowSet.rowCount() == 0) {
                                                     return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                                 }
-                                                return updateActionsForEvent(tx, id, event.getLivePrompts());
+                                                return updateActionsForEvent(tx, id, event.getScenePrompts());
                                             })
                             ).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
@@ -306,7 +306,7 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
 
         return getActionsForEvent(doc.getId())
                 .onItem().transform(actions -> {
-                    doc.setLivePrompts(actions);
+                    doc.setScenePrompts(actions);
                     return doc;
                 });
     }
@@ -315,39 +315,39 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
         return getDocumentAccessInfo(documentId, entityData, user);
     }
 
-    public Uni<List<LivePrompt>> getActionsForEvent(UUID eventId) {
+    public Uni<List<ScenePrompt>> getActionsForEvent(UUID eventId) {
         String sql = "SELECT prompt_id, action_type, rank, weight, active FROM mixpla__event_actions WHERE event_id = $1 ORDER BY rank ASC";
         return client.preparedQuery(sql)
                 .execute(Tuple.of(eventId))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(row -> {
-                    LivePrompt livePrompt = new LivePrompt();
-                    livePrompt.setPromptId(row.getUUID("prompt_id"));
+                    ScenePrompt scenePrompt = new ScenePrompt();
+                    scenePrompt.setPromptId(row.getUUID("prompt_id"));
                     String actionTypeStr = row.getString("action_type");
                     if (actionTypeStr != null) {
-                        livePrompt.setActionType(ActionType.valueOf(actionTypeStr));
+                        scenePrompt.setActionType(ActionType.valueOf(actionTypeStr));
                     }
-                    livePrompt.setRank(row.getInteger("rank"));
-                    livePrompt.setWeight(row.getBigDecimal("weight"));
-                    livePrompt.setActive(row.getBoolean("active"));
-                    return livePrompt;
+                    scenePrompt.setRank(row.getInteger("rank"));
+                    scenePrompt.setWeight(row.getBigDecimal("weight"));
+                    scenePrompt.setActive(row.getBoolean("active"));
+                    return scenePrompt;
                 })
                 .collect().asList();
     }
 
-    public Uni<Void> updateActionsForEvent(io.vertx.mutiny.sqlclient.SqlClient tx, UUID eventId, List<LivePrompt> livePrompts) {
+    public Uni<Void> updateActionsForEvent(io.vertx.mutiny.sqlclient.SqlClient tx, UUID eventId, List<ScenePrompt> scenePrompts) {
         String deleteSql = "DELETE FROM mixpla__event_actions WHERE event_id = $1";
-        if (livePrompts == null || livePrompts.isEmpty()) {
+        if (scenePrompts == null || scenePrompts.isEmpty()) {
             return tx.preparedQuery(deleteSql)
                     .execute(Tuple.of(eventId))
                     .replaceWithVoid();
         }
 
-        List<LivePrompt> validLivePrompts = livePrompts.stream()
+        List<ScenePrompt> validScenePrompts = scenePrompts.stream()
                 .filter(a -> a != null && a.getPromptId() != null)
                 .toList();
 
-        if (validLivePrompts.isEmpty()) {
+        if (validScenePrompts.isEmpty()) {
             return tx.preparedQuery(deleteSql)
                     .execute(Tuple.of(eventId))
                     .replaceWithVoid();
@@ -358,15 +358,15 @@ public class EventRepository extends AsyncRepository implements SchedulableRepos
                 .execute(Tuple.of(eventId))
                 .chain(() -> {
                     List<Tuple> batches = new ArrayList<>();
-                    for (int i = 0; i < validLivePrompts.size(); i++) {
-                        LivePrompt livePrompt = validLivePrompts.get(i);
+                    for (int i = 0; i < validScenePrompts.size(); i++) {
+                        ScenePrompt scenePrompt = validScenePrompts.get(i);
                         batches.add(Tuple.of(
                             eventId,
-                            livePrompt.getPromptId(),
-                            livePrompt.getActionType() != null ? livePrompt.getActionType().name() : null,
-                            livePrompt.getRank() != 0 ? livePrompt.getRank() : i,
-                            livePrompt.getWeight(),
-                            livePrompt.isActive()
+                            scenePrompt.getPromptId(),
+                            scenePrompt.getActionType() != null ? scenePrompt.getActionType().name() : null,
+                            scenePrompt.getRank() != 0 ? scenePrompt.getRank() : i,
+                            scenePrompt.getWeight(),
+                            scenePrompt.isActive()
                         ));
                     }
                     return tx.preparedQuery(insertSql).executeBatch(batches);

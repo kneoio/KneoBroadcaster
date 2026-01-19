@@ -62,6 +62,7 @@ public abstract class SoundFragmentRepositoryAbstract extends AsyncRepository {
         doc.setArchived(row.getInteger("archived"));
         doc.setSlugName(row.getString("slug_name"));
         doc.setDescription(row.getString("description"));
+        doc.setExpiresAt(row.getLocalDateTime("expires_at"));
 
         Uni<SoundFragment> uni = Uni.createFrom().item(doc);
 

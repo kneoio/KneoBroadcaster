@@ -3,7 +3,7 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.model.stream.SceneScheduleEntry;
+import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.Uni;
@@ -18,7 +18,7 @@ public abstract class StreamSupplier {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamSupplier.class);
 
     protected Uni<List<SoundFragment>> getSongsFromSceneEntry(
-            SceneScheduleEntry activeEntry,
+            LiveScene activeEntry,
             String slugName,
             UUID brandId,
             SongSupplier songSupplier,
@@ -47,6 +47,12 @@ public abstract class StreamSupplier {
                 } else {
                     yield songSupplier.getNextSong(slugName, PlaylistItemType.SONG, 1);
                 }
+            }
+            case GENERATED -> {
+                activeEntry.getPrompts();
+
+                yield songSupplier.getNextSong(slugName, PlaylistItemType.SONG, 1);
+
             }
             default -> {
                 int songCount = new Random().nextDouble() < 0.7 ? 1 : 2;

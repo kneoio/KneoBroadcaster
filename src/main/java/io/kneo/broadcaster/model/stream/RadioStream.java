@@ -40,18 +40,18 @@ public class RadioStream extends AbstractStream {
     }
 
     @Override
-    public SceneScheduleEntry findActiveSceneEntry() {
+    public LiveScene findActiveScene() {
         if (streamSchedule == null) {
             LOGGER.warn("Station '{}': No stream schedule available", slugName);
             return null;
         }
 
         LocalTime now = LocalTime.now(timeZone);
-        List<SceneScheduleEntry> scenes = streamSchedule.getSceneScheduleEntries();
+        List<LiveScene> scenes = streamSchedule.getLiveScenes();
         
         for (int i = 0; i < scenes.size(); i++) {
-            SceneScheduleEntry entry = scenes.get(i);
-            SceneScheduleEntry nextEntry = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
+            LiveScene entry = scenes.get(i);
+            LiveScene nextEntry = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
             
             if (entry.isActiveAt(now, nextEntry != null ? nextEntry.getOriginalStartTime() : null)) {
                 LOGGER.debug("Station '{}': Scene '{}' is active at time {}",

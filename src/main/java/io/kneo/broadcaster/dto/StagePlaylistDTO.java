@@ -20,4 +20,5 @@ public class StagePlaylistDTO {
     private List<String> source;
     private String searchTerm;
     private List<UUID> soundFragments;
+    private List<ScenePromptDTO> prompts;
 }

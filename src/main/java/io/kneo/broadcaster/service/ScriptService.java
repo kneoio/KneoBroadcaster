@@ -482,7 +482,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         dto.setStartTime(scene.getStartTime());
         dto.setOneTimeRun(scene.isOneTimeRun());
         dto.setTalkativity(scene.getTalkativity());
-        dto.setPodcastMode(scene.getPodcastMode());
         dto.setWeekdays(scene.getWeekdays());
         
         if (scene.getPrompts() != null && !scene.getPrompts().isEmpty()) {
@@ -898,7 +897,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         sceneDTO.setOneTimeRun(originalScene.isOneTimeRun());
         sceneDTO.setWeekdays(originalScene.getWeekdays());
         sceneDTO.setTalkativity(originalScene.getTalkativity());
-        sceneDTO.setPodcastMode(originalScene.getPodcastMode());
 
         if (originalScene.getPrompts() != null && !originalScene.getPrompts().isEmpty() && oldToNewPromptIds != null) {
             List<ScenePromptDTO> promptDTOs = originalScene.getPrompts().stream()

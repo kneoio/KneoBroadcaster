@@ -37,7 +37,7 @@ public class AgendaRebuildService {
                 SuperUser.build()
         )
         .invoke(schedule -> {
-            stream.setStreamSchedule(schedule);
+            stream.setStreamAgenda(schedule);
             LOGGER.info("Schedule rebuilt for '{}': {} scenes, {} songs",
                     brand,
                     schedule != null ? schedule.getTotalScenes() : 0,

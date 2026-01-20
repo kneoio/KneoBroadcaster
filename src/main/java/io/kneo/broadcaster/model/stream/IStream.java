@@ -88,9 +88,9 @@ public interface IStream {
 
     long getLastAgentContactAt();
 
-    StreamAgenda getStreamSchedule();
+    StreamAgenda getStreamAgenda();
 
-    void setStreamSchedule(StreamAgenda streamAgenda);
+    void setStreamAgenda(StreamAgenda streamAgenda);
 
     LiveScene findActiveScene();
 

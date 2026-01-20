@@ -232,13 +232,13 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
                         return Uni.createFrom().failure(new IllegalArgumentException("Stream not found in pool: " + slugName));
                     }
 
-                    if (stream.getStreamSchedule() != null) {
+                    if (stream.getStreamAgenda() != null) {
                         LOGGER.info("Stream '{}' already has a schedule, using existing", slugName);
-                        return Uni.createFrom().item(stream.getStreamSchedule());
+                        return Uni.createFrom().item(stream.getStreamAgenda());
                     }
 
                     return streamAgendaService.buildStreamSchedule(stream.getMasterBrand().getId(), UUID.randomUUID(), AnonymousUser.build())
-                            .invoke(stream::setStreamSchedule);
+                            .invoke(stream::getStreamAgenda);
                 })
                 .subscribe().with(
                         schedule -> {

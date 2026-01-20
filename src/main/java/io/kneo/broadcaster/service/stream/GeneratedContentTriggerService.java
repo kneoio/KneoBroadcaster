@@ -46,7 +46,7 @@ public class GeneratedContentTriggerService {
             return Uni.createFrom().failure(new IllegalArgumentException("Stream not found in pool: " + brand));
         }
 
-        StreamAgenda schedule = stream.getStreamSchedule();
+        StreamAgenda schedule = stream.getStreamAgenda();
         if (schedule == null) {
             return Uni.createFrom().failure(new IllegalStateException("Stream has no schedule: " + brand));
         }

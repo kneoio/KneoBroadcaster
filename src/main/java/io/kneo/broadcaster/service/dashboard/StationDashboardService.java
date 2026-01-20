@@ -89,7 +89,7 @@ public class StationDashboardService {
     }
 
     private StationStatsDTO.ScheduleDTO buildScheduleEntries(IStream station) {
-        StreamAgenda schedule = station.getStreamSchedule();
+        StreamAgenda schedule = station.getStreamAgenda();
         if (schedule == null || schedule.getLiveScenes().isEmpty()) {
             return null;
         }

@@ -19,7 +19,6 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.DraftService;
 import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.ProfileService;
-import io.kneo.broadcaster.service.RefService;
 import io.kneo.broadcaster.template.GroovyTemplateEngine;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
@@ -44,7 +43,6 @@ import static io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerP
 public class DraftFactory {
     private static final Logger LOGGER = LoggerFactory.getLogger(DraftFactory.class);
 
-    private final RefService refService;
     private final GenreService genreService;
     private final ProfileService profileService;
     private final DraftService draftService;
@@ -57,11 +55,10 @@ public class DraftFactory {
     private final GroovyTemplateEngine groovyEngine;
 
     @Inject
-    public DraftFactory(RefService refService, GenreService genreService, ProfileService profileService, DraftService draftService,
+    public DraftFactory(GenreService genreService, ProfileService profileService, DraftService draftService,
                         AiAgentService aiAgentService, WeatherApiClient weatherApiClient,
                         WorldNewsApiClient worldNewsApiClient, PerplexityApiClient perplexityApiClient,
                         ListenerService listenerService) {
-        this.refService = refService;
         this.genreService = genreService;
         this.profileService = profileService;
         this.draftService = draftService;
@@ -85,11 +82,15 @@ public class DraftFactory {
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();
         
+        Uni<List<String>> genresUni = song != null
+                ? resolveGenreNames(song, selectedLanguage.toLanguageCode())
+                : Uni.createFrom().item(List.of());
+        
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, stream.getSlugName(), LanguageCode.en),  //the drafts always un ENG
                         profileService.getById(stream.getProfileId()),
-                        resolveGenreNames(song, selectedLanguage.toLanguageCode()),
+                        genresUni,
                         copilotUni,
                         listenerService.getBrandListeners(stream.getSlugName(), 500, 0, SuperUser.build(), null)
                 )
@@ -243,10 +244,17 @@ public class DraftFactory {
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
         
-        data.put("songTitle", song.getTitle());
-        data.put("songArtist", song.getArtist());
-        data.put("songDescription", song.getDescription());
-        data.put("songGenres", genres);
+        if (song != null) {
+            data.put("songTitle", song.getTitle());
+            data.put("songArtist", song.getArtist());
+            data.put("songDescription", song.getDescription());
+            data.put("songGenres", genres);
+        } else {
+            data.put("songTitle", "");
+            data.put("songArtist", "");
+            data.put("songDescription", "");
+            data.put("songGenres", List.of());
+        }
 
         return groovyEngine.render(template, data).trim();
     }

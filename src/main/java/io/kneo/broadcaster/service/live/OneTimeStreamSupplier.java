@@ -141,7 +141,10 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                     stream.getMasterBrand().getSlugName(),
                     stream.getMasterBrand().getId(),
                     songSupplier,
-                    soundFragmentService
+                    soundFragmentService,
+                    agent,
+                    stream,
+                    LanguageTag.EN_US
             );
         }
 

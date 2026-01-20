@@ -31,7 +31,10 @@ import javax.sound.sampled.UnsupportedAudioFileException;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -440,6 +443,88 @@ public class AudioMixingHandler extends MixingHandlerBase {
                         2.0, false, -3, 0.2));
     }
 
+
+    public Uni<String> mixNewsWithBackgroundAndIntros(String newsTtsPath, String outputPath, double backgroundVolume) {
+        return Uni.createFrom().item(() -> {
+            try {
+                InputStream introJingleStream = getClass().getClassLoader().getResourceAsStream("News_Intro_Jingle.wav");
+                if (introJingleStream == null) {
+                    throw new RuntimeException("News_Intro_Jingle.wav not found in resources");
+                }
+
+                InputStream backgroundMusicStream = getClass().getClassLoader().getResourceAsStream("News_Cycle_Loop.wav");
+                if (backgroundMusicStream == null) {
+                    throw new RuntimeException("News_Cycle_Loop.wav not found in resources");
+                }
+
+                String introJinglePath = outputDir + "/temp_intro_jingle_" + System.currentTimeMillis() + ".wav";
+                String outroJinglePath = introJinglePath;
+                String backgroundMusicPath = outputDir + "/temp_bg_music_" + System.currentTimeMillis() + ".wav";
+
+                Files.copy(introJingleStream, Path.of(introJinglePath), StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(backgroundMusicStream, Path.of(backgroundMusicPath), StandardCopyOption.REPLACE_EXISTING);
+                introJingleStream.close();
+                backgroundMusicStream.close();
+
+                LOGGER.info("Loaded news audio resources from classpath: intro={}, background={}", introJinglePath, backgroundMusicPath);
+                double newsDuration = getAudioDuration(newsTtsPath);
+                LOGGER.info("News TTS duration: {}s, Background volume: {}", newsDuration, backgroundVolume);
+
+                String tempNewsWithBg = outputDir + "/temp_news_bg_" + System.currentTimeMillis() + ".wav";
+
+                String filterComplex = String.format(
+                        "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news];" +
+                        "[1:a]aloop=loop=-1:size=2e+09,atrim=duration=%.3f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,volume=%.3f[bg];" +
+                        "[news][bg]amix=inputs=2:duration=first:dropout_transition=0",
+                        newsDuration,
+                        backgroundVolume
+                );
+
+                FFmpegBuilder newsWithBgBuilder = new FFmpegBuilder()
+                        .setInput(newsTtsPath)
+                        .addInput(backgroundMusicPath)
+                        .setComplexFilter(filterComplex)
+                        .addOutput(tempNewsWithBg)
+                        .setAudioCodec("pcm_s16le")
+                        .setAudioSampleRate(SAMPLE_RATE)
+                        .setAudioChannels(2)
+                        .done();
+
+                executor.createJob(newsWithBgBuilder).run();
+                LOGGER.info("Successfully mixed news with background: {}", tempNewsWithBg);
+
+                String finalFilterComplex =
+                        "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[intro];" +
+                        "[1:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news_bg];" +
+                        "[2:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[outro];" +
+                        "[intro][news_bg][outro]concat=n=3:v=0:a=1";
+
+                FFmpegBuilder finalBuilder = new FFmpegBuilder()
+                        .setInput(introJinglePath)
+                        .addInput(tempNewsWithBg)
+                        .addInput(outroJinglePath)
+                        .setComplexFilter(finalFilterComplex)
+                        .addOutput(outputPath)
+                        .setAudioCodec("pcm_s16le")
+                        .setAudioSampleRate(SAMPLE_RATE)
+                        .setAudioChannels(2)
+                        .done();
+
+                executor.createJob(finalBuilder).run();
+                LOGGER.info("Successfully created final news mix: {}", outputPath);
+
+                new File(tempNewsWithBg).delete();
+                new File(introJinglePath).delete();
+                new File(backgroundMusicPath).delete();
+
+                return outputPath;
+
+            } catch (Exception e) {
+                LOGGER.error("Error creating news mix with background and intros: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to create news mix", e);
+            }
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
 
     private static double smoothFade(double progress) {
         return Math.pow(progress, 3.5);  // try 2.0 → 4.0, stronger = steeper

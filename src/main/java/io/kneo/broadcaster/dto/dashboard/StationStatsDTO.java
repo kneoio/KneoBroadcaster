@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 @Setter
 public class StationStatsDTO {
@@ -39,11 +40,19 @@ public class StationStatsDTO {
     @Getter
     private AiDjStatsDTO aiDjStats;
     @Getter
-    private List<ScheduleEntryDTO> schedule;
+    private ScheduleDTO schedule;
+
+    @Setter
+    @Getter
+    public static class ScheduleDTO {
+        private LocalDateTime createdAt;
+        private List<ScheduleEntryDTO> entries;
+    }
 
     @Setter
     @Getter
     public static class ScheduleEntryDTO {
+        private UUID sceneId;
         private String sceneTitle;
         private LocalTime startTime;
         private LocalTime endTime;
@@ -54,7 +63,7 @@ public class StationStatsDTO {
         private String searchTerm;
         private int songsCount;
         private int fetchedSongsCount;
-
+        private UUID generatedSoundFragmentId;
         private LocalDateTime actualStartTime;
         private LocalDateTime actualEndTime;
         private SceneStatus status;

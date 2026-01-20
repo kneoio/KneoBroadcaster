@@ -24,6 +24,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -87,10 +88,10 @@ public class StationDashboardService {
         return stationStats;
     }
 
-    private List<StationStatsDTO.ScheduleEntryDTO> buildScheduleEntries(IStream station) {
+    private StationStatsDTO.ScheduleDTO buildScheduleEntries(IStream station) {
         StreamSchedule schedule = station.getStreamSchedule();
         if (schedule == null || schedule.getLiveScenes().isEmpty()) {
-            return List.of();
+            return null;
         }
 
         LocalTime now = LocalTime.now(station.getTimeZone());
@@ -110,6 +111,11 @@ public class StationDashboardService {
             dto.setSceneTitle(scene.getSceneTitle());
             dto.setStartTime(scene.getOriginalStartTime());
             dto.setEndTime(scene.getOriginalEndTime());
+            dto.setSceneId(scene.getSceneId());
+            UUID generatedSoundFragmentId = scene.getGeneratedFragmentId();
+            if (generatedSoundFragmentId != null) {
+                dto.setGeneratedSoundFragmentId(generatedSoundFragmentId);
+            }
 
             if (activeEntry != null) {
                 dto.setActive(activeEntry.getSceneId().equals(scene.getSceneId()));
@@ -147,7 +153,11 @@ public class StationDashboardService {
             entries.add(dto);
         }
 
-        return entries;
+        StationStatsDTO.ScheduleDTO scheduleDTO = new StationStatsDTO.ScheduleDTO();
+        scheduleDTO.setCreatedAt(schedule.getCreatedAt());
+        scheduleDTO.setEntries(entries);
+
+        return scheduleDTO;
     }
 
 

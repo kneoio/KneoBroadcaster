@@ -3,6 +3,8 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
+import io.kneo.broadcaster.service.stream.GeneratedContentTriggerService;
+import io.kneo.broadcaster.service.stream.ScheduleRebuildService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -16,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @ApplicationScoped
 public class QueueController {
@@ -23,11 +26,20 @@ public class QueueController {
 
     private final RadioService radioService;
     private final QueueService queueService;
+    private final ScheduleRebuildService scheduleRebuildService;
+    private final GeneratedContentTriggerService generatedContentTriggerService;
 
     @Inject
-    public QueueController(RadioService radioService, QueueService queueService) {
+    public QueueController(
+            RadioService radioService,
+            QueueService queueService,
+            ScheduleRebuildService scheduleRebuildService,
+            GeneratedContentTriggerService generatedContentTriggerService
+    ) {
         this.radioService = radioService;
         this.queueService = queueService;
+        this.scheduleRebuildService = scheduleRebuildService;
+        this.generatedContentTriggerService = generatedContentTriggerService;
     }
 
     public void setupRoutes(Router router) {
@@ -91,8 +103,6 @@ public class QueueController {
                 );
     }
 
-
-
     private void action(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
         JsonObject jsonObject = rc.body().asJsonObject();
@@ -133,11 +143,89 @@ public class QueueController {
                                         .end("Failed to stop radio station: " + throwable.getMessage());
                             }
                     );
+        } else if ("rebuild_schedule".equalsIgnoreCase(action)) {
+            LOGGER.info("Rebuilding schedule for brand: {}", brand);
+            rebuildSchedule(rc, brand);
+        } else if ("generate_content".equalsIgnoreCase(action)) {
+            String sceneIdStr = jsonObject.getString("sceneId");
+            if (sceneIdStr == null) {
+                rc.response()
+                        .setStatusCode(400)
+                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                        .end("Missing required field: sceneId");
+                return;
+            }
+            UUID sceneId;
+            try {
+                sceneId = UUID.fromString(sceneIdStr);
+            } catch (IllegalArgumentException e) {
+                rc.response()
+                        .setStatusCode(400)
+                        .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                        .end("Invalid sceneId format: " + sceneIdStr);
+                return;
+            }
+            LOGGER.info("Generating content for brand: {}, sceneId: {}", brand, sceneId);
+            generateContent(rc, brand, sceneId);
         } else {
             rc.response()
                     .setStatusCode(400)
                     .putHeader("Content-Type", MediaType.TEXT_PLAIN)
-                    .end("Invalid action. Supported actions: 'start', 'stop'");
+                    .end("Invalid action. Supported actions: 'start', 'stop', 'rebuild_schedule', 'generate_content'");
         }
+    }
+
+    private void rebuildSchedule(RoutingContext rc, String brand) {
+        scheduleRebuildService.rebuildSchedule(brand)
+                .subscribe().with(
+                        schedule -> {
+                            JsonObject response = new JsonObject();
+                            response.put("status", "ok");
+                            response.put("brand", brand);
+                            response.put("totalScenes", schedule != null ? schedule.getTotalScenes() : 0);
+                            response.put("totalSongs", schedule != null ? schedule.getTotalSongs() : 0);
+                            response.put("estimatedEndTime", schedule != null ? schedule.getEstimatedEndTime().toString() : null);
+                            
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .end(response.encode());
+                        },
+                        throwable -> {
+                            LOGGER.error("Error rebuilding schedule for {}: {}", brand, throwable.getMessage(), throwable);
+                            int statusCode = throwable instanceof IllegalArgumentException ? 404 : 500;
+                            rc.response()
+                                    .setStatusCode(statusCode)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to rebuild schedule: " + throwable.getMessage());
+                        }
+                );
+    }
+
+    private void generateContent(RoutingContext rc, String brand, UUID sceneId) {
+        generatedContentTriggerService.triggerGeneration(brand, sceneId)
+                .subscribe().with(
+                        fragment -> {
+                            JsonObject response = new JsonObject();
+                            response.put("status", "ok");
+                            response.put("fragmentId", fragment.getId().toString());
+                            response.put("title", fragment.getTitle());
+                            response.put("artist", fragment.getArtist());
+                            response.put("length", fragment.getLength());
+                            
+                            rc.response()
+                                    .setStatusCode(200)
+                                    .putHeader("Content-Type", MediaType.APPLICATION_JSON)
+                                    .end(response.encode());
+                        },
+                        throwable -> {
+                            LOGGER.error("Error generating content for brand {} scene {}: {}", brand, sceneId, throwable.getMessage(), throwable);
+                            int statusCode = throwable instanceof IllegalArgumentException ? 400 : 500;
+                            rc.response()
+                                    .setStatusCode(statusCode)
+                                    .putHeader("Content-Type", MediaType.TEXT_PLAIN)
+                                    .end("Failed to generate content: " + throwable.getMessage());
+                        }
+                );
     }
 }

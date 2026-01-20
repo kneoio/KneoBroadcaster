@@ -20,9 +20,19 @@ public class AiAgent extends SimpleReferenceEntity {
     private SearchEngineType searchEngineType = SearchEngineType.PERPLEXITY;
     private List<Voice> primaryVoice;
     private UUID copilot;
+    private UUID newsReporter;
+    private UUID weatherReporter;
 
     public AiAgent() {
         this.preferredLang = new ArrayList<>();
         this.primaryVoice = new ArrayList<>();
+    }
+
+    public UUID getNewsReporter() {
+        return copilot;
+    }
+
+    public UUID getWeatherReporter() {
+        return copilot;
     }
 }

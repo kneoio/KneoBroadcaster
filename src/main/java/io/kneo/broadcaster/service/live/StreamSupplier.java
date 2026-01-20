@@ -1,12 +1,17 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.model.PlaylistRequest;
+import io.kneo.broadcaster.model.ScenePrompt;
+import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
+import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.Uni;
+import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,12 +22,18 @@ import java.util.UUID;
 public abstract class StreamSupplier {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamSupplier.class);
 
+    @Inject
+    GeneratedNewsService generatedNewsService;
+
     protected Uni<List<SoundFragment>> getSongsFromSceneEntry(
             LiveScene activeEntry,
             String slugName,
             UUID brandId,
             SongSupplier songSupplier,
-            SoundFragmentService soundFragmentService
+            SoundFragmentService soundFragmentService,
+            AiAgent agent,
+            IStream stream,
+            io.kneo.broadcaster.model.cnst.LanguageTag broadcastingLanguage
     ) {
         return switch (activeEntry.getSourcing()) {
             case QUERY -> {
@@ -49,10 +60,35 @@ public abstract class StreamSupplier {
                 }
             }
             case GENERATED -> {
-                activeEntry.getPrompts();
+                List<ScheduledSongEntry> existingSongs = activeEntry.getSongs();
+                if (!existingSongs.isEmpty()) {
+                    LOGGER.info("Using existing generated news fragment for scene: {}", activeEntry.getSceneTitle());
+                    yield Uni.createFrom().item(
+                            existingSongs.stream()
+                                    .map(ScheduledSongEntry::getSoundFragment)
+                                    .toList()
+                    );
+                }
 
-                yield songSupplier.getNextSong(slugName, PlaylistItemType.SONG, 1);
+                List<UUID> fragmentIds = activeEntry.getSoundFragments();
+                if (fragmentIds != null && !fragmentIds.isEmpty()) {
+                    UUID selectedId = fragmentIds.getFirst();
+                    LOGGER.info("Using static fragment for GENERATED scene: {}", selectedId);
+                    yield soundFragmentService.getById(selectedId).map(List::of);
+                }
 
+                List<ScenePrompt> prompts = activeEntry.getPrompts();
+                if (prompts == null || prompts.isEmpty()) {
+                    LOGGER.warn("No prompts found for GENERATED scene, falling back to regular songs");
+                    yield songSupplier.getNextSong(slugName, PlaylistItemType.NEWS, 1);
+                }
+
+                ScenePrompt firstPrompt = prompts.getFirst();
+                UUID promptId = firstPrompt.getPromptId();
+
+                LOGGER.info("Generating news fragment for prompt: {}", promptId);
+                yield generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage)
+                        .map(List::of);
             }
             default -> {
                 int songCount = new Random().nextDouble() < 0.7 ? 1 : 2;

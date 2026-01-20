@@ -204,6 +204,7 @@ public class TranslateService {
                                                 existing.setVersion(master.getVersion());
                                                 existing.setPodcast(master.isPodcast());
                                                 existing.setDraftId(master.getDraftId());
+                                                existing.setPromptType(master.getPromptType());
                                                 return promptService.update(existing.getId(), existing, user);
                                             } else {
                                                 Prompt doc = new Prompt();
@@ -217,6 +218,7 @@ public class TranslateService {
                                                 doc.setVersion(master.getVersion());
                                                 doc.setPodcast(master.isPodcast());
                                                 doc.setDraftId(master.getDraftId());
+                                                doc.setPromptType(master.getPromptType());
                                                 return promptService.insert(doc, user);
                                             }
                                         });

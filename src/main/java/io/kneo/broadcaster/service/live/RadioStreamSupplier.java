@@ -67,7 +67,7 @@ public class RadioStreamSupplier extends StreamSupplier {
         String currentSceneTitle = activeScene.getSceneTitle();
 
         Uni<List<SoundFragment>> songsUni = getSongsFromSceneEntry(
-                activeScene, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService);
+                activeScene, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService, agent, stream, broadcastingLanguage);
 
         return songsUni.flatMap(songs ->
                 sceneService.getById(activeScene.getSceneId(), SuperUser.build())

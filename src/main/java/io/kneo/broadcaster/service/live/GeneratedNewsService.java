@@ -42,6 +42,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
@@ -173,10 +174,10 @@ public class GeneratedNewsService {
         return voiceIdUni.chain(voiceId -> elevenLabsClient.textToSpeech(text, voiceId, config.getElevenLabsModelId())
                 .chain(audioBytes -> {
                     try {
-                        Path uploadsDir = Paths.get(config.getPathUploads(), "sound-fragments-controller", "supervisor", "temp");
+                        Path uploadsDir = Paths.get(config.getPathUploads(), "generated-news-service", "supervisor", "temp");
                         Files.createDirectories(uploadsDir);
 
-                        String fileName = "generated_news_tts_" + uploadId + ".mp3";
+                        String fileName = "generated_news_" + uploadId + ".mp3";
                         Path ttsFilePath = uploadsDir.resolve(fileName);
                         Files.write(ttsFilePath, audioBytes);
 
@@ -222,14 +223,15 @@ public class GeneratedNewsService {
     ) {
         SoundFragmentDTO dto = new SoundFragmentDTO();
         dto.setType(PlaylistItemType.NEWS);
-        dto.setTitle(prompt.getTitle());
+        String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
+        dto.setTitle(prompt.getTitle() + " " + currentDate);
         dto.setArtist("AI Generated");
         dto.setGenres(List.of());
         dto.setLabels(List.of());
         dto.setSource(SourceType.TEMPORARY_MIX);
         dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay());
         dto.setLength(Duration.ofSeconds(30));
-        dto.setDescription("AI generated news content");
+        dto.setDescription("AI generated news content " + currentDate);
         dto.setRepresentedInBrands(List.of(brandId));
         dto.setNewlyUploaded(List.of(audioFilePath.getFileName().toString()));
 

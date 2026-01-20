@@ -162,12 +162,14 @@ public class SongSupplier implements ISupplier {
 
     public Uni<List<SoundFragment>> getNextSongByQuery(UUID brandId, PlaylistRequest playlistRequest, int quantity) {
         List<PlaylistItemType> types = playlistRequest.getType();
-        if (types == null || types.isEmpty() || types.get(0) == null) {
+        if (types == null || types.isEmpty() || types.getFirst() == null) {
             return Uni.createFrom().item(List.of());
         }
 
-        PlaylistItemType fragmentType = types.get(0);
-        SupplierSongMemory memory = getMemory("brandId:" + brandId, fragmentType);
+        PlaylistItemType fragmentType = types.getFirst();
+        boolean skipMemory = fragmentType == PlaylistItemType.NEWS || fragmentType == PlaylistItemType.WEATHER;
+        
+        SupplierSongMemory memory = skipMemory ? null : getMemory("brandId:" + brandId, fragmentType);
 
         SoundFragmentFilter filter = buildFilterFromStagePlaylist(playlistRequest);
         int fetch = Math.max(quantity * 3, quantity);
@@ -176,13 +178,18 @@ public class SongSupplier implements ISupplier {
                 .map(fragments -> {
                     if (fragments.isEmpty()) return List.of();
 
-                    List<SoundFragment> unplayed = fragments.stream()
-                            .filter(f -> !memory.wasPlayed(f))
-                            .collect(Collectors.toList());
-
-                    if (unplayed.isEmpty()) {
-                        memory.reset();
+                    List<SoundFragment> unplayed;
+                    if (skipMemory) {
                         unplayed = fragments;
+                    } else {
+                        unplayed = fragments.stream()
+                                .filter(f -> !memory.wasPlayed(f))
+                                .collect(Collectors.toList());
+
+                        if (unplayed.isEmpty()) {
+                            memory.reset();
+                            unplayed = fragments;
+                        }
                     }
 
                     Collections.shuffle(unplayed, secureRandom);
@@ -191,7 +198,9 @@ public class SongSupplier implements ISupplier {
                             .limit(quantity)
                             .collect(Collectors.toList());
 
-                    memory.updateLastSelected(selected);
+                    if (!skipMemory) {
+                        memory.updateLastSelected(selected);
+                    }
                     return selected;
                 });
     }

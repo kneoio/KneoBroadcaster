@@ -41,6 +41,8 @@ public abstract class StreamSupplier {
                 req.setSearchTerm(activeEntry.getSearchTerm());
                 req.setGenres(activeEntry.getGenres());
                 req.setLabels(activeEntry.getLabels());
+                req.setSourcing(activeEntry.getSourcing());
+                req.setType(activeEntry.getPlaylistItemTypes());
                 int songCount = new Random().nextDouble() < 0.7 ? 1 : 2;
                 yield songSupplier.getNextSongByQuery(brandId, req, songCount)
                         .invoke(songs -> {
@@ -73,14 +75,14 @@ public abstract class StreamSupplier {
                 List<UUID> fragmentIds = activeEntry.getSoundFragments();
                 if (fragmentIds != null && !fragmentIds.isEmpty()) {
                     UUID selectedId = fragmentIds.getFirst();
-                    LOGGER.info("Using static fragment for GENERATED scene: {}", selectedId);
+                    LOGGER.info("Using exist GENERATED fragment for scene: {}", selectedId);
                     yield soundFragmentService.getById(selectedId).map(List::of);
                 }
 
                 List<ScenePrompt> prompts = activeEntry.getPrompts();
                 if (prompts == null || prompts.isEmpty()) {
-                    LOGGER.warn("No prompts found for GENERATED scene, falling back to regular songs");
-                    yield songSupplier.getNextSong(slugName, PlaylistItemType.NEWS, 1);
+                    LOGGER.error("No prompts found for GENERATED scene, falling back to regular songs");
+                    yield songSupplier.getNextSong(slugName, PlaylistItemType.SONG, 1);
                 }
 
                 ScenePrompt firstPrompt = prompts.getFirst();

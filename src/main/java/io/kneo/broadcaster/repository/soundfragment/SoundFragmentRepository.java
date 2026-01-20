@@ -202,6 +202,28 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return brandRepository.findByFilter(brandId, filter, limit);
     }
 
+    public Uni<List<UUID>> findExpiredFragments() {
+        String sql = "SELECT id FROM " + entityData.getTableName() + " " +
+                "WHERE expires_at IS NOT NULL AND expires_at < NOW() AND archived = 0";
+
+        return client.query(sql)
+                .execute()
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("id"))
+                .collect().asList();
+    }
+
+    public Uni<List<UUID>> findArchivedFragments(LocalDateTime cutoffDate) {
+        String sql = "SELECT id FROM " + entityData.getTableName() + " " +
+                "WHERE archived = 1 AND last_mod_date < $1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(cutoffDate))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("id"))
+                .collect().asList();
+    }
+
     public Uni<SoundFragment> insert(SoundFragment doc, List<UUID> representedInBrands, IUser user) {
         LocalDateTime nowTime = ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime();
         final List<FileMetadata> originalFiles = doc.getFileMetadataList();

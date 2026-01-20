@@ -10,7 +10,7 @@ import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
-import io.kneo.broadcaster.model.stream.StreamSchedule;
+import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.ScriptService;
@@ -34,8 +34,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
-public class StreamScheduleService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(StreamScheduleService.class);
+public class StreamAgendaService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(StreamAgendaService.class);
     private static final int AVG_DJ_INTRO_SECONDS = 30;
 
     @Inject
@@ -50,7 +50,7 @@ public class StreamScheduleService {
     @Inject
     SceneService sceneService;
 
-    public Uni<StreamSchedule> buildStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
+    public Uni<StreamAgenda> buildStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId, user)
                 .chain(sourceBrand ->
                         scriptService.getById(scriptId, user)
@@ -82,7 +82,7 @@ public class StreamScheduleService {
                 });
     }
 
-    public Uni<StreamSchedule> buildLoopedStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
+    public Uni<StreamAgenda> buildLoopedStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId, user)
                 .chain(sourceBrand ->
                         scriptService.getById(scriptId, user)
@@ -101,8 +101,8 @@ public class StreamScheduleService {
     }
 
 
-    public Uni<StreamSchedule> build(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
-        StreamSchedule schedule = new StreamSchedule(LocalDateTime.now());
+    public Uni<StreamAgenda> build(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+        StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
 
         NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
@@ -132,7 +132,7 @@ public class StreamScheduleService {
 
         return Uni.join().all(sceneUnis).andFailFast()
                 .map(entries -> {
-                    entries.forEach(schedule::addSceneSchedule);
+                    entries.forEach(schedule::addScene);
                     return schedule;
                 });
     }
@@ -205,7 +205,7 @@ public class StreamScheduleService {
         return selectedSongs;
     }
 
-    public StreamScheduleDTO toScheduleDTO(StreamSchedule schedule) {
+    public StreamScheduleDTO toScheduleDTO(StreamAgenda schedule) {
         if (schedule == null) {
             return null;
         }
@@ -295,8 +295,8 @@ public class StreamScheduleService {
         return dto;
     }
 
-    public Uni<StreamSchedule> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
-        StreamSchedule schedule = new StreamSchedule(LocalDateTime.now());
+    public Uni<StreamAgenda> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+        StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
 
         NavigableSet<Scene> scenes = script.getScenes();
         if (scenes == null || scenes.isEmpty()) {
@@ -375,7 +375,7 @@ public class StreamScheduleService {
 
         return Uni.join().all(sceneUnis).andFailFast()
                 .map(entries -> {
-                    entries.forEach(schedule::addSceneSchedule);
+                    entries.forEach(schedule::addScene);
                     return schedule;
                 });
     }

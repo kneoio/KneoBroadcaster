@@ -3,8 +3,8 @@ package io.kneo.broadcaster.controller;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
+import io.kneo.broadcaster.service.stream.AgendaRebuildService;
 import io.kneo.broadcaster.service.stream.GeneratedContentTriggerService;
-import io.kneo.broadcaster.service.stream.ScheduleRebuildService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
@@ -26,19 +26,19 @@ public class QueueController {
 
     private final RadioService radioService;
     private final QueueService queueService;
-    private final ScheduleRebuildService scheduleRebuildService;
+    private final AgendaRebuildService agendaRebuildService;
     private final GeneratedContentTriggerService generatedContentTriggerService;
 
     @Inject
     public QueueController(
             RadioService radioService,
             QueueService queueService,
-            ScheduleRebuildService scheduleRebuildService,
+            AgendaRebuildService agendaRebuildService,
             GeneratedContentTriggerService generatedContentTriggerService
     ) {
         this.radioService = radioService;
         this.queueService = queueService;
-        this.scheduleRebuildService = scheduleRebuildService;
+        this.agendaRebuildService = agendaRebuildService;
         this.generatedContentTriggerService = generatedContentTriggerService;
     }
 
@@ -176,7 +176,7 @@ public class QueueController {
     }
 
     private void rebuildSchedule(RoutingContext rc, String brand) {
-        scheduleRebuildService.rebuildSchedule(brand)
+        agendaRebuildService.rebuild(brand)
                 .subscribe().with(
                         schedule -> {
                             JsonObject response = new JsonObject();

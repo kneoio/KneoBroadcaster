@@ -6,7 +6,7 @@ import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
-import io.kneo.broadcaster.model.stream.StreamSchedule;
+import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.live.GeneratedNewsService;
 import io.kneo.broadcaster.util.AiHelperUtils;
@@ -46,7 +46,7 @@ public class GeneratedContentTriggerService {
             return Uni.createFrom().failure(new IllegalArgumentException("Stream not found in pool: " + brand));
         }
 
-        StreamSchedule schedule = stream.getStreamSchedule();
+        StreamAgenda schedule = stream.getStreamSchedule();
         if (schedule == null) {
             return Uni.createFrom().failure(new IllegalStateException("Stream has no schedule: " + brand));
         }

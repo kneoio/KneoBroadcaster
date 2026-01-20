@@ -6,7 +6,7 @@ import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.model.stream.StreamSchedule;
+import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
@@ -89,7 +89,7 @@ public class StationDashboardService {
     }
 
     private StationStatsDTO.ScheduleDTO buildScheduleEntries(IStream station) {
-        StreamSchedule schedule = station.getStreamSchedule();
+        StreamAgenda schedule = station.getStreamSchedule();
         if (schedule == null || schedule.getLiveScenes().isEmpty()) {
             return null;
         }

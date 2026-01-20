@@ -229,7 +229,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     }
 
     private LiveScene findSceneById(OneTimeStream stream, UUID sceneId) {
-        return stream.getStreamSchedule().getLiveScenes().stream()
+        return stream.getStreamAgenda().getLiveScenes().stream()
                 .filter(s -> s.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);

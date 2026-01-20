@@ -45,7 +45,7 @@ public abstract class AbstractStream implements IStream {
     protected ProfileOverriding profileOverriding;
     protected LocalDateTime createdAt;
     protected LocalDateTime expiresAt;
-    protected StreamSchedule streamSchedule;
+    protected StreamAgenda streamAgenda;
     protected AiAgentStatus aiAgentStatus;
     protected long lastAgentContactAt;
     protected LanguageTag broadcastingLanguage;

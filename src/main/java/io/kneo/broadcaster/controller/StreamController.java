@@ -5,7 +5,7 @@ import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
 import io.kneo.broadcaster.dto.stream.OneTimeStreamDTO;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.OneTimeStreamService;
-import io.kneo.broadcaster.service.stream.StreamScheduleService;
+import io.kneo.broadcaster.service.stream.StreamAgendaService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -43,7 +43,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamController.class);
 
     private OneTimeStreamService oneTimeStreamService;
-    private StreamScheduleService streamScheduleService;
+    private StreamAgendaService streamAgendaService;
     private Validator validator;
 
     public StreamController() {
@@ -51,10 +51,10 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
     }
 
     @Inject
-    public StreamController(UserService userService, OneTimeStreamService oneTimeStreamService, StreamScheduleService streamScheduleService, Validator validator) {
+    public StreamController(UserService userService, OneTimeStreamService oneTimeStreamService, StreamAgendaService streamAgendaService, Validator validator) {
         super(userService);
         this.oneTimeStreamService = oneTimeStreamService;
-        this.streamScheduleService = streamScheduleService;
+        this.streamAgendaService = streamAgendaService;
         this.validator = validator;
     }
 
@@ -186,7 +186,7 @@ public class StreamController extends AbstractSecuredController<IStream, OneTime
         BuildScheduleReqDTO dto = rc.body().asJsonObject().mapTo(BuildScheduleReqDTO.class);
 
         getContextUser(rc, false, true)
-                .chain(user -> streamScheduleService.getStreamScheduleDTO(dto.getBaseBrandId(), dto.getScriptId(), user))
+                .chain(user -> streamAgendaService.getStreamScheduleDTO(dto.getBaseBrandId(), dto.getScriptId(), user))
                 .subscribe().with(
                         result -> {
                             FormPage page = new FormPage();

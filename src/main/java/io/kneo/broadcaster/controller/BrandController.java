@@ -7,7 +7,7 @@ import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.service.stream.StreamScheduleService;
+import io.kneo.broadcaster.service.stream.StreamAgendaService;
 import io.kneo.broadcaster.util.ProblemDetailsUtil;
 import io.kneo.core.controller.AbstractSecuredController;
 import io.kneo.core.dto.actions.ActionBox;
@@ -48,7 +48,7 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
     private BrandService service;
     private Validator validator;
     private RadioStationPool radioStationPool;
-    private StreamScheduleService streamScheduleService;
+    private StreamAgendaService streamAgendaService;
 
     public BrandController() {
         super(null);
@@ -56,12 +56,12 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
 
     @Inject
     public BrandController(UserService userService, BrandService service, Validator validator,
-                           RadioStationPool radioStationPool, StreamScheduleService streamScheduleService) {
+                           RadioStationPool radioStationPool, StreamAgendaService streamAgendaService) {
         super(userService);
         this.service = service;
         this.validator = validator;
         this.radioStationPool = radioStationPool;
-        this.streamScheduleService = streamScheduleService;
+        this.streamAgendaService = streamAgendaService;
     }
 
     public void setupRoutes(Router router) {
@@ -237,7 +237,7 @@ public class BrandController extends AbstractSecuredController<Brand, BrandDTO> 
                         return Uni.createFrom().item(stream.getStreamSchedule());
                     }
 
-                    return streamScheduleService.buildStreamSchedule(stream.getMasterBrand().getId(), UUID.randomUUID(), AnonymousUser.build())
+                    return streamAgendaService.buildStreamSchedule(stream.getMasterBrand().getId(), UUID.randomUUID(), AnonymousUser.build())
                             .invoke(stream::setStreamSchedule);
                 })
                 .subscribe().with(

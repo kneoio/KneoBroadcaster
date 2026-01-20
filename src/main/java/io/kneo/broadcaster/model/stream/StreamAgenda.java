@@ -7,16 +7,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Getter
-public class StreamSchedule {
+public class StreamAgenda {
     private final LocalDateTime createdAt;
     private final List<LiveScene> liveScenes;
 
-    public StreamSchedule(LocalDateTime createdAt) {
+    public StreamAgenda(LocalDateTime createdAt) {
         this.createdAt = createdAt;
         this.liveScenes = new ArrayList<>();
     }
 
-    public void addSceneSchedule(LiveScene entry) {
+    public void addScene(LiveScene entry) {
         this.liveScenes.add(entry);
     }
 

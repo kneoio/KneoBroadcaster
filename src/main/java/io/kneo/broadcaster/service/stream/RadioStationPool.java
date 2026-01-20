@@ -68,7 +68,7 @@ public class RadioStationPool {
     private SongSupplier songSupplier;
 
     @Inject
-    private StreamScheduleService streamScheduleService;
+    private StreamAgendaService streamAgendaService;
 
     @Inject
     private OneTimeStreamService oneTimeStreamService;
@@ -128,11 +128,11 @@ public class RadioStationPool {
                                     return radioStream;
                                 });
 
-                                if (finalStationToUse instanceof RadioStream radioStream && radioStream.getStreamSchedule() == null) {
+                                if (finalStationToUse instanceof RadioStream radioStream && radioStream.getStreamAgenda() == null) {
                                     LOGGER.info("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
-                                    return streamScheduleService.buildLoopedStreamSchedule(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
+                                    return streamAgendaService.buildLoopedStreamSchedule(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
                                             .invoke(schedule -> {
-                                                radioStream.setStreamSchedule(schedule);
+                                                radioStream.setStreamAgenda(schedule);
                                                 LOGGER.info("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",
                                                         radioStream.getSlugName(),
                                                         schedule != null ? schedule.getTotalScenes() : 0,

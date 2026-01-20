@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.model.stream.IStream;
-import io.kneo.broadcaster.model.stream.StreamSchedule;
+import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -10,28 +10,28 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @ApplicationScoped
-public class ScheduleRebuildService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ScheduleRebuildService.class);
+public class AgendaRebuildService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AgendaRebuildService.class);
 
     private final RadioStationPool radioStationPool;
-    private final StreamScheduleService streamScheduleService;
+    private final StreamAgendaService streamAgendaService;
 
     @Inject
-    public ScheduleRebuildService(
+    public AgendaRebuildService(
             RadioStationPool radioStationPool,
-            StreamScheduleService streamScheduleService
+            StreamAgendaService streamAgendaService
     ) {
         this.radioStationPool = radioStationPool;
-        this.streamScheduleService = streamScheduleService;
+        this.streamAgendaService = streamAgendaService;
     }
 
-    public Uni<StreamSchedule> rebuildSchedule(String brand) {
+    public Uni<StreamAgenda> rebuild(String brand) {
         IStream stream = radioStationPool.getStation(brand);
         if (stream == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("Stream not found in pool: " + brand));
         }
 
-        return streamScheduleService.buildLoopedStreamSchedule(
+        return streamAgendaService.buildLoopedStreamSchedule(
                 stream.getMasterBrand().getId(),
                 stream.getMasterBrand().getScripts().getFirst().getScriptId(),
                 SuperUser.build()

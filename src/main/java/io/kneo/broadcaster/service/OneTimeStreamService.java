@@ -12,12 +12,12 @@ import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
-import io.kneo.broadcaster.model.stream.StreamSchedule;
+import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.broadcaster.service.stream.StreamScheduleService;
+import io.kneo.broadcaster.service.stream.StreamAgendaService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
@@ -55,7 +55,7 @@ public class OneTimeStreamService {
     BrandService brandService;
 
     @Inject
-    StreamScheduleService streamScheduleService;
+    StreamAgendaService streamAgendaService;
 
 
     public Uni<OneTimeStreamRunReqDTO> populateFromSlugName(OneTimeStreamRunReqDTO dto, IUser user) {
@@ -81,7 +81,7 @@ public class OneTimeStreamService {
                                 dto.setProfileId(script.getDefaultProfileId());
 
                                 if (dto.getSchedule() == null) {
-                                    return streamScheduleService.getStreamScheduleDTO(brand.getId(), script.getId(), user)
+                                    return streamAgendaService.getStreamScheduleDTO(brand.getId(), script.getId(), user)
                                             .map(schedule -> {
                                                 dto.setSchedule(schedule);
                                                 return dto;
@@ -137,7 +137,7 @@ public class OneTimeStreamService {
         dto.setLocalizedName(doc.getLocalizedName());
         dto.setTimeZone(doc.getTimeZone() != null ? doc.getTimeZone().getId() : null);
         dto.setBitRate(doc.getBitRate());
-        dto.setStreamSchedule(streamScheduleService.toScheduleDTO(doc.getStreamSchedule()));
+        dto.setStreamSchedule(streamAgendaService.toScheduleDTO(doc.getStreamAgenda()));
         dto.setCreatedAt(doc.getCreatedAt());
         dto.setExpiresAt(doc.getExpiresAt());
         try {
@@ -187,7 +187,7 @@ public class OneTimeStreamService {
                             OneTimeStream stream = new OneTimeStream(sourceBrand, script, dto.getUserVariables());
                             stream.setAiAgentId(dto.getAiAgentId());
                             stream.setProfileId(dto.getProfileId());
-                            stream.setStreamSchedule(fromScheduleDTO(dto.getSchedule()));
+                            stream.setStreamAgenda(fromScheduleDTO(dto.getSchedule()));
                             if (!dto.isStartImmediately()) {
                                 stream.setStatus(StreamStatus.PENDING);
                             }
@@ -234,7 +234,7 @@ public class OneTimeStreamService {
                                     stream = new OneTimeStream(sourceBrand, script, userVariables);
                                     stream.setAiAgentId(dto.getAiAgentId());
                                     stream.setProfileId(dto.getProfileId());
-                                    stream.setStreamSchedule(fromScheduleDTO(dto.getStreamSchedule()));
+                                    stream.setStreamAgenda(fromScheduleDTO(dto.getStreamSchedule()));
                                     oneTimeStreamRepository.insert(stream);
                                     return mapToDTO(stream);
                                 } else {
@@ -248,7 +248,7 @@ public class OneTimeStreamService {
                                                 existing.setUserVariables(userVariables);
                                                 existing.setAiAgentId(dto.getAiAgentId());
                                                 existing.setProfileId(dto.getProfileId());
-                                                existing.setStreamSchedule(fromScheduleDTO(dto.getStreamSchedule()));
+                                                existing.setStreamAgenda(fromScheduleDTO(dto.getStreamSchedule()));
                                                 return oneTimeStreamRepository.update(UUID.fromString(id), existing)
                                                         .chain(this::mapToDTO);
                                             });
@@ -257,15 +257,15 @@ public class OneTimeStreamService {
                 });
     }
 
-    private StreamSchedule fromScheduleDTO(StreamScheduleDTO dto) {
+    private StreamAgenda fromScheduleDTO(StreamScheduleDTO dto) {
         if (dto == null) {
             return null;
         }
-        StreamSchedule schedule = new StreamSchedule(dto.getCreatedAt());
+        StreamAgenda schedule = new StreamAgenda(dto.getCreatedAt());
         if (dto.getScenes() != null) {
             for (StreamScheduleDTO.SceneScheduleDTO sceneDTO : dto.getScenes()) {
                 LiveScene sceneEntry = fromSceneDTO(sceneDTO);
-                schedule.addSceneSchedule(sceneEntry);
+                schedule.addScene(sceneEntry);
             }
         }
         return schedule;

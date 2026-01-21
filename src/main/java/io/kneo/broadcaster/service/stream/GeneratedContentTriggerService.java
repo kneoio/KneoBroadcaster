@@ -76,6 +76,7 @@ public class GeneratedContentTriggerService {
         scene.getSongs().clear();
         scene.setGeneratedFragmentId(null);
         scene.setGeneratedContentTimestamp(null);
+        scene.setGeneratedContentStatus(null);
 
         UUID promptId = prompts.getFirst().getPromptId();
         UUID brandId = stream.getMasterBrand().getId();

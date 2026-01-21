@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.dto.dashboard;
 
+import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
@@ -57,10 +58,7 @@ public class StationStatsDTO {
         private LocalTime startTime;
         private LocalTime endTime;
         private boolean active;
-        private String sourcing;
-        private String playlistTitle;
-        private String artist;
-        private String searchTerm;
+        private String searchInfo;
         private int songsCount;
         private int fetchedSongsCount;
         private UUID generatedSoundFragmentId;
@@ -68,5 +66,18 @@ public class StationStatsDTO {
         private LocalDateTime actualEndTime;
         private SceneStatus status;
         private Long timingOffsetSeconds;
+        private UUID generatedFragmentId;
+        private LocalDateTime generatedContentTimestamp;
+        private GeneratedContentStatus generatedContentStatus;
+        private List<SongEntryDTO> songs;
+    }
+
+    @Setter
+    @Getter
+    public static class SongEntryDTO {
+        private UUID songId;
+        private String title;
+        private String artist;
+        private LocalDateTime scheduledStartTime;
     }
 }

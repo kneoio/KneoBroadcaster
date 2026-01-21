@@ -116,6 +116,9 @@ public class StationDashboardService {
             if (generatedSoundFragmentId != null) {
                 dto.setGeneratedSoundFragmentId(generatedSoundFragmentId);
             }
+            dto.setGeneratedFragmentId(scene.getGeneratedFragmentId());
+            dto.setGeneratedContentTimestamp(scene.getGeneratedContentTimestamp());
+            dto.setGeneratedContentStatus(scene.getGeneratedContentStatus());
 
             if (activeEntry != null) {
                 dto.setActive(activeEntry.getSceneId().equals(scene.getSceneId()));
@@ -126,10 +129,7 @@ public class StationDashboardService {
                 ));
             }
 
-            dto.setSourcing(scene.getSourcing() != null ? scene.getSourcing().name() : null);
-            dto.setPlaylistTitle(scene.getPlaylistTitle());
-            dto.setArtist(scene.getArtist());
-            dto.setSearchTerm(scene.getSearchTerm());
+            dto.setSearchInfo(buildSearchInfo(scene));
             dto.setSongsCount(scene.getSongs() != null ? scene.getSongs().size() : 0);
 
             if (station instanceof OneTimeStream oneTimeStream) {
@@ -149,6 +149,18 @@ public class StationDashboardService {
 
             Long timingOffset = computeTimingOffset(scene, nowDateTime);
             dto.setTimingOffsetSeconds(timingOffset);
+
+            List<StationStatsDTO.SongEntryDTO> songEntries = scene.getSongs().stream()
+                    .map(scheduledSong -> {
+                        StationStatsDTO.SongEntryDTO songDto = new StationStatsDTO.SongEntryDTO();
+                        songDto.setSongId(scheduledSong.getSoundFragment().getId());
+                        songDto.setTitle(scheduledSong.getSoundFragment().getTitle());
+                        songDto.setArtist(scheduledSong.getSoundFragment().getArtist());
+                        songDto.setScheduledStartTime(scheduledSong.getScheduledStartTime());
+                        return songDto;
+                    })
+                    .toList();
+            dto.setSongs(songEntries);
 
             entries.add(dto);
         }
@@ -198,5 +210,48 @@ public class StationDashboardService {
         long actualElapsedSeconds = Duration.between(scene.getActualStartTime(), now).getSeconds();
 
         return actualElapsedSeconds - scheduledElapsedSeconds;
+    }
+
+    private String buildSearchInfo(LiveScene scene) {
+        if (scene.getSourcing() == null) {
+            return null;
+        }
+
+        StringBuilder info = new StringBuilder();
+        info.append(scene.getSourcing().name());
+
+        switch (scene.getSourcing()) {
+            case QUERY -> {
+                if (scene.getSearchTerm() != null && !scene.getSearchTerm().isEmpty()) {
+                    info.append(": ").append(scene.getSearchTerm());
+                }
+                if (scene.getArtist() != null && !scene.getArtist().isEmpty()) {
+                    info.append(" | Artist: ").append(scene.getArtist());
+                }
+                if (scene.getGenres() != null && !scene.getGenres().isEmpty()) {
+                    info.append(" | Genres: ").append(scene.getGenres().size());
+                }
+                if (scene.getLabels() != null && !scene.getLabels().isEmpty()) {
+                    info.append(" | Labels: ").append(scene.getLabels().size());
+                }
+            }
+            case STATIC_LIST -> {
+                if (scene.getSoundFragments() != null) {
+                    info.append(": ").append(scene.getSoundFragments().size()).append(" fragments");
+                }
+            }
+            case GENERATED -> {
+                if (scene.getPrompts() != null && !scene.getPrompts().isEmpty()) {
+                    info.append(": ").append(scene.getPrompts().size()).append(" prompts");
+                }
+            }
+            default -> {
+                if (scene.getPlaylistTitle() != null && !scene.getPlaylistTitle().isEmpty()) {
+                    info.append(": ").append(scene.getPlaylistTitle());
+                }
+            }
+        }
+
+        return info.toString();
     }
 }

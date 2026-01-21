@@ -11,6 +11,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
@@ -257,6 +258,7 @@ public class GeneratedNewsService {
                     activeEntry.addSong(entry);
                     activeEntry.setGeneratedContentTimestamp(LocalDateTime.now());
                     activeEntry.setGeneratedFragmentId(fragment.getId());
+                    activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
 
                     LOGGER.info("Generated news fragment saved and added to scene: {}", fragment.getId());
                     return fragment;

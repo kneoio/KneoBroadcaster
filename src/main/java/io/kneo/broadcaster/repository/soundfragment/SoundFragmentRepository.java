@@ -301,6 +301,9 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                                 }
                                         ).collect(Collectors.toList());
 
+                                if (deleteFileUnis.isEmpty()) {
+                                    return Uni.createFrom().voidItem();
+                                }
                                 return Uni.combine().all().unis(deleteFileUnis).discardItems();
                             }).onItem().transformToUni(v -> {
                                 return client.withTransaction(tx -> {

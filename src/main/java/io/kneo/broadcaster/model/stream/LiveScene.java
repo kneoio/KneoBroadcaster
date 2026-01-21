@@ -3,6 +3,7 @@ package io.kneo.broadcaster.model.stream;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.ScenePrompt;
+import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
@@ -33,6 +34,8 @@ public class LiveScene {
     private LocalDateTime generatedContentTimestamp;
     @Setter
     private UUID generatedFragmentId;
+    @Setter
+    private GeneratedContentStatus generatedContentStatus;
 
     private final WayOfSourcing sourcing;
     private final String playlistTitle;
@@ -80,6 +83,8 @@ public class LiveScene {
             this.soundFragments = null;
             this.prompts = null;
         }
+
+        this.generatedContentStatus = (this.sourcing == WayOfSourcing.GENERATED) ? GeneratedContentStatus.PENDING : null;
     }
 
     public LiveScene(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,

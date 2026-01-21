@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
@@ -72,23 +73,33 @@ public abstract class StreamSupplier {
                     );
                 }
 
-                List<UUID> fragmentIds = activeEntry.getSoundFragments();
-                if (fragmentIds != null && !fragmentIds.isEmpty()) {
-                    UUID selectedId = fragmentIds.getFirst();
-                    LOGGER.info("Using exist GENERATED fragment for scene: {}", selectedId);
-                    yield soundFragmentService.getById(selectedId).map(List::of);
-                }
-
                 List<ScenePrompt> prompts = activeEntry.getPrompts();
                 if (prompts == null || prompts.isEmpty()) {
                     LOGGER.error("No prompts found for GENERATED scene, falling back to regular songs");
                     yield songSupplier.getNextSong(slugName, PlaylistItemType.SONG, 1);
                 }
 
-                ScenePrompt firstPrompt = prompts.getFirst();
-                UUID promptId = firstPrompt.getPromptId();
+                UUID promptId = prompts.getFirst().getPromptId();
 
-                LOGGER.info("Generating news fragment for prompt: {}", promptId);
+                LiveScene sourceScene = stream.getStreamAgenda().getLiveScenes().stream()
+                        .filter(scene -> !scene.getSceneId().equals(activeEntry.getSceneId()))
+                        .filter(scene -> scene.getGeneratedFragmentId() != null)
+                        .filter(scene -> scene.getPrompts() != null && !scene.getPrompts().isEmpty())
+                        .filter(scene -> scene.getPrompts().getFirst().getPromptId().equals(promptId))
+                        .findFirst()
+                        .orElse(null);
+
+                if (sourceScene != null) {
+                    UUID existingFragmentId = sourceScene.getGeneratedFragmentId();
+                    LOGGER.info("Reusing fragment {} from another scene with same prompt {}", existingFragmentId, promptId);
+                    activeEntry.setGeneratedFragmentId(existingFragmentId);
+                    activeEntry.setGeneratedContentTimestamp(sourceScene.getGeneratedContentTimestamp());
+                    activeEntry.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
+                    yield soundFragmentService.getById(existingFragmentId).map(List::of);
+                }
+
+                LOGGER.info("No existing fragment found for prompt {}, generating new content", promptId);
+                activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PENDING);
                 yield generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage)
                         .map(List::of);
             }

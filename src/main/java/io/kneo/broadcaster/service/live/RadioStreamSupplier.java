@@ -10,8 +10,8 @@ import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.model.stream.RadioStream;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
@@ -73,7 +73,7 @@ public class RadioStreamSupplier extends StreamSupplier {
 
         Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 
-        List<ScheduledSongEntry> scheduledSongs = activeScene.getSongs();
+        List<PendingSongEntry> scheduledSongs = activeScene.getSongs();
         if (scheduledSongs.isEmpty()) {
             messageSink.add(
                     stream.getSlugName(),
@@ -196,13 +196,13 @@ public class RadioStreamSupplier extends StreamSupplier {
                             .chain(tempFilePath -> {
                                 AddToQueueDTO queueDTO = new AddToQueueDTO();
                                 queueDTO.setPriority(15);
-                                queueDTO.setMergingMethod(MergingType.NONE);
+                                queueDTO.setMergingMethod(MergingType.NOT_MIXED);
                                 
                                 return playlistManager.addFragmentToSlice(
                                         song,
                                         15,
                                         stream.getBitRate(),
-                                        MergingType.NONE,
+                                        MergingType.NOT_MIXED,
                                         queueDTO
                                 ).onItem().invoke(() -> fetchedSongsInScene.add(song.getId()));
                             })

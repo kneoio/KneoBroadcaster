@@ -44,6 +44,7 @@ public class StreamScheduleDTO {
         private List<String> sourceTypes;
         private String searchTerm;
         private List<java.util.UUID> soundFragments;
+        private List<io.kneo.broadcaster.model.ScenePrompt> contentPrompts;
     }
 
     @Setter

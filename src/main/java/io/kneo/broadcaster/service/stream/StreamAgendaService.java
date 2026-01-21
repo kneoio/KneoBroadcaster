@@ -284,6 +284,7 @@ public class StreamAgendaService {
                 : List.of());
         request.setSearchTerm(scene.getSearchTerm() != null ? scene.getSearchTerm() : "");
         request.setSoundFragments(scene.getSoundFragments() != null ? scene.getSoundFragments() : List.of());
+        request.setContentPrompts(scene.getContentPrompts());
         return request;
     }
 

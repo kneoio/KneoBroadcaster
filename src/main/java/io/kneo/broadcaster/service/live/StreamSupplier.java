@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
@@ -49,7 +50,7 @@ public abstract class StreamSupplier {
             SoundFragmentService soundFragmentService,
             AiAgent agent,
             IStream stream,
-            io.kneo.broadcaster.model.cnst.LanguageTag broadcastingLanguage
+            LanguageTag broadcastingLanguage
     ) {
         List<PendingSongEntry> existingSongs = activeEntry.getSongs();
         if (!existingSongs.isEmpty()) {
@@ -63,7 +64,7 @@ public abstract class StreamSupplier {
 
         List<ScenePrompt> contentPrompts = activeEntry.getContentPrompts();
         if (contentPrompts == null || contentPrompts.isEmpty()) {
-            LOGGER.error("No content prompts found for GENERATED scene");
+            LOGGER.error("No content prompts found for GENERATED scene, scene: {}", activeEntry.getSceneTitle());
             activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
             return Uni.createFrom().item(List.of());
         }
@@ -109,7 +110,7 @@ public abstract class StreamSupplier {
             IStream stream,
             UUID brandId,
             LiveScene activeEntry,
-            io.kneo.broadcaster.model.cnst.LanguageTag broadcastingLanguage
+            LanguageTag broadcastingLanguage
     ) {
         LOGGER.info("Generating new content for prompt {}", promptId);
         activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PENDING);

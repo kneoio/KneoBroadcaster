@@ -473,7 +473,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                 String tempNewsWithBg = outputDir + "/temp_news_bg_" + System.currentTimeMillis() + ".wav";
 
                 String filterComplex = String.format(
-                        "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news];" +
+                        "[0:a]volume=2.0,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news];" +
                         "[1:a]aloop=loop=-1:size=2e+09,atrim=duration=%.3f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,volume=%.3f[bg];" +
                         "[news][bg]amix=inputs=2:duration=first:dropout_transition=0",
                         newsDuration,
@@ -497,7 +497,8 @@ public class AudioMixingHandler extends MixingHandlerBase {
                         "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[intro];" +
                         "[1:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news_bg];" +
                         "[2:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[outro];" +
-                        "[intro][news_bg][outro]concat=n=3:v=0:a=1";
+                        "[intro][news_bg]acrossfade=d=0.5[intro_news];" +
+                        "[intro_news][outro]acrossfade=d=0.5";
 
                 FFmpegBuilder finalBuilder = new FFmpegBuilder()
                         .setInput(introJinglePath)

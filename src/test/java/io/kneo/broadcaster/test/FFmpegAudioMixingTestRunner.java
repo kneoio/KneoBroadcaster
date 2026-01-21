@@ -178,6 +178,11 @@ public class FFmpegAudioMixingTestRunner {
             public String getElevenLabsOutputFormat() {
                 return "";
             }
+
+            @Override
+            public String getModelslabApiKey() {
+                return "";
+            }
         };
     }
 

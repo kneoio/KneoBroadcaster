@@ -4,7 +4,8 @@ import lombok.Getter;
 
 @Getter
 public enum TTSEngineType {
-    ELEVENLABS("elevenlabs");
+    ELEVENLABS("elevenlabs"),
+    MODELSLAB("modelslab");
 
     private final String value;
 

@@ -84,4 +84,7 @@ public interface BroadcasterConfig {
     @WithName("elevenlabs.output-format")
     @WithDefault("mp3_44100_128")
     String getElevenLabsOutputFormat();
+
+    @WithName("modelslab.api-key")
+    String getModelslabApiKey();
 }

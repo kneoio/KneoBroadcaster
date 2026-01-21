@@ -1,0 +1,124 @@
+package io.kneo.broadcaster.agent;
+
+import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.core.Vertx;
+import io.vertx.mutiny.ext.web.client.WebClient;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
+@ApplicationScoped
+public class ModelslabClient implements TextToSpeechClient {
+
+    @Inject
+    BroadcasterConfig config;
+
+    @Inject
+    Vertx vertx;
+
+    private WebClient webClient;
+
+    @PostConstruct
+    void init() {
+        this.webClient = WebClient.create(vertx);
+    }
+
+    @Override
+    public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId) {
+        JsonObject payload = new JsonObject()
+                .put("key", config.getModelslabApiKey())
+                .put("prompt", text)
+                .put("voice_id", voiceId)
+                .put("language", "american english")
+                .put("speed", 1)
+                .put("emotion", false);
+
+        String endpoint = "https://modelslab.com/api/v6/voice/text_to_speech";
+
+        return webClient
+                .postAbs(endpoint)
+                .putHeader("Content-Type", "application/json")
+                .sendJsonObject(payload)
+                .flatMap(response -> {
+                    if (response.statusCode() != 200) {
+                        throw new RuntimeException("Modelslab API error - HTTP " + response.statusCode() + ": " + response.bodyAsString());
+                    }
+                    
+                    JsonObject jsonResponse = response.bodyAsJsonObject();
+                    String status = jsonResponse.getString("status");
+                    
+                    if ("success".equals(status)) {
+                        String audioUrl = extractAudioUrl(jsonResponse);
+                        return downloadAudio(audioUrl);
+                    } else if ("processing".equals(status)) {
+                        String fetchUrl = jsonResponse.getString("fetch_result");
+                        return pollForCompletion(fetchUrl, 60, 2000);
+                    } else {
+                        throw new RuntimeException("Modelslab API failed: " + jsonResponse.encode());
+                    }
+                });
+    }
+
+    private String extractAudioUrl(JsonObject jsonResponse) {
+        if (jsonResponse.containsKey("output") && !jsonResponse.getJsonArray("output").isEmpty()) {
+            return jsonResponse.getJsonArray("output").getString(0);
+        }
+        if (jsonResponse.containsKey("proxy_links") && !jsonResponse.getJsonArray("proxy_links").isEmpty()) {
+            return jsonResponse.getJsonArray("proxy_links").getString(0);
+        }
+        if (jsonResponse.containsKey("future_links") && !jsonResponse.getJsonArray("future_links").isEmpty()) {
+            return jsonResponse.getJsonArray("future_links").getString(0);
+        }
+        throw new RuntimeException("No audio URL found in response: " + jsonResponse.encode());
+    }
+
+    private Uni<byte[]> pollForCompletion(String fetchUrl, int maxAttempts, long delayMs) {
+        return Uni.createFrom().item(0)
+                .onItem().transformToUni(attempt -> pollOnce(fetchUrl, attempt, maxAttempts, delayMs));
+    }
+
+    private Uni<byte[]> pollOnce(String fetchUrl, int attempt, int maxAttempts, long delayMs) {
+        if (attempt >= maxAttempts) {
+            return Uni.createFrom().failure(new RuntimeException("Modelslab TTS timeout after " + maxAttempts + " attempts"));
+        }
+
+        return Uni.createFrom().item(attempt)
+                .onItem().delayIt().by(java.time.Duration.ofMillis(delayMs))
+                .onItem().transformToUni(i -> webClient
+                        .postAbs(fetchUrl)
+                        .putHeader("Content-Type", "application/json")
+                        .sendJsonObject(new JsonObject().put("key", config.getModelslabApiKey()))
+                        .flatMap(response -> {
+                            if (response.statusCode() != 200) {
+                                throw new RuntimeException("Modelslab fetch error - HTTP " + response.statusCode());
+                            }
+
+                            JsonObject jsonResponse = response.bodyAsJsonObject();
+                            String status = jsonResponse.getString("status");
+
+                            if ("success".equals(status)) {
+                                String audioUrl = extractAudioUrl(jsonResponse);
+                                return downloadAudio(audioUrl);
+                            } else if ("processing".equals(status)) {
+                                return pollOnce(fetchUrl, attempt + 1, maxAttempts, delayMs);
+                            } else {
+                                throw new RuntimeException("Modelslab fetch failed: " + jsonResponse.encode());
+                            }
+                        }));
+    }
+
+    private Uni<byte[]> downloadAudio(String audioUrl) {
+        return webClient
+                .getAbs(audioUrl)
+                .send()
+                .map(audioResponse -> {
+                    if (audioResponse.statusCode() == 200) {
+                        return audioResponse.bodyAsBuffer().getBytes();
+                    } else {
+                        throw new RuntimeException("Failed to download audio from Modelslab URL: " + audioUrl);
+                    }
+                });
+    }
+}

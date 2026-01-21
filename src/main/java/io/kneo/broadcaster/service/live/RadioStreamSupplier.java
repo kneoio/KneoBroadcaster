@@ -118,12 +118,15 @@ public class RadioStreamSupplier extends StreamSupplier {
                             String.format("Failed to generate content for scene '%s'", currentSceneTitle)
                     );
                 }
-                return Uni.createFrom().item(() -> null);
+                return Uni.createFrom().nullItem();
             }
 
             return Uni.createFrom().item(songList);
-        }).flatMap(songList ->
-                sceneService.getById(activeScene.getSceneId(), SuperUser.build())
+        }).flatMap(songList -> {
+            if (songList == null) {
+                return Uni.createFrom().nullItem();
+            }
+            return sceneService.getById(activeScene.getSceneId(), SuperUser.build())
                         .chain(scene -> {
                             double effectiveTalkativity = scene.getTalkativity();
                             double rate = stream.getPopularityRate();
@@ -203,8 +206,8 @@ public class RadioStreamSupplier extends StreamSupplier {
                                                     return Tuple2.of(result, currentSceneTitle);
                                                 });
                                     });
-                        })
-        );
+                        });
+        });
     }
 
     private Uni<Boolean> queueSongsDirectly(RadioStream stream, List<SoundFragment> songs, Set<UUID> fetchedSongsInScene) {

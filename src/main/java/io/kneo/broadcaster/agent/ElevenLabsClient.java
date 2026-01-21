@@ -10,7 +10,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 @ApplicationScoped
-public class ElevenLabsClient {
+public class ElevenLabsClient implements TextToSpeechClient {
 
     @Inject
     BroadcasterConfig config;

@@ -134,6 +134,11 @@ public class AudioConcatenatorManualTest {
             public String getElevenLabsOutputFormat() {
                 return "";
             }
+
+            @Override
+            public String getModelslabApiKey() {
+                return "";
+            }
         };
     }
 

@@ -46,7 +46,7 @@ public class LiveScene {
     private final List<SourceType> sourceTypes;
     private final String searchTerm;
     private final List<UUID> soundFragments;
-    private final List<ScenePrompt> prompts;
+    private final List<ScenePrompt> contentPrompts;
 
     public LiveScene(Scene scene, LocalDateTime scheduledStartTime) {
         this.sceneId = scene.getId();
@@ -70,7 +70,7 @@ public class LiveScene {
             this.sourceTypes = pr.getSource();
             this.searchTerm = pr.getSearchTerm();
             this.soundFragments = pr.getSoundFragments();
-            this.prompts = pr.getPrompts();
+            this.contentPrompts = pr.getContentPrompts();
         } else {
             this.sourcing = null;
             this.playlistTitle = null;
@@ -81,7 +81,7 @@ public class LiveScene {
             this.sourceTypes = null;
             this.searchTerm = null;
             this.soundFragments = null;
-            this.prompts = null;
+            this.contentPrompts = null;
         }
 
         this.generatedContentStatus = (this.sourcing == WayOfSourcing.GENERATED) ? GeneratedContentStatus.PENDING : null;
@@ -92,7 +92,7 @@ public class LiveScene {
                      WayOfSourcing sourcing, String playlistTitle, String artist,
                      List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
                      List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments,
-                     List<ScenePrompt> prompts) {
+                     List<ScenePrompt> contentPrompts) {
         this.sceneId = sceneId;
         this.sceneTitle = sceneTitle;
         this.scheduledStartTime = scheduledStartTime;
@@ -111,7 +111,7 @@ public class LiveScene {
         this.sourceTypes = sourceTypes;
         this.searchTerm = searchTerm;
         this.soundFragments = soundFragments;
-        this.prompts = prompts;
+        this.contentPrompts = contentPrompts;
     }
 
     public void addSong(PendingSongEntry song) {

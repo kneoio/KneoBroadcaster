@@ -420,7 +420,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                 .chain(script -> scriptSceneService.getAllWithPromptIds(scriptId, 1000, 0, user)
                         .chain(scenes -> {
                             List<UUID> promptIds = scenes.stream()
-                                    .flatMap(scene -> scene.getPrompts() != null ? scene.getPrompts().stream() : java.util.stream.Stream.empty())
+                                    .flatMap(scene -> scene.getIntroPrompts() != null ? scene.getIntroPrompts().stream() : java.util.stream.Stream.empty())
                                     .map(ScenePrompt::getPromptId)
                                     .distinct()
                                     .collect(Collectors.toList());
@@ -483,8 +483,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         dto.setTalkativity(scene.getTalkativity());
         dto.setWeekdays(scene.getWeekdays());
         
-        if (scene.getPrompts() != null && !scene.getPrompts().isEmpty()) {
-            List<ScriptExportDTO.ScenePromptExportDTO> promptDTOs = scene.getPrompts().stream()
+        if (scene.getIntroPrompts() != null && !scene.getIntroPrompts().isEmpty()) {
+            List<ScriptExportDTO.ScenePromptExportDTO> promptDTOs = scene.getIntroPrompts().stream()
                     .map(prompt -> mapPromptToExportDTO(prompt, promptMap, draftMap, extended))
                     .collect(Collectors.toList());
             dto.setActions(promptDTOs);
@@ -676,10 +676,10 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert promptService != null;
         return scriptSceneService.getById(sceneId, user)
                 .chain(scene -> {
-                    if (scene.getPrompts() == null || scene.getPrompts().isEmpty()) {
+                    if (scene.getIntroPrompts() == null || scene.getIntroPrompts().isEmpty()) {
                         return Uni.createFrom().item(List.of());
                     }
-                    List<UUID> promptIds = scene.getPrompts().stream()
+                    List<UUID> promptIds = scene.getIntroPrompts().stream()
                             .map(ScenePrompt::getPromptId)
                             .filter(Objects::nonNull)
                             .distinct()
@@ -753,7 +753,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         assert scriptSceneService != null;
         assert promptService != null;
 
-        if (originalScene.getPrompts() == null || originalScene.getPrompts().isEmpty()) {
+        if (originalScene.getIntroPrompts() == null || originalScene.getIntroPrompts().isEmpty()) {
             SceneDTO sceneDTO = buildSceneDTOFromScene(originalScene, newScriptId, null);
             return scriptSceneService.upsert(null, newScriptId, sceneDTO, user)
                     .map(savedDTO -> {
@@ -763,7 +763,7 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
                     });
         }
 
-        List<UUID> promptIds = originalScene.getPrompts().stream()
+        List<UUID> promptIds = originalScene.getIntroPrompts().stream()
                 .map(ScenePrompt::getPromptId)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -895,8 +895,8 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         sceneDTO.setWeekdays(originalScene.getWeekdays());
         sceneDTO.setTalkativity(originalScene.getTalkativity());
 
-        if (originalScene.getPrompts() != null && !originalScene.getPrompts().isEmpty() && oldToNewPromptIds != null) {
-            List<ScenePromptDTO> promptDTOs = originalScene.getPrompts().stream()
+        if (originalScene.getIntroPrompts() != null && !originalScene.getIntroPrompts().isEmpty() && oldToNewPromptIds != null) {
+            List<ScenePromptDTO> promptDTOs = originalScene.getIntroPrompts().stream()
                     .map(action -> {
                         ScenePromptDTO dto = new ScenePromptDTO();
                         UUID newPromptId = oldToNewPromptIds.get(action.getPromptId());

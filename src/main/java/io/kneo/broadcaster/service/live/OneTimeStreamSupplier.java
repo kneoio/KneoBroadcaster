@@ -146,20 +146,20 @@ public class OneTimeStreamSupplier extends StreamSupplier {
 
             return sceneService.getById(activeEntry.getSceneId(), SuperUser.build())
                     .chain(scene -> {
-                        List<UUID> promptIds = scene.getPrompts() == null
+                        List<UUID> introPromptIds = scene.getIntroPrompts() == null
                                 ? List.of()
-                                : scene.getPrompts().stream()
+                                : scene.getIntroPrompts().stream()
                                 .filter(ScenePrompt::isActive)
                                 .map(ScenePrompt::getPromptId)
                                 .toList();
 
-                        if (promptIds.isEmpty()) {
+                        if (introPromptIds.isEmpty()) {
                             LOGGER.info("Scene '{}' has no prompts - queueing songs directly", activeEntry.getSceneTitle());
                             return queueSongsDirectly(stream, songs, fetchedSongsInScene)
                                     .map(success -> null);
                         }
 
-                        List<Uni<Prompt>> promptUnis = promptIds.stream()
+                        List<Uni<Prompt>> promptUnis = introPromptIds.stream()
                                 .map(id ->
                                         promptService.getById(id, SuperUser.build())
                                                 .flatMap(master -> {

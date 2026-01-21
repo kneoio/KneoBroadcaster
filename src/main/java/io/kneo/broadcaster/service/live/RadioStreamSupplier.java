@@ -7,7 +7,9 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
+import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.PendingSongEntry;
@@ -73,25 +75,54 @@ public class RadioStreamSupplier extends StreamSupplier {
 
         Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 
+        Uni<List<SoundFragment>> songsUni;
         List<PendingSongEntry> scheduledSongs = activeScene.getSongs();
+
         if (scheduledSongs.isEmpty()) {
-            messageSink.add(
-                    stream.getSlugName(),
-                    AiDjStatsDTO.MessageType.ERROR,
-                    String.format("Scene '%s' has no predefined songs", currentSceneTitle)
-            );
-            return Uni.createFrom().item(() -> null);
+            if (activeScene.getSourcing() == WayOfSourcing.GENERATED) {
+                songsUni = generateContentForScene(
+                    activeScene,
+                    stream.getMasterBrand().getId(),
+                    soundFragmentService,
+                    agent,
+                    stream,
+                    broadcastingLanguage
+                );
+            } else {
+                messageSink.add(
+                        stream.getSlugName(),
+                        AiDjStatsDTO.MessageType.ERROR,
+                        String.format("Scene '%s' has no predefined songs", currentSceneTitle)
+                );
+                return Uni.createFrom().item(() -> null);
+            }
+        } else {
+            List<SoundFragment> pickedSongs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
+
+            if (pickedSongs.isEmpty()) {
+                activeScene.setActualEndTime(java.time.LocalDateTime.now());
+                stream.clearSceneState(activeSceneId);
+                return Uni.createFrom().item(() -> null);
+            }
+
+            songsUni = Uni.createFrom().item(pickedSongs);
         }
 
-        List<SoundFragment> songs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
+        return songsUni.flatMap(songList -> {
+            if (songList == null || songList.isEmpty()) {
+                if (activeScene.getSourcing() == WayOfSourcing.GENERATED) {
+                    activeScene.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
+                    messageSink.add(
+                            stream.getSlugName(),
+                            AiDjStatsDTO.MessageType.ERROR,
+                            String.format("Failed to generate content for scene '%s'", currentSceneTitle)
+                    );
+                }
+                return Uni.createFrom().item(() -> null);
+            }
 
-        if (songs.isEmpty()) {
-            activeScene.setActualEndTime(java.time.LocalDateTime.now());
-            stream.clearSceneState(activeSceneId);
-            return Uni.createFrom().item(() -> null);
-        }
-
-        return Uni.createFrom().item(songs).flatMap(songList ->
+            return Uni.createFrom().item(songList);
+        }).flatMap(songList ->
                 sceneService.getById(activeScene.getSceneId(), SuperUser.build())
                         .chain(scene -> {
                             double effectiveTalkativity = scene.getTalkativity();
@@ -108,14 +139,14 @@ public class RadioStreamSupplier extends StreamSupplier {
                                 return Uni.createFrom().item(() -> null);
                             }
 
-                            List<UUID> enabledPrompts = scene.getPrompts() != null
-                                    ? scene.getPrompts().stream()
+                            List<UUID> enabledIntroPrompts = scene.getIntroPrompts() != null
+                                    ? scene.getIntroPrompts().stream()
                                     .filter(ScenePrompt::isActive)
                                     .map(ScenePrompt::getPromptId)
                                     .toList()
                                     : List.of();
 
-                            if (enabledPrompts.isEmpty()) {
+                            if (enabledIntroPrompts.isEmpty()) {
                                 messageSink.add(
                                         stream.getSlugName(),
                                         AiDjStatsDTO.MessageType.INFO,
@@ -125,7 +156,7 @@ public class RadioStreamSupplier extends StreamSupplier {
                                         .map(success -> null);
                             }
 
-                            List<Uni<Prompt>> promptUnis = enabledPrompts.stream()
+                            List<Uni<Prompt>> promptUnis = enabledIntroPrompts.stream()
                                     .map(masterId ->
                                             promptService.getById(masterId, SuperUser.build())
                                                     .flatMap(masterPrompt -> {

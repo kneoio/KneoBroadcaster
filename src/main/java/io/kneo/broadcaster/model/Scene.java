@@ -18,7 +18,7 @@ public class Scene extends SecureDataEntity<UUID> {
     private String title;
     private String scriptTitle;
     private SceneTimingMode timingMode;
-    private List<ScenePrompt> prompts;
+    private List<ScenePrompt> introPrompts;
     private PlaylistRequest playlistRequest;
     private LocalTime startTime;
     private int durationSeconds;

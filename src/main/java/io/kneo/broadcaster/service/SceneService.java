@@ -116,7 +116,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setSeqNum(doc.getSeqNum());
             dto.setTalkativity(doc.getTalkativity());
             dto.setWeekdays(doc.getWeekdays());
-            dto.setPrompts(mapScenePromptsToDTOs(doc.getPrompts()));
+            dto.setPrompts(mapScenePromptsToDTOs(doc.getIntroPrompts()));
             dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getPlaylistRequest()));
             return dto;
         });
@@ -146,7 +146,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         entity.setSeqNum(dto.getSeqNum());
         entity.setWeekdays(dto.getWeekdays());
         entity.setTalkativity(dto.getTalkativity());
-        entity.setPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
+        entity.setIntroPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
         entity.setPlaylistRequest(mapDTOToStagePlaylist(dto.getStagePlaylist()));
         return entity;
     }
@@ -186,7 +186,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         dto.setSource(playlistRequest.getSource() != null ? playlistRequest.getSource().stream().map(Enum::name).toList() : null);
         dto.setSearchTerm(playlistRequest.getSearchTerm());
         dto.setSoundFragments(playlistRequest.getSoundFragments());
-        dto.setPrompts(mapScenePromptsToDTOs(playlistRequest.getPrompts()));
+        dto.setPrompts(mapScenePromptsToDTOs(playlistRequest.getContentPrompts()));
         return dto;
     }
 
@@ -204,7 +204,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         playlistRequest.setSource(dto.getSource() != null ? dto.getSource().stream().map(SourceType::valueOf).toList() : null);
         playlistRequest.setSearchTerm(dto.getSearchTerm());
         playlistRequest.setSoundFragments(dto.getSoundFragments());
-        playlistRequest.setPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
+        playlistRequest.setContentPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
         return playlistRequest;
     }
 }

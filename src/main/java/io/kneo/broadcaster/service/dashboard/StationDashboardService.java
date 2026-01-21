@@ -217,42 +217,42 @@ public class StationDashboardService {
         return actualElapsedSeconds - scheduledElapsedSeconds;
     }
 
-    private String buildSearchInfo(LiveScene scene) {
-        if (scene.getSourcing() == null) {
+    private String buildSearchInfo(LiveScene liveScene) {
+        if (liveScene.getSourcing() == null) {
             return null;
         }
 
         StringBuilder info = new StringBuilder();
-        info.append(scene.getSourcing().name());
+        info.append(liveScene.getSourcing().name());
 
-        switch (scene.getSourcing()) {
+        switch (liveScene.getSourcing()) {
             case QUERY -> {
-                if (scene.getSearchTerm() != null && !scene.getSearchTerm().isEmpty()) {
-                    info.append(": ").append(scene.getSearchTerm());
+                if (liveScene.getSearchTerm() != null && !liveScene.getSearchTerm().isEmpty()) {
+                    info.append(": ").append(liveScene.getSearchTerm());
                 }
-                if (scene.getArtist() != null && !scene.getArtist().isEmpty()) {
-                    info.append(" | Artist: ").append(scene.getArtist());
+                if (liveScene.getArtist() != null && !liveScene.getArtist().isEmpty()) {
+                    info.append(" | Artist: ").append(liveScene.getArtist());
                 }
-                if (scene.getGenres() != null && !scene.getGenres().isEmpty()) {
-                    info.append(" | Genres: ").append(scene.getGenres().size());
+                if (liveScene.getGenres() != null && !liveScene.getGenres().isEmpty()) {
+                    info.append(" | Genres: ").append(liveScene.getGenres().size());
                 }
-                if (scene.getLabels() != null && !scene.getLabels().isEmpty()) {
-                    info.append(" | Labels: ").append(scene.getLabels().size());
+                if (liveScene.getLabels() != null && !liveScene.getLabels().isEmpty()) {
+                    info.append(" | Labels: ").append(liveScene.getLabels().size());
                 }
             }
             case STATIC_LIST -> {
-                if (scene.getSoundFragments() != null) {
-                    info.append(": ").append(scene.getSoundFragments().size()).append(" fragments");
+                if (liveScene.getSoundFragments() != null) {
+                    info.append(": ").append(liveScene.getSoundFragments().size()).append(" fragments");
                 }
             }
             case GENERATED -> {
-                if (scene.getPrompts() != null && !scene.getPrompts().isEmpty()) {
-                    info.append(": ").append(scene.getPrompts().size()).append(" prompts");
+                if (liveScene.getContentPrompts() != null && !liveScene.getContentPrompts().isEmpty()) {
+                    info.append(": ").append(liveScene.getContentPrompts().size()).append(" prompts");
                 }
             }
             default -> {
-                if (scene.getPlaylistTitle() != null && !scene.getPlaylistTitle().isEmpty()) {
-                    info.append(": ").append(scene.getPlaylistTitle());
+                if (liveScene.getPlaylistTitle() != null && !liveScene.getPlaylistTitle().isEmpty()) {
+                    info.append(": ").append(liveScene.getPlaylistTitle());
                 }
             }
         }

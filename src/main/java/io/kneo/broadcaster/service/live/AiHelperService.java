@@ -328,8 +328,8 @@ public class AiHelperService {
                             final Scene scene = activeScene;
                             final LocalTime sceneStart = useRelativeTiming ? null : scene.getStartTime();
                             final LocalTime sceneEnd = useRelativeTiming ? null : findNextSceneStartTime(stream.getSlugName(), currentDayOfWeek, scene, scenes);
-                            final int promptCount = scene.getPrompts() != null ?
-                                (int) scene.getPrompts().stream().filter(ScenePrompt::isActive).count() : 0;
+                            final int promptCount = scene.getIntroPrompts() != null ?
+                                (int) scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).count() : 0;
                             final String nextSceneTitle = useRelativeTiming ? 
                                 findNextSceneTitleByDuration(stream, scene, scenes) :
                                 findNextSceneTitle(stream.getSlugName(), currentDayOfWeek, scene, scenes);

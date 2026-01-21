@@ -51,44 +51,44 @@ public class GeneratedContentTriggerService {
             return Uni.createFrom().failure(new IllegalStateException("Stream has no schedule: " + brand));
         }
 
-        LiveScene scene = schedule.getLiveScenes().stream()
+        LiveScene liveScene = schedule.getLiveScenes().stream()
                 .filter(s -> s.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);
 
-        if (scene == null) {
+        if (liveScene == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("Scene not found in schedule: " + sceneId));
         }
 
-        if (scene.getSourcing() != WayOfSourcing.GENERATED) {
+        if (liveScene.getSourcing() != WayOfSourcing.GENERATED) {
             return Uni.createFrom().failure(new IllegalArgumentException(
-                    "Scene is not GENERATED type: " + scene.getSceneTitle() + " (sourcing: " + scene.getSourcing() + ")"
+                    "Scene is not GENERATED type: " + liveScene.getSceneTitle() + " (sourcing: " + liveScene.getSourcing() + ")"
             ));
         }
 
-        List<ScenePrompt> prompts = scene.getPrompts();
+        List<ScenePrompt> prompts = liveScene.getContentPrompts();
         if (prompts == null || prompts.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException(
-                    "Scene has no prompts configured: " + scene.getSceneTitle()
+                    "Scene has no prompts configured: " + liveScene.getSceneTitle()
             ));
         }
 
-        scene.getSongs().clear();
-        scene.setGeneratedFragmentId(null);
-        scene.setGeneratedContentTimestamp(null);
-        scene.setGeneratedContentStatus(null);
+        liveScene.getSongs().clear();
+        liveScene.setGeneratedFragmentId(null);
+        liveScene.setGeneratedContentTimestamp(null);
+        liveScene.setGeneratedContentStatus(null);
 
         UUID promptId = prompts.getFirst().getPromptId();
         UUID brandId = stream.getMasterBrand().getId();
 
         LOGGER.info("Triggering content generation for scene '{}' ({}), prompt: {}",
-                scene.getSceneTitle(), sceneId, promptId);
+                liveScene.getSceneTitle(), sceneId, promptId);
 
         return aiAgentService.getById(stream.getAiAgentId(), SuperUser.build(), LanguageCode.en)
                 .chain(agent ->
                 {
                     LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                    return generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, scene, broadcastingLanguage);
+                    return generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, liveScene, broadcastingLanguage);
                 });
     }
 }

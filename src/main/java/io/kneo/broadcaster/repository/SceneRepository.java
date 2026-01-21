@@ -97,7 +97,7 @@ public class SceneRepository extends AsyncRepository {
                     List<Uni<Scene>> sceneUnis = scenes.stream()
                             .map(scene -> promptRepository.getPromptsForScene(scene.getId())
                                     .onItem().transform(promptIds -> {
-                                        scene.setPrompts(promptIds);
+                                        scene.setIntroPrompts(promptIds);
                                         return scene;
                                     }))
                             .collect(java.util.stream.Collectors.toList());
@@ -134,7 +134,7 @@ public class SceneRepository extends AsyncRepository {
                 .onItem().transformToUni(scene ->
                         promptRepository.getPromptsForScene(id)
                                 .onItem().transform(promptIds -> {
-                                    scene.setPrompts(promptIds);
+                                    scene.setIntroPrompts(promptIds);
                                     return scene;
                                 })
                 );
@@ -165,7 +165,7 @@ public class SceneRepository extends AsyncRepository {
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transformToUni(ignored -> promptRepository.updatePromptsForScene(tx, id, scene.getPrompts()))
+                                        .onItem().transformToUni(ignored -> promptRepository.updatePromptsForScene(tx, id, scene.getIntroPrompts()))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
@@ -199,7 +199,7 @@ public class SceneRepository extends AsyncRepository {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                         }
-                                        return promptRepository.updatePromptsForScene(tx, id, scene.getPrompts());
+                                        return promptRepository.updatePromptsForScene(tx, id, scene.getIntroPrompts());
                                     })
                     ).onItem().transformToUni(ignored -> findById(id, user, true));
                 });

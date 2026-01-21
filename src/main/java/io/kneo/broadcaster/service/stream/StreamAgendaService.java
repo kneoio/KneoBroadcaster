@@ -448,17 +448,24 @@ public class StreamAgendaService {
         int effectiveMusicTime = (int) (sceneDurationSeconds * (1 - talkativity * 0.3));
 
         List<SoundFragment> selectedSongs = new ArrayList<>();
+        java.util.Set<UUID> addedSongIds = new java.util.HashSet<>();
         int totalTimeUsed = 0;
 
         for (SoundFragment song : songsPool) {
+            if (addedSongIds.contains(song.getId())) {
+                continue;
+            }
+
             int songDurationSeconds = song.getLength() != null ? (int) song.getLength().toSeconds() : 180;
             int timeWithIntro = songDurationSeconds + AVG_DJ_INTRO_SECONDS;
 
             if (totalTimeUsed + timeWithIntro <= effectiveMusicTime) {
                 selectedSongs.add(song);
+                addedSongIds.add(song.getId());
                 totalTimeUsed += timeWithIntro;
             } else if (selectedSongs.isEmpty()) {
                 selectedSongs.add(song);
+                addedSongIds.add(song.getId());
                 break;
             } else {
                 break;

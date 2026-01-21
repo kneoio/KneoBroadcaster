@@ -480,7 +480,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         ScriptExportDTO.SceneExportDTO dto = new ScriptExportDTO.SceneExportDTO();
         dto.setTitle(scene.getTitle());
         dto.setStartTime(scene.getStartTime());
-        dto.setOneTimeRun(scene.isOneTimeRun());
         dto.setTalkativity(scene.getTalkativity());
         dto.setWeekdays(scene.getWeekdays());
         
@@ -634,7 +633,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         dto.setScriptId(scriptId);
         dto.setTitle(sceneDTO.getTitle() + " (imported)");
         dto.setStartTime(sceneDTO.getStartTime());
-        dto.setOneTimeRun(sceneDTO.isOneTimeRun());
         dto.setTalkativity(sceneDTO.getTalkativity());
         dto.setPodcastMode(sceneDTO.getPodcastMode());
         dto.setWeekdays(sceneDTO.getWeekdays());
@@ -894,7 +892,6 @@ public class ScriptService extends AbstractService<Script, ScriptDTO> {
         sceneDTO.setStartTime(originalScene.getStartTime());
         sceneDTO.setDurationSeconds(originalScene.getDurationSeconds());
         sceneDTO.setSeqNum(originalScene.getSeqNum());
-        sceneDTO.setOneTimeRun(originalScene.isOneTimeRun());
         sceneDTO.setWeekdays(originalScene.getWeekdays());
         sceneDTO.setTalkativity(originalScene.getTalkativity());
 

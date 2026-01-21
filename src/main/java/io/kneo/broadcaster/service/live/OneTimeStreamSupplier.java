@@ -12,7 +12,6 @@ import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
@@ -37,7 +36,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
     private final PromptService promptService;
     private final DraftFactory draftFactory;
     private final SceneService sceneService;
-    private final SongSupplier songSupplier;
     private final SoundFragmentService soundFragmentService;
 
     @Inject
@@ -45,13 +43,11 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             PromptService promptService,
             DraftFactory draftFactory,
             SceneService sceneService,
-            SongSupplier songSupplier,
             SoundFragmentService soundFragmentService
     ) {
         this.promptService = promptService;
         this.draftFactory = draftFactory;
         this.sceneService = sceneService;
-        this.songSupplier = songSupplier;
         this.soundFragmentService = soundFragmentService;
     }
 
@@ -118,29 +114,19 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         List<ScheduledSongEntry> scheduledSongs = activeEntry.getSongs();
 
         if (!scheduledSongs.isEmpty()) {
-            List<ScheduledSongEntry> availableEntries = scheduledSongs.stream()
-                    .filter(e -> !fetchedSongsInScene.contains(e.getSoundFragment().getId()))
-                    .toList();
+            List<SoundFragment> pickedSongs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
 
-            if (availableEntries.isEmpty()) {
+            if (pickedSongs.isEmpty()) {
                 activeEntry.setActualEndTime(LocalDateTime.now());
                 stream.clearSceneState(activeSceneId);
                 return Uni.createFrom().item(() -> null);
             }
 
-            int take = availableEntries.size() >= 2 && new Random().nextDouble() < 0.7 ? 2 : 1;
-            songsUni = Uni.createFrom().item(
-                    availableEntries.stream()
-                            .limit(take)
-                            .map(ScheduledSongEntry::getSoundFragment)
-                            .toList()
-            );
+            songsUni = Uni.createFrom().item(pickedSongs);
         } else {
-            songsUni = getSongsFromSceneEntry(
+            songsUni = generateContentForScene(
                     activeEntry,
-                    stream.getMasterBrand().getSlugName(),
                     stream.getMasterBrand().getId(),
-                    songSupplier,
                     soundFragmentService,
                     agent,
                     stream,
@@ -205,7 +191,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                                     agent.getLlmType(),
                                                                     agent.getSearchEngineType(),
                                                                     activeEntry.getScheduledStartTime().toLocalTime(),
-                                                                    true,
                                                                     selected.isPodcast()
                                                             );
                                                             dto.setSongDurationSeconds(songDuration);

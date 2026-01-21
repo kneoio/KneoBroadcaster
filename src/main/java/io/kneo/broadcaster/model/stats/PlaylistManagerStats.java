@@ -34,7 +34,7 @@ public class PlaylistManagerStats {
         this.brand = playlistManager.getBrandSlug();
         this.livePlaylist = mapList(playlistManager.getPrioritizedQueue(), LiveSongSource.PRIORITIZED);
         this.queued = mapList(playlistManager.getObtainedByHlsPlaylist(), LiveSongSource.QUEUED);
-        this.playedSongs = mapPlayedSongs(songSupplier.getPlayedSongsForBrand(playlistManager.getBrandSlug()));
+        //this.playedSongs = mapPlayedSongs(songSupplier.getPlayedSongsForBrand(playlistManager.getBrandSlug()));
         this.duration = duration;
 
     }

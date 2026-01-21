@@ -29,7 +29,6 @@ public class ScriptExportDTO {
     public static class SceneExportDTO {
         private String title;
         private LocalTime startTime;
-        private boolean oneTimeRun;
         private double talkativity;
         @JsonProperty("podcastProbability")
         private double podcastMode;

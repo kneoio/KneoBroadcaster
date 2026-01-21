@@ -9,9 +9,9 @@ import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.RadioStream;
+import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.AiHelperUtils;
 import io.kneo.core.model.user.SuperUser;
@@ -36,16 +36,14 @@ public class RadioStreamSupplier extends StreamSupplier {
     private final PromptService promptService;
     private final DraftFactory draftFactory;
     private final SceneService sceneService;
-    private final SongSupplier songSupplier;
     private final SoundFragmentService soundFragmentService;
     private final JinglePlaybackHandler jinglePlaybackHandler;
 
     @Inject
-    public RadioStreamSupplier(PromptService promptService, DraftFactory draftFactory, SceneService sceneService, SongSupplier songSupplier, SoundFragmentService soundFragmentService, JinglePlaybackHandler jinglePlaybackHandler) {
+    public RadioStreamSupplier(PromptService promptService, DraftFactory draftFactory, SceneService sceneService, SoundFragmentService soundFragmentService, JinglePlaybackHandler jinglePlaybackHandler) {
         this.promptService = promptService;
         this.draftFactory = draftFactory;
         this.sceneService = sceneService;
-        this.songSupplier = songSupplier;
         this.soundFragmentService = soundFragmentService;
         this.jinglePlaybackHandler = jinglePlaybackHandler;
     }
@@ -64,12 +62,30 @@ public class RadioStreamSupplier extends StreamSupplier {
             );
         }
 
+        UUID activeSceneId = activeScene.getSceneId();
         String currentSceneTitle = activeScene.getSceneTitle();
 
-        Uni<List<SoundFragment>> songsUni = getSongsFromSceneEntry(
-                activeScene, stream.getSlugName(), stream.getMasterBrand().getId(), songSupplier, soundFragmentService, agent, stream, broadcastingLanguage);
+        java.util.Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 
-        return songsUni.flatMap(songs ->
+        List<ScheduledSongEntry> scheduledSongs = activeScene.getSongs();
+        if (scheduledSongs.isEmpty()) {
+            messageSink.add(
+                    stream.getSlugName(),
+                    AiDjStatsDTO.MessageType.ERROR,
+                    String.format("Scene '%s' has no predefined songs", currentSceneTitle)
+            );
+            return Uni.createFrom().item(() -> null);
+        }
+
+        List<SoundFragment> songs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
+
+        if (songs.isEmpty()) {
+            activeScene.setActualEndTime(java.time.LocalDateTime.now());
+            stream.clearSceneState(activeSceneId);
+            return Uni.createFrom().item(() -> null);
+        }
+
+        return Uni.createFrom().item(songs).flatMap(songList ->
                 sceneService.getById(activeScene.getSceneId(), SuperUser.build())
                         .chain(scene -> {
                             double effectiveTalkativity = scene.getTalkativity();
@@ -82,7 +98,7 @@ public class RadioStreamSupplier extends StreamSupplier {
 
 
                             if (AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
-                                jinglePlaybackHandler.handleJinglePlayback(stream, scene);
+                                jinglePlaybackHandler.handleJinglePlayback(stream, scene, activeScene, fetchedSongsInScene);
                                 return Uni.createFrom().item(() -> null);
                             }
 
@@ -119,7 +135,7 @@ public class RadioStreamSupplier extends StreamSupplier {
                             return Uni.join().all(promptUnis).andFailFast()
                                     .flatMap(prompts -> {
                                         Random random = new Random();
-                                        List<Uni<SongPromptDTO>> songPromptUnis = songs.stream()
+                                        List<Uni<SongPromptDTO>> songPromptUnis = songList.stream()
                                                 .map(song -> {
                                                     Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
                                                     return draftFactory.createDraft(
@@ -138,15 +154,18 @@ public class RadioStreamSupplier extends StreamSupplier {
                                                                     agent.getLlmType(),
                                                                     agent.getSearchEngineType(),
                                                                     activeScene.getScheduledStartTime().toLocalTime(),
-                                                                    false,
                                                                     selectedPrompt.isPodcast()
                                                             ));
                                                 })
                                                 .toList();
 
                                         return Uni.join().all(songPromptUnis).andFailFast()
-                                                .map(result -> Tuple2.of(result, currentSceneTitle));
+                                                .map(result -> {
+                                                    songList.forEach(s -> fetchedSongsInScene.add(s.getId()));
+                                                    return Tuple2.of(result, currentSceneTitle);
+                                                });
                                     });
-                        }));
+                        })
+        );
     }
 }

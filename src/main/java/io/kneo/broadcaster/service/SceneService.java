@@ -114,7 +114,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setStartTime(doc.getStartTime());
             dto.setDurationSeconds(doc.getDurationSeconds());
             dto.setSeqNum(doc.getSeqNum());
-            dto.setOneTimeRun(doc.isOneTimeRun());
             dto.setTalkativity(doc.getTalkativity());
             dto.setWeekdays(doc.getWeekdays());
             dto.setPrompts(mapScenePromptsToDTOs(doc.getPrompts()));
@@ -145,7 +144,6 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         entity.setStartTime(dto.getStartTime());
         entity.setDurationSeconds(dto.getDurationSeconds());
         entity.setSeqNum(dto.getSeqNum());
-        entity.setOneTimeRun(dto.isOneTimeRun());
         entity.setWeekdays(dto.getWeekdays());
         entity.setTalkativity(dto.getTalkativity());
         entity.setPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());

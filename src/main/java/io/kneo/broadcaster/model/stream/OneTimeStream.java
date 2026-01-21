@@ -14,11 +14,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 @Setter
@@ -32,9 +29,7 @@ public class OneTimeStream extends AbstractStream {
     private AiAgentStatus aiAgentStatus;
     private StreamDeliveryState deliveryState;
 
-    // per-stream mutable state (moved from supplier)
     private UUID currentSceneId;
-    private final Map<UUID, Set<UUID>> fetchedSongsByScene = new HashMap<>();
     private LocalDateTime lastDeliveryAt;
     private int lastDeliveredSongsDuration;
     private LocalDateTime scheduledOfflineAt;
@@ -91,14 +86,6 @@ public class OneTimeStream extends AbstractStream {
     public boolean isCompleted() {
         return streamAgenda.getLiveScenes().stream()
                 .allMatch(e -> e.getActualStartTime() != null && e.getActualEndTime() != null);
-    }
-
-    public Set<UUID> getFetchedSongsInScene(UUID sceneId) {
-        return fetchedSongsByScene.computeIfAbsent(sceneId, k -> new HashSet<>());
-    }
-
-    public void clearSceneState(UUID sceneId) {
-        fetchedSongsByScene.remove(sceneId);
     }
 
 }

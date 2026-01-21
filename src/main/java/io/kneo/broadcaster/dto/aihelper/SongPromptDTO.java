@@ -23,13 +23,12 @@ public class SongPromptDTO {
     private LlmType llmType;
     private SearchEngineType searchEngineType;
     private LocalTime startTime;
-    private boolean oneTimeRun;
     private boolean podcast;
     private int songDurationSeconds;
     
     public SongPromptDTO(UUID songId, String draft, String prompt, PromptType promptType, 
                          LlmType llmType, SearchEngineType searchEngineType, LocalTime startTime, 
-                         boolean oneTimeRun, boolean podcast) {
+                         boolean podcast) {
         this.songId = songId;
         this.draft = draft;
         this.prompt = prompt;
@@ -37,7 +36,6 @@ public class SongPromptDTO {
         this.llmType = llmType;
         this.searchEngineType = searchEngineType;
         this.startTime = startTime;
-        this.oneTimeRun = oneTimeRun;
         this.podcast = podcast;
         this.songDurationSeconds = 0;
     }

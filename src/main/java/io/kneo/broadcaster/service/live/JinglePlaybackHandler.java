@@ -6,6 +6,8 @@ import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
+import io.kneo.broadcaster.model.stream.LiveScene;
+import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -14,7 +16,6 @@ import io.kneo.broadcaster.service.manipulation.mixing.AudioConcatenator;
 import io.kneo.broadcaster.service.manipulation.mixing.ConcatenationType;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.AudioMixingHandler;
-import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.BrandLogger;
 import io.smallrye.mutiny.Uni;
@@ -36,7 +37,6 @@ public class JinglePlaybackHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(JinglePlaybackHandler.class);
 
     private final SoundFragmentService soundFragmentService;
-    private final SongSupplier songSupplier;
     private final BroadcasterConfig broadcasterConfig;
     private final SoundFragmentRepository soundFragmentRepository;
     private final FFmpegProvider fFmpegProvider;
@@ -46,7 +46,6 @@ public class JinglePlaybackHandler {
     @Inject
     public JinglePlaybackHandler(
             SoundFragmentService soundFragmentService,
-            SongSupplier songSupplier,
             BroadcasterConfig broadcasterConfig,
             SoundFragmentRepository soundFragmentRepository,
             FFmpegProvider fFmpegProvider,
@@ -54,7 +53,6 @@ public class JinglePlaybackHandler {
             AiAgentService aiAgentService
     ) {
         this.soundFragmentService = soundFragmentService;
-        this.songSupplier = songSupplier;
         this.broadcasterConfig = broadcasterConfig;
         this.soundFragmentRepository = soundFragmentRepository;
         this.fFmpegProvider = fFmpegProvider;
@@ -62,39 +60,41 @@ public class JinglePlaybackHandler {
         this.aiAgentService = aiAgentService;
     }
 
-    public void handleJinglePlayback(IStream stream, Scene scene) {
+    public void handleJinglePlayback(IStream stream, Scene scene, LiveScene liveScene, java.util.Set<UUID> fetchedSongsInScene) {
         LOGGER.info("Station '{}': Playing jingle instead of DJ intro (talkativity: {})",
                 stream.getSlugName(), scene.getTalkativity());
 
         boolean useJingle = Math.random() < 0.7;
 
         if (useJingle) {
-            handleJingleAndSong(stream);
+            handleJingleAndSong(stream, liveScene, fetchedSongsInScene);
         } else {
-            handleTwoSongs(stream);
+            handleTwoSongs(stream, liveScene, fetchedSongsInScene);
         }
     }
 
-    private void handleJingleAndSong(IStream stream) {
-        Uni.combine().all()
-                .unis(
-                        soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId()),
-                        songSupplier.getNextSong(stream.getSlugName(), PlaylistItemType.SONG, 1)
-                )
-                .asTuple()
+    private void handleJingleAndSong(IStream stream, LiveScene liveScene, java.util.Set<UUID> fetchedSongsInScene) {
+        soundFragmentService.getByTypeAndBrand(PlaylistItemType.JINGLE, stream.getId())
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribe().with(
-                        tuple -> {
-                            List<SoundFragment> jingles = tuple.getItem1();
-                            List<SoundFragment> songs = tuple.getItem2();
-
+                        jingles -> {
                             if (jingles.isEmpty()) {
                                 LOGGER.warn("Station '{}': No jingles available for playback", stream.getSlugName());
                                 return;
                             }
 
+                            List<ScheduledSongEntry> availableSongs = liveScene.getSongs().stream()
+                                    .filter(entry -> !fetchedSongsInScene.contains(entry.getSoundFragment().getId()))
+                                    .toList();
+
+                            if (availableSongs.isEmpty()) {
+                                LOGGER.warn("Station '{}': No unfetched songs available in scene for jingle playback", stream.getSlugName());
+                                return;
+                            }
+
                             SoundFragment selectedJingle = jingles.get(new Random().nextInt(jingles.size()));
-                            SoundFragment selectedSong = songs.get(0);
+                            SoundFragment selectedSong = availableSongs.get(new Random().nextInt(availableSongs.size())).getSoundFragment();
+                            fetchedSongsInScene.add(selectedSong.getId());
 
                             LOGGER.info("Station '{}': Concatenating jingle '{}' with song '{}'",
                                     stream.getSlugName(), selectedJingle.getTitle(), selectedSong.getTitle());
@@ -110,19 +110,36 @@ public class JinglePlaybackHandler {
 
                             concatenate(stream, queueDTO, "jingle + song");
                         },
-                        failure -> LOGGER.error("Station '{}': Failed to fetch jingles/songs: {}",
+                        failure -> LOGGER.error("Station '{}': Failed to fetch jingles: {}",
                                 stream.getSlugName(), failure.getMessage(), failure)
                 );
     }
 
-    private void handleTwoSongs(IStream stream) {
-        songSupplier.getNextSong(stream.getSlugName(), PlaylistItemType.SONG, 2)
+    private void handleTwoSongs(IStream stream, LiveScene liveScene, java.util.Set<UUID> fetchedSongsInScene) {
+        List<ScheduledSongEntry> availableSongs = liveScene.getSongs().stream()
+                .filter(entry -> !fetchedSongsInScene.contains(entry.getSoundFragment().getId()))
+                .toList();
+
+        if (availableSongs.size() < 2) {
+            LOGGER.warn("Station '{}': Not enough unfetched songs in scene for two-song playback", stream.getSlugName());
+            return;
+        }
+
+        Uni.createFrom().item(availableSongs)
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .subscribe().with(
                         songs -> {
+                            Random random = new Random();
+                            int firstIndex = random.nextInt(songs.size());
+                            int secondIndex;
+                            do {
+                                secondIndex = random.nextInt(songs.size());
+                            } while (secondIndex == firstIndex && songs.size() > 1);
 
-                            SoundFragment firstSong = songs.get(0);
-                            SoundFragment secondSong = songs.get(1);
+                            SoundFragment firstSong = songs.get(firstIndex).getSoundFragment();
+                            SoundFragment secondSong = songs.get(secondIndex).getSoundFragment();
+                            fetchedSongsInScene.add(firstSong.getId());
+                            fetchedSongsInScene.add(secondSong.getId());
 
                             BrandLogger.logActivity(stream.getSlugName(), "handle_two_songs", " %s + %s", firstSong.getTitle(), secondSong.getTitle());
 
@@ -137,7 +154,7 @@ public class JinglePlaybackHandler {
 
                             concatenate(stream, queueDTO, "song + crossfade + song");
                         },
-                        failure -> LOGGER.error("Station '{}': Failed to fetch songs: {}",
+                        failure -> LOGGER.error("Station '{}': Failed to process songs: {}",
                                 stream.getSlugName(), failure.getMessage(), failure)
                 );
     }

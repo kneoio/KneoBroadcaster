@@ -6,6 +6,7 @@ import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
+import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
@@ -135,6 +136,10 @@ public class StationDashboardService {
             if (station instanceof OneTimeStream oneTimeStream) {
                 dto.setFetchedSongsCount(
                         oneTimeStream.getFetchedSongsInScene(scene.getSceneId()).size()
+                );
+            } else if (station instanceof RadioStream radioStream) {
+                dto.setFetchedSongsCount(
+                        radioStream.getFetchedSongsInScene(scene.getSceneId()).size()
                 );
             } else {
                 dto.setFetchedSongsCount(0);

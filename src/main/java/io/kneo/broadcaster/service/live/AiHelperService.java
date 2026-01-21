@@ -39,7 +39,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -64,8 +63,6 @@ public class AiHelperService {
 
     private Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
     private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
-    private final Map<String, List<UUID>> oneTimeRunTracker = new ConcurrentHashMap<>();
-    private LocalDate lastReset = LocalDate.now();
 
     private final RadioStationPool radioStationPool;
     private final BrandService brandService;
@@ -249,10 +246,6 @@ public class AiHelperService {
     }
 
     private boolean isSceneActive(String stationSlug, ZoneId zone, Scene scene, NavigableSet<Scene> allScenes, LocalTime currentTime, int currentDayOfWeek) {
-        if (!LocalDate.now(zone).equals(lastReset)) {
-            oneTimeRunTracker.clear();
-            lastReset = LocalDate.now(zone);
-        }
 
         List<Integer> weekdays = scene.getWeekdays();
         if (weekdays != null && !weekdays.isEmpty() && !weekdays.contains(currentDayOfWeek)) {
@@ -260,46 +253,34 @@ public class AiHelperService {
         }
 
         if (scene.getStartTime() == null) {
-            return markIfOneTime(stationSlug, scene);
+            return true;
         }
 
         LocalTime sceneStart = scene.getStartTime().minusMinutes(SCENE_START_SHIFT_MINUTES);
         LocalTime nextSceneStart = findNextSceneStartTime(stationSlug, currentDayOfWeek, scene, allScenes);
 
         boolean active;
-        if (nextSceneStart != null && nextSceneStart.isAfter(sceneStart)) {
-            active = !currentTime.isBefore(sceneStart) && currentTime.isBefore(nextSceneStart);
+        if (nextSceneStart != null && nextSceneStart.isBefore(sceneStart)) {
+            active = !currentTime.isBefore(sceneStart) || currentTime.isBefore(nextSceneStart);
         } else if (nextSceneStart != null) {
             active = !currentTime.isBefore(sceneStart) || currentTime.isBefore(nextSceneStart);
         } else {
             active = !currentTime.isBefore(sceneStart);
         }
 
-        return active && markIfOneTime(stationSlug, scene);
+        return active;
     }
 
 
-    private boolean markIfOneTime(String stationSlug, Scene scene) {
-        if (scene.isOneTimeRun()) {
-            List<UUID> used = oneTimeRunTracker.computeIfAbsent(stationSlug, k -> new ArrayList<>());
-            if (used.contains(scene.getId())) {
-                return false;
-            }
-            used.add(scene.getId());
-        }
-        return true;
-    }
 
     private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, NavigableSet<Scene> scenes) {
         LocalTime currentStart = currentScene.getStartTime();
         if (currentStart == null) {
             return null;
         }
-        List<UUID> usedOneTimes = oneTimeRunTracker.getOrDefault(stationSlug, Collections.emptyList());
         List<LocalTime> sortedTimes = scenes.stream()
                 .filter(s -> s.getStartTime() != null)
                 .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
-                .filter(s -> !s.isOneTimeRun() || !usedOneTimes.contains(s.getId()))
                 .map(Scene::getStartTime)
                 .sorted()
                 .distinct()
@@ -399,11 +380,9 @@ public class AiHelperService {
         if (currentStart == null) {
             return null;
         }
-        List<UUID> usedOneTimes = oneTimeRunTracker.getOrDefault(stationSlug, Collections.emptyList());
         List<Scene> sortedScenes = scenes.stream()
                 .filter(s -> s.getStartTime() != null)
                 .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
-                .filter(s -> !s.isOneTimeRun() || !usedOneTimes.contains(s.getId()))
                 .sorted(Comparator.comparing(Scene::getStartTime))
                 .toList();
         for (Scene scene : sortedScenes) {

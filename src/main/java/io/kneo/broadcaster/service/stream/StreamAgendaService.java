@@ -138,10 +138,13 @@ public class StreamAgendaService {
     }
 
     private Uni<List<SoundFragment>> fetchSongsForScene(Brand brand, Scene scene, ScheduleSongSupplier songSupplier) {
+        PlaylistRequest playlistRequest = scene.getPlaylistRequest();
+        if (playlistRequest != null && playlistRequest.getSourcing() == WayOfSourcing.GENERATED) {
+            return Uni.createFrom().item(List.of());
+        }
+        
         int sceneDurationSeconds = scene.getDurationSeconds();
         int maxSongsNeeded = (int) Math.ceil(sceneDurationSeconds / 120.0 * 1.5) + 2;
-        
-        PlaylistRequest playlistRequest = scene.getPlaylistRequest();
 
         Uni<List<SoundFragment>> songsPoolUni;
         if (playlistRequest == null) {
@@ -410,8 +413,12 @@ public class StreamAgendaService {
     }
 
     private Uni<List<SoundFragment>> fetchSongsForSceneWithDuration(Brand brand, Scene scene, int durationSeconds, ScheduleSongSupplier songSupplier) {
-        int maxSongsNeeded = (durationSeconds / 120) + 2;
         PlaylistRequest playlistRequest = scene.getPlaylistRequest();
+        if (playlistRequest != null && playlistRequest.getSourcing() == WayOfSourcing.GENERATED) {
+            return Uni.createFrom().item(List.of());
+        }
+        
+        int maxSongsNeeded = (durationSeconds / 120) + 2;
 
         Uni<List<SoundFragment>> songsPoolUni;
         if (playlistRequest == null) {

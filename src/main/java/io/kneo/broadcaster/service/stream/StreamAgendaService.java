@@ -9,7 +9,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.SceneService;
@@ -120,7 +120,7 @@ public class StreamAgendaService {
                                 LiveScene entry = new LiveScene(scene, finalSceneStartTime);
                                 LocalDateTime songStartTime = finalSceneStartTime;
                                 for (SoundFragment song : songs) {
-                                    ScheduledSongEntry songEntry = new ScheduledSongEntry(song, songStartTime);
+                                    PendingSongEntry songEntry = new PendingSongEntry(song, songStartTime);
                                     entry.addSong(songEntry);
                                     songStartTime = songStartTime.plusSeconds(songEntry.getDurationSeconds());
                                 }
@@ -243,7 +243,7 @@ public class StreamAgendaService {
         List<String> warnings = new ArrayList<>();
         
         int totalSongDuration = scene.getSongs().stream()
-                .mapToInt(ScheduledSongEntry::getDurationSeconds)
+                .mapToInt(PendingSongEntry::getDurationSeconds)
                 .sum();
         
         int sceneDuration = scene.getDurationSeconds();
@@ -284,7 +284,7 @@ public class StreamAgendaService {
         return request;
     }
 
-    private StreamScheduleDTO.ScheduledSongDTO toSongDTO(ScheduledSongEntry song) {
+    private StreamScheduleDTO.ScheduledSongDTO toSongDTO(PendingSongEntry song) {
         StreamScheduleDTO.ScheduledSongDTO dto = new StreamScheduleDTO.ScheduledSongDTO();
         dto.setId(song.getId().toString());
         dto.setSongId(song.getSoundFragment().getId().toString());
@@ -363,7 +363,7 @@ public class StreamAgendaService {
                                 );
                                 LocalDateTime songStartTime = finalSceneStartTime;
                                 for (SoundFragment song : songs) {
-                                    ScheduledSongEntry songEntry = new ScheduledSongEntry(song, songStartTime);
+                                    PendingSongEntry songEntry = new PendingSongEntry(song, songStartTime);
                                     entry.addSong(songEntry);
                                     songStartTime = songStartTime.plusSeconds(songEntry.getDurationSeconds());
                                 }

@@ -7,7 +7,7 @@ import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -83,7 +83,7 @@ public class JinglePlaybackHandler {
                                 return;
                             }
 
-                            List<ScheduledSongEntry> availableSongs = liveScene.getSongs().stream()
+                            List<PendingSongEntry> availableSongs = liveScene.getSongs().stream()
                                     .filter(entry -> !fetchedSongsInScene.contains(entry.getSoundFragment().getId()))
                                     .toList();
 
@@ -116,7 +116,7 @@ public class JinglePlaybackHandler {
     }
 
     private void handleTwoSongs(IStream stream, LiveScene liveScene, java.util.Set<UUID> fetchedSongsInScene) {
-        List<ScheduledSongEntry> availableSongs = liveScene.getSongs().stream()
+        List<PendingSongEntry> availableSongs = liveScene.getSongs().stream()
                 .filter(entry -> !fetchedSongsInScene.contains(entry.getSoundFragment().getId()))
                 .toList();
 

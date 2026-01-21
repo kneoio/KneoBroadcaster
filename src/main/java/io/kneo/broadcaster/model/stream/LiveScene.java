@@ -22,7 +22,7 @@ public class LiveScene {
     private final String sceneTitle;
     private final LocalDateTime scheduledStartTime;
     private final int durationSeconds;
-    private final List<ScheduledSongEntry> songs;
+    private final List<PendingSongEntry> songs;
     private final LocalTime originalStartTime;
     private final LocalTime originalEndTime;
 
@@ -114,7 +114,7 @@ public class LiveScene {
         this.prompts = prompts;
     }
 
-    public void addSong(ScheduledSongEntry song) {
+    public void addSong(PendingSongEntry song) {
         this.songs.add(song);
     }
 

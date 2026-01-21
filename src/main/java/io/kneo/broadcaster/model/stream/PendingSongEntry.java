@@ -7,13 +7,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
-public class ScheduledSongEntry {
+public class PendingSongEntry {
     private final UUID id;
     private final SoundFragment soundFragment;
     private final LocalDateTime scheduledStartTime;
     private final int durationSeconds;
 
-    public ScheduledSongEntry(SoundFragment soundFragment, LocalDateTime scheduledStartTime) {
+    public PendingSongEntry(SoundFragment soundFragment, LocalDateTime scheduledStartTime) {
         this.id = UUID.randomUUID();
         this.soundFragment = soundFragment;
         this.scheduledStartTime = scheduledStartTime;
@@ -22,7 +22,7 @@ public class ScheduledSongEntry {
             : 180;
     }
 
-    public ScheduledSongEntry(UUID id, SoundFragment soundFragment, LocalDateTime scheduledStartTime, int durationSeconds) {
+    public PendingSongEntry(UUID id, SoundFragment soundFragment, LocalDateTime scheduledStartTime, int durationSeconds) {
         this.id = id;
         this.soundFragment = soundFragment;
         this.scheduledStartTime = scheduledStartTime;

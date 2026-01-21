@@ -2,6 +2,8 @@ package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
@@ -12,9 +14,12 @@ import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
+import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.AiHelperUtils;
 import io.kneo.core.model.user.SuperUser;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,6 +28,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -65,7 +71,7 @@ public class RadioStreamSupplier extends StreamSupplier {
         UUID activeSceneId = activeScene.getSceneId();
         String currentSceneTitle = activeScene.getSceneTitle();
 
-        java.util.Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
+        Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 
         List<ScheduledSongEntry> scheduledSongs = activeScene.getSongs();
         if (scheduledSongs.isEmpty()) {
@@ -112,10 +118,11 @@ public class RadioStreamSupplier extends StreamSupplier {
                             if (enabledPrompts.isEmpty()) {
                                 messageSink.add(
                                         stream.getSlugName(),
-                                        AiDjStatsDTO.MessageType.WARNING,
-                                        String.format("Active scene '%s' has no enabled prompts", currentSceneTitle)
+                                        AiDjStatsDTO.MessageType.INFO,
+                                        String.format("Scene '%s' has no prompts - queueing songs directly", currentSceneTitle)
                                 );
-                                return Uni.createFrom().item(() -> null);
+                                return queueSongsDirectly(stream, songList, fetchedSongsInScene)
+                                        .map(success -> null);
                             }
 
                             List<Uni<Prompt>> promptUnis = enabledPrompts.stream()
@@ -167,5 +174,41 @@ public class RadioStreamSupplier extends StreamSupplier {
                                     });
                         })
         );
+    }
+
+    private Uni<Boolean> queueSongsDirectly(RadioStream stream, List<SoundFragment> songs, Set<UUID> fetchedSongsInScene) {
+        PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
+        
+        return Multi.createFrom().iterable(songs)
+                .onItem().transformToUniAndConcatenate(song -> {
+                    List<FileMetadata> metadataList = song.getFileMetadataList();
+                    if (metadataList == null || metadataList.isEmpty()) {
+                        return Uni.createFrom().item(false);
+                    }
+                    FileMetadata metadata = metadataList.getFirst();
+                    
+                    return soundFragmentService.getFileBySlugName(
+                                    song.getId(),
+                                    metadata.getSlugName(),
+                                    SuperUser.build()
+                            )
+                            .chain(fetchedMetadata -> fetchedMetadata.materializeFileStream(playlistManager.getClass().getName()))
+                            .chain(tempFilePath -> {
+                                AddToQueueDTO queueDTO = new AddToQueueDTO();
+                                queueDTO.setPriority(15);
+                                queueDTO.setMergingMethod(MergingType.NONE);
+                                
+                                return playlistManager.addFragmentToSlice(
+                                        song,
+                                        15,
+                                        stream.getBitRate(),
+                                        MergingType.NONE,
+                                        queueDTO
+                                ).onItem().invoke(() -> fetchedSongsInScene.add(song.getId()));
+                            })
+                            .onFailure().recoverWithItem(false);
+                })
+                .collect().asList()
+                .map(results -> results.stream().anyMatch(r -> r));
     }
 }

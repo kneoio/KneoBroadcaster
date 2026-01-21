@@ -1,6 +1,8 @@
 package io.kneo.broadcaster.service.live;
 
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
+import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
@@ -9,11 +11,14 @@ import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
+import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
+import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.model.user.SuperUser;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -111,7 +116,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
         Map<String, Object> userVariables = stream.getUserVariables();
 
         Uni<List<SoundFragment>> songsUni;
-        List<ScheduledSongEntry> scheduledSongs = activeEntry.getSongs();
+        List<PendingSongEntry> scheduledSongs = activeEntry.getSongs();
 
         if (!scheduledSongs.isEmpty()) {
             List<SoundFragment> pickedSongs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
@@ -149,7 +154,9 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                 .toList();
 
                         if (promptIds.isEmpty()) {
-                            return Uni.createFrom().item(() -> null);
+                            LOGGER.info("Scene '{}' has no prompts - queueing songs directly", activeEntry.getSceneTitle());
+                            return queueSongsDirectly(stream, songs, fetchedSongsInScene)
+                                    .map(success -> null);
                         }
 
                         List<Uni<Prompt>> promptUnis = promptIds.stream()
@@ -218,6 +225,42 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                 .filter(s -> s.getSceneId().equals(sceneId))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private Uni<Boolean> queueSongsDirectly(OneTimeStream stream, List<SoundFragment> songs, Set<UUID> fetchedSongsInScene) {
+        PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
+        
+        return Multi.createFrom().iterable(songs)
+                .onItem().transformToUniAndConcatenate(song -> {
+                    List<FileMetadata> metadataList = song.getFileMetadataList();
+                    if (metadataList == null || metadataList.isEmpty()) {
+                        return Uni.createFrom().item(false);
+                    }
+                    FileMetadata metadata = metadataList.getFirst();
+                    
+                    return soundFragmentService.getFileBySlugName(
+                                    song.getId(),
+                                    metadata.getSlugName(),
+                                    SuperUser.build()
+                            )
+                            .chain(fetchedMetadata -> fetchedMetadata.materializeFileStream(playlistManager.getClass().getName()))
+                            .chain(tempFilePath -> {
+                                AddToQueueDTO queueDTO = new AddToQueueDTO();
+                                queueDTO.setPriority(15);
+                                queueDTO.setMergingMethod(MergingType.NOT_MIXED);
+                                
+                                return playlistManager.addFragmentToSlice(
+                                        song,
+                                        15,
+                                        stream.getBitRate(),
+                                        MergingType.NOT_MIXED,
+                                        queueDTO
+                                ).onItem().invoke(() -> fetchedSongsInScene.add(song.getId()));
+                            })
+                            .onFailure().recoverWithItem(false);
+                })
+                .collect().asList()
+                .map(results -> results.stream().anyMatch(r -> r));
     }
 
 }

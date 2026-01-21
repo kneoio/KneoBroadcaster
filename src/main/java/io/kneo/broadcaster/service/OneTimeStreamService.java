@@ -11,7 +11,7 @@ import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.repository.BrandRepository;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
@@ -299,12 +299,12 @@ public class OneTimeStreamService {
         return entry;
     }
 
-    private ScheduledSongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {
+    private PendingSongEntry fromSongDTO(StreamScheduleDTO.ScheduledSongDTO dto) {
         SoundFragment soundFragment = new SoundFragment();
         soundFragment.setId(UUID.fromString(dto.getSongId()));
         soundFragment.setTitle(dto.getTitle());
         soundFragment.setArtist(dto.getArtist());
-        return new ScheduledSongEntry(
+        return new PendingSongEntry(
                 UUID.fromString(dto.getId()),
                 soundFragment,
                 dto.getScheduledStartTime(),

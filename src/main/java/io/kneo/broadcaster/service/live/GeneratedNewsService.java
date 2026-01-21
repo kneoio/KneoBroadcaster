@@ -18,7 +18,7 @@ import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -254,7 +254,7 @@ public class GeneratedNewsService {
                     fragment.setDescription(savedDto.getDescription());
                     fragment.setSlugName(savedDto.getSlugName());
 
-                    ScheduledSongEntry entry = new ScheduledSongEntry(fragment, activeEntry.getScheduledStartTime());
+                    PendingSongEntry entry = new PendingSongEntry(fragment, activeEntry.getScheduledStartTime());
                     activeEntry.addSong(entry);
                     activeEntry.setGeneratedContentTimestamp(LocalDateTime.now());
                     activeEntry.setGeneratedFragmentId(fragment.getId());

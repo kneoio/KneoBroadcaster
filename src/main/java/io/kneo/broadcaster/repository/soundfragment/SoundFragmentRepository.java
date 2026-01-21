@@ -278,7 +278,14 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
 
     public Uni<Integer> delete(UUID uuid, IUser user) {
         return findById(uuid, user.getId(), true, false, false)
+                .onFailure(DocumentHasNotFoundException.class).recoverWithItem(() -> {
+                    LOGGER.warn("SoundFragment {} not found, may already be deleted", uuid);
+                    return null;
+                })
                 .onItem().transformToUni(doc -> {
+                    if (doc == null) {
+                        return Uni.createFrom().item(0);
+                    }
                     String getKeysSql = "SELECT file_key FROM _files WHERE parent_id = $1";
                     return client.preparedQuery(getKeysSql).execute(Tuple.of(uuid))
                             .onItem().transformToUni(rows -> {
@@ -307,19 +314,37 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                                 return Uni.combine().all().unis(deleteFileUnis).discardItems();
                             }).onItem().transformToUni(v -> {
                                 return client.withTransaction(tx -> {
+                                    String getContributionIdsSql = "SELECT id FROM kneobroadcaster__contributions WHERE sound_fragment_id = $1";
+                                    String deleteAgreementsSql = "DELETE FROM kneobroadcaster__upload_agreements WHERE contribution_id = ANY($1)";
+                                    String deleteContributionsSql = "DELETE FROM kneobroadcaster__contributions WHERE sound_fragment_id = $1";
                                     String deleteGenresSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
                                     String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
                                     String deleteFilesSql = "DELETE FROM _files WHERE parent_id = $1";
                                     String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
 
-                                    Uni<RowSet<Row>> genresDelete = tx.preparedQuery(deleteGenresSql).execute(Tuple.of(uuid));
-                                    Uni<RowSet<Row>> rlsDelete = tx.preparedQuery(deleteRlsSql).execute(Tuple.of(uuid));
-                                    Uni<RowSet<Row>> filesDelete = tx.preparedQuery(deleteFilesSql).execute(Tuple.of(uuid));
+                                    return tx.preparedQuery(getContributionIdsSql).execute(Tuple.of(uuid))
+                                            .onItem().transformToUni(rows -> {
+                                                List<UUID> contributionIds = new ArrayList<>();
+                                                rows.forEach(row -> contributionIds.add(row.getUUID("id")));
+                                                
+                                                if (contributionIds.isEmpty()) {
+                                                    return Uni.createFrom().voidItem();
+                                                }
+                                                
+                                                return tx.preparedQuery(deleteAgreementsSql)
+                                                        .execute(Tuple.of(contributionIds.toArray(new UUID[0])));
+                                            })
+                                            .onItem().transformToUni(ignored -> {
+                                                Uni<RowSet<Row>> contributionsDelete = tx.preparedQuery(deleteContributionsSql).execute(Tuple.of(uuid));
+                                                Uni<RowSet<Row>> genresDelete = tx.preparedQuery(deleteGenresSql).execute(Tuple.of(uuid));
+                                                Uni<RowSet<Row>> rlsDelete = tx.preparedQuery(deleteRlsSql).execute(Tuple.of(uuid));
+                                                Uni<RowSet<Row>> filesDelete = tx.preparedQuery(deleteFilesSql).execute(Tuple.of(uuid));
 
-                                    return Uni.combine().all().unis(genresDelete, rlsDelete, filesDelete)
-                                            .discardItems()
-                                            .onItem().transformToUni(ignored -> tx.preparedQuery(deleteDocSql).execute(Tuple.of(uuid)))
-                                            .onItem().transform(RowSet::rowCount);
+                                                return Uni.combine().all().unis(contributionsDelete, genresDelete, rlsDelete, filesDelete)
+                                                        .discardItems()
+                                                        .onItem().transformToUni(ignored2 -> tx.preparedQuery(deleteDocSql).execute(Tuple.of(uuid)))
+                                                        .onItem().transform(RowSet::rowCount);
+                                            });
                                 });
                             });
                 });

@@ -6,7 +6,7 @@ import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
-import io.kneo.broadcaster.model.stream.ScheduledSongEntry;
+import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
@@ -25,10 +25,10 @@ public abstract class StreamSupplier {
     GeneratedNewsService generatedNewsService;
 
     protected List<SoundFragment> pickSongsFromScheduled(
-            List<ScheduledSongEntry> scheduledSongs,
+            List<PendingSongEntry> scheduledSongs,
             Set<UUID> excludeIds
     ) {
-        List<ScheduledSongEntry> available = scheduledSongs.stream()
+        List<PendingSongEntry> available = scheduledSongs.stream()
                 .filter(e -> !excludeIds.contains(e.getSoundFragment().getId()))
                 .toList();
 
@@ -39,7 +39,7 @@ public abstract class StreamSupplier {
         int take = available.size() >= 2 && new Random().nextDouble() < 0.7 ? 2 : 1;
         return available.stream()
                 .limit(take)
-                .map(ScheduledSongEntry::getSoundFragment)
+                .map(PendingSongEntry::getSoundFragment)
                 .toList();
     }
 
@@ -51,12 +51,12 @@ public abstract class StreamSupplier {
             IStream stream,
             io.kneo.broadcaster.model.cnst.LanguageTag broadcastingLanguage
     ) {
-        List<ScheduledSongEntry> existingSongs = activeEntry.getSongs();
+        List<PendingSongEntry> existingSongs = activeEntry.getSongs();
         if (!existingSongs.isEmpty()) {
             LOGGER.info("Using existing generated news fragment for scene: {}", activeEntry.getSceneTitle());
             return Uni.createFrom().item(
                     existingSongs.stream()
-                            .map(ScheduledSongEntry::getSoundFragment)
+                            .map(PendingSongEntry::getSoundFragment)
                             .toList()
             );
         }

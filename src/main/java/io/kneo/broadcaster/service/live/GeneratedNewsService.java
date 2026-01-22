@@ -196,6 +196,9 @@ public class GeneratedNewsService {
         });
 
         return voiceUni.chain(voice -> {
+            LOGGER.info("Starting TTS generation for scene '{}' using voice: {} (engine: {})", 
+                    activeEntry.getSceneTitle(), voice.getId(), voice.getEngineType());
+            
             TextToSpeechClient ttsClient;
             String modelId;
             String actualVoiceId;
@@ -203,14 +206,18 @@ public class GeneratedNewsService {
             if (voice.getEngineType() == TTSEngineType.MODELSLAB) {
                 ttsClient = modelslabClient;
                 modelId = null;
+                LOGGER.info("Using Modelslab TTS client");
             } else {
                 ttsClient = elevenLabsClient;
                 modelId = config.getElevenLabsModelId();
+                LOGGER.info("Using ElevenLabs TTS client with model: {}", modelId);
             }
             actualVoiceId = voice.getId();
 
+            LOGGER.info("Calling TTS API with text length: {} characters", text.length());
             return ttsClient.textToSpeech(text, actualVoiceId, modelId)
                     .chain(audioBytes -> {
+                        LOGGER.info("TTS generation successful! Received {} bytes of audio data", audioBytes.length);
                         try {
                             Path uploadsDir = Paths.get(config.getPathUploads(), "generated-news-service", "supervisor", "temp");
                             Files.createDirectories(uploadsDir);
@@ -248,9 +255,14 @@ public class GeneratedNewsService {
                                 );
                             });
                         } catch (IOException | AudioMergeException e) {
-                            LOGGER.error("Failed to save or mix TTS audio", e);
+                            LOGGER.error("Failed to save or mix TTS audio for scene '{}'", activeEntry.getSceneTitle(), e);
                             return Uni.createFrom().failure(e);
                         }
+                    })
+                    .onFailure().recoverWithUni(error -> {
+                        LOGGER.error("TTS generation failed for scene '{}' - Error: {}", 
+                                activeEntry.getSceneTitle(), error.getMessage(), error);
+                        return Uni.createFrom().failure(error);
                     });
         });
     }

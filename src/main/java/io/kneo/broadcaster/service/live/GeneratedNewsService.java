@@ -162,7 +162,9 @@ public class GeneratedNewsService {
                             Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
                             maxTokens);
                 }
-                if (text.contains("technical difficulty") || text.contains("technical error")) {
+                if (text.contains("technical difficulty")
+                        || text.contains("technical error")
+                || text.contains("technical issue")) {
                     return null;
                 } else {
                     LOGGER.info("Generated news text ({} tokens): {}", response.usage().outputTokens(), text);

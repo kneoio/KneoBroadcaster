@@ -22,6 +22,7 @@ public class AiAgent extends SimpleReferenceEntity {
     private UUID copilot;
     private UUID newsReporter;
     private UUID weatherReporter;
+    private TTSSetting ttsSetting;
 
     public AiAgent() {
         this.preferredLang = new ArrayList<>();
@@ -29,10 +30,10 @@ public class AiAgent extends SimpleReferenceEntity {
     }
 
     public UUID getNewsReporter() {
-        return copilot;
+        return newsReporter;
     }
 
     public UUID getWeatherReporter() {
-        return copilot;
+        return weatherReporter;
     }
 }

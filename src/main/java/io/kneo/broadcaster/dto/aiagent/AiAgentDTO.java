@@ -21,4 +21,5 @@ public class AiAgentDTO extends AbstractDTO {
     private String searchEngineType;
     private List<VoiceDTO> primaryVoice;
     private UUID copilot;
+    private TTSSettingDTO ttsSetting;
 }

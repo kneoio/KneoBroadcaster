@@ -76,7 +76,7 @@ public class GeneratedNewsService {
             ModelslabClient modelslabClient,
             BroadcasterConfig config,
             DraftFactory draftFactory,
-            io.kneo.broadcaster.service.AiAgentService aiAgentService,
+            AiAgentService aiAgentService,
             SoundFragmentRepository soundFragmentRepository,
             FFmpegProvider ffmpegProvider,
             AudioConcatenator audioConcatenator
@@ -114,7 +114,7 @@ public class GeneratedNewsService {
                             .map(p -> p != null ? p : masterPrompt);
                 })
                 .chain(prompt -> generateText(prompt, agent, stream, broadcastingLanguage)
-                        .chain(text -> generateTtsAndSave(text, prompt, agent, stream, brandId, activeEntry))
+                        .chain(text -> generateTtsAndSave(text, prompt, agent, brandId, activeEntry))
                 );
     }
 
@@ -165,39 +165,34 @@ public class GeneratedNewsService {
             String text,
             Prompt prompt,
             AiAgent agent,
-            IStream stream,
             UUID brandId,
             LiveScene activeEntry
     ) {
         String uploadId = UUID.randomUUID().toString();
-        
-        Uni<Voice> voiceUni = agent.getNewsReporter() != null
-                ? aiAgentService.getById(agent.getNewsReporter(), SuperUser.build(), LanguageCode.en)
-                        .map(newsReporter -> newsReporter.getPrimaryVoice().stream()
-                                .findFirst()
-                                .orElseThrow(() -> new RuntimeException("No voice found for news reporter")))
+
+        Uni<Voice> voiceUni = agent.getTtsSetting() != null && agent.getTtsSetting().getNewsReporter() != null
+                ? Uni.createFrom().item(agent.getTtsSetting().getNewsReporter())
                 : Uni.createFrom().item(() -> {
-                    Voice voice = new Voice();
-                    voice.setId("madison");
-                    voice.setEngineType(TTSEngineType.MODELSLAB);
-                    return voice;
-                });
+            Voice voice = new Voice();
+            voice.setId("Tara");
+            voice.setEngineType(TTSEngineType.MODELSLAB);
+            return voice;
+        });
 
         return voiceUni.chain(voice -> {
             TextToSpeechClient ttsClient;
             String modelId;
             String actualVoiceId;
-            
-          //  if (voice.getEngineType() == TTSEngineType.MODELSLAB) {
+
+            if (voice.getEngineType() == TTSEngineType.MODELSLAB) {
                 ttsClient = modelslabClient;
                 modelId = null;
-                actualVoiceId = "madison";
-         /*   } else {
+            } else {
                 ttsClient = elevenLabsClient;
                 modelId = config.getElevenLabsModelId();
-                actualVoiceId = voice.getId();
-            }*/
-            
+            }
+            actualVoiceId = voice.getId();
+
             return ttsClient.textToSpeech(text, actualVoiceId, modelId)
                     .chain(audioBytes -> {
                         try {
@@ -214,13 +209,13 @@ public class GeneratedNewsService {
                                     config,
                                     soundFragmentRepository,
                                     soundFragmentService,
-                                audioConcatenator,
-                                aiAgentService,
-                                ffmpegProvider
-                        );
+                                    audioConcatenator,
+                                    aiAgentService,
+                                    ffmpegProvider
+                            );
 
-                        String mixedFileName = "mixed_news_" + uploadId + ".wav";
-                        Path mixedFilePath = uploadsDir.resolve(mixedFileName);
+                            String mixedFileName = "mixed_news_" + uploadId + ".wav";
+                            Path mixedFilePath = uploadsDir.resolve(mixedFileName);
 
                             return mixingHandler.mixNewsWithBackgroundAndIntros(
                                     ttsFilePath.toString(),
@@ -252,10 +247,10 @@ public class GeneratedNewsService {
         try {
             Path targetDir = Paths.get(config.getPathUploads(), "sound-fragments-controller", "supervisor", "temp");
             Files.createDirectories(targetDir);
-            
+
             Path targetPath = targetDir.resolve(audioFilePath.getFileName());
             Files.copy(audioFilePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            
+
             SoundFragmentDTO dto = new SoundFragmentDTO();
             dto.setType(PlaylistItemType.NEWS);
             String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
@@ -274,29 +269,29 @@ public class GeneratedNewsService {
             dto.setSlugName(slugName);
 
             return soundFragmentService.upsert("new", dto, SuperUser.build(), LanguageCode.en)
-                .map(savedDto -> {
-                    SoundFragment fragment = new SoundFragment();
-                    fragment.setId(savedDto.getId());
-                    fragment.setType(savedDto.getType());
-                    fragment.setTitle(savedDto.getTitle());
-                    fragment.setArtist(savedDto.getArtist());
-                    fragment.setGenres(savedDto.getGenres());
-                    fragment.setLabels(savedDto.getLabels());
-                    fragment.setSource(savedDto.getSource());
-                    fragment.setExpiresAt(savedDto.getExpiresAt());
-                    fragment.setLength(savedDto.getLength());
-                    fragment.setDescription(savedDto.getDescription());
-                    fragment.setSlugName(savedDto.getSlugName());
+                    .map(savedDto -> {
+                        SoundFragment fragment = new SoundFragment();
+                        fragment.setId(savedDto.getId());
+                        fragment.setType(savedDto.getType());
+                        fragment.setTitle(savedDto.getTitle());
+                        fragment.setArtist(savedDto.getArtist());
+                        fragment.setGenres(savedDto.getGenres());
+                        fragment.setLabels(savedDto.getLabels());
+                        fragment.setSource(savedDto.getSource());
+                        fragment.setExpiresAt(savedDto.getExpiresAt());
+                        fragment.setLength(savedDto.getLength());
+                        fragment.setDescription(savedDto.getDescription());
+                        fragment.setSlugName(savedDto.getSlugName());
 
-                    PendingSongEntry entry = new PendingSongEntry(fragment, activeEntry.getScheduledStartTime());
-                    activeEntry.addSong(entry);
-                    activeEntry.setGeneratedContentTimestamp(LocalDateTime.now());
-                    activeEntry.setGeneratedFragmentId(fragment.getId());
-                    activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
+                        PendingSongEntry entry = new PendingSongEntry(fragment, activeEntry.getScheduledStartTime());
+                        activeEntry.addSong(entry);
+                        activeEntry.setGeneratedContentTimestamp(LocalDateTime.now());
+                        activeEntry.setGeneratedFragmentId(fragment.getId());
+                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
 
-                    LOGGER.info("Generated news fragment saved and added to scene: {}", fragment.getId());
-                    return fragment;
-                });
+                        LOGGER.info("Generated news fragment saved and added to scene: {}", fragment.getId());
+                        return fragment;
+                    });
         } catch (IOException e) {
             LOGGER.error("Failed to copy audio file to target directory", e);
             return Uni.createFrom().failure(e);

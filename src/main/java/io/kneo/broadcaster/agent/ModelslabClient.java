@@ -31,9 +31,9 @@ public class ModelslabClient implements TextToSpeechClient {
                 .put("key", config.getModelslabApiKey())
                 .put("prompt", text)
                 .put("voice_id", voiceId)
-                .put("language", "american english")
+                .put("language", "british english")
                 .put("speed", 1)
-                .put("emotion", false);
+                .put("emotion", true);
 
         String endpoint = "https://modelslab.com/api/v6/voice/text_to_speech";
 
@@ -54,7 +54,7 @@ public class ModelslabClient implements TextToSpeechClient {
                         return downloadAudio(audioUrl);
                     } else if ("processing".equals(status)) {
                         String fetchUrl = jsonResponse.getString("fetch_result");
-                        return pollForCompletion(fetchUrl, 60, 2000);
+                        return pollForCompletion(fetchUrl, 120, 2000);
                     } else {
                         throw new RuntimeException("Modelslab API failed: " + jsonResponse.encode());
                     }

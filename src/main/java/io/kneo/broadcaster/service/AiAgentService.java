@@ -2,11 +2,13 @@ package io.kneo.broadcaster.service;
 
 import io.kneo.broadcaster.dto.aiagent.AiAgentDTO;
 import io.kneo.broadcaster.dto.aiagent.LanguagePreferenceDTO;
+import io.kneo.broadcaster.dto.aiagent.TTSSettingDTO;
 import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.aiagent.SearchEngineType;
+import io.kneo.broadcaster.model.aiagent.TTSSetting;
 import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.AiAgentRepository;
@@ -120,6 +122,39 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
 
             if (doc.getCopilot() != null) dto.setCopilot(doc.getCopilot());
 
+            if (doc.getTtsSetting() != null) {
+                TTSSettingDTO ttsSettingDTO = new TTSSettingDTO();
+                if (doc.getTtsSetting().getDj() != null) {
+                    VoiceDTO djVoice = new VoiceDTO();
+                    djVoice.setId(doc.getTtsSetting().getDj().getId());
+                    djVoice.setName(doc.getTtsSetting().getDj().getName());
+                    djVoice.setEngineType(doc.getTtsSetting().getDj().getEngineType());
+                    ttsSettingDTO.setDj(djVoice);
+                }
+                if (doc.getTtsSetting().getCopilot() != null) {
+                    VoiceDTO copilotVoice = new VoiceDTO();
+                    copilotVoice.setId(doc.getTtsSetting().getCopilot().getId());
+                    copilotVoice.setName(doc.getTtsSetting().getCopilot().getName());
+                    copilotVoice.setEngineType(doc.getTtsSetting().getCopilot().getEngineType());
+                    ttsSettingDTO.setCopilot(copilotVoice);
+                }
+                if (doc.getTtsSetting().getNewsReporter() != null) {
+                    VoiceDTO newsReporterVoice = new VoiceDTO();
+                    newsReporterVoice.setId(doc.getTtsSetting().getNewsReporter().getId());
+                    newsReporterVoice.setName(doc.getTtsSetting().getNewsReporter().getName());
+                    newsReporterVoice.setEngineType(doc.getTtsSetting().getNewsReporter().getEngineType());
+                    ttsSettingDTO.setNewsReporter(newsReporterVoice);
+                }
+                if (doc.getTtsSetting().getWeatherReporter() != null) {
+                    VoiceDTO weatherReporterVoice = new VoiceDTO();
+                    weatherReporterVoice.setId(doc.getTtsSetting().getWeatherReporter().getId());
+                    weatherReporterVoice.setName(doc.getTtsSetting().getWeatherReporter().getName());
+                    weatherReporterVoice.setEngineType(doc.getTtsSetting().getWeatherReporter().getEngineType());
+                    ttsSettingDTO.setWeatherReporter(weatherReporterVoice);
+                }
+                dto.setTtsSetting(ttsSettingDTO);
+            }
+
             return dto;
         });
     }
@@ -158,6 +193,39 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                     })
                     .collect(Collectors.toList());
             doc.setPrimaryVoice(voices);
+        }
+
+        if (dto.getTtsSetting() != null) {
+            TTSSetting ttsSetting = new TTSSetting();
+            if (dto.getTtsSetting().getDj() != null) {
+                Voice djVoice = new Voice();
+                djVoice.setId(dto.getTtsSetting().getDj().getId());
+                djVoice.setName(dto.getTtsSetting().getDj().getName());
+                djVoice.setEngineType(dto.getTtsSetting().getDj().getEngineType());
+                ttsSetting.setDj(djVoice);
+            }
+            if (dto.getTtsSetting().getCopilot() != null) {
+                Voice copilotVoice = new Voice();
+                copilotVoice.setId(dto.getTtsSetting().getCopilot().getId());
+                copilotVoice.setName(dto.getTtsSetting().getCopilot().getName());
+                copilotVoice.setEngineType(dto.getTtsSetting().getCopilot().getEngineType());
+                ttsSetting.setCopilot(copilotVoice);
+            }
+            if (dto.getTtsSetting().getNewsReporter() != null) {
+                Voice newsReporterVoice = new Voice();
+                newsReporterVoice.setId(dto.getTtsSetting().getNewsReporter().getId());
+                newsReporterVoice.setName(dto.getTtsSetting().getNewsReporter().getName());
+                newsReporterVoice.setEngineType(dto.getTtsSetting().getNewsReporter().getEngineType());
+                ttsSetting.setNewsReporter(newsReporterVoice);
+            }
+            if (dto.getTtsSetting().getWeatherReporter() != null) {
+                Voice weatherReporterVoice = new Voice();
+                weatherReporterVoice.setId(dto.getTtsSetting().getWeatherReporter().getId());
+                weatherReporterVoice.setName(dto.getTtsSetting().getWeatherReporter().getName());
+                weatherReporterVoice.setEngineType(dto.getTtsSetting().getWeatherReporter().getEngineType());
+                ttsSetting.setWeatherReporter(weatherReporterVoice);
+            }
+            doc.setTtsSetting(ttsSetting);
         }
 
         return doc;

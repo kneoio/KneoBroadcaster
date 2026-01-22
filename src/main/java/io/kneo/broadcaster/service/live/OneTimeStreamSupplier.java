@@ -122,9 +122,17 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             List<SoundFragment> pickedSongs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
 
             if (pickedSongs.isEmpty()) {
-                activeEntry.setActualEndTime(LocalDateTime.now());
-                stream.clearSceneState(activeSceneId);
-                return Uni.createFrom().item(() -> null);
+                // Check if scene should end by time or continue waiting
+                java.time.LocalDateTime now = java.time.LocalDateTime.now();
+                if (now.isAfter(activeEntry.getScheduledEndTime())) {
+                    // Scene time is over, end it
+                    activeEntry.setActualEndTime(now);
+                    stream.clearSceneState(activeSceneId);
+                    return Uni.createFrom().item(() -> null);
+                } else {
+                    // Songs exhausted but time remains, wait for next cycle
+                    return Uni.createFrom().item(() -> null);
+                }
             }
 
             songsUni = Uni.createFrom().item(pickedSongs);

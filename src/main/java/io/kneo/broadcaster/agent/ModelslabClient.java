@@ -8,9 +8,12 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @ApplicationScoped
 public class ModelslabClient implements TextToSpeechClient {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ModelslabClient.class);
 
     @Inject
     BroadcasterConfig config;
@@ -27,6 +30,8 @@ public class ModelslabClient implements TextToSpeechClient {
 
     @Override
     public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId) {
+        LOGGER.info("Starting Modelslab TTS generation - Voice: {}, Text length: {} chars", voiceId, text.length());
+        
         JsonObject payload = new JsonObject()
                 .put("key", config.getModelslabApiKey())
                 .put("prompt", text)
@@ -54,7 +59,7 @@ public class ModelslabClient implements TextToSpeechClient {
                         return downloadAudio(audioUrl);
                     } else if ("processing".equals(status)) {
                         String fetchUrl = jsonResponse.getString("fetch_result");
-                        return pollForCompletion(fetchUrl, 120, 2000);
+                        return pollForCompletion(fetchUrl, 200, 2000);
                     } else {
                         throw new RuntimeException("Modelslab API failed: " + jsonResponse.encode());
                     }
@@ -82,6 +87,12 @@ public class ModelslabClient implements TextToSpeechClient {
     private Uni<byte[]> pollOnce(String fetchUrl, int attempt, int maxAttempts, long delayMs) {
         if (attempt >= maxAttempts) {
             return Uni.createFrom().failure(new RuntimeException("Modelslab TTS timeout after " + maxAttempts + " attempts"));
+        }
+        
+        // Log progress every 20 attempts
+        if (attempt % 20 == 0 && attempt > 0) {
+            LOGGER.info("Modelslab TTS polling progress: {}/{} attempts ({} seconds elapsed)", 
+                    attempt, maxAttempts, (attempt * delayMs) / 1000);
         }
 
         return Uni.createFrom().item(attempt)

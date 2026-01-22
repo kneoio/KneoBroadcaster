@@ -133,11 +133,21 @@ public class GeneratedNewsService {
                 LanguageTag.EN_US,  //for now, we use en for draft explicitly
                 new HashMap<>()
         ).chain(draftContent -> Uni.createFrom().item(() -> {
+            LOGGER.info("Draft content received: {}", draftContent);
+            
+            // Check if draft contains error
+            if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
+                LOGGER.error("Draft content contains error, skipping generation: {}", draftContent);
+                return null;
+            }
+            
             String fullPrompt = String.format(
                     "%s\n\nDraft input:\n%s",
                     prompt.getPrompt(),
                     draftContent
             );
+            
+            LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
 
             long maxTokens = 2048L;
             MessageCreateParams params = MessageCreateParams.builder()
@@ -149,6 +159,9 @@ public class GeneratedNewsService {
 
             try {
                 Message response = anthropicClient.messages().create(params);
+                
+                LOGGER.info("Claude response received - Input tokens: {}, Output tokens: {}", 
+                        response.usage().inputTokens(), response.usage().outputTokens());
 
                 String text = response.content().stream()
                         .filter(ContentBlock::isText)

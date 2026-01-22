@@ -37,10 +37,20 @@ public class PerplexityApiClient {
 
         JsonObject requestBody = new JsonObject()
                 .put("model", "sonar-pro")
+                .put("response_format", new JsonObject()
+                        .put("type", "json_schema")
+                        .put("json_schema", new JsonObject()
+                                .put("schema", new JsonObject()
+                                        .put("type", "object")
+                                        .put("additionalProperties", true)
+                                        .put("properties", new JsonObject())
+                                )
+                        )
+                )
                 .put("messages", List.of(
                         new JsonObject()
                                 .put("role", "user")
-                                .put("content", query + "\nRespond ONLY with valid JSON. No explanation. No text outside JSON.")
+                                .put("content", query + "\nRespond ONLY with valid JSON matching the schema.")
                 ));
 
 

@@ -52,30 +52,49 @@ public abstract class StreamSupplier {
             IStream stream,
             LanguageTag broadcastingLanguage
     ) {
-        List<PendingSongEntry> existingSongs = activeEntry.getSongs();
-        if (!existingSongs.isEmpty()) {
-            LOGGER.info("Using existing generated news fragment for scene: {}", activeEntry.getSceneTitle());
-            return Uni.createFrom().item(
-                    existingSongs.stream()
-                            .map(PendingSongEntry::getSoundFragment)
-                            .toList()
-            );
-        }
-
+        // Get prompt ID early as it's needed in error handling
         List<ScenePrompt> contentPrompts = activeEntry.getContentPrompts();
         if (contentPrompts == null || contentPrompts.isEmpty()) {
             LOGGER.error("No content prompts found for GENERATED scene, scene: {}", activeEntry.getSceneTitle());
             activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
             return Uni.createFrom().item(List.of());
         }
-
         UUID promptId = contentPrompts.getFirst().getPromptId();
+        
+        // For news scenes, check if we already have a generated fragment
+        if (activeEntry.getGeneratedFragmentId() != null) {
+            LOGGER.info("Scene {} already has generated fragment {}, checking if valid", 
+                    activeEntry.getSceneTitle(), activeEntry.getGeneratedFragmentId());
+            
+            // Check if the fragment actually exists and is valid
+            return soundFragmentService.getById(activeEntry.getGeneratedFragmentId())
+                    .flatMap(fragment -> {
+                        if (fragment.getExpiresAt() != null && fragment.getExpiresAt().isBefore(java.time.LocalDateTime.now())) {
+                            LOGGER.info("Fragment {} expired at {}, regenerating", 
+                                    activeEntry.getGeneratedFragmentId(), fragment.getExpiresAt());
+                            return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+                        }
+                        
+                        LOGGER.info("Reusing valid fragment {} for scene {}", 
+                                activeEntry.getGeneratedFragmentId(), activeEntry.getSceneTitle());
+                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
+                        return Uni.createFrom().item(List.of(fragment));
+                    })
+                    .onFailure().recoverWithUni(error -> {
+                        LOGGER.warn("Fragment {} not found (may be deleted), regenerating", 
+                                activeEntry.getGeneratedFragmentId());
+                        return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+                    });
+        }
 
+        // If no fragment ID, try to reuse from another scene with same prompt (today's news)
         LiveScene sourceScene = stream.getStreamAgenda().getLiveScenes().stream()
                 .filter(scene -> !scene.getSceneId().equals(activeEntry.getSceneId()))
                 .filter(scene -> scene.getGeneratedFragmentId() != null)
                 .filter(scene -> scene.getContentPrompts() != null && !scene.getContentPrompts().isEmpty())
                 .filter(scene -> scene.getContentPrompts().getFirst().getPromptId().equals(promptId))
+                .filter(scene -> scene.getGeneratedContentTimestamp() != null 
+                        && scene.getGeneratedContentTimestamp().toLocalDate().equals(java.time.LocalDate.now()))
                 .findFirst()
                 .orElse(null);
 
@@ -89,14 +108,15 @@ public abstract class StreamSupplier {
                             return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
                         }
                         
-                        LOGGER.info("Reusing valid fragment {} from scene with same prompt {}", existingFragmentId, promptId);
+                        LOGGER.info("Reusing today's news fragment {} from scene '{}' for scene '{}'", 
+                                existingFragmentId, sourceScene.getSceneTitle(), activeEntry.getSceneTitle());
                         activeEntry.setGeneratedFragmentId(existingFragmentId);
                         activeEntry.setGeneratedContentTimestamp(sourceScene.getGeneratedContentTimestamp());
                         activeEntry.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
                         return Uni.createFrom().item(List.of(fragment));
                     })
                     .onFailure().recoverWithUni(error -> {
-                        LOGGER.warn("Fragment {} not found (may be expired/deleted), regenerating", existingFragmentId);
+                        LOGGER.warn("Fragment {} not found (may be deleted), regenerating", existingFragmentId);
                         return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
                     });
         }
@@ -112,7 +132,7 @@ public abstract class StreamSupplier {
             LiveScene activeEntry,
             LanguageTag broadcastingLanguage
     ) {
-        LOGGER.info("Generating new content for prompt {}", promptId);
+        LOGGER.info("Generating new content for scene: {} prompt: {}", activeEntry.getSceneTitle(), promptId);
         activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PENDING);
         
         return generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage)

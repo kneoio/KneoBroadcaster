@@ -93,6 +93,7 @@ public class GeneratedNewsService {
         this.audioConcatenator = audioConcatenator;
         this.anthropicClient = AnthropicOkHttpClient.builder()
                 .apiKey(config.getAnthropicApiKey())
+                .timeout(java.time.Duration.ofSeconds(60))
                 .build();
     }
 
@@ -114,7 +115,12 @@ public class GeneratedNewsService {
                             .map(p -> p != null ? p : masterPrompt);
                 })
                 .chain(prompt -> generateText(prompt, agent, stream, broadcastingLanguage)
-                        .chain(text -> generateTtsAndSave(text, prompt, agent, brandId, activeEntry))
+                        .chain(text -> {
+                            if (text == null) {
+                                return Uni.createFrom().failure(new RuntimeException("Generated content contains technical difficulty/error - skipping generation"));
+                            }
+                            return generateTtsAndSave(text, prompt, agent, brandId, activeEntry);
+                        })
                 );
     }
 
@@ -124,7 +130,7 @@ public class GeneratedNewsService {
                 agent,
                 stream,
                 prompt.getDraftId(),
-                broadcastingLanguage,
+                LanguageTag.EN_US,  //for now, we use en for draft explicitly
                 new HashMap<>()
         ).chain(draftContent -> Uni.createFrom().item(() -> {
             String fullPrompt = String.format(
@@ -141,23 +147,31 @@ public class GeneratedNewsService {
                     .addUserMessage(fullPrompt)
                     .build();
 
-            Message response = anthropicClient.messages().create(params);
+            try {
+                Message response = anthropicClient.messages().create(params);
 
-            String text = response.content().stream()
-                    .filter(ContentBlock::isText)
-                    .map(block -> block.asText().text())
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("No text generated from AI"));
+                String text = response.content().stream()
+                        .filter(ContentBlock::isText)
+                        .map(block -> block.asText().text())
+                        .findFirst()
+                        .orElseThrow(() -> new RuntimeException("No text generated from AI"));
 
-            if (response.usage().outputTokens() >= maxTokens * 0.95) {
-                LOGGER.warn("News generation used {} tokens ({}% of max {}). Response may be truncated.",
-                        response.usage().outputTokens(),
-                        Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
-                        maxTokens);
+                if (response.usage().outputTokens() >= maxTokens * 0.95) {
+                    LOGGER.warn("News generation used {} tokens ({}% of max {}). Response may be truncated.",
+                            response.usage().outputTokens(),
+                            Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
+                            maxTokens);
+                }
+                if (text.contains("technical difficulty") || text.contains("technical error")) {
+                    return null;
+                } else {
+                    LOGGER.info("Generated news text ({} tokens): {}", response.usage().outputTokens(), text);
+                    return text;
+                }
+            } catch (Exception e) {
+                LOGGER.error("Anthropic API call failed - Type: {}, Message: {}", e.getClass().getSimpleName(), e.getMessage(), e);
+                throw e;
             }
-
-            LOGGER.info("Generated news text ({} tokens): {}", response.usage().outputTokens(), text);
-            return text;
         }));
     }
 
@@ -227,7 +241,8 @@ public class GeneratedNewsService {
                                         Path.of(mixedPath),
                                         prompt,
                                         brandId,
-                                        activeEntry
+                                        activeEntry,
+                                        text
                                 );
                             });
                         } catch (IOException | AudioMergeException e) {
@@ -242,7 +257,8 @@ public class GeneratedNewsService {
             Path audioFilePath,
             Prompt prompt,
             UUID brandId,
-            LiveScene activeEntry
+            LiveScene activeEntry,
+            String text
     ) {
         try {
             Path targetDir = Paths.get(config.getPathUploads(), "sound-fragments-controller", "supervisor", "temp");
@@ -261,7 +277,9 @@ public class GeneratedNewsService {
             dto.setSource(SourceType.TEMPORARY_MIX);
             dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay());
             dto.setLength(Duration.ofSeconds(30));
-            dto.setDescription("AI generated news content " + currentDate);
+            // Include the generated text in description for debugging
+            String truncatedText = text.length() > 200 ? text.substring(0, 200) + "..." : text;
+            dto.setDescription("AI generated news content " + currentDate + "\n\nContent: " + truncatedText);
             dto.setRepresentedInBrands(List.of(brandId));
             dto.setNewlyUploaded(List.of(audioFilePath.getFileName().toString()));
 

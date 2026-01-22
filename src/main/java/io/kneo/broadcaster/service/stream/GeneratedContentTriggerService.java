@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.stream;
 
 import io.kneo.broadcaster.model.ScenePrompt;
+import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
@@ -20,6 +21,11 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
+
+/*
+* To trigger news generation for a scene
+* from UI
+* */
 
 @ApplicationScoped
 public class GeneratedContentTriggerService {
@@ -51,14 +57,19 @@ public class GeneratedContentTriggerService {
             return Uni.createFrom().failure(new IllegalStateException("Stream has no schedule: " + brand));
         }
 
-        LiveScene liveScene = schedule.getLiveScenes().stream()
+        List<LiveScene> matchingScenes = schedule.getLiveScenes().stream()
                 .filter(s -> s.getSceneId().equals(sceneId))
-                .findFirst()
-                .orElse(null);
-
-        if (liveScene == null) {
+                .toList();
+        
+        if (matchingScenes.isEmpty()) {
             return Uni.createFrom().failure(new IllegalArgumentException("Scene not found in schedule: " + sceneId));
         }
+        
+        if (matchingScenes.size() > 1) {
+            LOGGER.warn("Found {} scenes with same ID {}: This should not happen!", matchingScenes.size(), sceneId);
+        }
+        
+        LiveScene liveScene = matchingScenes.getFirst();
 
         if (liveScene.getSourcing() != WayOfSourcing.GENERATED) {
             return Uni.createFrom().failure(new IllegalArgumentException(
@@ -73,10 +84,19 @@ public class GeneratedContentTriggerService {
             ));
         }
 
+        LOGGER.info("Before clearing - Scene '{}' has {} songs", liveScene.getSceneTitle(), liveScene.getSongs().size());
+        if (!liveScene.getSongs().isEmpty()) {
+            LOGGER.info("Existing songs: {}", liveScene.getSongs().stream()
+                    .map(s -> s.getSoundFragment().getTitle())
+                    .toList());
+        }
+        
         liveScene.getSongs().clear();
         liveScene.setGeneratedFragmentId(null);
         liveScene.setGeneratedContentTimestamp(null);
         liveScene.setGeneratedContentStatus(null);
+        
+        LOGGER.info("After clearing - Scene '{}' now has {} songs", liveScene.getSceneTitle(), liveScene.getSongs().size());
 
         UUID promptId = prompts.getFirst().getPromptId();
         UUID brandId = stream.getMasterBrand().getId();
@@ -89,6 +109,12 @@ public class GeneratedContentTriggerService {
                 {
                     LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                     return generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, liveScene, broadcastingLanguage);
+                })
+                .onFailure().recoverWithUni(error -> {
+                    LOGGER.error("Failed to generate content for scene '{}' ({}), prompt: {}", 
+                            liveScene.getSceneTitle(), sceneId, promptId, error);
+                    liveScene.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
+                    return Uni.createFrom().failure(error);
                 });
     }
 }

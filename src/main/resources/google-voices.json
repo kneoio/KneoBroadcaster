@@ -1,0 +1,1930 @@
+[
+  {
+    "id": "Achernar",
+    "name": "Achernar (Female, en-US)"
+  },
+  {
+    "id": "Achird",
+    "name": "Achird (Male, en-US)"
+  },
+  {
+    "id": "Algenib",
+    "name": "Algenib (Male, en-US)"
+  },
+  {
+    "id": "Algieba",
+    "name": "Algieba (Male, en-US)"
+  },
+  {
+    "id": "Alnilam",
+    "name": "Alnilam (Male, en-US)"
+  },
+  {
+    "id": "Aoede",
+    "name": "Aoede (Female, en-US)"
+  },
+  {
+    "id": "Autonoe",
+    "name": "Autonoe (Female, en-US)"
+  },
+  {
+    "id": "Callirrhoe",
+    "name": "Callirrhoe (Female, en-US)"
+  },
+  {
+    "id": "Charon",
+    "name": "Charon (Male, en-US)"
+  },
+  {
+    "id": "Despina",
+    "name": "Despina (Female, en-US)"
+  },
+  {
+    "id": "Enceladus",
+    "name": "Enceladus (Male, en-US)"
+  },
+  {
+    "id": "Erinome",
+    "name": "Erinome (Female, en-US)"
+  },
+  {
+    "id": "Fenrir",
+    "name": "Fenrir (Male, en-US)"
+  },
+  {
+    "id": "Gacrux",
+    "name": "Gacrux (Female, en-US)"
+  },
+  {
+    "id": "Iapetus",
+    "name": "Iapetus (Male, en-US)"
+  },
+  {
+    "id": "Kore",
+    "name": "Kore (Female, en-US)"
+  },
+  {
+    "id": "Laomedeia",
+    "name": "Laomedeia (Female, en-US)"
+  },
+  {
+    "id": "Leda",
+    "name": "Leda (Female, en-US)"
+  },
+  {
+    "id": "Orus",
+    "name": "Orus (Male, en-US)"
+  },
+  {
+    "id": "Puck",
+    "name": "Puck (Male, en-US)"
+  },
+  {
+    "id": "Pulcherrima",
+    "name": "Pulcherrima (Female, en-US)"
+  },
+  {
+    "id": "Rasalgethi",
+    "name": "Rasalgethi (Male, en-US)"
+  },
+  {
+    "id": "Sadachbia",
+    "name": "Sadachbia (Male, en-US)"
+  },
+  {
+    "id": "Sadaltager",
+    "name": "Sadaltager (Male, en-US)"
+  },
+  {
+    "id": "Schedar",
+    "name": "Schedar (Male, en-US)"
+  },
+  {
+    "id": "Sulafat",
+    "name": "Sulafat (Female, en-US)"
+  },
+  {
+    "id": "Umbriel",
+    "name": "Umbriel (Male, en-US)"
+  },
+  {
+    "id": "Vindemiatrix",
+    "name": "Vindemiatrix (Female, en-US)"
+  },
+  {
+    "id": "Zephyr",
+    "name": "Zephyr (Female, en-US)"
+  },
+  {
+    "id": "Zubenelgenubi",
+    "name": "Zubenelgenubi (Male, en-US)"
+  },
+  {
+    "id": "af-ZA-Standard-A",
+    "name": "af-ZA-Standard-A (Female, af-ZA)"
+  },
+  {
+    "id": "am-ET-Standard-A",
+    "name": "am-ET-Standard-A (Female, am-ET)"
+  },
+  {
+    "id": "am-ET-Standard-B",
+    "name": "am-ET-Standard-B (Male, am-ET)"
+  },
+  {
+    "id": "am-ET-Wavenet-A",
+    "name": "am-ET-Wavenet-A (Female, am-ET)"
+  },
+  {
+    "id": "am-ET-Wavenet-B",
+    "name": "am-ET-Wavenet-B (Male, am-ET)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Achernar",
+    "name": "ar-XA-Chirp3-HD-Achernar (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Achird",
+    "name": "ar-XA-Chirp3-HD-Achird (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Algenib",
+    "name": "ar-XA-Chirp3-HD-Algenib (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Algieba",
+    "name": "ar-XA-Chirp3-HD-Algieba (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Alnilam",
+    "name": "ar-XA-Chirp3-HD-Alnilam (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Aoede",
+    "name": "ar-XA-Chirp3-HD-Aoede (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Autonoe",
+    "name": "ar-XA-Chirp3-HD-Autonoe (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Callirrhoe",
+    "name": "ar-XA-Chirp3-HD-Callirrhoe (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Charon",
+    "name": "ar-XA-Chirp3-HD-Charon (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Despina",
+    "name": "ar-XA-Chirp3-HD-Despina (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Enceladus",
+    "name": "ar-XA-Chirp3-HD-Enceladus (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Erinome",
+    "name": "ar-XA-Chirp3-HD-Erinome (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Fenrir",
+    "name": "ar-XA-Chirp3-HD-Fenrir (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Gacrux",
+    "name": "ar-XA-Chirp3-HD-Gacrux (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Iapetus",
+    "name": "ar-XA-Chirp3-HD-Iapetus (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Kore",
+    "name": "ar-XA-Chirp3-HD-Kore (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Laomedeia",
+    "name": "ar-XA-Chirp3-HD-Laomedeia (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Leda",
+    "name": "ar-XA-Chirp3-HD-Leda (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Orus",
+    "name": "ar-XA-Chirp3-HD-Orus (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Puck",
+    "name": "ar-XA-Chirp3-HD-Puck (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Pulcherrima",
+    "name": "ar-XA-Chirp3-HD-Pulcherrima (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Rasalgethi",
+    "name": "ar-XA-Chirp3-HD-Rasalgethi (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Sadachbia",
+    "name": "ar-XA-Chirp3-HD-Sadachbia (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Sadaltager",
+    "name": "ar-XA-Chirp3-HD-Sadaltager (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Schedar",
+    "name": "ar-XA-Chirp3-HD-Schedar (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Sulafat",
+    "name": "ar-XA-Chirp3-HD-Sulafat (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Umbriel",
+    "name": "ar-XA-Chirp3-HD-Umbriel (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Vindemiatrix",
+    "name": "ar-XA-Chirp3-HD-Vindemiatrix (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Zephyr",
+    "name": "ar-XA-Chirp3-HD-Zephyr (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Chirp3-HD-Zubenelgenubi",
+    "name": "ar-XA-Chirp3-HD-Zubenelgenubi (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Standard-A",
+    "name": "ar-XA-Standard-A (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Standard-B",
+    "name": "ar-XA-Standard-B (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Standard-C",
+    "name": "ar-XA-Standard-C (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Standard-D",
+    "name": "ar-XA-Standard-D (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Wavenet-A",
+    "name": "ar-XA-Wavenet-A (Female, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Wavenet-B",
+    "name": "ar-XA-Wavenet-B (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Wavenet-C",
+    "name": "ar-XA-Wavenet-C (Male, ar-XA)"
+  },
+  {
+    "id": "ar-XA-Wavenet-D",
+    "name": "ar-XA-Wavenet-D (Female, ar-XA)"
+  },
+  {
+    "id": "bg-BG-Standard-A",
+    "name": "bg-BG-Standard-A (Female, bg-BG)"
+  },
+  {
+    "id": "bn-BD-Standard-A",
+    "name": "bn-BD-Standard-A (Female, bn-BD)"
+  },
+  {
+    "id": "bn-IN-Standard-A",
+    "name": "bn-IN-Standard-A (Female, bn-IN)"
+  },
+  {
+    "id": "bn-IN-Wavenet-A",
+    "name": "bn-IN-Wavenet-A (Female, bn-IN)"
+  },
+  {
+    "id": "bs-BA-Standard-A",
+    "name": "bs-BA-Standard-A (Female, bs-BA)"
+  },
+  {
+    "id": "ca-ES-Standard-A",
+    "name": "ca-ES-Standard-A (Female, ca-ES)"
+  },
+  {
+    "id": "cmn-CN-Standard-A",
+    "name": "cmn-CN-Standard-A (Female, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Standard-B",
+    "name": "cmn-CN-Standard-B (Male, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Standard-C",
+    "name": "cmn-CN-Standard-C (Female, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Standard-D",
+    "name": "cmn-CN-Standard-D (Male, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Wavenet-A",
+    "name": "cmn-CN-Wavenet-A (Female, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Wavenet-B",
+    "name": "cmn-CN-Wavenet-B (Male, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Wavenet-C",
+    "name": "cmn-CN-Wavenet-C (Female, cmn-CN)"
+  },
+  {
+    "id": "cmn-CN-Wavenet-D",
+    "name": "cmn-CN-Wavenet-D (Male, cmn-CN)"
+  },
+  {
+    "id": "cmn-TW-Standard-A",
+    "name": "cmn-TW-Standard-A (Female, cmn-TW)"
+  },
+  {
+    "id": "cmn-TW-Standard-B",
+    "name": "cmn-TW-Standard-B (Male, cmn-TW)"
+  },
+  {
+    "id": "cmn-TW-Wavenet-A",
+    "name": "cmn-TW-Wavenet-A (Female, cmn-TW)"
+  },
+  {
+    "id": "cmn-TW-Wavenet-B",
+    "name": "cmn-TW-Wavenet-B (Male, cmn-TW)"
+  },
+  {
+    "id": "cs-CZ-Standard-A",
+    "name": "cs-CZ-Standard-A (Female, cs-CZ)"
+  },
+  {
+    "id": "cs-CZ-Standard-B",
+    "name": "cs-CZ-Standard-B (Male, cs-CZ)"
+  },
+  {
+    "id": "cs-CZ-Wavenet-A",
+    "name": "cs-CZ-Wavenet-A (Female, cs-CZ)"
+  },
+  {
+    "id": "cs-CZ-Wavenet-B",
+    "name": "cs-CZ-Wavenet-B (Male, cs-CZ)"
+  },
+  {
+    "id": "cy-GB-Standard-A",
+    "name": "cy-GB-Standard-A (Female, cy-GB)"
+  },
+  {
+    "id": "cy-GB-Standard-B",
+    "name": "cy-GB-Standard-B (Male, cy-GB)"
+  },
+  {
+    "id": "da-DK-Standard-A",
+    "name": "da-DK-Standard-A (Female, da-DK)"
+  },
+  {
+    "id": "da-DK-Standard-B",
+    "name": "da-DK-Standard-B (Male, da-DK)"
+  },
+  {
+    "id": "da-DK-Standard-C",
+    "name": "da-DK-Standard-C (Male, da-DK)"
+  },
+  {
+    "id": "da-DK-Standard-D",
+    "name": "da-DK-Standard-D (Female, da-DK)"
+  },
+  {
+    "id": "da-DK-Wavenet-A",
+    "name": "da-DK-Wavenet-A (Female, da-DK)"
+  },
+  {
+    "id": "da-DK-Wavenet-B",
+    "name": "da-DK-Wavenet-B (Male, da-DK)"
+  },
+  {
+    "id": "da-DK-Wavenet-C",
+    "name": "da-DK-Wavenet-C (Male, da-DK)"
+  },
+  {
+    "id": "da-DK-Wavenet-D",
+    "name": "da-DK-Wavenet-D (Female, da-DK)"
+  },
+  {
+    "id": "de-AT-Standard-B",
+    "name": "de-AT-Standard-B (Male, de-AT)"
+  },
+  {
+    "id": "de-AT-Wavenet-B",
+    "name": "de-AT-Wavenet-B (Male, de-AT)"
+  },
+  {
+    "id": "de-CH-Standard-A",
+    "name": "de-CH-Standard-A (Female, de-CH)"
+  },
+  {
+    "id": "de-CH-Standard-B",
+    "name": "de-CH-Standard-B (Male, de-CH)"
+  },
+  {
+    "id": "de-CH-Wavenet-A",
+    "name": "de-CH-Wavenet-A (Female, de-CH)"
+  },
+  {
+    "id": "de-CH-Wavenet-B",
+    "name": "de-CH-Wavenet-B (Male, de-CH)"
+  },
+  {
+    "id": "de-DE-Standard-A",
+    "name": "de-DE-Standard-A (Female, de-DE)"
+  },
+  {
+    "id": "de-DE-Standard-B",
+    "name": "de-DE-Standard-B (Male, de-DE)"
+  },
+  {
+    "id": "de-DE-Standard-C",
+    "name": "de-DE-Standard-C (Female, de-DE)"
+  },
+  {
+    "id": "de-DE-Standard-D",
+    "name": "de-DE-Standard-D (Male, de-DE)"
+  },
+  {
+    "id": "de-DE-Wavenet-A",
+    "name": "de-DE-Wavenet-A (Female, de-DE)"
+  },
+  {
+    "id": "de-DE-Wavenet-B",
+    "name": "de-DE-Wavenet-B (Male, de-DE)"
+  },
+  {
+    "id": "de-DE-Wavenet-C",
+    "name": "de-DE-Wavenet-C (Female, de-DE)"
+  },
+  {
+    "id": "de-DE-Wavenet-D",
+    "name": "de-DE-Wavenet-D (Male, de-DE)"
+  },
+  {
+    "id": "el-GR-Standard-A",
+    "name": "el-GR-Standard-A (Female, el-GR)"
+  },
+  {
+    "id": "el-GR-Wavenet-A",
+    "name": "el-GR-Wavenet-A (Female, el-GR)"
+  },
+  {
+    "id": "en-AU-Standard-A",
+    "name": "en-AU-Standard-A (Female, en-AU)"
+  },
+  {
+    "id": "en-AU-Standard-B",
+    "name": "en-AU-Standard-B (Male, en-AU)"
+  },
+  {
+    "id": "en-AU-Standard-C",
+    "name": "en-AU-Standard-C (Female, en-AU)"
+  },
+  {
+    "id": "en-AU-Standard-D",
+    "name": "en-AU-Standard-D (Male, en-AU)"
+  },
+  {
+    "id": "en-AU-Wavenet-A",
+    "name": "en-AU-Wavenet-A (Female, en-AU)"
+  },
+  {
+    "id": "en-AU-Wavenet-B",
+    "name": "en-AU-Wavenet-B (Male, en-AU)"
+  },
+  {
+    "id": "en-AU-Wavenet-C",
+    "name": "en-AU-Wavenet-C (Female, en-AU)"
+  },
+  {
+    "id": "en-AU-Wavenet-D",
+    "name": "en-AU-Wavenet-D (Male, en-AU)"
+  },
+  {
+    "id": "en-GB-Standard-A",
+    "name": "en-GB-Standard-A (Female, en-GB)"
+  },
+  {
+    "id": "en-GB-Standard-B",
+    "name": "en-GB-Standard-B (Male, en-GB)"
+  },
+  {
+    "id": "en-GB-Standard-C",
+    "name": "en-GB-Standard-C (Female, en-GB)"
+  },
+  {
+    "id": "en-GB-Standard-D",
+    "name": "en-GB-Standard-D (Male, en-GB)"
+  },
+  {
+    "id": "en-GB-Wavenet-A",
+    "name": "en-GB-Wavenet-A (Female, en-GB)"
+  },
+  {
+    "id": "en-GB-Wavenet-B",
+    "name": "en-GB-Wavenet-B (Male, en-GB)"
+  },
+  {
+    "id": "en-GB-Wavenet-C",
+    "name": "en-GB-Wavenet-C (Female, en-GB)"
+  },
+  {
+    "id": "en-GB-Wavenet-D",
+    "name": "en-GB-Wavenet-D (Male, en-GB)"
+  },
+  {
+    "id": "en-IN-Standard-A",
+    "name": "en-IN-Standard-A (Female, en-IN)"
+  },
+  {
+    "id": "en-IN-Standard-B",
+    "name": "en-IN-Standard-B (Male, en-IN)"
+  },
+  {
+    "id": "en-IN-Standard-C",
+    "name": "en-IN-Standard-C (Male, en-IN)"
+  },
+  {
+    "id": "en-IN-Wavenet-A",
+    "name": "en-IN-Wavenet-A (Female, en-IN)"
+  },
+  {
+    "id": "en-IN-Wavenet-B",
+    "name": "en-IN-Wavenet-B (Male, en-IN)"
+  },
+  {
+    "id": "en-IN-Wavenet-C",
+    "name": "en-IN-Wavenet-C (Male, en-IN)"
+  },
+  {
+    "id": "en-NZ-Standard-A",
+    "name": "en-NZ-Standard-A (Female, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Standard-B",
+    "name": "en-NZ-Standard-B (Male, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Standard-C",
+    "name": "en-NZ-Standard-C (Female, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Standard-D",
+    "name": "en-NZ-Standard-D (Male, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Wavenet-A",
+    "name": "en-NZ-Wavenet-A (Female, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Wavenet-B",
+    "name": "en-NZ-Wavenet-B (Male, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Wavenet-C",
+    "name": "en-NZ-Wavenet-C (Female, en-NZ)"
+  },
+  {
+    "id": "en-NZ-Wavenet-D",
+    "name": "en-NZ-Wavenet-D (Male, en-NZ)"
+  },
+  {
+    "id": "en-PH-Standard-A",
+    "name": "en-PH-Standard-A (Female, en-PH)"
+  },
+  {
+    "id": "en-PH-Standard-B",
+    "name": "en-PH-Standard-B (Male, en-PH)"
+  },
+  {
+    "id": "en-PH-Standard-C",
+    "name": "en-PH-Standard-C (Female, en-PH)"
+  },
+  {
+    "id": "en-PH-Standard-D",
+    "name": "en-PH-Standard-D (Male, en-PH)"
+  },
+  {
+    "id": "en-PH-Wavenet-A",
+    "name": "en-PH-Wavenet-A (Female, en-PH)"
+  },
+  {
+    "id": "en-PH-Wavenet-B",
+    "name": "en-PH-Wavenet-B (Male, en-PH)"
+  },
+  {
+    "id": "en-PH-Wavenet-C",
+    "name": "en-PH-Wavenet-C (Female, en-PH)"
+  },
+  {
+    "id": "en-PH-Wavenet-D",
+    "name": "en-PH-Wavenet-D (Male, en-PH)"
+  },
+  {
+    "id": "en-SG-Standard-A",
+    "name": "en-SG-Standard-A (Female, en-SG)"
+  },
+  {
+    "id": "en-SG-Standard-B",
+    "name": "en-SG-Standard-B (Male, en-SG)"
+  },
+  {
+    "id": "en-SG-Standard-C",
+    "name": "en-SG-Standard-C (Female, en-SG)"
+  },
+  {
+    "id": "en-SG-Standard-D",
+    "name": "en-SG-Standard-D (Male, en-SG)"
+  },
+  {
+    "id": "en-SG-Wavenet-A",
+    "name": "en-SG-Wavenet-A (Female, en-SG)"
+  },
+  {
+    "id": "en-SG-Wavenet-B",
+    "name": "en-SG-Wavenet-B (Male, en-SG)"
+  },
+  {
+    "id": "en-SG-Wavenet-C",
+    "name": "en-SG-Wavenet-C (Female, en-SG)"
+  },
+  {
+    "id": "en-SG-Wavenet-D",
+    "name": "en-SG-Wavenet-D (Male, en-SG)"
+  },
+  {
+    "id": "en-US-Standard-B",
+    "name": "en-US-Standard-B (Male, en-US)"
+  },
+  {
+    "id": "en-US-Standard-C",
+    "name": "en-US-Standard-C (Female, en-US)"
+  },
+  {
+    "id": "en-US-Standard-D",
+    "name": "en-US-Standard-D (Male, en-US)"
+  },
+  {
+    "id": "en-US-Standard-E",
+    "name": "en-US-Standard-E (Female, en-US)"
+  },
+  {
+    "id": "en-US-Wavenet-A",
+    "name": "en-US-Wavenet-A (Female, en-US)"
+  },
+  {
+    "id": "en-US-Wavenet-B",
+    "name": "en-US-Wavenet-B (Male, en-US)"
+  },
+  {
+    "id": "en-US-Wavenet-C",
+    "name": "en-US-Wavenet-C (Female, en-US)"
+  },
+  {
+    "id": "en-US-Wavenet-D",
+    "name": "en-US-Wavenet-D (Male, en-US)"
+  },
+  {
+    "id": "en-US-Wavenet-E",
+    "name": "en-US-Wavenet-E (Female, en-US)"
+  },
+  {
+    "id": "en-US-Wavenet-F",
+    "name": "en-US-Wavenet-F (Male, en-US)"
+  },
+  {
+    "id": "en-ZA-Standard-A",
+    "name": "en-ZA-Standard-A (Female, en-ZA)"
+  },
+  {
+    "id": "en-ZA-Standard-B",
+    "name": "en-ZA-Standard-B (Male, en-ZA)"
+  },
+  {
+    "id": "es-ES-Standard-A",
+    "name": "es-ES-Standard-A (Female, es-ES)"
+  },
+  {
+    "id": "es-ES-Standard-B",
+    "name": "es-ES-Standard-B (Male, es-ES)"
+  },
+  {
+    "id": "es-ES-Wavenet-A",
+    "name": "es-ES-Wavenet-A (Female, es-ES)"
+  },
+  {
+    "id": "es-ES-Wavenet-B",
+    "name": "es-ES-Wavenet-B (Male, es-ES)"
+  },
+  {
+    "id": "es-MX-Standard-A",
+    "name": "es-MX-Standard-A (Female, es-MX)"
+  },
+  {
+    "id": "es-MX-Standard-B",
+    "name": "es-MX-Standard-B (Male, es-MX)"
+  },
+  {
+    "id": "es-MX-Wavenet-A",
+    "name": "es-MX-Wavenet-A (Female, es-MX)"
+  },
+  {
+    "id": "es-MX-Wavenet-B",
+    "name": "es-MX-Wavenet-B (Male, es-MX)"
+  },
+  {
+    "id": "es-MX-Wavenet-C",
+    "name": "es-MX-Wavenet-C (Female, es-MX)"
+  },
+  {
+    "id": "et-EE-Standard-A",
+    "name": "et-EE-Standard-A (Female, et-EE)"
+  },
+  {
+    "id": "et-EE-Wavenet-A",
+    "name": "et-EE-Wavenet-A (Female, et-EE)"
+  },
+  {
+    "id": "eu-ES-Standard-A",
+    "name": "eu-ES-Standard-A (Female, eu-ES)"
+  },
+  {
+    "id": "eu-ES-Wavenet-A",
+    "name": "eu-ES-Wavenet-A (Female, eu-ES)"
+  },
+  {
+    "id": "fa-IR-Standard-A",
+    "name": "fa-IR-Standard-A (Female, fa-IR)"
+  },
+  {
+    "id": "fa-IR-Wavenet-A",
+    "name": "fa-IR-Wavenet-A (Female, fa-IR)"
+  },
+  {
+    "id": "fi-FI-Standard-A",
+    "name": "fi-FI-Standard-A (Female, fi-FI)"
+  },
+  {
+    "id": "fi-FI-Wavenet-A",
+    "name": "fi-FI-Wavenet-A (Female, fi-FI)"
+  },
+  {
+    "id": "fil-PH-Standard-A",
+    "name": "fil-PH-Standard-A (Female, fil-PH)"
+  },
+  {
+    "id": "fil-PH-Standard-B",
+    "name": "fil-PH-Standard-B (Male, fil-PH)"
+  },
+  {
+    "id": "fil-PH-Wavenet-A",
+    "name": "fil-PH-Wavenet-A (Female, fil-PH)"
+  },
+  {
+    "id": "fil-PH-Wavenet-B",
+    "name": "fil-PH-Wavenet-B (Male, fil-PH)"
+  },
+  {
+    "id": "fil-IN-Standard-A",
+    "name": "fil-IN-Standard-A (Female, fil-IN)"
+  },
+  {
+    "id": "fil-IN-Standard-B",
+    "name": "fil-IN-Standard-B (Male, fil-IN)"
+  },
+  {
+    "id": "fil-IN-Wavenet-A",
+    "name": "fil-IN-Wavenet-A (Female, fil-IN)"
+  },
+  {
+    "id": "fil-IN-Wavenet-B",
+    "name": "fil-IN-Wavenet-B (Male, fil-IN)"
+  },
+  {
+    "id": "fr-CA-Standard-A",
+    "name": "fr-CA-Standard-A (Female, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Standard-B",
+    "name": "fr-CA-Standard-B (Male, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Standard-C",
+    "name": "fr-CA-Standard-C (Female, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Standard-D",
+    "name": "fr-CA-Standard-D (Male, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Wavenet-A",
+    "name": "fr-CA-Wavenet-A (Female, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Wavenet-B",
+    "name": "fr-CA-Wavenet-B (Male, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Wavenet-C",
+    "name": "fr-CA-Wavenet-C (Female, fr-CA)"
+  },
+  {
+    "id": "fr-CA-Wavenet-D",
+    "name": "fr-CA-Wavenet-D (Male, fr-CA)"
+  },
+  {
+    "id": "fr-FR-Standard-A",
+    "name": "fr-FR-Standard-A (Female, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Standard-B",
+    "name": "fr-FR-Standard-B (Male, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Standard-C",
+    "name": "fr-FR-Standard-C (Female, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Standard-D",
+    "name": "fr-FR-Standard-D (Male, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Standard-E",
+    "name": "fr-FR-Standard-E (Female, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Wavenet-A",
+    "name": "fr-FR-Wavenet-A (Female, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Wavenet-B",
+    "name": "fr-FR-Wavenet-B (Male, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Wavenet-C",
+    "name": "fr-FR-Wavenet-C (Female, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Wavenet-D",
+    "name": "fr-FR-Wavenet-D (Male, fr-FR)"
+  },
+  {
+    "id": "fr-FR-Wavenet-E",
+    "name": "fr-FR-Wavenet-E (Female, fr-FR)"
+  },
+  {
+    "id": "ga-IE-Standard-A",
+    "name": "ga-IE-Standard-A (Female, ga-IE)"
+  },
+  {
+    "id": "ga-IE-Wavenet-A",
+    "name": "ga-IE-Wavenet-A (Female, ga-IE)"
+  },
+  {
+    "id": "gl-ES-Standard-A",
+    "name": "gl-ES-Standard-A (Female, gl-ES)"
+  },
+  {
+    "id": "gl-ES-Wavenet-A",
+    "name": "gl-ES-Wavenet-A (Female, gl-ES)"
+  },
+  {
+    "id": "gu-IN-Standard-A",
+    "name": "gu-IN-Standard-A (Female, gu-IN)"
+  },
+  {
+    "id": "gu-IN-Standard-B",
+    "name": "gu-IN-Standard-B (Male, gu-IN)"
+  },
+  {
+    "id": "gu-IN-Wavenet-A",
+    "name": "gu-IN-Wavenet-A (Female, gu-IN)"
+  },
+  {
+    "id": "gu-IN-Wavenet-B",
+    "name": "gu-IN-Wavenet-B (Male, gu-IN)"
+  },
+  {
+    "id": "he-IL-Standard-A",
+    "name": "he-IL-Standard-A (Female, he-IL)"
+  },
+  {
+    "id": "he-IL-Standard-B",
+    "name": "he-IL-Standard-B (Male, he-IL)"
+  },
+  {
+    "id": "he-IL-Standard-C",
+    "name": "he-IL-Standard-C (Male, he-IL)"
+  },
+  {
+    "id": "he-IL-Wavenet-A",
+    "name": "he-IL-Wavenet-A (Female, he-IL)"
+  },
+  {
+    "id": "he-IL-Wavenet-B",
+    "name": "he-IL-Wavenet-B (Male, he-IL)"
+  },
+  {
+    "id": "he-IL-Wavenet-C",
+    "name": "he-IL-Wavenet-C (Male, he-IL)"
+  },
+  {
+    "id": "hi-IN-Standard-A",
+    "name": "hi-IN-Standard-A (Female, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Standard-B",
+    "name": "hi-IN-Standard-B (Male, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Standard-C",
+    "name": "hi-IN-Standard-C (Male, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Standard-D",
+    "name": "hi-IN-Standard-D (Female, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Wavenet-A",
+    "name": "hi-IN-Wavenet-A (Female, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Wavenet-B",
+    "name": "hi-IN-Wavenet-B (Male, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Wavenet-C",
+    "name": "hi-IN-Wavenet-C (Male, hi-IN)"
+  },
+  {
+    "id": "hi-IN-Wavenet-D",
+    "name": "hi-IN-Wavenet-D (Female, hi-IN)"
+  },
+  {
+    "id": "hr-HR-Standard-A",
+    "name": "hr-HR-Standard-A (Female, hr-HR)"
+  },
+  {
+    "id": "hr-HR-Wavenet-A",
+    "name": "hr-HR-Wavenet-A (Female, hr-HR)"
+  },
+  {
+    "id": "hu-HU-Standard-A",
+    "name": "hu-HU-Standard-A (Female, hu-HU)"
+  },
+  {
+    "id": "hu-HU-Standard-B",
+    "name": "hu-HU-Standard-B (Male, hu-HU)"
+  },
+  {
+    "id": "hu-HU-Wavenet-A",
+    "name": "hu-HU-Wavenet-A (Female, hu-HU)"
+  },
+  {
+    "id": "hu-HU-Wavenet-B",
+    "name": "hu-HU-Wavenet-B (Male, hu-HU)"
+  },
+  {
+    "id": "hy-AM-Standard-A",
+    "name": "hy-AM-Standard-A (Female, hy-AM)"
+  },
+  {
+    "id": "hy-AM-Standard-B",
+    "name": "hy-AM-Standard-B (Male, hy-AM)"
+  },
+  {
+    "id": "hy-AM-Wavenet-A",
+    "name": "hy-AM-Wavenet-A (Female, hy-AM)"
+  },
+  {
+    "id": "hy-AM-Wavenet-B",
+    "name": "hy-AM-Wavenet-B (Male, hy-AM)"
+  },
+  {
+    "id": "id-ID-Standard-A",
+    "name": "id-ID-Standard-A (Female, id-ID)"
+  },
+  {
+    "id": "id-ID-Standard-B",
+    "name": "id-ID-Standard-B (Male, id-ID)"
+  },
+  {
+    "id": "id-ID-Standard-C",
+    "name": "id-ID-Standard-C (Male, id-ID)"
+  },
+  {
+    "id": "id-ID-Wavenet-A",
+    "name": "id-ID-Wavenet-A (Female, id-ID)"
+  },
+  {
+    "id": "id-ID-Wavenet-B",
+    "name": "id-ID-Wavenet-B (Male, id-ID)"
+  },
+  {
+    "id": "id-ID-Wavenet-C",
+    "name": "id-ID-Wavenet-C (Male, id-ID)"
+  },
+  {
+    "id": "is-IS-Standard-A",
+    "name": "is-IS-Standard-A (Female, is-IS)"
+  },
+  {
+    "id": "is-IS-Standard-B",
+    "name": "is-IS-Standard-B (Male, is-IS)"
+  },
+  {
+    "id": "is-IS-Wavenet-A",
+    "name": "is-IS-Wavenet-A (Female, is-IS)"
+  },
+  {
+    "id": "is-IS-Wavenet-B",
+    "name": "is-IS-Wavenet-B (Male, is-IS)"
+  },
+  {
+    "id": "it-IT-Standard-A",
+    "name": "it-IT-Standard-A (Female, it-IT)"
+  },
+  {
+    "id": "it-IT-Standard-B",
+    "name": "it-IT-Standard-B (Male, it-IT)"
+  },
+  {
+    "id": "it-IT-Standard-C",
+    "name": "it-IT-Standard-C (Female, it-IT)"
+  },
+  {
+    "id": "it-IT-Standard-D",
+    "name": "it-IT-Standard-D (Male, it-IT)"
+  },
+  {
+    "id": "it-IT-Wavenet-A",
+    "name": "it-IT-Wavenet-A (Female, it-IT)"
+  },
+  {
+    "id": "it-IT-Wavenet-B",
+    "name": "it-IT-Wavenet-B (Male, it-IT)"
+  },
+  {
+    "id": "it-IT-Wavenet-C",
+    "name": "it-IT-Wavenet-C (Female, it-IT)"
+  },
+  {
+    "id": "it-IT-Wavenet-D",
+    "name": "it-IT-Wavenet-D (Male, it-IT)"
+  },
+  {
+    "id": "ja-JP-Standard-A",
+    "name": "ja-JP-Standard-A (Female, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Standard-B",
+    "name": "ja-JP-Standard-B (Male, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Standard-C",
+    "name": "ja-JP-Standard-C (Female, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Standard-D",
+    "name": "ja-JP-Standard-D (Male, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Wavenet-A",
+    "name": "ja-JP-Wavenet-A (Female, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Wavenet-B",
+    "name": "ja-JP-Wavenet-B (Male, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Wavenet-C",
+    "name": "ja-JP-Wavenet-C (Female, ja-JP)"
+  },
+  {
+    "id": "ja-JP-Wavenet-D",
+    "name": "ja-JP-Wavenet-D (Male, ja-JP)"
+  },
+  {
+    "id": "jv-ID-Standard-A",
+    "name": "jv-ID-Standard-A (Female, jv-ID)"
+  },
+  {
+    "id": "jv-ID-Standard-B",
+    "name": "jv-ID-Standard-B (Male, jv-ID)"
+  },
+  {
+    "id": "jv-ID-Wavenet-A",
+    "name": "jv-ID-Wavenet-A (Female, jv-ID)"
+  },
+  {
+    "id": "jv-ID-Wavenet-B",
+    "name": "jv-ID-Wavenet-B (Male, jv-ID)"
+  },
+  {
+    "id": "kn-IN-Standard-A",
+    "name": "kn-IN-Standard-A (Female, kn-IN)"
+  },
+  {
+    "id": "kn-IN-Standard-B",
+    "name": "kn-IN-Standard-B (Male, kn-IN)"
+  },
+  {
+    "id": "kn-IN-Wavenet-A",
+    "name": "kn-IN-Wavenet-A (Female, kn-IN)"
+  },
+  {
+    "id": "kn-IN-Wavenet-B",
+    "name": "kn-IN-Wavenet-B (Male, kn-IN)"
+  },
+  {
+    "id": "km-KH-Standard-A",
+    "name": "km-KH-Standard-A (Female, km-KH)"
+  },
+  {
+    "id": "km-KH-Wavenet-A",
+    "name": "km-KH-Wavenet-A (Female, km-KH)"
+  },
+  {
+    "id": "ko-KR-Standard-A",
+    "name": "ko-KR-Standard-A (Female, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Standard-B",
+    "name": "ko-KR-Standard-B (Male, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Standard-C",
+    "name": "ko-KR-Standard-C (Female, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Standard-D",
+    "name": "ko-KR-Standard-D (Male, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Wavenet-A",
+    "name": "ko-KR-Wavenet-A (Female, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Wavenet-B",
+    "name": "ko-KR-Wavenet-B (Male, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Wavenet-C",
+    "name": "ko-KR-Wavenet-C (Female, ko-KR)"
+  },
+  {
+    "id": "ko-KR-Wavenet-D",
+    "name": "ko-KR-Wavenet-D (Male, ko-KR)"
+  },
+  {
+    "id": "lt-LT-Standard-A",
+    "name": "lt-LT-Standard-A (Female, lt-LT)"
+  },
+  {
+    "id": "lt-LT-Wavenet-A",
+    "name": "lt-LT-Wavenet-A (Female, lt-LT)"
+  },
+  {
+    "id": "lv-LV-Standard-A",
+    "name": "lv-LV-Standard-A (Female, lv-LV)"
+  },
+  {
+    "id": "lv-LV-Standard-B",
+    "name": "lv-LV-Standard-B (Male, lv-LV)"
+  },
+  {
+    "id": "lv-LV-Wavenet-A",
+    "name": "lv-LV-Wavenet-A (Female, lv-LV)"
+  },
+  {
+    "id": "lv-LV-Wavenet-B",
+    "name": "lv-LV-Wavenet-B (Male, lv-LV)"
+  },
+  {
+    "id": "mk-MK-Standard-A",
+    "name": "mk-MK-Standard-A (Female, mk-MK)"
+  },
+  {
+    "id": "mk-MK-Wavenet-A",
+    "name": "mk-MK-Wavenet-A (Female, mk-MK)"
+  },
+  {
+    "id": "ml-IN-Standard-A",
+    "name": "ml-IN-Standard-A (Female, ml-IN)"
+  },
+  {
+    "id": "ml-IN-Standard-B",
+    "name": "ml-IN-Standard-B (Male, ml-IN)"
+  },
+  {
+    "id": "ml-IN-Wavenet-A",
+    "name": "ml-IN-Wavenet-A (Female, ml-IN)"
+  },
+  {
+    "id": "ml-IN-Wavenet-B",
+    "name": "ml-IN-Wavenet-B (Male, ml-IN)"
+  },
+  {
+    "id": "mn-MN-Standard-A",
+    "name": "mn-MN-Standard-A (Female, mn-MN)"
+  },
+  {
+    "id": "mn-MN-Wavenet-A",
+    "name": "mn-MN-Wavenet-A (Female, mn-MN)"
+  },
+  {
+    "id": "mr-IN-Standard-A",
+    "name": "mr-IN-Standard-A (Female, mr-IN)"
+  },
+  {
+    "id": "mr-IN-Standard-B",
+    "name": "mr-IN-Standard-B (Male, mr-IN)"
+  },
+  {
+    "id": "mr-IN-Wavenet-A",
+    "name": "mr-IN-Wavenet-A (Female, mr-IN)"
+  },
+  {
+    "id": "mr-IN-Wavenet-B",
+    "name": "mr-IN-Wavenet-B (Male, mr-IN)"
+  },
+  {
+    "id": "ms-MY-Standard-A",
+    "name": "ms-MY-Standard-A (Female, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Standard-B",
+    "name": "ms-MY-Standard-B (Male, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Standard-C",
+    "name": "ms-MY-Standard-C (Female, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Standard-D",
+    "name": "ms-MY-Standard-D (Male, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Wavenet-A",
+    "name": "ms-MY-Wavenet-A (Female, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Wavenet-B",
+    "name": "ms-MY-Wavenet-B (Male, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Wavenet-C",
+    "name": "ms-MY-Wavenet-C (Female, ms-MY)"
+  },
+  {
+    "id": "ms-MY-Wavenet-D",
+    "name": "ms-MY-Wavenet-D (Male, ms-MY)"
+  },
+  {
+    "id": "my-MM-Standard-A",
+    "name": "my-MM-Standard-A (Female, my-MM)"
+  },
+  {
+    "id": "my-MM-Wavenet-A",
+    "name": "my-MM-Wavenet-A (Female, my-MM)"
+  },
+  {
+    "id": "nb-NO-Standard-A",
+    "name": "nb-NO-Standard-A (Female, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Standard-B",
+    "name": "nb-NO-Standard-B (Male, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Standard-C",
+    "name": "nb-NO-Standard-C (Female, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Standard-D",
+    "name": "nb-NO-Standard-D (Male, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Standard-E",
+    "name": "nb-NO-Standard-E (Female, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Wavenet-A",
+    "name": "nb-NO-Wavenet-A (Female, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Wavenet-B",
+    "name": "nb-NO-Wavenet-B (Male, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Wavenet-C",
+    "name": "nb-NO-Wavenet-C (Female, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Wavenet-D",
+    "name": "nb-NO-Wavenet-D (Male, nb-NO)"
+  },
+  {
+    "id": "nb-NO-Wavenet-E",
+    "name": "nb-NO-Wavenet-E (Female, nb-NO)"
+  },
+  {
+    "id": "ne-NP-Standard-A",
+    "name": "ne-NP-Standard-A (Female, ne-NP)"
+  },
+  {
+    "id": "ne-NP-Wavenet-A",
+    "name": "ne-NP-Wavenet-A (Female, ne-NP)"
+  },
+  {
+    "id": "nl-BE-Standard-A",
+    "name": "nl-BE-Standard-A (Female, nl-BE)"
+  },
+  {
+    "id": "nl-BE-Standard-B",
+    "name": "nl-BE-Standard-B (Male, nl-BE)"
+  },
+  {
+    "id": "nl-BE-Wavenet-A",
+    "name": "nl-BE-Wavenet-A (Female, nl-BE)"
+  },
+  {
+    "id": "nl-BE-Wavenet-B",
+    "name": "nl-BE-Wavenet-B (Male, nl-BE)"
+  },
+  {
+    "id": "nl-NL-Standard-A",
+    "name": "nl-NL-Standard-A (Female, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Standard-B",
+    "name": "nl-NL-Standard-B (Male, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Standard-C",
+    "name": "nl-NL-Standard-C (Female, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Standard-D",
+    "name": "nl-NL-Standard-D (Male, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Wavenet-A",
+    "name": "nl-NL-Wavenet-A (Female, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Wavenet-B",
+    "name": "nl-NL-Wavenet-B (Male, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Wavenet-C",
+    "name": "nl-NL-Wavenet-C (Female, nl-NL)"
+  },
+  {
+    "id": "nl-NL-Wavenet-D",
+    "name": "nl-NL-Wavenet-D (Male, nl-NL)"
+  },
+  {
+    "id": "pa-IN-Standard-A",
+    "name": "pa-IN-Standard-A (Female, pa-IN)"
+  },
+  {
+    "id": "pa-IN-Standard-B",
+    "name": "pa-IN-Standard-B (Male, pa-IN)"
+  },
+  {
+    "id": "pa-IN-Wavenet-A",
+    "name": "pa-IN-Wavenet-A (Female, pa-IN)"
+  },
+  {
+    "id": "pa-IN-Wavenet-B",
+    "name": "pa-IN-Wavenet-B (Male, pa-IN)"
+  },
+  {
+    "id": "pl-PL-Standard-A",
+    "name": "pl-PL-Standard-A (Female, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Standard-B",
+    "name": "pl-PL-Standard-B (Male, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Standard-C",
+    "name": "pl-PL-Standard-C (Female, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Standard-D",
+    "name": "pl-PL-Standard-D (Male, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Standard-E",
+    "name": "pl-PL-Standard-E (Female, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Wavenet-A",
+    "name": "pl-PL-Wavenet-A (Female, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Wavenet-B",
+    "name": "pl-PL-Wavenet-B (Male, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Wavenet-C",
+    "name": "pl-PL-Wavenet-C (Female, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Wavenet-D",
+    "name": "pl-PL-Wavenet-D (Male, pl-PL)"
+  },
+  {
+    "id": "pl-PL-Wavenet-E",
+    "name": "pl-PL-Wavenet-E (Female, pl-PL)"
+  },
+  {
+    "id": "pt-BR-Standard-A",
+    "name": "pt-BR-Standard-A (Female, pt-BR)"
+  },
+  {
+    "id": "pt-BR-Standard-B",
+    "name": "pt-BR-Standard-B (Male, pt-BR)"
+  },
+  {
+    "id": "pt-BR-Standard-C",
+    "name": "pt-BR-Standard-C (Female, pt-BR)"
+  },
+  {
+    "id": "pt-BR-Wavenet-A",
+    "name": "pt-BR-Wavenet-A (Female, pt-BR)"
+  },
+  {
+    "id": "pt-BR-Wavenet-B",
+    "name": "pt-BR-Wavenet-B (Male, pt-BR)"
+  },
+  {
+    "id": "pt-BR-Wavenet-C",
+    "name": "pt-BR-Wavenet-C (Female, pt-BR)"
+  },
+  {
+    "id": "pt-PT-Standard-A",
+    "name": "pt-PT-Standard-A (Female, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Standard-B",
+    "name": "pt-PT-Standard-B (Male, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Standard-C",
+    "name": "pt-PT-Standard-C (Female, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Standard-D",
+    "name": "pt-PT-Standard-D (Male, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Wavenet-A",
+    "name": "pt-PT-Wavenet-A (Female, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Wavenet-B",
+    "name": "pt-PT-Wavenet-B (Male, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Wavenet-C",
+    "name": "pt-PT-Wavenet-C (Female, pt-PT)"
+  },
+  {
+    "id": "pt-PT-Wavenet-D",
+    "name": "pt-PT-Wavenet-D (Male, pt-PT)"
+  },
+  {
+    "id": "ro-RO-Standard-A",
+    "name": "ro-RO-Standard-A (Female, ro-RO)"
+  },
+  {
+    "id": "ro-RO-Standard-B",
+    "name": "ro-RO-Standard-B (Male, ro-RO)"
+  },
+  {
+    "id": "ro-RO-Wavenet-A",
+    "name": "ro-RO-Wavenet-A (Female, ro-RO)"
+  },
+  {
+    "id": "ro-RO-Wavenet-B",
+    "name": "ro-RO-Wavenet-B (Male, ro-RO)"
+  },
+  {
+    "id": "ru-RU-Standard-A",
+    "name": "ru-RU-Standard-A (Female, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Standard-B",
+    "name": "ru-RU-Standard-B (Male, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Standard-C",
+    "name": "ru-RU-Standard-C (Female, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Standard-D",
+    "name": "ru-RU-Standard-D (Male, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Standard-E",
+    "name": "ru-RU-Standard-E (Female, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Wavenet-A",
+    "name": "ru-RU-Wavenet-A (Female, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Wavenet-B",
+    "name": "ru-RU-Wavenet-B (Male, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Wavenet-C",
+    "name": "ru-RU-Wavenet-C (Female, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Wavenet-D",
+    "name": "ru-RU-Wavenet-D (Male, ru-RU)"
+  },
+  {
+    "id": "ru-RU-Wavenet-E",
+    "name": "ru-RU-Wavenet-E (Female, ru-RU)"
+  },
+  {
+    "id": "si-LK-Standard-A",
+    "name": "si-LK-Standard-A (Female, si-LK)"
+  },
+  {
+    "id": "si-LK-Wavenet-A",
+    "name": "si-LK-Wavenet-A (Female, si-LK)"
+  },
+  {
+    "id": "sk-SK-Standard-A",
+    "name": "sk-SK-Standard-A (Female, sk-SK)"
+  },
+  {
+    "id": "sk-SK-Wavenet-A",
+    "name": "sk-SK-Wavenet-A (Female, sk-SK)"
+  },
+  {
+    "id": "sl-SI-Standard-A",
+    "name": "sl-SI-Standard-A (Female, sl-SI)"
+  },
+  {
+    "id": "sl-SI-Wavenet-A",
+    "name": "sl-SI-Wavenet-A (Female, sl-SI)"
+  },
+  {
+    "id": "sn-ZW-Standard-A",
+    "name": "sn-ZW-Standard-A (Female, sn-ZW)"
+  },
+  {
+    "id": "sn-ZW-Wavenet-A",
+    "name": "sn-ZW-Wavenet-A (Female, sn-ZW)"
+  },
+  {
+    "id": "es-CL-Standard-A",
+    "name": "es-CL-Standard-A (Female, es-CL)"
+  },
+  {
+    "id": "es-CL-Wavenet-A",
+    "name": "es-CL-Wavenet-A (Female, es-CL)"
+  },
+  {
+    "id": "es-CO-Standard-A",
+    "name": "es-CO-Standard-A (Female, es-CO)"
+  },
+  {
+    "id": "es-CO-Wavenet-A",
+    "name": "es-CO-Wavenet-A (Female, es-CO)"
+  },
+  {
+    "id": "su-ID-Standard-A",
+    "name": "su-ID-Standard-A (Female, su-ID)"
+  },
+  {
+    "id": "su-ID-Standard-B",
+    "name": "su-ID-Standard-B (Male, su-ID)"
+  },
+  {
+    "id": "su-ID-Wavenet-A",
+    "name": "su-ID-Wavenet-A (Female, su-ID)"
+  },
+  {
+    "id": "su-ID-Wavenet-B",
+    "name": "su-ID-Wavenet-B (Male, su-ID)"
+  },
+  {
+    "id": "sw-KE-Standard-A",
+    "name": "sw-KE-Standard-A (Female, sw-KE)"
+  },
+  {
+    "id": "sw-KE-Standard-B",
+    "name": "sw-KE-Standard-B (Male, sw-KE)"
+  },
+  {
+    "id": "sw-KE-Wavenet-A",
+    "name": "sw-KE-Wavenet-A (Female, sw-KE)"
+  },
+  {
+    "id": "sw-KE-Wavenet-B",
+    "name": "sw-KE-Wavenet-B (Male, sw-KE)"
+  },
+  {
+    "id": "sw-TZ-Standard-A",
+    "name": "sw-TZ-Standard-A (Female, sw-TZ)"
+  },
+  {
+    "id": "sw-TZ-Wavenet-A",
+    "name": "sw-TZ-Wavenet-A (Female, sw-TZ)"
+  },
+  {
+    "id": "sv-SE-Standard-A",
+    "name": "sv-SE-Standard-A (Female, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Standard-B",
+    "name": "sv-SE-Standard-B (Male, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Standard-C",
+    "name": "sv-SE-Standard-C (Female, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Standard-D",
+    "name": "sv-SE-Standard-D (Male, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Wavenet-A",
+    "name": "sv-SE-Wavenet-A (Female, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Wavenet-B",
+    "name": "sv-SE-Wavenet-B (Male, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Wavenet-C",
+    "name": "sv-SE-Wavenet-C (Female, sv-SE)"
+  },
+  {
+    "id": "sv-SE-Wavenet-D",
+    "name": "sv-SE-Wavenet-D (Male, sv-SE)"
+  },
+  {
+    "id": "ta-IN-Standard-A",
+    "name": "ta-IN-Standard-A (Female, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Standard-B",
+    "name": "ta-IN-Standard-B (Male, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Standard-C",
+    "name": "ta-IN-Standard-C (Female, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Standard-D",
+    "name": "ta-IN-Standard-D (Male, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Wavenet-A",
+    "name": "ta-IN-Wavenet-A (Female, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Wavenet-B",
+    "name": "ta-IN-Wavenet-B (Male, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Wavenet-C",
+    "name": "ta-IN-Wavenet-C (Female, ta-IN)"
+  },
+  {
+    "id": "ta-IN-Wavenet-D",
+    "name": "ta-IN-Wavenet-D (Male, ta-IN)"
+  },
+  {
+    "id": "ta-SG-Standard-A",
+    "name": "ta-SG-Standard-A (Female, ta-SG)"
+  },
+  {
+    "id": "ta-SG-Wavenet-A",
+    "name": "ta-SG-Wavenet-A (Female, ta-SG)"
+  },
+  {
+    "id": "ta-LK-Standard-A",
+    "name": "ta-LK-Standard-A (Female, ta-LK)"
+  },
+  {
+    "id": "ta-LK-Wavenet-A",
+    "name": "ta-LK-Wavenet-A (Female, ta-LK)"
+  },
+  {
+    "id": "te-IN-Standard-A",
+    "name": "te-IN-Standard-A (Female, te-IN)"
+  },
+  {
+    "id": "te-IN-Standard-B",
+    "name": "te-IN-Standard-B (Male, te-IN)"
+  },
+  {
+    "id": "te-IN-Wavenet-A",
+    "name": "te-IN-Wavenet-A (Female, te-IN)"
+  },
+  {
+    "id": "te-IN-Wavenet-B",
+    "name": "te-IN-Wavenet-B (Male, te-IN)"
+  },
+  {
+    "id": "th-TH-Standard-A",
+    "name": "th-TH-Standard-A (Female, th-TH)"
+  },
+  {
+    "id": "th-TH-Standard-B",
+    "name": "th-TH-Standard-B (Male, th-TH)"
+  },
+  {
+    "id": "th-TH-Wavenet-A",
+    "name": "th-TH-Wavenet-A (Female, th-TH)"
+  },
+  {
+    "id": "th-TH-Wavenet-B",
+    "name": "th-TH-Wavenet-B (Male, th-TH)"
+  },
+  {
+    "id": "th-TH-Wavenet-C",
+    "name": "th-TH-Wavenet-C (Female, th-TH)"
+  },
+  {
+    "id": "th-TH-Wavenet-D",
+    "name": "th-TH-Wavenet-D (Male, th-TH)"
+  },
+  {
+    "id": "tr-TR-Standard-A",
+    "name": "tr-TR-Standard-A (Female, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Standard-B",
+    "name": "tr-TR-Standard-B (Male, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Standard-C",
+    "name": "tr-TR-Standard-C (Female, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Standard-D",
+    "name": "tr-TR-Standard-D (Male, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Wavenet-A",
+    "name": "tr-TR-Wavenet-A (Female, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Wavenet-B",
+    "name": "tr-TR-Wavenet-B (Male, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Wavenet-C",
+    "name": "tr-TR-Wavenet-C (Female, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Wavenet-D",
+    "name": "tr-TR-Wavenet-D (Male, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Wavenet-E",
+    "name": "tr-TR-Wavenet-E (Female, tr-TR)"
+  },
+  {
+    "id": "tr-TR-Wavenet-F",
+    "name": "tr-TR-Wavenet-F (Male, tr-TR)"
+  },
+  {
+    "id": "uk-UA-Standard-A",
+    "name": "uk-UA-Standard-A (Female, uk-UA)"
+  },
+  {
+    "id": "uk-UA-Standard-B",
+    "name": "uk-UA-Standard-B (Male, uk-UA)"
+  },
+  {
+    "id": "uk-UA-Wavenet-A",
+    "name": "uk-UA-Wavenet-A (Female, uk-UA)"
+  },
+  {
+    "id": "uk-UA-Wavenet-B",
+    "name": "uk-UA-Wavenet-B (Male, uk-UA)"
+  },
+  {
+    "id": "ur-IN-Standard-A",
+    "name": "ur-IN-Standard-A (Female, ur-IN)"
+  },
+  {
+    "id": "ur-IN-Standard-B",
+    "name": "ur-IN-Standard-B (Male, ur-IN)"
+  },
+  {
+    "id": "ur-IN-Wavenet-A",
+    "name": "ur-IN-Wavenet-A (Female, ur-IN)"
+  },
+  {
+    "id": "ur-IN-Wavenet-B",
+    "name": "ur-IN-Wavenet-B (Male, ur-IN)"
+  },
+  {
+    "id": "ur-PK-Standard-A",
+    "name": "ur-PK-Standard-A (Female, ur-PK)"
+  },
+  {
+    "id": "ur-PK-Standard-B",
+    "name": "ur-PK-Standard-B (Male, ur-PK)"
+  },
+  {
+    "id": "ur-PK-Wavenet-A",
+    "name": "ur-PK-Wavenet-A (Female, ur-PK)"
+  },
+  {
+    "id": "ur-PK-Wavenet-B",
+    "name": "ur-PK-Wavenet-B (Male, ur-PK)"
+  },
+  {
+    "id": "uz-UZ-Standard-A",
+    "name": "uz-UZ-Standard-A (Female, uz-UZ)"
+  },
+  {
+    "id": "uz-UZ-Standard-B",
+    "name": "uz-UZ-Standard-B (Male, uz-UZ)"
+  },
+  {
+    "id": "uz-UZ-Wavenet-A",
+    "name": "uz-UZ-Wavenet-A (Female, uz-UZ)"
+  },
+  {
+    "id": "uz-UZ-Wavenet-B",
+    "name": "uz-UZ-Wavenet-B (Male, uz-UZ)"
+  },
+  {
+    "id": "vi-VN-Standard-A",
+    "name": "vi-VN-Standard-A (Female, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Standard-B",
+    "name": "vi-VN-Standard-B (Male, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Standard-C",
+    "name": "vi-VN-Standard-C (Female, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Standard-D",
+    "name": "vi-VN-Standard-D (Male, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Standard-E",
+    "name": "vi-VN-Standard-E (Female, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Wavenet-A",
+    "name": "vi-VN-Wavenet-A (Female, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Wavenet-B",
+    "name": "vi-VN-Wavenet-B (Male, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Wavenet-C",
+    "name": "vi-VN-Wavenet-C (Female, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Wavenet-D",
+    "name": "vi-VN-Wavenet-D (Male, vi-VN)"
+  },
+  {
+    "id": "vi-VN-Wavenet-E",
+    "name": "vi-VN-Wavenet-E (Female, vi-VN)"
+  },
+  {
+    "id": "zu-ZA-Standard-A",
+    "name": "zu-ZA-Standard-A (Female, zu-ZA)"
+  },
+  {
+    "id": "zu-ZA-Wavenet-A",
+    "name": "zu-ZA-Wavenet-A (Female, zu-ZA)"
+  }
+]

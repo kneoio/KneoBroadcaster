@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.aihelper.LiveRadioStationDTO;
 import io.kneo.broadcaster.dto.aihelper.TtsDTO;
 import io.kneo.broadcaster.dto.cnst.StreamType;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
+import io.kneo.broadcaster.model.aiagent.TTSSetting;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
@@ -152,9 +153,9 @@ public class AirSupplier {
                 .flatMap(agent -> {
                     LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
                     liveRadioStation.setSlugName(stream.getSlugName());
-                    liveRadioStation.setLanguageTag(broadcastingLanguage.toLanguageCode().name());
+                    liveRadioStation.setLanguageTag(broadcastingLanguage.tag());
                     liveRadioStation.setName(stream.getLocalizedName().get(broadcastingLanguage.toLanguageCode()));
-                    String primaryVoice = AiHelperUtils.resolvePrimaryVoiceId(stream, agent);
+                    TTSSetting ttsSetting = agent.getTtsSetting();
                     String additionalInstruction;
                     AiOverriding overriding = stream.getAiOverriding();
                     if (overriding != null) {
@@ -223,9 +224,10 @@ public class AirSupplier {
                                     )
                                     .map(copilot -> {
                                         liveRadioStation.setTts(new TtsDTO(
-                                                primaryVoice,
+                                                ttsSetting.getDj().getId(),
                                                 copilot.getPrimaryVoice().getFirst().getId(),
-                                                copilot.getName()
+                                                copilot.getName(),
+                                                ttsSetting.getDj().getEngineType()
                                         ));
                                         return liveRadioStation;
                                     })

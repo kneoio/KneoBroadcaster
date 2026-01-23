@@ -7,6 +7,7 @@ import io.kneo.broadcaster.dto.actions.ProfileActionsFactory;
 import io.kneo.broadcaster.dto.aiagent.AiAgentDTO;
 import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.dto.of.CountryDTO;
+import io.kneo.broadcaster.model.aiagent.TTSEngineType;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
@@ -151,9 +152,18 @@ public class RefController extends BaseController {
                 break;
 
             case "voices":
+                String engineParam = rc.request().getParam("engine");
+                TTSEngineType engineType = null;
+                try {
+                    engineType = engineParam != null ? TTSEngineType.valueOf(engineParam.toUpperCase()) : TTSEngineType.ELEVENLABS;
+                } catch (IllegalArgumentException e) {
+                    rc.response().setStatusCode(400).end("Invalid TTS engine type: " + engineParam);
+                    return;
+                }
+                
                 Uni.combine().all().unis(
-                                service.getAllVoicesCount(),
-                                service.getAllVoices()
+                                service.getAllVoicesCount(engineType),
+                                service.getAllVoices(engineType)
                         )
                         .asTuple()
                         .map(tuple -> {

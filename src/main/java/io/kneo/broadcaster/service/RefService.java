@@ -6,6 +6,7 @@ import io.kneo.broadcaster.dto.LabelDTO;
 import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.model.Label;
+import io.kneo.broadcaster.model.aiagent.TTSEngineType;
 import io.kneo.broadcaster.repository.LabelRepository;
 import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
@@ -32,21 +33,22 @@ public class RefService {
         this.objectMapper = new ObjectMapper();
     }
 
-    public Uni<List<VoiceDTO>> getAllVoices() {
+    public Uni<List<VoiceDTO>> getAllVoices(TTSEngineType engineType) {
         return Uni.createFrom().item(() -> {
-            try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream("voices.json")) {
+            String fileName = engineType.getValue() + "-voices.json";
+            try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(fileName)) {
                 if (inputStream == null) {
-                    throw new RuntimeException("voices.json file not found in resources");
+                    throw new RuntimeException(fileName + " file not found in resources");
                 }
                 return objectMapper.readValue(inputStream, new TypeReference<>() {});
             } catch (IOException e) {
-                throw new RuntimeException("Error reading voices.json", e);
+                throw new RuntimeException("Error reading " + fileName, e);
             }
         });
     }
 
-    public Uni<Integer> getAllVoicesCount() {
-        return getAllVoices().map(List::size);
+    public Uni<Integer> getAllVoicesCount(TTSEngineType engineType) {
+        return getAllVoices(engineType).map(List::size);
     }
 
       @Deprecated

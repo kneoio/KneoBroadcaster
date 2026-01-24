@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.model.aiagent;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
@@ -18,5 +19,15 @@ public enum TTSEngineType {
     @JsonValue
     public String getValue() {
         return value;
+    }
+
+    @JsonCreator
+    public static TTSEngineType fromValue(String value) {
+        for (TTSEngineType type : TTSEngineType.values()) {
+            if (type.name().equalsIgnoreCase(value) || type.value.equalsIgnoreCase(value)) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("Unknown TTSEngineType: " + value);
     }
 }

@@ -11,7 +11,6 @@ import io.kneo.broadcaster.dto.radiostation.AiOverridingDTO;
 import io.kneo.broadcaster.dto.radiostation.BrandDTO;
 import io.kneo.broadcaster.model.BrandScript;
 import io.kneo.broadcaster.model.Scene;
-import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
@@ -325,14 +324,6 @@ public class AiHelperService {
                         }
                         
                         if (activeScene != null) {
-                            final Scene scene = activeScene;
-                            final LocalTime sceneStart = useRelativeTiming ? null : scene.getStartTime();
-                            final LocalTime sceneEnd = useRelativeTiming ? null : findNextSceneStartTime(stream.getSlugName(), currentDayOfWeek, scene, scenes);
-                            final int promptCount = scene.getIntroPrompts() != null ?
-                                (int) scene.getIntroPrompts().stream().filter(ScenePrompt::isActive).count() : 0;
-                            final String nextSceneTitle = useRelativeTiming ? 
-                                findNextSceneTitleByDuration(stream, scene, scenes) :
-                                findNextSceneTitle(stream.getSlugName(), currentDayOfWeek, scene, scenes);
                             DjRequestInfo requestInfo = aiDjStatsRequestTracker.get(stream.getSlugName());
                             final LocalDateTime lastRequestTime;
                             final String trackedDjName;
@@ -346,24 +337,12 @@ public class AiHelperService {
                             final AiOverriding overriding = stream.getAiOverriding();
                             if (overriding != null) {
                                 return Uni.createFrom().item(() -> new AiDjStatsDTO(
-                                        scene.getId(),
-                                        scene.getTitle(),
-                                        sceneStart,
-                                        sceneEnd,
-                                        promptCount,
-                                        nextSceneTitle,
                                         lastRequestTime,
                                         overriding.getName(),
                                         aiDjMessagesTracker.get(stream.getSlugName())
                                 ));
                             } else {
                                 return Uni.createFrom().item(() -> new AiDjStatsDTO(
-                                        scene.getId(),
-                                        scene.getTitle(),
-                                        sceneStart,
-                                        sceneEnd,
-                                        promptCount,
-                                        nextSceneTitle,
                                         lastRequestTime,
                                         trackedDjName,
                                         aiDjMessagesTracker.get(stream.getSlugName())

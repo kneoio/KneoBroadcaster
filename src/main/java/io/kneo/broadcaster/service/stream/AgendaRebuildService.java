@@ -31,7 +31,7 @@ public class AgendaRebuildService {
             return Uni.createFrom().failure(new IllegalArgumentException("Stream not found in pool: " + brand));
         }
 
-        return streamAgendaService.buildLoopedStreamSchedule(
+        return streamAgendaService.buildRadioStreamAgenda(
                 stream.getMasterBrand().getId(),
                 stream.getMasterBrand().getScripts().getFirst().getScriptId(),
                 SuperUser.build()

@@ -22,6 +22,7 @@ public class LiveScene {
     private final String sceneTitle;
     private final LocalDateTime scheduledStartTime;
     private final int durationSeconds;
+    private final double dayPercentage;
     private final List<PendingSongEntry> songs;
     private final LocalTime originalStartTime;
     private final LocalTime originalEndTime;
@@ -53,6 +54,7 @@ public class LiveScene {
         this.sceneTitle = scene.getTitle();
         this.scheduledStartTime = scheduledStartTime;
         this.durationSeconds = scene.getDurationSeconds();
+        this.dayPercentage = this.durationSeconds / 86400.0;
         this.songs = new ArrayList<>();
         this.originalStartTime = scene.getStartTime();
         this.originalEndTime = null;
@@ -97,6 +99,7 @@ public class LiveScene {
         this.sceneTitle = sceneTitle;
         this.scheduledStartTime = scheduledStartTime;
         this.durationSeconds = durationSeconds;
+        this.dayPercentage = this.durationSeconds / 86400.0;
         this.songs = new ArrayList<>();
         this.originalStartTime = originalStartTime;
         this.originalEndTime = originalEndTime;

@@ -58,6 +58,7 @@ public class StationStatsDTO {
         private LocalTime startTime;
         private LocalTime endTime;
         private boolean active;
+        private double dayPercentage;
         private String searchInfo;
         private int songsCount;
         private int fetchedSongsCount;

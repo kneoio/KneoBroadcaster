@@ -113,6 +113,7 @@ public class StationDashboardService {
             dto.setStartTime(scene.getOriginalStartTime());
             dto.setEndTime(scene.getOriginalEndTime());
             dto.setSceneId(scene.getSceneId());
+            dto.setDayPercentage(scene.getDayPercentage());
             UUID generatedSoundFragmentId = scene.getGeneratedFragmentId();
             if (generatedSoundFragmentId != null) {
                 dto.setGeneratedSoundFragmentId(generatedSoundFragmentId);

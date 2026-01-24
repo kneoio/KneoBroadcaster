@@ -82,7 +82,7 @@ public class StreamAgendaService {
                 });
     }
 
-    public Uni<StreamAgenda> buildLoopedStreamSchedule(UUID brandId, UUID scriptId, IUser user) {
+    public Uni<StreamAgenda> buildRadioStreamAgenda(UUID brandId, UUID scriptId, IUser user) {
         return brandService.getById(brandId, user)
                 .chain(sourceBrand ->
                         scriptService.getById(scriptId, user)
@@ -95,7 +95,7 @@ public class StreamAgendaService {
                                                     addAll(list);
                                                 }})
                                                 .invoke(script::setScenes)
-                                                .chain(x -> buildLoopedSchedule(script, sourceBrand, scheduleSongSupplier))
+                                                .chain(x -> buildAgenda(script, sourceBrand, scheduleSongSupplier))
                                 )
                 );
     }
@@ -233,6 +233,7 @@ public class StreamAgendaService {
         dto.setScheduledStartTime(scene.getScheduledStartTime());
         dto.setScheduledEndTime(scene.getScheduledEndTime());
         dto.setDurationSeconds(scene.getDurationSeconds());
+        dto.setDayPercentage(scene.getDayPercentage());
 
         dto.setOriginalStartTime(scene.getOriginalStartTime());
         dto.setOriginalEndTime(scene.getOriginalEndTime());
@@ -299,7 +300,9 @@ public class StreamAgendaService {
         return dto;
     }
 
-    public Uni<StreamAgenda> buildLoopedSchedule(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+    public Uni<StreamAgenda> buildAgenda(Script script, Brand sourceBrand, ScheduleSongSupplier songSupplier) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime scheduleStart = today.atTime(6, 0);
         StreamAgenda schedule = new StreamAgenda(LocalDateTime.now());
 
         NavigableSet<Scene> scenes = script.getScenes();
@@ -310,33 +313,21 @@ public class StreamAgendaService {
         List<Scene> sortedScenes = scenes.stream()
                 .filter(s -> s.getStartTime() != null)
                 .sorted(Comparator.comparing(Scene::getStartTime))
-                .collect(Collectors.toList());
+                .toList();
 
         if (sortedScenes.isEmpty()) {
             return Uni.createFrom().item(schedule);
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalTime currentTime = now.toLocalTime();
-        LocalDate today = now.toLocalDate();
-
-        int activeIndex = findActiveSceneIndex(sortedScenes, currentTime);
-
+        LocalDateTime sceneStartTime = scheduleStart;
         List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
-        LocalDateTime sceneStartTime = now;
 
         for (int i = 0; i < sortedScenes.size(); i++) {
-            int sceneIndex = (activeIndex + i) % sortedScenes.size();
-            Scene scene = sortedScenes.get(sceneIndex);
-            int nextIndex = (sceneIndex + 1) % sortedScenes.size();
+            Scene scene = sortedScenes.get(i);
+            int nextIndex = (i + 1) % sortedScenes.size();
             Scene nextScene = sortedScenes.get(nextIndex);
 
             int durationSeconds = calculateDurationUntilNext(scene.getStartTime(), nextScene.getStartTime());
-
-            if (i == 0) {
-                int elapsedInCurrentScene = calculateElapsedSeconds(scene.getStartTime(), currentTime);
-                durationSeconds = Math.max(0, durationSeconds - elapsedInCurrentScene);
-            }
 
             LocalDateTime finalSceneStartTime = sceneStartTime;
             int finalDurationSeconds = durationSeconds;

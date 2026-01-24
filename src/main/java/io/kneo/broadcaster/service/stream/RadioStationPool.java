@@ -130,7 +130,7 @@ public class RadioStationPool {
 
                                 if (finalStationToUse instanceof RadioStream radioStream && radioStream.getStreamAgenda() == null) {
                                     LOGGER.info("RadioStationPool: Building looped schedule for RadioStream '{}'", radioStream.getSlugName());
-                                    return streamAgendaService.buildLoopedStreamSchedule(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
+                                    return streamAgendaService.buildRadioStreamAgenda(brand.getId(), brand.getScripts().getFirst().getScriptId(), SuperUser.build())
                                             .invoke(schedule -> {
                                                 radioStream.setStreamAgenda(schedule);
                                                 LOGGER.info("RadioStationPool: Schedule set for '{}': {} scenes, {} songs",

@@ -24,6 +24,7 @@ public class StreamScheduleDTO {
         private LocalDateTime scheduledStartTime;
         private LocalDateTime scheduledEndTime;
         private int durationSeconds;
+        private double dayPercentage;
         private List<ScheduledSongDTO> songs;
 
         private LocalTime originalStartTime;

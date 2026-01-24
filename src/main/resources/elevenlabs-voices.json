@@ -1,106 +1,158 @@
 [
   {
     "id": "WWr4C8ld745zI3BiA8n7",
-    "name": "Robert Riggs (Male, en)"
+    "name": "Robert Riggs",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "DLsHlh26Ugcm6ELvS0qi",
-    "name": "Ms. Walker (Male, en)"
+    "name": "Ms. Walker",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "l88WmPeLH7L0O0VA9lqm",
-    "name": "Lax (Male, en)"
+    "name": "Lax",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "6OzrBCQf8cjERkYgzSg8",
-    "name": "Young Jamal (Male, en)"
+    "name": "Young Jamal",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "pwMBn0SsmN1220Aorv15",
-    "name": "Matt (Male, en)"
+    "name": "Matt",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "NOpBlnGInO9m6vDvFkFC",
-    "name": "Grandpa Spuds Oxley (Male, en)"
+    "name": "Grandpa Spuds Oxley",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "nZ5WsS2E2UAALki8m2V6",
-    "name": "Ranbir M (Male, en)"
+    "name": "Ranbir M",
+    "gender": "Male",
+    "language": "en"
   },
   {
     "id": "fzDFBB4mgvMlL36gPXcz",
-    "name": "Giovanni Rossi (Male, it, pt)"
+    "name": "Giovanni Rossi",
+    "gender": "Male",
+    "language": "it, pt"
   },
   {
     "id": "W5JElH3dK1UYYAiHH7uh",
-    "name": "Martin Osborne-2 (Male, es)"
+    "name": "Martin Osborne-2",
+    "gender": "Male",
+    "language": "es"
   },
   {
     "id": "LHgFk7RaIiyNE5I3pC1d",
-    "name": "LiviChi (Female, en)"
+    "name": "LiviChi",
+    "gender": "Female",
+    "language": "en"
   },
   {
     "id": "aLFUti4k8YKvtQGXv0UO",
-    "name": "Paulo (Male, pt)"
+    "name": "Paulo",
+    "gender": "Male",
+    "language": "pt"
   },
   {
     "id": "DMcOknq8n1B6XshFIJKJ",
-    "name": "Patricio Brito (Male, pt)"
+    "name": "Patricio Brito",
+    "gender": "Male",
+    "language": "pt"
   },
   {
     "id": "B8gJV1IhpuegLxdpXFOE",
-    "name": "Kuon (Female, jp)"
+    "name": "Kuon",
+    "gender": "Female",
+    "language": "jp"
   },
   {
     "id": "e4Gj1truMuHm0MMO7kHV",
-    "name": "Akee (Male,ru,en)"
+    "name": "Akee",
+    "gender": "Male",
+    "language": "ru, en"
   },
   {
     "id": "BKE59urYIY1Qetpp45Yw",
-    "name": "Dimu (Male,ge,en)"
+    "name": "Dimu",
+    "gender": "Male",
+    "language": "ge, en"
   },
   {
     "id": "0BcDz9UPwL3MpsnTeUlO",
-    "name": "Denis (Male,ru)"
+    "name": "Denis",
+    "gender": "Male",
+    "language": "ru"
   },
   {
     "id": "hWHihsTve3RbzG4PHDBQ",
-    "name": "Andriy Tkachenko  (Male,uk)"
+    "name": "Andriy Tkachenko",
+    "gender": "Male",
+    "language": "uk"
   },
   {
     "id": "nPczCjzI2devNBz1zQrb",
-    "name": "Brian  (Male,en, ar)"
+    "name": "Brian",
+    "gender": "Male",
+    "language": "en, ar"
   },
   {
     "id": "ycbyWsnf4hqZgdpKHqiU",
-    "name": "Rina (Female,ru)"
+    "name": "Rina",
+    "gender": "Female",
+    "language": "ru"
   },
   {
     "id": "iBo5PWT1qLiEyqhM7TrG",
-    "name": "Liberty X (Female,en, es)"
+    "name": "Liberty X",
+    "gender": "Female",
+    "language": "en, es"
   },
   {
     "id": "Obuyk6KKzg9olSLPaCbl",
-    "name": "Arcadias (male, en, ru)"
+    "name": "Arcadias",
+    "gender": "Male",
+    "language": "en, ru"
   },
   {
     "id": "ZD29qZCdYhhdqzBLRKNH",
-    "name": "Futuristic Robot  (Female,en)"
+    "name": "Futuristic Robot",
+    "gender": "Female",
+    "language": "en"
   },
   {
     "id": "GVRiwBELe0czFUAJj0nX",
-    "name": "Anton  (Male,uk)"
+    "name": "Anton",
+    "gender": "Male",
+    "language": "uk"
   },
   {
     "id": "0ZQZuw8Sn4cU0rN1Tm2K",
-    "name": "Yaroslava  (Female,uk)"
+    "name": "Yaroslava",
+    "gender": "Female",
+    "language": "uk"
   },
   {
     "id": "UkO7OCLgMp3WYf4UPjE5",
-    "name": "Tiago  (Male,pt-PT)"
+    "name": "Tiago",
+    "gender": "Male",
+    "language": "pt-PT"
   },
   {
     "id": "2Zst4rvX5S2nMbiauLDN",
-    "name": "Arty Grumson (Male,ru-RU)"
+    "name": "Arty Grumson",
+    "gender": "Male",
+    "language": "ru-RU"
   }
 ]

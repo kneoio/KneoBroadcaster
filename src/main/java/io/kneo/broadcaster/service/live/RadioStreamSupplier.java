@@ -64,7 +64,7 @@ public class RadioStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
-        LiveScene activeScene = stream.findActiveScene(5);
+        LiveScene activeScene = stream.findActiveScene(0);
         if (activeScene == null) {
             return Uni.createFrom().failure(
                 new IllegalStateException("No active scene found for RadioStream: " + stream.getSlugName())
@@ -73,6 +73,10 @@ public class RadioStreamSupplier extends StreamSupplier {
 
         UUID activeSceneId = activeScene.getSceneId();
         String currentSceneTitle = activeScene.getSceneTitle();
+
+        if (activeScene.getActualStartTime() == null) {
+            activeScene.setActualStartTime(LocalDateTime.now());
+        }
 
         Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 

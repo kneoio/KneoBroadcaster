@@ -184,7 +184,26 @@ public class StationDashboardService {
             return SceneStatus.COMPLETED;
         }
         
-        if (scene.getScheduledStartTime() != null && now.isAfter(scene.getScheduledEndTime())) {
+        LocalTime nowTime = now.toLocalTime();
+        LocalTime sceneStart = scene.getOriginalStartTime();
+        LocalTime sceneEnd = scene.getOriginalEndTime();
+        
+        if (sceneStart == null) {
+            return SceneStatus.PENDING;
+        }
+        
+        boolean isPast;
+        if (sceneEnd != null) {
+            if (sceneEnd.isAfter(sceneStart)) {
+                isPast = nowTime.isAfter(sceneEnd);
+            } else {
+                isPast = nowTime.isAfter(sceneEnd) && nowTime.isBefore(sceneStart);
+            }
+        } else {
+            isPast = false;
+        }
+        
+        if (isPast) {
             if (scene.getActualStartTime() == null) {
                 return SceneStatus.SKIPPED;
             }
@@ -195,7 +214,18 @@ public class StationDashboardService {
             return SceneStatus.ACTIVE;
         }
         
-        if (scene.getScheduledStartTime() != null && !now.isBefore(scene.getScheduledStartTime())) {
+        boolean isActive;
+        if (sceneEnd != null) {
+            if (sceneEnd.isAfter(sceneStart)) {
+                isActive = !nowTime.isBefore(sceneStart) && nowTime.isBefore(sceneEnd);
+            } else {
+                isActive = !nowTime.isBefore(sceneStart) || nowTime.isBefore(sceneEnd);
+            }
+        } else {
+            isActive = !nowTime.isBefore(sceneStart);
+        }
+        
+        if (isActive) {
             return SceneStatus.ACTIVE;
         }
         

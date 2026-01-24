@@ -46,7 +46,7 @@ public class RadioStream extends AbstractStream {
             return null;
         }
 
-        LocalTime now = LocalTime.now(timeZone).minusMinutes(prepareMinutesInAdvance);
+        LocalTime now = LocalTime.now(timeZone);
         List<LiveScene> scenes = streamAgenda.getLiveScenes();
         
         for (int i = 0; i < scenes.size(); i++) {

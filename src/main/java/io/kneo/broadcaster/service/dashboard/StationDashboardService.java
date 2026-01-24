@@ -98,7 +98,7 @@ public class StationDashboardService {
         LocalTime now = LocalTime.now(station.getTimeZone());
         LiveScene activeEntry = null;
         if (station instanceof OneTimeStream) {
-            activeEntry = station.findActiveScene();
+            activeEntry = station.findActiveScene(0);
         }
 
         List<StationStatsDTO.ScheduleEntryDTO> entries = new ArrayList<>();

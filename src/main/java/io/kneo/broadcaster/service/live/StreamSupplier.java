@@ -52,6 +52,7 @@ public abstract class StreamSupplier {
             IStream stream,
             LanguageTag broadcastingLanguage
     ) {
+        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PROCESSING);
         // Get prompt ID early as it's needed in error handling
         List<ScenePrompt> contentPrompts = activeEntry.getContentPrompts();
         if (contentPrompts == null || contentPrompts.isEmpty()) {
@@ -104,7 +105,7 @@ public abstract class StreamSupplier {
             return soundFragmentService.getById(existingFragmentId)
                     .flatMap(fragment -> {
                         if (fragment.getExpiresAt() != null && fragment.getExpiresAt().isBefore(java.time.LocalDateTime.now())) {
-                            LOGGER.info("Fragment {} expired at {}, regenerating", existingFragmentId, fragment.getExpiresAt());
+                            LOGGER.info("Fragment {} expired at {}, re-generating", existingFragmentId, fragment.getExpiresAt());
                             return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
                         }
                         
@@ -116,7 +117,7 @@ public abstract class StreamSupplier {
                         return Uni.createFrom().item(List.of(fragment));
                     })
                     .onFailure().recoverWithUni(error -> {
-                        LOGGER.warn("Fragment {} not found (may be deleted), regenerating", existingFragmentId);
+                        LOGGER.warn("Fragment {} not found (may be deleted), re-generating", existingFragmentId);
                         return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
                     });
         }

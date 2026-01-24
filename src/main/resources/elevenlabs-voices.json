@@ -2,157 +2,203 @@
   {
     "id": "WWr4C8ld745zI3BiA8n7",
     "name": "Robert Riggs",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "DLsHlh26Ugcm6ELvS0qi",
     "name": "Ms. Walker",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "l88WmPeLH7L0O0VA9lqm",
     "name": "Lax",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "6OzrBCQf8cjERkYgzSg8",
     "name": "Young Jamal",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "pwMBn0SsmN1220Aorv15",
     "name": "Matt",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "NOpBlnGInO9m6vDvFkFC",
     "name": "Grandpa Spuds Oxley",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "nZ5WsS2E2UAALki8m2V6",
     "name": "Ranbir M",
-    "gender": "Male",
-    "language": "en"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "fzDFBB4mgvMlL36gPXcz",
     "name": "Giovanni Rossi",
-    "gender": "Male",
-    "language": "it, pt"
+    "gender": "male",
+    "language": "it-IT",
+    "labels": "premium, pt"
   },
   {
     "id": "W5JElH3dK1UYYAiHH7uh",
     "name": "Martin Osborne-2",
-    "gender": "Male",
-    "language": "es"
+    "gender": "male",
+    "language": "es-ES",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "LHgFk7RaIiyNE5I3pC1d",
     "name": "LiviChi",
-    "gender": "Female",
-    "language": "en"
+    "gender": "female",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "aLFUti4k8YKvtQGXv0UO",
     "name": "Paulo",
-    "gender": "Male",
-    "language": "pt"
+    "gender": "male",
+    "language": "pt-PT",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "DMcOknq8n1B6XshFIJKJ",
     "name": "Patricio Brito",
-    "gender": "Male",
-    "language": "pt"
+    "gender": "male",
+    "language": "pt-PT",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "B8gJV1IhpuegLxdpXFOE",
     "name": "Kuon",
-    "gender": "Female",
-    "language": "jp"
+    "gender": "female",
+    "language": "ja-JP",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "e4Gj1truMuHm0MMO7kHV",
     "name": "Akee",
-    "gender": "Male",
-    "language": "ru, en"
+    "gender": "male",
+    "language": "ru-RU",
+    "labels": "premium, en"
   },
   {
     "id": "BKE59urYIY1Qetpp45Yw",
     "name": "Dimu",
-    "gender": "Male",
-    "language": "ge, en"
+    "gender": "male",
+    "language": "de-DE",
+    "labels": "premium, en"
   },
   {
     "id": "0BcDz9UPwL3MpsnTeUlO",
     "name": "Denis",
-    "gender": "Male",
-    "language": "ru"
+    "gender": "male",
+    "language": "ru-RU",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "hWHihsTve3RbzG4PHDBQ",
     "name": "Andriy Tkachenko",
-    "gender": "Male",
-    "language": "uk"
+    "gender": "male",
+    "language": "uk-UA",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "nPczCjzI2devNBz1zQrb",
     "name": "Brian",
-    "gender": "Male",
-    "language": "en, ar"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium, ar"
   },
   {
     "id": "ycbyWsnf4hqZgdpKHqiU",
     "name": "Rina",
-    "gender": "Female",
-    "language": "ru"
+    "gender": "female",
+    "language": "ru-RU",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "iBo5PWT1qLiEyqhM7TrG",
     "name": "Liberty X",
-    "gender": "Female",
-    "language": "en, es"
+    "gender": "female",
+    "language": "en-US",
+    "labels": "premium, es"
   },
   {
     "id": "Obuyk6KKzg9olSLPaCbl",
     "name": "Arcadias",
-    "gender": "Male",
-    "language": "en, ru"
+    "gender": "male",
+    "language": "en-US",
+    "labels": "premium, ru"
   },
   {
     "id": "ZD29qZCdYhhdqzBLRKNH",
     "name": "Futuristic Robot",
-    "gender": "Female",
-    "language": "en"
+    "gender": "female",
+    "language": "en-US",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "GVRiwBELe0czFUAJj0nX",
     "name": "Anton",
-    "gender": "Male",
-    "language": "uk"
+    "gender": "male",
+    "language": "uk-UA",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "0ZQZuw8Sn4cU0rN1Tm2K",
     "name": "Yaroslava",
-    "gender": "Female",
-    "language": "uk"
+    "gender": "female",
+    "language": "uk-UA",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "UkO7OCLgMp3WYf4UPjE5",
     "name": "Tiago",
-    "gender": "Male",
-    "language": "pt-PT"
+    "gender": "male",
+    "language": "pt-PT",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   },
   {
     "id": "2Zst4rvX5S2nMbiauLDN",
     "name": "Arty Grumson",
-    "gender": "Male",
-    "language": "ru-RU"
+    "gender": "male",
+    "language": "ru-RU",
+    "labels": "premium",
+    "engineType": "elevenlabs"
   }
 ]

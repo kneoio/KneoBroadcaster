@@ -1,34 +1,66 @@
 [
   {
     "id": "tara",
-    "name": "Tara"
+    "name": "Tara",
+    "gender": "female",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "leah",
-    "name": "Leah"
+    "name": "Leah",
+    "gender": "female",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "jess",
-    "name": "Jess"
+    "name": "Jess",
+    "gender": "female",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "mia",
-    "name": "Mia"
+    "name": "Mia",
+    "gender": "female",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "zoe",
-    "name": "Zoe"
+    "name": "Zoe",
+    "gender": "female",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "leo",
-    "name": "Leo"
+    "name": "Leo",
+    "gender": "male",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "dan",
-    "name": "Dan"
+    "name": "Dan",
+    "gender": "male",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   },
   {
     "id": "zac",
-    "name": "Zac"
+    "name": "Zac",
+    "gender": "male",
+    "language": "en-US",
+    "labels": "",
+    "engineType": "modelslab"
   }
 ]

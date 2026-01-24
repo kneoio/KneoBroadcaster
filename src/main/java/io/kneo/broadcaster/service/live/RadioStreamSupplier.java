@@ -27,6 +27,7 @@ import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -63,7 +64,7 @@ public class RadioStreamSupplier extends StreamSupplier {
             String additionalInstruction,
             MessageSink messageSink
     ) {
-        LiveScene activeScene = stream.findActiveScene();
+        LiveScene activeScene = stream.findActiveScene(5);
         if (activeScene == null) {
             return Uni.createFrom().failure(
                 new IllegalStateException("No active scene found for RadioStream: " + stream.getSlugName())
@@ -101,12 +102,11 @@ public class RadioStreamSupplier extends StreamSupplier {
 
             if (pickedSongs.isEmpty()) {
                 // Check if scene should end by time or continue waiting
-                java.time.LocalDateTime now = java.time.LocalDateTime.now();
+                LocalDateTime now = LocalDateTime.now();
                 if (now.isAfter(activeScene.getScheduledEndTime())) {
                     // Scene time is over, end it
                     activeScene.setActualEndTime(now);
                     stream.clearSceneState(activeSceneId);
-                    return Uni.createFrom().item(() -> null);
                 } else {
                     // Songs exhausted but time remains, wait for next cycle
                     messageSink.add(
@@ -114,8 +114,8 @@ public class RadioStreamSupplier extends StreamSupplier {
                             AiDjStatsDTO.MessageType.INFO,
                             String.format("Scene '%s' has no more songs but time remains - waiting", currentSceneTitle)
                     );
-                    return Uni.createFrom().item(() -> null);
                 }
+                return Uni.createFrom().item(() -> null);
             }
 
             songsUni = Uni.createFrom().item(pickedSongs);

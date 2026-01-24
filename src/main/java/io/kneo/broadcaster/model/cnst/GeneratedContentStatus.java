@@ -4,5 +4,6 @@ public enum GeneratedContentStatus {
     PENDING,
     GENERATED,
     REUSING,
+    PROCESSING,
     ERROR
 }

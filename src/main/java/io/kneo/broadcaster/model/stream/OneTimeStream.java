@@ -62,7 +62,8 @@ public class OneTimeStream extends AbstractStream {
         this.scripts = List.of(new BrandScriptEntry(script.getId(), userVariables));
     }
 
-    public LiveScene findActiveScene() {
+    @Override
+    public LiveScene findActiveScene(int prepareMinutesInAdvance) {
         List<LiveScene> scenes = streamAgenda.getLiveScenes();
 
         boolean anySceneStarted = scenes.stream()

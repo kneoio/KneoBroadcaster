@@ -62,7 +62,7 @@ public class OneTimeStreamSupplier extends StreamSupplier {
             LanguageTag broadcastingLanguage,
             String additionalInstruction
     ) {
-        LiveScene activeEntry = stream.findActiveScene();
+        LiveScene activeEntry = stream.findActiveScene(0);
 
         if (activeEntry == null) {
             UUID prevSceneId = stream.getCurrentSceneId();

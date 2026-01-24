@@ -39,7 +39,7 @@ public final class WeatherHelper {
             JsonObject data = client.getCurrentWeather(city, defaultCountry).await().indefinitely();
             return formatWeather(data);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch weather for " + defaultCountry + " (city: " + city + ")", e);
+            return new HashMap<>();
         }
     }
 
@@ -106,7 +106,7 @@ public final class WeatherHelper {
             cache.put(cacheKey, new CachedWeather(data));
             return data;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch weather data for " + city, e);
+            return new JsonObject();
         }
     }
 

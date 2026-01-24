@@ -275,6 +275,7 @@ public class GeneratedNewsService {
                     .onFailure().recoverWithUni(error -> {
                         LOGGER.error("TTS generation failed for scene '{}' - Error: {}", 
                                 activeEntry.getSceneTitle(), error.getMessage(), error);
+                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
                         return Uni.createFrom().failure(error);
                     });
         });

@@ -68,7 +68,9 @@ public final class NewsHelper {
             cache.put(cacheKey, new CachedNews(response));
             return response;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch news for: " + text, e);
+            NewsResponse errorResponse = new NewsResponse();
+            errorResponse.setNews(List.of());
+            return errorResponse;
         }
     }
 

@@ -7,6 +7,7 @@ import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.live.AiHelperService;
@@ -99,8 +100,8 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                             throw new RuntimeException("No songs available in the station catalogue");
                         }
                         Map<String, UUID> fallbackFragments = new HashMap<>();
-                        fallbackFragments.put("song1", list.get(0).getId());
-                        LOGGER.info("[AddToQueue] Selected random song: {} - {}", list.get(0).getTitle(), list.get(0).getId());
+                        fallbackFragments.put("song1", list.getFirst().getId());
+                        LOGGER.info("[AddToQueue] Selected random song: {} - {}", list.getFirst().getTitle(), list.getFirst().getId());
                         return fallbackFragments;
                     });
         } else {
@@ -118,7 +119,8 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                     
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Generating intro ...");
                     LOGGER.info("[AddToQueue] Calling ElevenLabs TTS - voiceId: {}, modelId: {}", djVoiceId, config.getElevenLabsModelId());
-                    return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId(), );
+                    //TODO the lang should be set correctly
+                    return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId(), LanguageTag.EN_US);
                 })
                 .flatMap(audioBytes -> {
                     LOGGER.info("[AddToQueue] TTS completed - received {} bytes", audioBytes.length);

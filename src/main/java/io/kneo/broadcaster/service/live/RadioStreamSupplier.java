@@ -7,6 +7,7 @@ import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
+import io.kneo.broadcaster.model.aiagent.TTSEngineType;
 import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
@@ -195,7 +196,11 @@ public class RadioStreamSupplier extends StreamSupplier {
                                         Random random = new Random();
                                         List<Uni<SongPromptDTO>> songPromptUnis = songList.stream()
                                                 .map(song -> {
-                                                    Prompt selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                                                    Prompt selectedPrompt;
+                                                    do {
+                                                        selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                                                    } while (selectedPrompt.isPodcast() && agent.getTtsSetting().getDj().getEngineType() != TTSEngineType.ELEVENLABS);
+                                                    Prompt finalSelectedPrompt = selectedPrompt;
                                                     return draftFactory.createDraft(
                                                                     song,
                                                                     agent,
@@ -207,12 +212,12 @@ public class RadioStreamSupplier extends StreamSupplier {
                                                             .map(draft -> new SongPromptDTO(
                                                                     song.getId(),
                                                                     draft,
-                                                                    selectedPrompt.getPrompt() + additionalInstruction,
-                                                                    selectedPrompt.getPromptType(),
+                                                                    finalSelectedPrompt.getPrompt() + additionalInstruction,
+                                                                    finalSelectedPrompt.getPromptType(),
                                                                     agent.getLlmType(),
                                                                     agent.getSearchEngineType(),
                                                                     activeScene.getScheduledStartTime().toLocalTime(),
-                                                                    selectedPrompt.isPodcast()
+                                                                    finalSelectedPrompt.isPodcast()
                                                             ));
                                                 })
                                                 .toList();

@@ -7,7 +7,6 @@ import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.Profile;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
-import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.ProfileOverriding;
@@ -88,7 +87,7 @@ public class DraftFactory {
         
         return Uni.combine().all()
                 .unis(
-                        getDraftTemplate(draftId, stream.getSlugName(), LanguageCode.en),  //the drafts always un ENG
+                        getDraftTemplate(draftId, stream.getSlugName()),  //the drafts always un ENG
                         profileService.getById(stream.getProfileId()),
                         genresUni,
                         copilotUni,
@@ -172,11 +171,11 @@ public class DraftFactory {
                 });
     }
 
-    private Uni<Draft> getDraftTemplate(UUID id, String stationSlug, LanguageCode language) {
+    private Uni<Draft> getDraftTemplate(UUID id, String stationSlug) {
         if (id == null) {
             String errorMsg = String.format(
-                "Prompt configuration error: draftId is null for station='%s', language='%s'. Check prompt configuration - all prompts must have an associated draft template.",
-                stationSlug, language
+                "Prompt configuration error: draftId is null for station='%s'. Check prompt configuration - all prompts must have an associated draft template.",
+                stationSlug
             );
             LOGGER.error(errorMsg);
             return Uni.createFrom().failure(new IllegalStateException(errorMsg));
@@ -184,8 +183,8 @@ public class DraftFactory {
         return draftService.getById(id, SuperUser.build())
                 .onFailure().transform(t -> {
                     String errorMsg = String.format(
-                        "Draft template not found: draftId='%s', station='%s', language='%s'. Error: %s",
-                        id, stationSlug, language, t.getMessage()
+                        "Draft template not found: draftId='%s', station='%s'. Error: %s",
+                        id, stationSlug, t.getMessage()
                     );
                     LOGGER.error(errorMsg, t);
                     return new IllegalStateException(errorMsg, t);
@@ -212,7 +211,7 @@ public class DraftFactory {
         }
         
         data.put("coPilotName", copilot.getName());
-        data.put("coPilotVoiceId", copilot.getPrimaryVoice().stream().findAny().orElse(new Voice("Kuon","B8gJV1IhpuegLxdpXFOE")).getId());
+        data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
         data.put("listeners", listeners);
         String brand = stream.getLocalizedName().get(selectedLanguage.toLanguageCode());
         if (brand == null) {

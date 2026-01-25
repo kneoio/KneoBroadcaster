@@ -4,7 +4,7 @@
     "name": "Tara",
     "gender": "female",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -12,7 +12,7 @@
     "name": "Leah",
     "gender": "female",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -20,7 +20,7 @@
     "name": "Jess",
     "gender": "female",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -28,7 +28,7 @@
     "name": "Mia",
     "gender": "female",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -36,7 +36,7 @@
     "name": "Zoe",
     "gender": "female",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -44,7 +44,7 @@
     "name": "Leo",
     "gender": "male",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -52,7 +52,7 @@
     "name": "Dan",
     "gender": "male",
     "language": "en-US",
-    "labels": "",
+    "labels": "premium",
     "engineType": "modelslab"
   },
   {
@@ -60,6 +60,54 @@
     "name": "Zac",
     "gender": "male",
     "language": "en-US",
+    "labels": "premium",
+    "engineType": "modelslab"
+  },
+  {
+    "id": "alejo",
+    "name": "Alejo",
+    "gender": "male",
+    "language": "es-ES",
+    "labels": "",
+    "engineType": "modelslab"
+  },
+  {
+    "id": "dorita",
+    "name": "Dorita",
+    "gender": "female",
+    "language": "es-ES",
+    "labels": "",
+    "engineType": "modelslab"
+  },
+  {
+    "id": "santi",
+    "name": "Santi",
+    "gender": "male",
+    "language": "es-ES",
+    "labels": "",
+    "engineType": "modelslab"
+  },
+  {
+    "id": "emma",
+    "name": "Emma",
+    "gender": "female",
+    "language": "en-GB",
+    "labels": "",
+    "engineType": "modelslab"
+  },
+  {
+    "id": "isabella",
+    "name": "Isabella",
+    "gender": "female",
+    "language": "en-GB",
+    "labels": "",
+    "engineType": "modelslab"
+  },
+  {
+    "id": "elodie",
+    "name": "Elodie",
+    "gender": "female",
+    "language": "fr-FR",
     "labels": "",
     "engineType": "modelslab"
   }

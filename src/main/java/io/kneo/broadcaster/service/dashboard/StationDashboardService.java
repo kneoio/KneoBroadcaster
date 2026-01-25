@@ -146,8 +146,8 @@ public class StationDashboardService {
                 dto.setFetchedSongsCount(0);
             }
 
-            dto.setActualStartTime(scene.getActualStartTime());
-            dto.setActualEndTime(scene.getActualEndTime());
+            dto.setActualStartTime(scene.getActualStartTime() != null ? scene.getActualStartTime().toLocalTime() : null);
+            dto.setActualEndTime(scene.getActualEndTime() != null ? scene.getActualEndTime().toLocalTime() : null);
 
             LocalDateTime nowDateTime = LocalDateTime.now();
             SceneStatus status = computeSceneStatus(scene, nowDateTime);

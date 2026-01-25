@@ -3,6 +3,7 @@ package io.kneo.broadcaster.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.dto.LabelDTO;
+import io.kneo.broadcaster.dto.VoiceFilterDTO;
 import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.model.Label;
@@ -49,6 +50,40 @@ public class RefService {
 
     public Uni<Integer> getAllVoicesCount(TTSEngineType engineType) {
         return getAllVoices(engineType).map(List::size);
+    }
+
+    public Uni<List<VoiceDTO>> getFilteredVoices(VoiceFilterDTO filter) {
+        TTSEngineType engineType = filter.getEngineType() != null ? filter.getEngineType() : TTSEngineType.ELEVENLABS;
+        return getAllVoices(engineType).map(voices -> voices.stream()
+                .filter(voice -> {
+                    if (filter.getGender() != null && !filter.getGender().isEmpty() 
+                            && !filter.getGender().equalsIgnoreCase(voice.getGender())) {
+                        return false;
+                    }
+                    if (filter.getLanguages() != null && !filter.getLanguages().isEmpty() 
+                            && !filter.getLanguages().contains(voice.getLanguage())) {
+                        return false;
+                    }
+                    if (filter.getLabels() != null && !filter.getLabels().isEmpty()) {
+                        boolean hasAllLabels = filter.getLabels().stream()
+                                .allMatch(label -> voice.getLabels() != null && voice.getLabels().contains(label));
+                        if (!hasAllLabels) {
+                            return false;
+                        }
+                    }
+                    if (filter.getSearchTerm() != null && !filter.getSearchTerm().isEmpty()) {
+                        String searchTerm = filter.getSearchTerm().toLowerCase();
+                        if (voice.getName() == null || !voice.getName().toLowerCase().contains(searchTerm)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .collect(Collectors.toList()));
+    }
+
+    public Uni<Integer> getFilteredVoicesCount(VoiceFilterDTO filter) {
+        return getFilteredVoices(filter).map(List::size);
     }
 
       @Deprecated

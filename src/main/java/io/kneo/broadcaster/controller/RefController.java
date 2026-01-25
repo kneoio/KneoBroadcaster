@@ -2,12 +2,14 @@ package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.LabelDTO;
 import io.kneo.broadcaster.dto.ProfileDTO;
+import io.kneo.broadcaster.dto.VoiceFilterDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
 import io.kneo.broadcaster.dto.actions.ProfileActionsFactory;
 import io.kneo.broadcaster.dto.aiagent.AiAgentDTO;
 import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.dto.of.CountryDTO;
 import io.kneo.broadcaster.model.aiagent.TTSEngineType;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
@@ -21,12 +23,16 @@ import io.kneo.core.util.RuntimeUtil;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -152,18 +158,11 @@ public class RefController extends BaseController {
                 break;
 
             case "voices":
-                String engineParam = rc.request().getParam("engine");
-                TTSEngineType engineType = null;
-                try {
-                    engineType = engineParam != null ? TTSEngineType.valueOf(engineParam.toUpperCase()) : TTSEngineType.ELEVENLABS;
-                } catch (IllegalArgumentException e) {
-                    rc.response().setStatusCode(400).end("Invalid TTS engine type: " + engineParam);
-                    return;
-                }
+                VoiceFilterDTO filter = parseVoiceFilterDTO(rc);
                 
                 Uni.combine().all().unis(
-                                service.getAllVoicesCount(engineType),
-                                service.getAllVoices(engineType)
+                                filter != null ? service.getFilteredVoicesCount(filter) : service.getAllVoicesCount(TTSEngineType.ELEVENLABS),
+                                filter != null ? service.getFilteredVoices(filter) : service.getAllVoices(TTSEngineType.ELEVENLABS)
                         )
                         .asTuple()
                         .map(tuple -> {
@@ -192,6 +191,78 @@ public class RefController extends BaseController {
             default:
                 rc.response().setStatusCode(404).end();
         }
+    }
+
+    private VoiceFilterDTO parseVoiceFilterDTO(RoutingContext rc) {
+        String filterParam = rc.request().getParam("filter");
+        if (filterParam == null || filterParam.trim().isEmpty()) {
+            return null;
+        }
+        VoiceFilterDTO dto = new VoiceFilterDTO();
+        boolean any = false;
+        try {
+            String decodedFilter = URLDecoder.decode(filterParam, StandardCharsets.UTF_8);
+            JsonObject json = new JsonObject(decodedFilter);
+            
+            if (json.containsKey("engineType")) {
+                String engineType = json.getString("engineType");
+                if (engineType != null && !engineType.trim().isEmpty()) {
+                    try {
+                        dto.setEngineType(TTSEngineType.valueOf(engineType.toUpperCase()));
+                        any = true;
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+            }
+            
+            String gender = json.getString("gender");
+            if (gender != null && !gender.trim().isEmpty()) {
+                dto.setGender(gender);
+                any = true;
+            }
+            
+            JsonArray l = json.getJsonArray("languages");
+            if (l != null && !l.isEmpty()) {
+                List<LanguageTag> languages = new ArrayList<>();
+                for (Object o : l) {
+                    if (o instanceof String str) {
+                        try {
+                            languages.add(LanguageTag.fromTag(str));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+                if (!languages.isEmpty()) {
+                    dto.setLanguages(languages);
+                    any = true;
+                }
+            }
+            
+            JsonArray labels = json.getJsonArray("labels");
+            if (labels != null && !labels.isEmpty()) {
+                List<String> labelList = new ArrayList<>();
+                for (Object o : labels) {
+                    if (o instanceof String str) {
+                        labelList.add(str);
+                    }
+                }
+                if (!labelList.isEmpty()) {
+                    dto.setLabels(labelList);
+                    any = true;
+                }
+            }
+            
+            String searchTerm = json.getString("searchTerm");
+            if (searchTerm != null && !searchTerm.trim().isEmpty()) {
+                dto.setSearchTerm(searchTerm.trim());
+                any = true;
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid filter JSON format: " + e.getMessage(), e);
+        }
+        return any ? dto : null;
     }
 
 }

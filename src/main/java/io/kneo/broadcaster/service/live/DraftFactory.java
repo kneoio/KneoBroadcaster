@@ -224,7 +224,7 @@ public class DraftFactory {
             data.put("djVoiceId", overriddenAiDj.getPrimaryVoice());
         } else {
             data.put("djName", agent.getName());
-            data.put("djVoiceId", agent.getPrimaryVoice().stream().findFirst().orElseThrow().getId());
+            data.put("djVoiceId", agent.getTtsSetting().getDj().getId());
         }
         ProfileOverriding overriddenProfile = stream.getProfileOverriding();
         if (overriddenProfile != null){

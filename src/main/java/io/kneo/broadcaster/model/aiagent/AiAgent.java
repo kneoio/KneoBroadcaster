@@ -18,22 +18,13 @@ public class AiAgent extends SimpleReferenceEntity {
 
     private LlmType llmType;
     private SearchEngineType searchEngineType = SearchEngineType.PERPLEXITY;
+    @Deprecated
     private List<Voice> primaryVoice;
     private UUID copilot;
-    private UUID newsReporter;
-    private UUID weatherReporter;
     private TTSSetting ttsSetting;
 
     public AiAgent() {
         this.preferredLang = new ArrayList<>();
         this.primaryVoice = new ArrayList<>();
-    }
-
-    public UUID getNewsReporter() {
-        return newsReporter;
-    }
-
-    public UUID getWeatherReporter() {
-        return weatherReporter;
     }
 }

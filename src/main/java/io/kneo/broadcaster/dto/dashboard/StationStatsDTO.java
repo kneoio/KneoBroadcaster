@@ -63,8 +63,8 @@ public class StationStatsDTO {
         private int songsCount;
         private int fetchedSongsCount;
         private UUID generatedSoundFragmentId;
-        private LocalDateTime actualStartTime;
-        private LocalDateTime actualEndTime;
+        private LocalTime actualStartTime;
+        private LocalTime actualEndTime;
         private SceneStatus status;
         private Long timingOffsetSeconds;
         private UUID generatedFragmentId;

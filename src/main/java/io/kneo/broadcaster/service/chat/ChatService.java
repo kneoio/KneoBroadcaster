@@ -14,7 +14,6 @@ import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
-import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.MessageType;
@@ -182,10 +181,7 @@ public abstract class ChatService {
                         .sorted(java.util.Comparator.comparingDouble(io.kneo.broadcaster.model.aiagent.LanguagePreference::getWeight).reversed())
                         .map(lp -> lp.getLanguageTag().name())
                         .reduce((a, b) -> a + "," + b).orElse("");
-                djPrimaryVoices = agent.getPrimaryVoice().stream()
-                        .findFirst()
-                        .map(Voice::getId)
-                        .orElseThrow(() -> new IllegalStateException("No voice configured for DJ: " + djName));
+                djPrimaryVoices = agent.getTtsSetting().getDj().getId();
 
                 String renderedPrompt = getMainPrompt()
                         .replace("{{djName}}", djName)

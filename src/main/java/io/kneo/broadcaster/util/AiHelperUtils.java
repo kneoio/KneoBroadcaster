@@ -60,6 +60,6 @@ public final class AiHelperUtils {
         if (overriding != null && overriding.getPrimaryVoice() != null) {
             return overriding.getPrimaryVoice();
         }
-        return agent.getPrimaryVoice().stream().findFirst().orElseThrow().getId();
+        return agent.getTtsSetting().getDj().getId();
     }
 }

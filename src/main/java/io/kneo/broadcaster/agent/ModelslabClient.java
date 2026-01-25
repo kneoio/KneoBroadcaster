@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.agent;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -29,14 +30,14 @@ public class ModelslabClient implements TextToSpeechClient {
     }
 
     @Override
-    public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId) {
+    public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId, LanguageTag languageTag) {
         LOGGER.info("Starting Modelslab TTS generation - Voice: {}, Text length: {} chars", voiceId, text.length());
         
         JsonObject payload = new JsonObject()
                 .put("key", config.getModelslabApiKey())
                 .put("prompt", text)
                 .put("voice_id", voiceId)
-                .put("language", "british english")
+                .put("language", getLangString(languageTag))
                 .put("speed", 1)
                 .put("emotion", true);
 
@@ -131,5 +132,36 @@ public class ModelslabClient implements TextToSpeechClient {
                         throw new RuntimeException("Failed to download audio from Modelslab URL: " + audioUrl);
                     }
                 });
+    }
+
+    private static String getLangString(LanguageTag tag) {
+        if (tag == LanguageTag.EN_US) {
+            return "american english";
+        }
+        if (tag == LanguageTag.EN_GB) {
+            return "british english";
+        }
+        if (tag == LanguageTag.ES_ES){
+            return "spanish";
+        }
+        if (tag == LanguageTag.JA_JP) {
+            return "japanese";
+        }
+        if (tag == LanguageTag.ZH_CN) {
+            return "mandarin chinese";
+        }
+        if (tag == LanguageTag.FR_FR) {
+            return "french";
+        }
+        if (tag == LanguageTag.PT_BR) {
+            return "brazilian portuguese";
+        }
+        if (tag == LanguageTag.HI_IN) {
+            return "hindi";
+        }
+        if (tag == LanguageTag.IT_IT) {
+            return "italian";
+        }
+        return "american english";
     }
 }

@@ -118,7 +118,7 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                     
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Generating intro ...");
                     LOGGER.info("[AddToQueue] Calling ElevenLabs TTS - voiceId: {}, modelId: {}", djVoiceId, config.getElevenLabsModelId());
-                    return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId());
+                    return elevenLabsClient.textToSpeech(textToTTSIntro, djVoiceId, config.getElevenLabsModelId(), );
                 })
                 .flatMap(audioBytes -> {
                     LOGGER.info("[AddToQueue] TTS completed - received {} bytes", audioBytes.length);

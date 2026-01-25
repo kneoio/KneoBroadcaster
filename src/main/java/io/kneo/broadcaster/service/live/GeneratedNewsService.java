@@ -203,7 +203,7 @@ public class GeneratedNewsService {
                 ? Uni.createFrom().item(agent.getTtsSetting().getNewsReporter())
                 : Uni.createFrom().item(() -> {
             Voice voice = new Voice();
-            voice.setId("Tara");
+            voice.setId(agent.getTtsSetting().getNewsReporter().getId());
             voice.setEngineType(TTSEngineType.MODELSLAB);
             return voice;
         });
@@ -228,7 +228,7 @@ public class GeneratedNewsService {
             actualVoiceId = voice.getId();
 
             LOGGER.info("Calling TTS API with text length: {} characters", text.length());
-            return ttsClient.textToSpeech(text, actualVoiceId, modelId)
+            return ttsClient.textToSpeech(text, actualVoiceId, modelId, agent.getPreferredLang().getFirst().getLanguageTag())
                     .chain(audioBytes -> {
                         LOGGER.info("TTS generation successful! Received {} bytes of audio data", audioBytes.length);
                         try {

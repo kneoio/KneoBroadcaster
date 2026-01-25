@@ -217,7 +217,7 @@ public class EventExecutor {
     private Uni<Void> generateTtsAndQueue(IStream station, SoundFragment fragment, String ttsText, String voiceId) {
         String uploadId = UUID.randomUUID().toString();
 
-        return elevenLabsClient.textToSpeech(ttsText, voiceId, config.getElevenLabsModelId())
+        return elevenLabsClient.textToSpeech(ttsText, voiceId, config.getElevenLabsModelId(), )
                 .chain(audioBytes -> {
                     try {
                         Path uploadsDir = Paths.get(config.getPathForExternalServiceUploads());

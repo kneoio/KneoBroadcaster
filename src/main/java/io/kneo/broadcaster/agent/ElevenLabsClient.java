@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.agent;
 
 import io.kneo.broadcaster.config.BroadcasterConfig;
+import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -25,7 +26,7 @@ public class ElevenLabsClient implements TextToSpeechClient {
         this.webClient = WebClient.create(vertx);
     }
 
-    public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId) {
+    public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId, LanguageTag languageTag) {
         String endpoint = String.format(
             "https://api.elevenlabs.io/v1/text-to-speech/%s?output_format=%s",
             voiceId,

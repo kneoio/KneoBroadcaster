@@ -24,7 +24,7 @@ public class PerplexitySearchHelper {
     }
 
     public Uni<JsonObject> search(String query, List<LanguageCode> languages, List<String> domains) {
-        return perplexityApiClient.search(query, languages, domains)
+        return perplexityApiClient.search(query, languages, domains, false)
                 .onFailure().recoverWithItem(e ->
                         new JsonObject().put("error", "Search failed: " + e.getMessage())
                 );
@@ -36,7 +36,7 @@ public class PerplexitySearchHelper {
 
     public JsonObject searchBlocking(String query, List<LanguageCode> languages, List<String> domains) {
         return search(query, languages, domains)
-                .await().atMost(Duration.ofSeconds(8));
+                .await().atMost(Duration.ofSeconds(30));
     }
 
     public JsonObject searchBlocking(String query) {

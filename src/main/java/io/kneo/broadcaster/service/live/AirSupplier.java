@@ -225,7 +225,7 @@ public class AirSupplier {
                                     .map(copilot -> {
                                         liveRadioStation.setTts(new TtsDTO(
                                                 ttsSetting.getDj().getId(),
-                                                copilot.getPrimaryVoice().getFirst().getId(),
+                                                copilot.getTtsSetting().getDj().getId(),
                                                 copilot.getName(),
                                                 ttsSetting.getDj().getEngineType()
                                         ));

@@ -3,6 +3,7 @@ package io.kneo.broadcaster.agent;
 import io.kneo.broadcaster.config.PerplexityApiConfig;
 import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.mutiny.core.Vertx;
@@ -33,26 +34,60 @@ public class PerplexityApiClient {
         this.webClient = WebClient.create(vertx, options);
     }
 
-    public Uni<JsonObject> search(String query, List<LanguageCode> languages, List<String> domains) {
+    public Uni<JsonObject> search(String query, List<LanguageCode> languages, List<String> domains, boolean onlySummaries) {
 
-        JsonObject requestBody = new JsonObject()
-                .put("model", "sonar-pro")
-                .put("response_format", new JsonObject()
-                        .put("type", "json_schema")
-                        .put("json_schema", new JsonObject()
-                                .put("schema", new JsonObject()
-                                        .put("type", "object")
-                                        .put("additionalProperties", true)
-                                        .put("properties", new JsonObject())
-                                )
-                        )
-                )
-                .put("messages", List.of(
-                        new JsonObject()
-                                .put("role", "user")
-                                .put("content", query + "\nRespond ONLY with valid JSON matching the schema.")
-                ));
+        String languageInstruction = !languages.isEmpty()
+                ? " Respond in " + languages.get(0).name() + " language."
+                : "";
 
+        JsonObject requestBody;
+
+        if (onlySummaries) {
+            JsonObject schema = new JsonObject()
+                    .put("type", "object")
+                    .put("properties", new JsonObject()
+                            .put("title", new JsonObject().put("type", "string"))
+                            .put("summary", new JsonObject().put("type", "string"))
+                            .put("articles", new JsonObject()
+                                    .put("type", "array")
+                                    .put("items", new JsonObject()
+                                            .put("type", "object")
+                                            .put("properties", new JsonObject()
+                                                    .put("title", new JsonObject().put("type", "string"))
+                                                    .put("url", new JsonObject().put("type", "string"))
+                                                    .put("date", new JsonObject().put("type", "string"))
+                                                    .put("source", new JsonObject().put("type", "string"))
+                                                    .put("content", new JsonObject().put("type", "string"))
+                                            )
+                                    )
+                            )
+                    )
+                    .put("required", new JsonArray().add("title").add("summary").add("articles"));
+
+            requestBody = new JsonObject()
+                    .put("model", "sonar-pro")
+                    .put("response_format", new JsonObject()
+                            .put("type", "json_schema")
+                            .put("json_schema", new JsonObject()
+                                    .put("name", "news_response")
+                                    .put("schema", schema)
+                                    .put("strict", true)
+                            )
+                    )
+                    .put("messages", List.of(
+                            new JsonObject()
+                                    .put("role", "user")
+                                    .put("content", query + languageInstruction)
+                    ));
+        } else {
+            requestBody = new JsonObject()
+                    .put("model", "sonar-pro")
+                    .put("messages", List.of(
+                            new JsonObject()
+                                    .put("role", "user")
+                                    .put("content", query + languageInstruction)
+                    ));
+        }
 
         if (!languages.isEmpty()) {
             requestBody.put("search_language_filter", languages.stream().map(LanguageCode::getAltCode).toList());
@@ -62,11 +97,11 @@ public class PerplexityApiClient {
             requestBody.put("search_domain_filter", domains);
         }
 
-
         return webClient
                 .postAbs(config.getBaseUrl() + "/chat/completions")
                 .putHeader("Authorization", "Bearer " + config.getApiKey())
                 .putHeader("Content-Type", "application/json")
+                .timeout(30000)
                 .sendJsonObject(requestBody)
                 .onItem().transform(response -> {
                     if (response.statusCode() != 200) {
@@ -80,44 +115,7 @@ public class PerplexityApiClient {
                             .getJsonObject("message")
                             .getString("content");
 
-                    return new JsonObject(content);
+                    return onlySummaries ? new JsonObject(content) : new JsonObject().put("response", content);
                 });
-
-    }
-
-
-    public static void main(String[] args) throws Exception {
-        io.vertx.core.Vertx coreVertx = io.vertx.core.Vertx.vertx();
-        PerplexityApiClient api = new PerplexityApiClient();
-
-        api.vertx = new Vertx(coreVertx);
-        api.webClient = WebClient.create(api.vertx);
-
-        api.config = new PerplexityApiConfig() {
-            @Override
-            public String getApiKey() {
-                return "xxx";
-            }
-
-            @Override
-            public String getBaseUrl() {
-                return "https://api.perplexity.ai";
-            }
-        };
-
-        api.search("comparing prices for 10 eggs in PT and UA, " +
-                        "show only the two countries as json", List.of(), List.of())
-                .subscribe().with(
-                        r -> {
-                            System.out.println(r.encodePrettily());
-                            coreVertx.close();
-                        },
-                        e -> {
-                            System.err.println(e.getMessage());
-                            coreVertx.close();
-                        }
-                );
-
-        Thread.sleep(5000);
     }
 }

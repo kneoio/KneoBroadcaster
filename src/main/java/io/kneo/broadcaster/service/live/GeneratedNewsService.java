@@ -134,19 +134,19 @@ public class GeneratedNewsService {
                 new HashMap<>()
         ).chain(draftContent -> Uni.createFrom().item(() -> {
             LOGGER.info("Draft content received: {}", draftContent);
-            
+
             // Check if draft contains error
             if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                 LOGGER.error("Draft content contains error, skipping generation: {}", draftContent);
                 return null;
             }
-            
+
             String fullPrompt = String.format(
                     "%s\n\nDraft input:\n%s",
                     prompt.getPrompt(),
                     draftContent
             );
-            
+
             LOGGER.info("Sending prompt to Claude (length: {} chars)", fullPrompt.length());
 
             long maxTokens = 2048L;
@@ -159,8 +159,8 @@ public class GeneratedNewsService {
 
             try {
                 Message response = anthropicClient.messages().create(params);
-                
-                LOGGER.info("Claude response received - Input tokens: {}, Output tokens: {}", 
+
+                LOGGER.info("Claude response received - Input tokens: {}, Output tokens: {}",
                         response.usage().inputTokens(), response.usage().outputTokens());
 
                 String text = response.content().stream()
@@ -177,7 +177,7 @@ public class GeneratedNewsService {
                 }
                 if (text.contains("technical difficulty")
                         || text.contains("technical error")
-                || text.contains("technical issue")) {
+                        || text.contains("technical issue")) {
                     return null;
                 } else {
                     LOGGER.info("Generated news text ({} tokens): {}", response.usage().outputTokens(), text);
@@ -199,19 +199,17 @@ public class GeneratedNewsService {
     ) {
         String uploadId = UUID.randomUUID().toString();
 
-        Uni<Voice> voiceUni = agent.getTtsSetting() != null && agent.getTtsSetting().getNewsReporter() != null
-                ? Uni.createFrom().item(agent.getTtsSetting().getNewsReporter())
-                : Uni.createFrom().item(() -> {
-            Voice voice = new Voice();
-            voice.setId(agent.getTtsSetting().getNewsReporter().getId());
-            voice.setEngineType(TTSEngineType.MODELSLAB);
-            return voice;
-        });
+        Voice voice;
+        if (agent.getTtsSetting().getNewsReporter() != null) {
+            voice = agent.getTtsSetting().getNewsReporter();
+        } else {
+            throw new RuntimeException("News reporter voice not configured");
+        }
 
-        return voiceUni.chain(voice -> {
-            LOGGER.info("Starting TTS generation for scene '{}' using voice: {} (engine: {})", 
+        return Uni.createFrom().item(voice).chain(v -> {
+            LOGGER.info("Starting TTS generation for scene '{}' using voice: {} (engine: {})",
                     activeEntry.getSceneTitle(), voice.getId(), voice.getEngineType());
-            
+
             TextToSpeechClient ttsClient;
             String modelId;
             String actualVoiceId;
@@ -273,7 +271,7 @@ public class GeneratedNewsService {
                         }
                     })
                     .onFailure().recoverWithUni(error -> {
-                        LOGGER.error("TTS generation failed for scene '{}' - Error: {}", 
+                        LOGGER.error("TTS generation failed for scene '{}' - Error: {}",
                                 activeEntry.getSceneTitle(), error.getMessage(), error);
                         activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
                         return Uni.createFrom().failure(error);

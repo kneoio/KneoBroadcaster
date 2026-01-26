@@ -149,7 +149,7 @@ public class StationDashboardService {
             dto.setActualStartTime(scene.getActualStartTime() != null ? scene.getActualStartTime().toLocalTime() : null);
             dto.setActualEndTime(scene.getActualEndTime() != null ? scene.getActualEndTime().toLocalTime() : null);
 
-            LocalDateTime nowDateTime = LocalDateTime.now();
+            LocalDateTime nowDateTime = LocalDateTime.now(station.getTimeZone());
             SceneStatus status = computeSceneStatus(scene, nowDateTime);
             dto.setStatus(status);
 

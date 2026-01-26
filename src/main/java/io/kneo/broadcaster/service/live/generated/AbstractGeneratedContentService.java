@@ -105,18 +105,18 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             IStream stream,
             UUID brandId,
             LiveScene activeEntry,
-            LanguageTag broadcastingLanguage
+            LanguageTag airLanguage
     ) {
         return promptService.getById(promptId, SuperUser.build())
                 .flatMap(masterPrompt -> {
-                    if (masterPrompt.getLanguageTag() == broadcastingLanguage) {
+                    if (masterPrompt.getLanguageTag() == airLanguage) {
                         return Uni.createFrom().item(masterPrompt);
                     }
                     return promptService
-                            .findByMasterAndLanguage(promptId, broadcastingLanguage, false)
+                            .findByMasterAndLanguage(promptId, airLanguage, false)
                             .map(p -> p != null ? p : masterPrompt);
                 })
-                .chain(prompt -> generateText(prompt, agent, stream, broadcastingLanguage)
+                .chain(prompt -> generateText(prompt, agent, stream, airLanguage)
                         .chain(text -> {
                             if (text == null) {
                                 return Uni.createFrom().failure(new RuntimeException("Generated content contains technical difficulty/error - skipping generation"));

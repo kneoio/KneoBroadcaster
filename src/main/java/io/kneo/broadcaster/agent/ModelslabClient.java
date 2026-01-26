@@ -32,12 +32,13 @@ public class ModelslabClient implements TextToSpeechClient {
     @Override
     public Uni<byte[]> textToSpeech(String text, String voiceId, String modelId, LanguageTag languageTag) {
         LOGGER.info("Starting Modelslab TTS generation - Voice: {}, Text length: {} chars", voiceId, text.length());
-        
+
+        String langTag = getLangString(languageTag);
         JsonObject payload = new JsonObject()
                 .put("key", config.getModelslabApiKey())
                 .put("prompt", text)
                 .put("voice_id", voiceId)
-                .put("language", getLangString(languageTag))
+                .put("language", langTag)
                 .put("speed", 1)
                 .put("emotion", true);
 
@@ -62,6 +63,7 @@ public class ModelslabClient implements TextToSpeechClient {
                         String fetchUrl = jsonResponse.getString("fetch_result");
                         return pollForCompletion(fetchUrl, 200, 2000);
                     } else {
+                        LOGGER.error("Modelslab failed. voice: {}, language: {}", voiceId, langTag);
                         throw new RuntimeException("Modelslab API failed: " + jsonResponse.encode());
                     }
                 });

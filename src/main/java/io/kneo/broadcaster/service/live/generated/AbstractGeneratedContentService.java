@@ -61,7 +61,6 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     protected final ModelslabClient modelslabClient;
     protected final GCPTTSClient gcpttsClient;
     protected final BroadcasterConfig config;
-    protected final AnthropicClient anthropicClient;
     protected final DraftFactory draftFactory;
     protected final AiAgentService aiAgentService;
     protected final SoundFragmentRepository soundFragmentRepository;
@@ -92,10 +91,6 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
         this.soundFragmentRepository = soundFragmentRepository;
         this.ffmpegProvider = ffmpegProvider;
         this.audioConcatenator = audioConcatenator;
-        this.anthropicClient = AnthropicOkHttpClient.builder()
-                .apiKey(config.getAnthropicApiKey())
-                .timeout(java.time.Duration.ofSeconds(60))
-                .build();
     }
 
     protected abstract String getIntroJingleResource();
@@ -164,6 +159,10 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                     .build();
 
             try {
+                AnthropicClient anthropicClient = AnthropicOkHttpClient.builder()
+                        .apiKey(config.getAnthropicApiKey())
+                        .timeout(java.time.Duration.ofSeconds(60))
+                        .build();
                 Message response = anthropicClient.messages().create(params);
 
                 LOGGER.info("Claude response received - Input tokens: {}, Output tokens: {}",

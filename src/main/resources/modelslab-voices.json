@@ -16,14 +16,6 @@
     "engineType": "modelslab"
   },
   {
-    "id": "jess",
-    "name": "Jess",
-    "gender": "female",
-    "language": "en-US",
-    "labels": "premium",
-    "engineType": "modelslab"
-  },
-  {
     "id": "mia",
     "name": "Mia",
     "gender": "female",

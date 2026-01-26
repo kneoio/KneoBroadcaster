@@ -13,7 +13,7 @@ import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
-import io.kneo.broadcaster.service.live.DraftFactory;
+import io.kneo.broadcaster.service.live.scripting.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;

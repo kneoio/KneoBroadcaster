@@ -10,7 +10,7 @@ import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
-import io.kneo.broadcaster.service.live.DraftFactory;
+import io.kneo.broadcaster.service.live.scripting.DraftFactory;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.ScriptVariableExtractor;
 import io.kneo.core.localization.LanguageCode;

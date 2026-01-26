@@ -4,7 +4,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
-import io.kneo.broadcaster.service.live.PerplexitySearchHelper;
+import io.kneo.broadcaster.service.live.scripting.PerplexitySearchHelper;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.live;
+package io.kneo.broadcaster.service.live.scripting;
 
 import io.kneo.broadcaster.agent.PerplexityApiClient;
 import io.kneo.broadcaster.agent.WeatherApiClient;

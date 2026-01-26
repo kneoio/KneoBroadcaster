@@ -139,6 +139,11 @@ public class AudioConcatenatorManualTest {
             public String getModelslabApiKey() {
                 return "";
             }
+
+            @Override
+            public String getGcpCredentialsPath() {
+                return "";
+            }
         };
     }
 

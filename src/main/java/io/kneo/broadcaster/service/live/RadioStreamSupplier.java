@@ -17,6 +17,7 @@ import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.model.stream.RadioStream;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.SceneService;
+import io.kneo.broadcaster.service.live.scripting.DraftFactory;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;

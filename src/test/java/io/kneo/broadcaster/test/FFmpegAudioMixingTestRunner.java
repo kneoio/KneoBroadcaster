@@ -183,6 +183,11 @@ public class FFmpegAudioMixingTestRunner {
             public String getModelslabApiKey() {
                 return "";
             }
+
+            @Override
+            public String getGcpCredentialsPath() {
+                return "";
+            }
         };
     }
 

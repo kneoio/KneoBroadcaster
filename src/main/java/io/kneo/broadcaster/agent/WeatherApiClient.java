@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.agent;
 
 import io.kneo.broadcaster.config.WeatherApiConfig;
-import io.kneo.broadcaster.service.live.WeatherHelper;
+import io.kneo.broadcaster.service.live.scripting.WeatherHelper;
 import io.kneo.broadcaster.util.PropertiesUtil;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;

@@ -87,4 +87,7 @@ public interface BroadcasterConfig {
 
     @WithName("modelslab.api-key")
     String getModelslabApiKey();
+
+    @WithName("google.credential-path")
+    String getGcpCredentialsPath();
 }

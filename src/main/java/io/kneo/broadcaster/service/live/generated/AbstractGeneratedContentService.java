@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.live;
+package io.kneo.broadcaster.service.live.generated;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
@@ -7,6 +7,7 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.Model;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
+import io.kneo.broadcaster.agent.GCPTTSClient;
 import io.kneo.broadcaster.agent.ModelslabClient;
 import io.kneo.broadcaster.agent.TextToSpeechClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
@@ -27,6 +28,7 @@ import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
+import io.kneo.broadcaster.service.live.scripting.DraftFactory;
 import io.kneo.broadcaster.service.manipulation.FFmpegProvider;
 import io.kneo.broadcaster.service.manipulation.mixing.AudioConcatenator;
 import io.kneo.broadcaster.service.manipulation.mixing.handler.AudioMixingHandler;
@@ -35,8 +37,6 @@ import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.util.WebHelper;
 import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,28 +52,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-@ApplicationScoped
-public class GeneratedNewsService {
-    private static final Logger LOGGER = LoggerFactory.getLogger(GeneratedNewsService.class);
+public abstract class AbstractGeneratedContentService implements IGeneratedContent {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractGeneratedContentService.class);
 
-    private final PromptService promptService;
-    private final SoundFragmentService soundFragmentService;
-    private final ElevenLabsClient elevenLabsClient;
-    private final ModelslabClient modelslabClient;
-    private final BroadcasterConfig config;
-    private final AnthropicClient anthropicClient;
-    private final DraftFactory draftFactory;
-    private final AiAgentService aiAgentService;
-    private final SoundFragmentRepository soundFragmentRepository;
-    private final FFmpegProvider ffmpegProvider;
-    private final AudioConcatenator audioConcatenator;
+    protected final PromptService promptService;
+    protected final SoundFragmentService soundFragmentService;
+    protected final ElevenLabsClient elevenLabsClient;
+    protected final ModelslabClient modelslabClient;
+    protected final GCPTTSClient gcpttsClient;
+    protected final BroadcasterConfig config;
+    protected final AnthropicClient anthropicClient;
+    protected final DraftFactory draftFactory;
+    protected final AiAgentService aiAgentService;
+    protected final SoundFragmentRepository soundFragmentRepository;
+    protected final FFmpegProvider ffmpegProvider;
+    protected final AudioConcatenator audioConcatenator;
 
-    @Inject
-    public GeneratedNewsService(
+    protected AbstractGeneratedContentService(
             PromptService promptService,
             SoundFragmentService soundFragmentService,
             ElevenLabsClient elevenLabsClient,
             ModelslabClient modelslabClient,
+            GCPTTSClient gcpttsClient,
             BroadcasterConfig config,
             DraftFactory draftFactory,
             AiAgentService aiAgentService,
@@ -85,6 +85,7 @@ public class GeneratedNewsService {
         this.soundFragmentService = soundFragmentService;
         this.elevenLabsClient = elevenLabsClient;
         this.modelslabClient = modelslabClient;
+        this.gcpttsClient = gcpttsClient;
         this.config = config;
         this.draftFactory = draftFactory;
         this.aiAgentService = aiAgentService;
@@ -97,7 +98,13 @@ public class GeneratedNewsService {
                 .build();
     }
 
-    public Uni<SoundFragment> generateNewsFragment(
+    protected abstract String getIntroJingleResource();
+    protected abstract String getBackgroundMusicResource();
+    protected abstract PlaylistItemType getContentType();
+    protected abstract Voice getVoice(AiAgent agent);
+    protected abstract String getSystemPrompt();
+
+    public Uni<SoundFragment> generateFragment(
             UUID promptId,
             AiAgent agent,
             IStream stream,
@@ -130,12 +137,11 @@ public class GeneratedNewsService {
                 agent,
                 stream,
                 prompt.getDraftId(),
-                LanguageTag.EN_US,  //for now, we use en for draft explicitly
+                LanguageTag.EN_US,
                 new HashMap<>()
         ).chain(draftContent -> Uni.createFrom().item(() -> {
             LOGGER.info("Draft content received: {}", draftContent);
 
-            // Check if draft contains error
             if (draftContent.contains("\"error\":") || draftContent.contains("Search failed")) {
                 LOGGER.error("Draft content contains error, skipping generation: {}", draftContent);
                 return null;
@@ -153,7 +159,7 @@ public class GeneratedNewsService {
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(Model.CLAUDE_HAIKU_4_5_20251001)
                     .maxTokens(maxTokens)
-                    .system("You are a professional radio news presenter")
+                    .system(getSystemPrompt())
                     .addUserMessage(fullPrompt)
                     .build();
 
@@ -170,7 +176,7 @@ public class GeneratedNewsService {
                         .orElseThrow(() -> new RuntimeException("No text generated from AI"));
 
                 if (response.usage().outputTokens() >= maxTokens * 0.95) {
-                    LOGGER.warn("News generation used {} tokens ({}% of max {}). Response may be truncated.",
+                    LOGGER.warn("Content generation used {} tokens ({}% of max {}). Response may be truncated.",
                             response.usage().outputTokens(),
                             Math.round((response.usage().outputTokens() / (double) maxTokens) * 100),
                             maxTokens);
@@ -180,7 +186,7 @@ public class GeneratedNewsService {
                         || text.contains("technical issue")) {
                     return null;
                 } else {
-                    LOGGER.info("Generated news text ({} tokens): {}", response.usage().outputTokens(), text);
+                    LOGGER.info("Generated text ({} tokens): {}", response.usage().outputTokens(), text);
                     return text;
                 }
             } catch (Exception e) {
@@ -199,11 +205,9 @@ public class GeneratedNewsService {
     ) {
         String uploadId = UUID.randomUUID().toString();
 
-        Voice voice;
-        if (agent.getTtsSetting().getNewsReporter() != null) {
-            voice = agent.getTtsSetting().getNewsReporter();
-        } else {
-            throw new RuntimeException("News reporter voice not configured");
+        Voice voice = getVoice(agent);
+        if (voice == null) {
+            throw new RuntimeException("Voice not configured for " + getContentType());
         }
 
         return Uni.createFrom().item(voice).chain(v -> {
@@ -212,32 +216,34 @@ public class GeneratedNewsService {
 
             TextToSpeechClient ttsClient;
             String modelId;
-            String actualVoiceId;
 
             if (voice.getEngineType() == TTSEngineType.MODELSLAB) {
                 ttsClient = modelslabClient;
                 modelId = null;
                 LOGGER.info("Using Modelslab TTS client");
+            } else if (voice.getEngineType() == TTSEngineType.GOOGLE) {
+                ttsClient = gcpttsClient;
+                modelId = null;
+                LOGGER.info("Using GCP TTS client");
             } else {
                 ttsClient = elevenLabsClient;
                 modelId = config.getElevenLabsModelId();
                 LOGGER.info("Using ElevenLabs TTS client with model: {}", modelId);
             }
-            actualVoiceId = voice.getId();
 
             LOGGER.info("Calling TTS API with text length: {} characters", text.length());
-            return ttsClient.textToSpeech(text, actualVoiceId, modelId, agent.getPreferredLang().getFirst().getLanguageTag())
+            return ttsClient.textToSpeech(text, voice.getId(), modelId, agent.getPreferredLang().getFirst().getLanguageTag())
                     .chain(audioBytes -> {
                         LOGGER.info("TTS generation successful! Received {} bytes of audio data", audioBytes.length);
                         try {
-                            Path uploadsDir = Paths.get(config.getPathUploads(), "generated-news-service", "supervisor", "temp");
+                            Path uploadsDir = Paths.get(config.getPathUploads(), "generated-content-service", "supervisor", "temp");
                             Files.createDirectories(uploadsDir);
 
-                            String fileName = "generated_news_" + uploadId + ".mp3";
+                            String fileName = "generated_content_" + uploadId + ".mp3";
                             Path ttsFilePath = uploadsDir.resolve(fileName);
                             Files.write(ttsFilePath, audioBytes);
 
-                            LOGGER.info("Generated news TTS saved: {}", ttsFilePath);
+                            LOGGER.info("Generated content TTS saved: {}", ttsFilePath);
 
                             AudioMixingHandler mixingHandler = new AudioMixingHandler(
                                     config,
@@ -248,15 +254,17 @@ public class GeneratedNewsService {
                                     ffmpegProvider
                             );
 
-                            String mixedFileName = "mixed_news_" + uploadId + ".wav";
+                            String mixedFileName = "mixed_content_" + uploadId + ".wav";
                             Path mixedFilePath = uploadsDir.resolve(mixedFileName);
 
-                            return mixingHandler.mixNewsWithBackgroundAndIntros(
+                            return mixingHandler.mixContentWithBackgroundAndIntros(
                                     ttsFilePath.toString(),
                                     mixedFilePath.toString(),
-                                    0.40
+                                    0.40,
+                                    getIntroJingleResource(),
+                                    getBackgroundMusicResource()
                             ).chain(mixedPath -> {
-                                LOGGER.info("News mixed with background and jingles: {}", mixedPath);
+                                LOGGER.info("Content mixed with background and jingles: {}", mixedPath);
                                 return createAndSaveSoundFragment(
                                         Path.of(mixedPath),
                                         prompt,
@@ -294,7 +302,7 @@ public class GeneratedNewsService {
             Files.copy(audioFilePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
             SoundFragmentDTO dto = new SoundFragmentDTO();
-            dto.setType(PlaylistItemType.NEWS);
+            dto.setType(getContentType());
             String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
             dto.setTitle(prompt.getTitle() + " " + currentDate);
             dto.setArtist("AI Generated");
@@ -303,9 +311,8 @@ public class GeneratedNewsService {
             dto.setSource(SourceType.TEMPORARY_MIX);
             dto.setExpiresAt(LocalDate.now().plusDays(1).atStartOfDay());
             dto.setLength(Duration.ofSeconds(30));
-            // Include the generated text in description for debugging
             String truncatedText = text.length() > 200 ? text.substring(0, 200) + "..." : text;
-            dto.setDescription("AI generated news content " + currentDate + "\n\nContent: " + truncatedText);
+            dto.setDescription("AI generated content " + currentDate + "\n\nContent: " + truncatedText);
             dto.setRepresentedInBrands(List.of(brandId));
             dto.setNewlyUploaded(List.of(audioFilePath.getFileName().toString()));
 
@@ -333,7 +340,7 @@ public class GeneratedNewsService {
                         activeEntry.setGeneratedFragmentId(fragment.getId());
                         activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
 
-                        LOGGER.info("Generated news fragment saved and added to scene: {}", fragment.getId());
+                        LOGGER.info("Generated fragment saved and added to scene: {}", fragment.getId());
                         return fragment;
                     });
         } catch (IOException e) {
@@ -342,3 +349,4 @@ public class GeneratedNewsService {
         }
     }
 }
+

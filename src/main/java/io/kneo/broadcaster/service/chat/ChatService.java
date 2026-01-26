@@ -24,7 +24,7 @@ import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
-import io.kneo.broadcaster.service.live.PerplexitySearchHelper;
+import io.kneo.broadcaster.service.live.scripting.PerplexitySearchHelper;
 import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;

@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.live;
+package io.kneo.broadcaster.service.live.scripting;
 
 import io.kneo.broadcaster.agent.WorldNewsApiClient;
 import io.kneo.broadcaster.model.news.NewsArticle;

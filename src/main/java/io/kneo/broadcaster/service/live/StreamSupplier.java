@@ -8,12 +8,16 @@ import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.PendingSongEntry;
+import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
+import io.kneo.broadcaster.service.live.generated.GeneratedWeatherService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -24,6 +28,9 @@ public abstract class StreamSupplier {
 
     @Inject
     GeneratedNewsService generatedNewsService;
+
+    @Inject
+    GeneratedWeatherService generatedWeatherService;
 
     protected List<SoundFragment> pickSongsFromScheduled(
             List<PendingSongEntry> scheduledSongs,
@@ -45,98 +52,84 @@ public abstract class StreamSupplier {
     }
 
     protected Uni<List<SoundFragment>> generateContentForScene(
-            LiveScene activeEntry,
+            LiveScene liveScene,
             UUID brandId,
             SoundFragmentService soundFragmentService,
             AiAgent agent,
             IStream stream,
-            LanguageTag broadcastingLanguage
+            LanguageTag airLanguage
     ) {
-        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PROCESSING);
-        // Get prompt ID early as it's needed in error handling
-        List<ScenePrompt> contentPrompts = activeEntry.getContentPrompts();
-        if (contentPrompts == null || contentPrompts.isEmpty()) {
-            LOGGER.error("No content prompts found for GENERATED scene, scene: {}", activeEntry.getSceneTitle());
-            activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
-            return Uni.createFrom().item(List.of());
-        }
+        liveScene.setGeneratedContentStatus(GeneratedContentStatus.PROCESSING);
+        List<ScenePrompt> contentPrompts = liveScene.getContentPrompts();
         UUID promptId = contentPrompts.getFirst().getPromptId();
-        
-        // For news scenes, check if we already have a generated fragment
-        if (activeEntry.getGeneratedFragmentId() != null) {
-            LOGGER.info("Scene {} already has generated fragment {}, checking if valid", 
-                    activeEntry.getSceneTitle(), activeEntry.getGeneratedFragmentId());
-            
-            // Check if the fragment actually exists and is valid
-            return soundFragmentService.getById(activeEntry.getGeneratedFragmentId())
+        if (liveScene.getGeneratedFragmentId() != null) {
+            LOGGER.info("Scene {} already has generated fragment {}, checking if valid",
+                    liveScene.getSceneTitle(), liveScene.getGeneratedFragmentId());
+            return soundFragmentService.getById(liveScene.getGeneratedFragmentId())
                     .flatMap(fragment -> {
-                        if (fragment.getExpiresAt() != null && fragment.getExpiresAt().isBefore(java.time.LocalDateTime.now())) {
-                            LOGGER.info("Fragment {} expired at {}, regenerating", 
-                                    activeEntry.getGeneratedFragmentId(), fragment.getExpiresAt());
-                            return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+                        if (fragment.getExpiresAt() != null && fragment.getExpiresAt().isBefore(LocalDateTime.now())) {
+                            LOGGER.info("Fragment {} expired at {}, regenerating",
+                                    liveScene.getGeneratedFragmentId(), fragment.getExpiresAt());
+                            return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
                         }
-                        
-                        LOGGER.info("Reusing valid fragment {} for scene {}", 
-                                activeEntry.getGeneratedFragmentId(), activeEntry.getSceneTitle());
-                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
+                        LOGGER.info("Reusing valid fragment {} for scene {}",
+                                liveScene.getGeneratedFragmentId(), liveScene.getSceneTitle());
+                        liveScene.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
                         return Uni.createFrom().item(List.of(fragment));
                     })
                     .onFailure().recoverWithUni(error -> {
-                        LOGGER.warn("Fragment {} not found (may be deleted), regenerating", 
-                                activeEntry.getGeneratedFragmentId());
-                        return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+                        LOGGER.warn("Fragment {} not found, regenerating", liveScene.getGeneratedFragmentId());
+                        return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
                     });
         }
-
         // If no fragment ID, try to reuse from another scene with same prompt (today's news)
         LiveScene sourceScene = stream.getStreamAgenda().getLiveScenes().stream()
-                .filter(scene -> !scene.getSceneId().equals(activeEntry.getSceneId()))
+                .filter(scene -> !scene.getSceneId().equals(liveScene.getSceneId()))
                 .filter(scene -> scene.getGeneratedFragmentId() != null)
-                .filter(scene -> scene.getContentPrompts() != null && !scene.getContentPrompts().isEmpty())
                 .filter(scene -> scene.getContentPrompts().getFirst().getPromptId().equals(promptId))
-                .filter(scene -> scene.getGeneratedContentTimestamp() != null 
-                        && scene.getGeneratedContentTimestamp().toLocalDate().equals(java.time.LocalDate.now()))
+                .filter(scene -> scene.getGeneratedContentTimestamp() != null
+                        && scene.getGeneratedContentTimestamp().toLocalDate().equals(LocalDate.now()))
                 .findFirst()
                 .orElse(null);
 
         if (sourceScene != null) {
             UUID existingFragmentId = sourceScene.getGeneratedFragmentId();
-            
+
             return soundFragmentService.getById(existingFragmentId)
                     .flatMap(fragment -> {
-                        if (fragment.getExpiresAt() != null && fragment.getExpiresAt().isBefore(java.time.LocalDateTime.now())) {
+                        if (fragment.getExpiresAt() != null && fragment.getExpiresAt().isBefore(LocalDateTime.now())) {
                             LOGGER.info("Fragment {} expired at {}, re-generating", existingFragmentId, fragment.getExpiresAt());
-                            return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+                            return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
                         }
-                        
-                        LOGGER.info("Reusing today's news fragment {} from scene '{}' for scene '{}'", 
-                                existingFragmentId, sourceScene.getSceneTitle(), activeEntry.getSceneTitle());
-                        activeEntry.setGeneratedFragmentId(existingFragmentId);
-                        activeEntry.setGeneratedContentTimestamp(sourceScene.getGeneratedContentTimestamp());
-                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
+
+                        LOGGER.info("Reusing today's news fragment {} from scene '{}' for scene '{}'",
+                                existingFragmentId, sourceScene.getSceneTitle(), liveScene.getSceneTitle());
+                        liveScene.setGeneratedFragmentId(existingFragmentId);
+                        liveScene.setGeneratedContentTimestamp(sourceScene.getGeneratedContentTimestamp());
+                        liveScene.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
                         return Uni.createFrom().item(List.of(fragment));
                     })
                     .onFailure().recoverWithUni(error -> {
-                        LOGGER.warn("Fragment {} not found (may be deleted), re-generating", existingFragmentId);
-                        return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+                        LOGGER.warn("Fragment {} not found, re-generating", existingFragmentId);
+                        return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
                     });
         }
 
-        return generateNewContent(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage);
+        return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
     }
 
-    private Uni<List<SoundFragment>> generateNewContent(
+    private Uni<List<SoundFragment>> generateContent(
             UUID promptId,
             AiAgent agent,
             IStream stream,
             UUID brandId,
             LiveScene activeEntry,
-            LanguageTag broadcastingLanguage
+            LanguageTag airLanguage
     ) {
         LOGGER.info("Generating new content for scene: {} prompt: {}", activeEntry.getSceneTitle(), promptId);
         activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PENDING);
-        
-        return generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, activeEntry, broadcastingLanguage)
+
+        return generatedNewsService.generateFragment(promptId, agent, stream, brandId, activeEntry, airLanguage)
                 .map(List::of)
                 .onFailure().recoverWithUni(error -> {
                     LOGGER.error("Failed to generate content for prompt {}", promptId, error);

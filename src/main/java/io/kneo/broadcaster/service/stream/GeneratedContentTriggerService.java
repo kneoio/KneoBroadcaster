@@ -9,7 +9,7 @@ import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.AiAgentService;
-import io.kneo.broadcaster.service.live.GeneratedNewsService;
+import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
 import io.kneo.broadcaster.util.AiHelperUtils;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -108,7 +108,7 @@ public class GeneratedContentTriggerService {
                 .chain(agent ->
                 {
                     LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                    return generatedNewsService.generateNewsFragment(promptId, agent, stream, brandId, liveScene, broadcastingLanguage);
+                    return generatedNewsService.generateFragment(promptId, agent, stream, brandId, liveScene, broadcastingLanguage);
                 })
                 .onFailure().recoverWithUni(error -> {
                     LOGGER.error("Failed to generate content for scene '{}' ({}), prompt: {}", 

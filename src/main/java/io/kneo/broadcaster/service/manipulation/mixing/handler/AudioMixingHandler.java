@@ -444,88 +444,73 @@ public class AudioMixingHandler extends MixingHandlerBase {
     }
 
 
-    public Uni<String> mixNewsWithBackgroundAndIntros(String newsTtsPath, String outputPath, double backgroundVolume) {
+    public Uni<String> mixContentWithBackgroundAndIntros(
+            String contentTtsPath,
+            String outputPath,
+            double backgroundVolume,
+            String introJingleResource,
+            String backgroundMusicResource) {
         return Uni.createFrom().item(() -> {
             File tempIntroJingle = null;
             File tempBackgroundMusic = null;
-            File tempNewsWithBg = null;
+            File tempContentWithBg = null;
             InputStream introJingleStream = null;
             InputStream backgroundMusicStream = null;
 
             try {
-                // Load resources
-                introJingleStream = getClass().getClassLoader().getResourceAsStream("News_Intro_Jingle.wav");
-                backgroundMusicStream = getClass().getClassLoader().getResourceAsStream("News_Cycle_Loop.wav");
+                introJingleStream = getClass().getClassLoader().getResourceAsStream(introJingleResource);
+                backgroundMusicStream = getClass().getClassLoader().getResourceAsStream(backgroundMusicResource);
                 if (introJingleStream == null || backgroundMusicStream == null) {
                     throw new RuntimeException("Required audio resources not found in classpath");
                 }
 
-                // Create temp files
                 tempIntroJingle = File.createTempFile("intro_jingle_", ".wav", new File(outputDir));
                 tempBackgroundMusic = File.createTempFile("bg_music_", ".wav", new File(outputDir));
-                tempNewsWithBg = File.createTempFile("news_bg_", ".wav", new File(outputDir));
+                tempContentWithBg = File.createTempFile("content_bg_", ".wav", new File(outputDir));
 
                 String introJinglePath = tempIntroJingle.getAbsolutePath();
                 String backgroundMusicPath = tempBackgroundMusic.getAbsolutePath();
-                String tempNewsWithBgPath = tempNewsWithBg.getAbsolutePath();
+                String tempContentWithBgPath = tempContentWithBg.getAbsolutePath();
 
                 Files.copy(introJingleStream, tempIntroJingle.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 Files.copy(backgroundMusicStream, tempBackgroundMusic.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-                double newsDuration = getAudioDuration(newsTtsPath);
+                double contentDuration = getAudioDuration(contentTtsPath);
                 double mainVolume = 3.0;
 
-                String newsBgFilter = String.format(
-                        "[0:a]volume=%.3f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news];" +
+                String contentBgFilter = String.format(
+                        "[0:a]volume=%.3f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[content];" +
                                 "[1:a]aloop=loop=-1:size=2e+09,atrim=duration=%.3f,aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo,volume=%.3f[bg];" +
-                                "[news][bg]amix=inputs=2:duration=first:dropout_transition=0:normalize=0", mainVolume, newsDuration, backgroundVolume
+                                "[content][bg]amix=inputs=2:duration=first:dropout_transition=0:normalize=0", mainVolume, contentDuration, backgroundVolume
                 );
 
-                FFmpegBuilder newsWithBgBuilder = new FFmpegBuilder()
-                        .setInput(newsTtsPath)
+                FFmpegBuilder contentWithBgBuilder = new FFmpegBuilder()
+                        .setInput(contentTtsPath)
                         .addInput(backgroundMusicPath)
-                        .setComplexFilter(newsBgFilter)
-                        .addOutput(tempNewsWithBgPath)
+                        .setComplexFilter(contentBgFilter)
+                        .addOutput(tempContentWithBgPath)
                         .setAudioCodec("pcm_s16le")
                         .setAudioSampleRate(SAMPLE_RATE)
                         .setAudioChannels(2)
                         .done();
 
-                executor.createJob(newsWithBgBuilder).run();
-                LOGGER.info("Mixed news with background: {}", tempNewsWithBgPath);
+                executor.createJob(contentWithBgBuilder).run();
+                LOGGER.info("Mixed content with background: {}", tempContentWithBgPath);
 
-                // === ZERO SILENCE VERSION ===
-                // Aggressively trims all silence and uses immediate cut (no crossfade)
                 String finalFilterComplex =
-                        // Intro: trim leading/trailing silence completely (10ms detection, -40dB threshold)
                         "[0:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo," +
                                 "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-40dB:" +
                                 "stop_periods=-1:stop_duration=0.01:stop_threshold=-40dB[intro];" +
-
-                                // News + background
-                                "[1:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[news_bg];" +
-
-                                // Outro: trim all silence aggressively (same parameters)
+                                "[1:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo[content_bg];" +
                                 "[2:a]aformat=sample_rates=44100:sample_fmts=s16:channel_layouts=stereo," +
                                 "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-40dB:" +
                                 "stop_periods=-1:stop_duration=0.01:stop_threshold=-40dB[outro];" +
-
-                                // Concatenate with ZERO gap - immediate hard cut between segments
-                                "[intro][news_bg][outro]concat=n=3:v=0:a=1";
-
-                // === ALTERNATIVE: Minimal crossfade (uncomment if you want smoothness) ===
-                // String finalFilterComplex =
-                //         "[0:a]aformat=...,silenceremove=... [intro];" +
-                //         "[1:a]aformat=... [news_bg];" +
-                //         "[2:a]aformat=...,silenceremove=... [outro];" +
-                //         // Ultra-short 0.1s crossfade for tight but smooth transition
-                //         "[intro][news_bg]acrossfade=d=0.1[step1];" +
-                //         "[step1][outro]acrossfade=d=0.1";
+                                "[intro][content_bg][outro]concat=n=3:v=0:a=1";
 
                 FFmpegBuilder finalBuilder = new FFmpegBuilder()
                         .setInput(introJinglePath)
-                        .addInput(tempNewsWithBgPath)
-                        .addInput(introJinglePath) // Same file for outro
+                        .addInput(tempContentWithBgPath)
+                        .addInput(introJinglePath)
                         .setComplexFilter(finalFilterComplex)
                         .addOutput(outputPath)
                         .setAudioCodec("pcm_s16le")
@@ -534,21 +519,20 @@ public class AudioMixingHandler extends MixingHandlerBase {
                         .done();
 
                 executor.createJob(finalBuilder).run();
-                LOGGER.info("Final news mix created: {}", outputPath);
+                LOGGER.info("Final content mix created: {}", outputPath);
 
-                // Cleanup
-                cleanupQuietly(tempNewsWithBg);
+                cleanupQuietly(tempContentWithBg);
                 cleanupQuietly(tempIntroJingle);
                 cleanupQuietly(tempBackgroundMusic);
 
                 return outputPath;
 
             } catch (Exception e) {
-                LOGGER.error("Error creating news mix: {}", e.getMessage(), e);
-                cleanupQuietly(tempNewsWithBg);
+                LOGGER.error("Error creating content mix: {}", e.getMessage(), e);
+                cleanupQuietly(tempContentWithBg);
                 cleanupQuietly(tempIntroJingle);
                 cleanupQuietly(tempBackgroundMusic);
-                throw new RuntimeException("Failed to create news mix", e);
+                throw new RuntimeException("Failed to create content mix", e);
             } finally {
                 closeQuietly(introJingleStream);
                 closeQuietly(backgroundMusicStream);

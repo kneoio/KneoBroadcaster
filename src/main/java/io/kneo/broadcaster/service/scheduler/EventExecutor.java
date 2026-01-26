@@ -25,7 +25,7 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
-import io.kneo.broadcaster.service.live.DraftFactory;
+import io.kneo.broadcaster.service.live.scripting.DraftFactory;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.SongSupplier;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;

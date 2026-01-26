@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service.live.scripting;
 
 import io.kneo.broadcaster.agent.WeatherApiClient;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.HashMap;
@@ -11,9 +12,9 @@ public final class WeatherHelper {
     private final WeatherApiClient client;
     private final Map<String, CachedWeather> cache = new ConcurrentHashMap<>();
     private static final long CACHE_TTL_MS = 10 * 60 * 1000;
-    private String defaultCountry;
+    private CountryCode defaultCountry;
 
-    public WeatherHelper(WeatherApiClient client, String defaultCountry) {
+    public WeatherHelper(WeatherApiClient client, CountryCode defaultCountry) {
         this.client = client;
         this.defaultCountry = defaultCountry;
     }
@@ -22,7 +23,7 @@ public final class WeatherHelper {
         this.client = client;
     }
 
-    public Map<String, Object> get(String country, String city) {
+    public Map<String, Object> get(CountryCode country, String city) {
         return formatWeather(getWeatherDataBlocking(city, country));
     }
 
@@ -48,14 +49,14 @@ public final class WeatherHelper {
         return buildSummary(w);
     }
 
-    public String summary(String country, String city) {
+    public String summary(CountryCode country, String city) {
         Map<String, Object> w = get(country, city);
         return buildSummary(w);
     }
 
     public String summary() {
         Map<String, Object> w = get();
-        if (w == null || w.isEmpty()) {
+        if (w.isEmpty()) {
             return "";
         }
         return buildSummary(w);
@@ -92,7 +93,7 @@ public final class WeatherHelper {
         return result.toString();
     }
 
-    private JsonObject getWeatherDataBlocking(String city, String countryCode) {
+    private JsonObject getWeatherDataBlocking(String city, CountryCode countryCode) {
         String cacheKey = city + "," + countryCode;
         CachedWeather cached = cache.get(cacheKey);
         if (cached != null && !cached.isExpired()) {
@@ -189,34 +190,33 @@ public final class WeatherHelper {
         return directions[index % 16];
     }
 
-    private String defaultCityFor(String countryCode) {
+    private String defaultCityFor(CountryCode countryCode) {
         if (countryCode == null) return null;
-        String cc = countryCode.trim().toUpperCase();
-        return switch (cc) {
-            case "US" -> "Washington";
-            case "GB", "UK" -> "London";
-            case "FR" -> "Paris";
-            case "DE" -> "Berlin";
-            case "ES" -> "Madrid";
-            case "IT" -> "Rome";
-            case "PT" -> "Lisbon";
-            case "BR" -> "Brasilia";
-            case "CA" -> "Ottawa";
-            case "AU" -> "Canberra";
-            case "IN" -> "New Delhi";
-            case "JP" -> "Tokyo";
-            case "CN" -> "Beijing";
-            case "RU" -> "Moscow";
-            case "UA" -> "Kyiv";
-            case "PL" -> "Warsaw";
-            case "NL" -> "Amsterdam";
-            case "BE" -> "Brussels";
-            case "SE" -> "Stockholm";
-            case "NO" -> "Oslo";
-            case "DK" -> "Copenhagen";
-            case "FI" -> "Helsinki";
-            case "IE" -> "Dublin";
-            case "CH" -> "Bern";
+        return switch (countryCode) {
+            case US -> "Washington";
+            case GB -> "London";
+            case FR -> "Paris";
+            case DE -> "Berlin";
+            case ES -> "Madrid";
+            case IT -> "Rome";
+            case PT -> "Lisbon";
+            case BR -> "Brasilia";
+            case CA -> "Ottawa";
+            case AU -> "Canberra";
+            case IN -> "New Delhi";
+            case JP -> "Tokyo";
+            case CN -> "Beijing";
+            case RU -> "Moscow";
+            case UA -> "Kyiv";
+            case PL -> "Warsaw";
+            case NL -> "Amsterdam";
+            case BE -> "Brussels";
+            case SE -> "Stockholm";
+            case NO -> "Oslo";
+            case DK -> "Copenhagen";
+            case FI -> "Helsinki";
+            case IE -> "Dublin";
+            case CH -> "Bern";
             default -> null;
         };
     }

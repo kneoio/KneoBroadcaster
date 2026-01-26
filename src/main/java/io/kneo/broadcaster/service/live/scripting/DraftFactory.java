@@ -22,6 +22,7 @@ import io.kneo.broadcaster.template.GroovyTemplateEngine;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.kneo.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -203,7 +204,7 @@ public class DraftFactory {
             LanguageTag selectedLanguage,
             Map<String, Object> userVariables
     ) {
-        String countryIso = stream.getCountry().getIsoCode();
+        CountryCode countryIso = stream.getCountry();
         Map<String, Object> data = new HashMap<>();
         
         if (userVariables != null && !userVariables.isEmpty()) {

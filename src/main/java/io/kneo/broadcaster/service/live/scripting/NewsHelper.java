@@ -4,6 +4,7 @@ import io.kneo.broadcaster.agent.WorldNewsApiClient;
 import io.kneo.broadcaster.model.news.NewsArticle;
 import io.kneo.broadcaster.model.news.NewsResponse;
 import io.kneo.broadcaster.util.NewsMapper;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.ArrayList;
@@ -34,9 +35,9 @@ public final class NewsHelper {
         }
     }
 
-    public NewsHelper(WorldNewsApiClient client, String defaultCountry, String defaultLanguage) {
+    public NewsHelper(WorldNewsApiClient client, CountryCode defaultCountry, String defaultLanguage) {
         this.client = client;
-        this.defaultCountry = defaultCountry;
+        this.defaultCountry = defaultCountry.getIsoCode();
         this.defaultLanguage = defaultLanguage;
     }
     

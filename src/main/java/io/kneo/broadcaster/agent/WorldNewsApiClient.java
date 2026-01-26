@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.WorldNewsApiConfig;
 import io.kneo.broadcaster.model.news.NewsResponse;
 import io.kneo.broadcaster.service.live.scripting.NewsHelper;
 import io.kneo.broadcaster.util.PropertiesUtil;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -62,7 +63,7 @@ public class WorldNewsApiClient {
             public String getBaseUrl() { return "https://api.worldnewsapi.com"; }
         };
         
-        NewsHelper newsHelper = new NewsHelper(apiClient, "kz", "ru");
+        NewsHelper newsHelper = new NewsHelper(apiClient, CountryCode.KZ, "ru");
         
         try {
             System.out.println("\n=== Latest Music News (3 items) ===");

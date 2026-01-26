@@ -3,6 +3,7 @@ package io.kneo.broadcaster.agent;
 import io.kneo.broadcaster.config.WeatherApiConfig;
 import io.kneo.broadcaster.service.live.scripting.WeatherHelper;
 import io.kneo.broadcaster.util.PropertiesUtil;
+import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -28,7 +29,7 @@ public class WeatherApiClient {
         this.webClient = WebClient.create(vertx);
     }
 
-    public Uni<JsonObject> getCurrentWeather(String city, String countryCode) {
+    public Uni<JsonObject> getCurrentWeather(String city, CountryCode countryCode) {
         String location = countryCode != null ? city + "," + countryCode : city;
         return webClient
                 .getAbs(config.getBaseUrl() + "/weather")
@@ -62,7 +63,7 @@ public class WeatherApiClient {
         WeatherHelper weatherHelper = new WeatherHelper(apiClient);
         
         try {
-            String weather = weatherHelper.summary("pt","Leiria");
+            String weather = weatherHelper.summary(CountryCode.PT,"Leiria");
             System.out.println(weather);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());

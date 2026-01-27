@@ -21,6 +21,7 @@ import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.util.RuntimeUtil;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.kneo.officeframe.dto.GenreDTO;
+import io.kneo.officeframe.dto.LabelDTO;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonArray;
@@ -126,6 +127,24 @@ public class RefController extends BaseController {
                             View<GenreDTO> dtoEntries = new View<>(tuple.getItem2(),
                                     tuple.getItem1(), page,
                                     RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                                    size);
+                            viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                            return viewPage;
+                        })
+                        .subscribe().with(
+                                viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
+                                rc::fail
+                        );
+                break;
+            case "labels":
+                service.getSoundFragmentLabels()
+                        .map(labels -> {
+                            ViewPage viewPage = new ViewPage();
+                            viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            int totalCount = labels.size();
+                            View<LabelDTO> dtoEntries = new View<>(labels,
+                                    totalCount, page,
+                                    RuntimeUtil.countMaxPage(totalCount, size),
                                     size);
                             viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                             return viewPage;

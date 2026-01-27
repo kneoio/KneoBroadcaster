@@ -216,9 +216,9 @@ public class RadioStreamSupplier extends StreamSupplier {
                                                                     finalSelectedPrompt.getPrompt() + additionalInstruction,
                                                                     finalSelectedPrompt.getPromptType(),
                                                                     agent.getLlmType(),
-                                                                    agent.getSearchEngineType(),
                                                                     activeScene.getScheduledStartTime().toLocalTime(),
-                                                                    finalSelectedPrompt.isPodcast()
+                                                                    finalSelectedPrompt.isPodcast(),
+                                                                    finalSelectedPrompt.getTitle()
                                                             ));
                                                 })
                                                 .toList();

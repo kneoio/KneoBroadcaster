@@ -205,9 +205,9 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                                                     selected.getPrompt() + additionalInstruction,
                                                                     selected.getPromptType(),
                                                                     agent.getLlmType(),
-                                                                    agent.getSearchEngineType(),
                                                                     activeEntry.getScheduledStartTime().toLocalTime(),
-                                                                    selected.isPodcast()
+                                                                    selected.isPodcast(),
+                                                                    selected.getTitle()
                                                             );
                                                             dto.setSongDurationSeconds(songDuration);
                                                             return dto;

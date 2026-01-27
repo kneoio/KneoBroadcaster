@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.LlmType;
-import io.kneo.broadcaster.model.aiagent.SearchEngineType;
 import io.kneo.broadcaster.model.aiagent.TTSSetting;
 import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
@@ -25,6 +24,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
 import io.vertx.mutiny.sqlclient.RowSet;
+import io.vertx.mutiny.sqlclient.SqlClient;
 import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -66,6 +66,12 @@ public class AiAgentRepository extends AsyncRepository {
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transform(this::from)
+                .onItem().transformToUni(agent -> loadLabels(agent.getId())
+                        .onItem().transform(labels -> {
+                            agent.setLabels(labels);
+                            return agent;
+                        }))
+                .merge()
                 .collect().asList();
     }
 
@@ -95,9 +101,14 @@ public class AiAgentRepository extends AsyncRepository {
         return client.preparedQuery(String.format(sql, entityData.getTableName(), entityData.getRlsName()))
                 .execute(Tuple.of(user.getId(), uuid))
                 .onItem().transform(RowSet::iterator)
-                .onItem().transform(iterator -> {
+                .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
-                        return from(iterator.next());
+                        return Uni.createFrom().item(from(iterator.next()))
+                                .chain(agent -> loadLabels(agent.getId())
+                                        .onItem().transform(labels -> {
+                                            agent.setLabels(labels);
+                                            return agent;
+                                        }));
                     } else {
                         LOGGER.warn("No {} found with id: {}, user: {} ", AI_AGENT, uuid, user.getId());
                         throw new DocumentHasNotFoundException(uuid);
@@ -109,8 +120,8 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, search_engine_type, preferred_voice, copilot, tts_setting) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, preferred_voice, copilot, tts_setting) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
 
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
@@ -120,7 +131,6 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getName())
                 .addJsonArray(toPreferredLangJson(agent.getPreferredLang()))
                 .addString(agent.getLlmType().name())
-                .addString(agent.getSearchEngineType().name())
                 .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
                 .addUUID(agent.getCopilot())
                 .addJsonObject(agent.getTtsSetting() != null ? JsonObject.mapFrom(agent.getTtsSetting()) : new JsonObject());
@@ -129,10 +139,12 @@ public class AiAgentRepository extends AsyncRepository {
                 tx.preparedQuery(sql)
                         .execute(params)
                         .onItem().transform(result -> result.iterator().next().getUUID("id"))
-                        .onItem().transformToUni(id ->
-                                insertRLSPermissions(tx, id, entityData, user)
-                                        .onItem().transform(ignored -> id)
-                        )
+                        .onItem().transformToUni(id -> {
+                            Uni<Void> labelsUni = upsertLabels(tx, id, agent.getLabels());
+                            return labelsUni
+                                    .onItem().transformToUni(ignored -> insertRLSPermissions(tx, id, entityData, user))
+                                    .onItem().transform(ignored -> id);
+                        })
         ).onItem().transformToUni(id -> findById(id, user, true));
     }
 
@@ -151,8 +163,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, search_engine_type=$6, preferred_voice=$7, copilot=$8, tts_setting=$9 " +
-                                    "WHERE id=$10";
+                                    "llm_type=$5, preferred_voice=$6, copilot=$7, tts_setting=$8 " +
+                                    "WHERE id=$9";
 
                             Tuple params = Tuple.tuple()
                                     .addLong(user.getId())
@@ -160,7 +172,6 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getName())
                                     .addJsonArray(toPreferredLangJson(agent.getPreferredLang()))
                                     .addString(agent.getLlmType().name())
-                                    .addString(agent.getSearchEngineType().name())
                                     .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
                                     .addUUID(agent.getCopilot())
                                     .addJsonObject(agent.getTtsSetting() != null ? JsonObject.mapFrom(agent.getTtsSetting()) : new JsonObject())
@@ -173,7 +184,8 @@ public class AiAgentRepository extends AsyncRepository {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                         }
-                                        return findById(id, user, true);
+                                        return upsertLabels(client, id, agent.getLabels())
+                                                .onItem().transformToUni(ignored -> findById(id, user, true));
                                     });
                         });
             } catch (Exception e) {
@@ -235,7 +247,6 @@ public class AiAgentRepository extends AsyncRepository {
 
 
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
-        doc.setSearchEngineType(SearchEngineType.valueOf(row.getString("search_engine_type")));
 
         try {
             JsonArray primaryVoiceJson = row.getJsonArray("preferred_voice");
@@ -268,6 +279,35 @@ public class AiAgentRepository extends AsyncRepository {
         return arr;
     }
 
+    private Uni<Void> upsertLabels(SqlClient client, UUID aiAgentId, List<UUID> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return client.preparedQuery("DELETE FROM kneobroadcaster__ai_agent_labels WHERE ai_agent_id = $1")
+                    .execute(Tuple.of(aiAgentId))
+                    .replaceWithVoid();
+        }
+
+        String deleteSql = "DELETE FROM kneobroadcaster__ai_agent_labels WHERE ai_agent_id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__ai_agent_labels (ai_agent_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+
+        return client.preparedQuery(deleteSql)
+                .execute(Tuple.of(aiAgentId))
+                .chain(() -> Multi.createFrom().iterable(labels)
+                        .onItem().transformToUni(labelId ->
+                                client.preparedQuery(insertSql).execute(Tuple.of(aiAgentId, labelId))
+                        )
+                        .merge()
+                        .collect().asList()
+                ).replaceWithVoid();
+    }
+
+    private Uni<List<UUID>> loadLabels(UUID aiAgentId) {
+        String sql = "SELECT label_id FROM kneobroadcaster__ai_agent_labels WHERE ai_agent_id = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(aiAgentId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("label_id"))
+                .collect().asList();
+    }
 
     public Uni<List<DocumentAccessInfo>> getDocumentAccessInfo(UUID documentId, IUser user) {
         return getDocumentAccessInfo(documentId, entityData, user);

@@ -7,7 +7,6 @@ import io.kneo.broadcaster.dto.aiagent.VoiceDTO;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.LlmType;
-import io.kneo.broadcaster.model.aiagent.SearchEngineType;
 import io.kneo.broadcaster.model.aiagent.TTSSetting;
 import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
@@ -24,6 +23,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -106,7 +106,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             }
             
             dto.setLlmType(doc.getLlmType().name());
-            dto.setSearchEngineType(doc.getSearchEngineType().name());
 
             if (doc.getPrimaryVoice() != null && !doc.getPrimaryVoice().isEmpty()) {
                 List<VoiceDTO> voiceDTOs = doc.getPrimaryVoice().stream()
@@ -155,6 +154,10 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
                 dto.setTtsSetting(ttsSettingDTO);
             }
 
+            if (doc.getLabels() != null && !doc.getLabels().isEmpty()) {
+                dto.setLabels(doc.getLabels());
+            }
+
             return dto;
         });
     }
@@ -164,6 +167,12 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         doc.setId(dto.getId());
         doc.setName(dto.getName());
         doc.setCopilot(dto.getCopilot());
+        
+        if (dto.getLabels() != null && !dto.getLabels().isEmpty()) {
+            doc.setLabels(dto.getLabels());
+        } else {
+            doc.setLabels(new ArrayList<>());
+        }
         
         if (dto.getPreferredLang() != null && !dto.getPreferredLang().isEmpty()) {
             List<LanguagePreference> langPrefs = dto.getPreferredLang().stream()
@@ -178,10 +187,7 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         }
         
         doc.setLlmType(LlmType.valueOf(dto.getLlmType()));
-        
-        if (dto.getSearchEngineType() != null) {
-            doc.setSearchEngineType(SearchEngineType.valueOf(dto.getSearchEngineType()));
-        }
+
 
         if (dto.getPrimaryVoice() != null && !dto.getPrimaryVoice().isEmpty()) {
             List<Voice> voices = dto.getPrimaryVoice().stream()

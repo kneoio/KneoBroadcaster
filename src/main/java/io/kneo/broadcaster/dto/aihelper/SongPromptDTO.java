@@ -2,7 +2,6 @@ package io.kneo.broadcaster.dto.aihelper;
 
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.aiagent.PromptType;
-import io.kneo.broadcaster.model.aiagent.SearchEngineType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,22 +20,21 @@ public class SongPromptDTO {
     private String prompt;
     private PromptType promptType;
     private LlmType llmType;
-    private SearchEngineType searchEngineType;
     private LocalTime startTime;
     private boolean podcast;
+    private String promptTitle;
     private int songDurationSeconds;
-    
+
     public SongPromptDTO(UUID songId, String draft, String prompt, PromptType promptType, 
-                         LlmType llmType, SearchEngineType searchEngineType, LocalTime startTime, 
-                         boolean podcast) {
+                         LlmType llmType, LocalTime startTime, boolean podcast, String promptTitle) {
         this.songId = songId;
         this.draft = draft;
         this.prompt = prompt;
         this.promptType = promptType;
         this.llmType = llmType;
-        this.searchEngineType = searchEngineType;
         this.startTime = startTime;
         this.podcast = podcast;
+        this.promptTitle = promptTitle;
         this.songDurationSeconds = 0;
     }
 }

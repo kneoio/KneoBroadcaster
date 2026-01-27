@@ -84,7 +84,7 @@ public class RadioController {
 
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
-        router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);
+        router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);   //used by Mixpla
         router.route(HttpMethod.GET, path + "/stream.mp3").handler(this::getMp3Stream);
 
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);

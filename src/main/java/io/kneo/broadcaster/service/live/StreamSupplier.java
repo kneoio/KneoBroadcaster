@@ -44,7 +44,7 @@ public abstract class StreamSupplier {
             return List.of();
         }
 
-        int take = available.size() >= 2 && new Random().nextDouble() < 0.7 ? 2 : 1;
+        int take = available.size() >= 2 && new Random().nextDouble() < 0.6 ? 2 : 1;
         return available.stream()
                 .limit(take)
                 .map(PendingSongEntry::getSoundFragment)

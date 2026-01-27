@@ -60,7 +60,7 @@ public abstract class AbstractStream implements IStream {
     public void setStatus(StreamStatus newStatus) {
         if (this.status != newStatus) {
             StatusChangeRecord record = new StatusChangeRecord(
-                    LocalDateTime.now(),
+                    LocalDateTime.now(timeZone),
                     this.status,
                     newStatus
             );

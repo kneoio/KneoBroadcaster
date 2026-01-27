@@ -9,7 +9,11 @@ import io.kneo.broadcaster.model.Genre;
 import io.kneo.broadcaster.model.Label;
 import io.kneo.broadcaster.model.aiagent.TTSEngineType;
 import io.kneo.broadcaster.repository.LabelRepository;
+import io.kneo.core.localization.LanguageCode;
+import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.service.UserService;
+import io.kneo.officeframe.dto.GenreDTO;
+import io.kneo.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -25,12 +29,14 @@ import java.util.stream.Collectors;
 public class RefService {
     private final UserService userService;
     private final LabelRepository labelRepository;
+    private final GenreService genreService;
     private final ObjectMapper objectMapper;
 
     @Inject
-    public RefService(UserService userService, LabelRepository labelRepository) {
+    public RefService(UserService userService, LabelRepository labelRepository, GenreService genreService) {
         this.userService = userService;
         this.labelRepository = labelRepository;
+        this.genreService = genreService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -46,6 +52,14 @@ public class RefService {
                 throw new RuntimeException("Error reading " + fileName, e);
             }
         });
+    }
+
+    public Uni<Integer> getAllGenresCount() {
+        return genreService.getAllCount(SuperUser.build());
+    }
+
+    public Uni<List<GenreDTO>> getAllGenres(final int limit, final int offset) {
+        return genreService.getAll(limit, offset,null, LanguageCode.en);
     }
 
     public Uni<Integer> getAllVoicesCount(TTSEngineType engineType) {

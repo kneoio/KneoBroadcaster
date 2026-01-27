@@ -10,5 +10,5 @@ import java.util.UUID;
 public interface ISupplier {
 
 
-    Uni<List<SoundFragment>> getBrandSongs(String brandSlug, UUID brandId, PlaylistItemType playlistItemType, int quantityToFetch);
+    Uni<List<SoundFragment>> getBrandSongs(String brandSlug, UUID brandId, PlaylistItemType playlistItemType, int quantityToFetch, List<UUID> excludedIds);
 }

@@ -1,6 +1,5 @@
 package io.kneo.broadcaster.controller;
 
-import io.kneo.broadcaster.dto.LabelDTO;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.VoiceFilterDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
@@ -21,6 +20,7 @@ import io.kneo.core.dto.view.ViewPage;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.util.RuntimeUtil;
 import io.kneo.officeframe.cnst.CountryCode;
+import io.kneo.officeframe.dto.GenreDTO;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonArray;
@@ -114,26 +114,27 @@ public class RefController extends BaseController {
                                 rc::fail
                         );
                 break;
-            case "labels":
-                service.getAllLabelsCount()
-                        .onItem().transformToUni(count -> {
-                            int maxPage = countMaxPage(count, size);
-                            int offset = RuntimeUtil.calcStartEntry(page, size);
-                            return service.getAllLabels(size, offset)
-                                    .onItem().transform(dtoList -> {
-                                        ViewPage viewPage = new ViewPage();
-                                        viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
-                                        View<LabelDTO> dtoEntries = new View<>(dtoList, count, page, maxPage, size);
-                                        viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
-                                        return viewPage;
-                                    });
+            case "genres":
+                Uni.combine().all().unis(
+                                service.getAllGenresCount(),
+                                service.getAllGenres(size, (page - 1) * size)
+                        )
+                        .asTuple()
+                        .map(tuple -> {
+                            ViewPage viewPage = new ViewPage();
+                            viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
+                            View<GenreDTO> dtoEntries = new View<>(tuple.getItem2(),
+                                    tuple.getItem1(), page,
+                                    RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                                    size);
+                            viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
+                            return viewPage;
                         })
                         .subscribe().with(
                                 viewPage -> rc.response().setStatusCode(200).end(JsonObject.mapFrom(viewPage).encode()),
                                 rc::fail
                         );
                 break;
-
             case "countries":
                 List<CountryDTO> allCountries = Arrays.stream(CountryCode.values())
                         .filter(countryCode -> countryCode != CountryCode.UNKNOWN)
@@ -159,7 +160,7 @@ public class RefController extends BaseController {
 
             case "voices":
                 VoiceFilterDTO filter = parseVoiceFilterDTO(rc);
-                
+
                 Uni.combine().all().unis(
                                 filter != null ? service.getFilteredVoicesCount(filter) : service.getAllVoicesCount(TTSEngineType.ELEVENLABS),
                                 filter != null ? service.getFilteredVoices(filter) : service.getAllVoices(TTSEngineType.ELEVENLABS)
@@ -203,7 +204,7 @@ public class RefController extends BaseController {
         try {
             String decodedFilter = URLDecoder.decode(filterParam, StandardCharsets.UTF_8);
             JsonObject json = new JsonObject(decodedFilter);
-            
+
             if (json.containsKey("engineType")) {
                 String engineType = json.getString("engineType");
                 if (engineType != null && !engineType.trim().isEmpty()) {
@@ -214,13 +215,13 @@ public class RefController extends BaseController {
                     }
                 }
             }
-            
+
             String gender = json.getString("gender");
             if (gender != null && !gender.trim().isEmpty()) {
                 dto.setGender(gender);
                 any = true;
             }
-            
+
             JsonArray l = json.getJsonArray("languages");
             if (l != null && !l.isEmpty()) {
                 List<LanguageTag> languages = new ArrayList<>();
@@ -237,7 +238,7 @@ public class RefController extends BaseController {
                     any = true;
                 }
             }
-            
+
             JsonArray labels = json.getJsonArray("labels");
             if (labels != null && !labels.isEmpty()) {
                 List<String> labelList = new ArrayList<>();
@@ -251,7 +252,7 @@ public class RefController extends BaseController {
                     any = true;
                 }
             }
-            
+
             String searchTerm = json.getString("searchTerm");
             if (searchTerm != null && !searchTerm.trim().isEmpty()) {
                 dto.setSearchTerm(searchTerm.trim());

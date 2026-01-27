@@ -61,7 +61,7 @@ public interface BroadcasterConfig {
     int getMaxSilenceDuration();
 
     @WithName("station.whitelist")
-    @WithDefault("aye-ayes-ear,lumisonic,sacana")
+    @WithDefault("aye-ayes-ear,lumisonic,sunonation")
     List<String> getStationWhitelist();
 
     @WithName("agent.api-key")

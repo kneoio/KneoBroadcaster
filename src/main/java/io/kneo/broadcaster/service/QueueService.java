@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.SSEProgressStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.dto.queue.SSEProgressDTO;
+import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;
@@ -24,7 +25,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -210,19 +210,18 @@ public class QueueService {
     public Uni<Boolean> isStationOnline(String brand) {
         LOGGER.debug("[QueueService] Checking if station is online: {}", brand);
         return radioStationPool.get(brand)
-                .onItem().transform(Objects::nonNull);
-    }
-
-    public SSEProgressDTO getQueuingProgress(String uploadId) {
-        return queuingProgressMap.get(uploadId);
-    }
-
-    public void initializeProgress(String uploadId, String name) {
-        SSEProgressDTO dto = new SSEProgressDTO();
-        dto.setId(uploadId);
-        dto.setName(name);
-        dto.setStatus(SSEProgressStatus.PROCESSING);
-        queuingProgressMap.put(uploadId, dto);
+                .onItem().transform(station -> {
+                    if (station == null) {
+                        return false;
+                    }
+                    StreamStatus status = station.getStatus();
+                    boolean isOnline = status == StreamStatus.ON_LINE ||
+                            status == StreamStatus.WARMING_UP ||
+                            status == StreamStatus.QUEUE_SATURATED ||
+                            status == StreamStatus.IDLE;
+                    LOGGER.debug("[QueueService] Station '{}' status: {}, isOnline: {}", brand, status, isOnline);
+                    return isOnline;
+                });
     }
 
     private void updateProgress(String uploadId, SSEProgressStatus status, String errorMessage) {

@@ -57,7 +57,7 @@ public class SongSupplier implements ISupplier {
     }
 
     @Override
-    public Uni<List<SoundFragment>> getBrandSongs(String brandName, UUID brandId, PlaylistItemType fragmentType, int quantity) {
+    public Uni<List<SoundFragment>> getBrandSongs(String brandName, UUID brandId, PlaylistItemType fragmentType, int quantity, List<UUID> excludedIds) {
         return getBrandDataCached(brandName, brandId, fragmentType)
                 .map(fragments -> {
                     if (fragments.isEmpty()) return List.of();
@@ -66,6 +66,7 @@ public class SongSupplier implements ISupplier {
                     Collections.shuffle(shuffled, secureRandom);
 
                     return shuffled.stream()
+                            .filter(f -> excludedIds == null || !excludedIds.contains(f.getId()))
                             .limit(quantity)
                             .collect(Collectors.toList());
                 });

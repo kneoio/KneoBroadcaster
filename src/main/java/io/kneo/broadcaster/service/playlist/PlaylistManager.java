@@ -167,7 +167,17 @@ public class PlaylistManager {
         int quantityToFetch = Math.min(remaining, maxQuantity);
         LOGGER.info("Adding {} fragments for brand {}", quantityToFetch, brandSlug);
 
-        songSupplier.getBrandSongs(brandSlug, masterBrandId, PlaylistItemType.SONG, quantityToFetch)
+        List<UUID> excludedIds = new ArrayList<>();
+        regularQueue.forEach(f -> excludedIds.add(f.getSoundFragmentId()));
+        prioritizedQueue.forEach(f -> excludedIds.add(f.getSoundFragmentId()));
+        slicedFragmentsLock.readLock().lock();
+        try {
+            obtainedByHlsPlaylist.forEach(f -> excludedIds.add(f.getSoundFragmentId()));
+        } finally {
+            slicedFragmentsLock.readLock().unlock();
+        }
+
+        songSupplier.getBrandSongs(brandSlug, masterBrandId, PlaylistItemType.SONG, quantityToFetch, excludedIds)
                 .onItem().transformToMulti(soundFragments ->
                         Multi.createFrom().iterable(soundFragments)
                 )

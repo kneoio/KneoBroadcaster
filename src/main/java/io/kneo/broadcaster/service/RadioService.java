@@ -5,6 +5,7 @@ import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.RadioStationStatusDTO;
+import io.kneo.broadcaster.dto.status.StatusMixplaDTO;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
@@ -19,7 +20,6 @@ import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
-import io.kneo.broadcaster.repository.ContributionRepository;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.FileUploadException;
@@ -42,8 +42,6 @@ import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,8 +54,6 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class RadioService {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(RadioService.class);
     private final Random random = new Random();
 
     @Inject RadioStationPool radioStationPool;
@@ -66,7 +62,6 @@ public class RadioService {
     @Inject AnimationService animationService;
     @Inject SoundFragmentRepository soundFragmentRepository;
     @Inject SoundFragmentService soundFragmentService;
-    @Inject ContributionRepository contributionRepository;
     @Inject LocalFileCleanupService localFileCleanupService;
     @Inject BroadcasterConfig config;
     @Inject ListenerService listenerService;
@@ -96,11 +91,11 @@ public class RadioService {
                         new RadioStationException(RadioStationException.ErrorType.PLAYLIST_NOT_AVAILABLE));
     }
 
-    public Uni<RadioStationStatusDTO> getStatus(String brand) {
+    public Uni<StatusMixplaDTO> getStatus(String brand) {
         return radioStationPool.get(brand)
                 .onItem().ifNull().failWith(() ->
                         new RadioStationException(RadioStationException.ErrorType.STATION_NOT_ACTIVE))
-                .chain(s -> toStatusDTO(s, true, null));
+                .chain(s -> toRadioStatusDTO(s, null));
     }
 
     public Uni<List<RadioStationStatusDTO>> getStations() {
@@ -112,7 +107,7 @@ public class RadioService {
 
                     List<Uni<RadioStationStatusDTO>> unis = new ArrayList<>();
 
-                    online.forEach(s -> unis.add(toStatusDTO(s, false, null)));
+                    online.forEach(s -> unis.add(toStatusDTO(s, null)));
 
                     List<String> onlineSlugs = online.stream()
                             .map(IStream::getSlugName)
@@ -143,8 +138,8 @@ public class RadioService {
                                         .filter(o -> o.getSlugName().equals(b.getSlugName()))
                                         .findFirst().orElse(null);
                                 return os != null
-                                        ? toStatusDTO(os, false, b)
-                                        : brandToStatusDTO(b, false);
+                                        ? toStatusDTO(os, b)
+                                        : brandToStatusDTO(b);
                             })
                             .toList();
 
@@ -164,8 +159,8 @@ public class RadioService {
                     return radioStationPool.get(b.getSlugName())
                             .chain(online -> {
                                 return (online != null
-                                        ? toStatusDTO(online, false, b)
-                                        : brandToStatusDTO(b, false))
+                                        ? toStatusDTO(online, b)
+                                        : brandToStatusDTO(b))
                                         .onItem().invoke(dto -> {
                                             dto.setDescription(b.getDescription());
                                             dto.setOneTimeStreamPolicy(b.getOneTimeStreamPolicy());
@@ -183,7 +178,7 @@ public class RadioService {
                     return radioStationPool.get(slugName)
                             .chain(online -> {
                                 if (online != null) {
-                                    return toStatusDTO(online, false, null);
+                                    return toStatusDTO(online, null);
                                 }
                                 return Uni.createFrom().nullItem();
                             });
@@ -302,7 +297,93 @@ public class RadioService {
                         .build());
     }
 
-    public Uni<RadioStationStatusDTO> toStatusDTO(IStream stream, boolean anim, Brand brand) {
+    public Uni<StatusMixplaDTO> toRadioStatusDTO(IStream stream, Brand brand) {
+        if (stream == null) return Uni.createFrom().nullItem();
+        return buildRadioStatusDTO(
+                stream.getLocalizedName().getOrDefault(
+                        stream.getCountry().getPreferredLanguage(), stream.getSlugName()),
+                stream.getSlugName(),
+                stream.getManagedBy().toString(),
+                stream.getAiAgentId(),
+                stream.getAiOverriding(),
+                stream.getAiAgentStatus(),
+                stream.getStatus(),
+                stream.getCountry().name(),
+                stream.getColor());
+    }
+
+    private Uni<StatusMixplaDTO> buildRadioStatusDTO(
+            String stationName,
+            String slugName,
+            String managedByType,
+            UUID aiAgentId,
+            AiOverriding overriddenAiDj,
+            AiAgentStatus agentStatus,
+            StreamStatus stationStatus,
+            String stationCountryCode,
+            String color
+    ) {
+        String currentStatus = stationStatus != null
+                ? stationStatus.name()
+                : StreamStatus.OFF_LINE.name();
+
+        String resolvedAgentStatus = agentStatus != null
+                ? agentStatus.name()
+                : AiAgentStatus.UNDEFINED.name();
+
+        if (aiAgentId == null) {
+            StatusMixplaDTO dto = new StatusMixplaDTO(
+                    stationName,
+                    slugName,
+                    managedByType,
+                    null,
+                    resolvedAgentStatus,
+                    currentStatus,
+                    stationCountryCode,
+                    color,
+                    "Drexs",
+                    animationService.generateRandomAnimation()
+            );
+            return Uni.createFrom().item(dto);
+        }
+
+        return aiAgentService
+                .getById(aiAgentId, SuperUser.build(), LanguageCode.en)
+                .onItem().transform(aiAgent -> {
+                    String djName = (overriddenAiDj != null && overriddenAiDj.getName() != null)
+                            ? overriddenAiDj.getName()
+                            : aiAgent.getName();
+
+                    return new StatusMixplaDTO(
+                            stationName,
+                            slugName,
+                            managedByType,
+                            djName,
+                            resolvedAgentStatus,
+                            currentStatus,
+                            stationCountryCode,
+                            color,
+                            "Drexs",
+                            animationService.generateRandomAnimation()
+                    );
+                })
+                .onFailure().recoverWithItem(() ->
+                        new StatusMixplaDTO(
+                                stationName,
+                                slugName,
+                                managedByType,
+                                null,
+                                resolvedAgentStatus,
+                                currentStatus,
+                                stationCountryCode,
+                                color,
+                                "Drexs",
+                                animationService.generateRandomAnimation()
+                        )
+                );
+    }
+
+    public Uni<RadioStationStatusDTO> toStatusDTO(IStream stream, Brand brand) {
         if (stream == null) return Uni.createFrom().nullItem();
         return buildStatusDTO(
                 stream.getLocalizedName().getOrDefault(
@@ -316,7 +397,6 @@ public class RadioService {
                 stream.getCountry().name(),
                 stream.getColor(),
                 stream.getDescription(),
-                anim,
                 brand != null ? brand.getOneTimeStreamPolicy() : null,
                 brand != null ? brand.getSubmissionPolicy() : null,
                 brand != null ? brand.getMessagingPolicy() : null,
@@ -324,7 +404,7 @@ public class RadioService {
                 brand != null ? brand.getPopularityRate() : 0.0);
     }
 
-    public Uni<RadioStationStatusDTO> brandToStatusDTO(Brand brand, boolean anim) {
+    public Uni<RadioStationStatusDTO> brandToStatusDTO(Brand brand) {
         if (brand == null) return Uni.createFrom().nullItem();
         return buildStatusDTO(
                 brand.getLocalizedName().getOrDefault(
@@ -338,7 +418,6 @@ public class RadioService {
                 brand.getCountry().name(),
                 brand.getColor(),
                 brand.getDescription(),
-                anim,
                 brand.getOneTimeStreamPolicy(),
                 brand.getSubmissionPolicy(),
                 brand.getMessagingPolicy(),
@@ -360,7 +439,6 @@ public class RadioService {
                 ots.getCountry().name(),
                 ots.getColor(),
                 ots.getDescription(),
-                false,
                 ots.getMasterBrand().getOneTimeStreamPolicy(),
                 ots.getMasterBrand().getSubmissionPolicy(),
                 ots.getMasterBrand().getMessagingPolicy(),
@@ -379,7 +457,6 @@ public class RadioService {
             String stationCountryCode,
             String color,
             String description,
-            boolean includeAnimation,
             SubmissionPolicy oneTimeStreamPolicy,
             SubmissionPolicy submissionPolicy,
             SubmissionPolicy messagingPolicy,
@@ -407,7 +484,6 @@ public class RadioService {
                     color,
                     description,
                     0,
-                    includeAnimation ? animationService.generateRandomAnimation() : null,
                     oneTimeStreamPolicy,
                     submissionPolicy,
                     messagingPolicy,
@@ -438,7 +514,6 @@ public class RadioService {
                             color,
                             description,
                             0,
-                            includeAnimation ? animationService.generateRandomAnimation() : null,
                             oneTimeStreamPolicy,
                             submissionPolicy,
                             messagingPolicy,
@@ -459,7 +534,6 @@ public class RadioService {
                                 color,
                                 description,
                                 0,
-                                includeAnimation ? animationService.generateRandomAnimation() : null,
                                 oneTimeStreamPolicy,
                                 submissionPolicy,
                                 messagingPolicy,

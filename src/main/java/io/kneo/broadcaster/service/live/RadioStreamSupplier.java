@@ -28,8 +28,11 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -38,6 +41,7 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class RadioStreamSupplier extends StreamSupplier {
+    private static final Logger LOGGER = LoggerFactory.getLogger(RadioStreamSupplier.class);
 
     @FunctionalInterface
     public interface MessageSink {
@@ -193,44 +197,99 @@ public class RadioStreamSupplier extends StreamSupplier {
                                     .toList();
 
                             return Uni.join().all(promptUnis).andFailFast()
-                                    .flatMap(prompts -> {
-                                        Random random = new Random();
-                                        List<Uni<SongPromptDTO>> songPromptUnis = songList.stream()
-                                                .map(song -> {
-                                                    Prompt selectedPrompt;
-                                                    do {
-                                                        selectedPrompt = prompts.get(random.nextInt(prompts.size()));
-                                                    } while (selectedPrompt.isPodcast() && agent.getTtsSetting().getDj().getEngineType() != TTSEngineType.ELEVENLABS);
-                                                    Prompt finalSelectedPrompt = selectedPrompt;
-                                                    return draftFactory.createDraft(
-                                                                    song,
-                                                                    agent,
-                                                                    stream,
-                                                                    selectedPrompt.getDraftId(),
-                                                                    LanguageTag.EN_US,
-                                                                    Map.of()
-                                                            )
-                                                            .map(draft -> new SongPromptDTO(
-                                                                    song.getId(),
-                                                                    draft,
-                                                                    finalSelectedPrompt.getPrompt() + additionalInstruction,
-                                                                    finalSelectedPrompt.getPromptType(),
-                                                                    agent.getLlmType(),
-                                                                    activeScene.getScheduledStartTime().toLocalTime(),
-                                                                    finalSelectedPrompt.isPodcast(),
-                                                                    finalSelectedPrompt.getTitle()
-                                                            ));
-                                                })
-                                                .toList();
-
-                                        return Uni.join().all(songPromptUnis).andFailFast()
-                                                .map(result -> {
-                                                    songList.forEach(s -> fetchedSongsInScene.add(s.getId()));
-                                                    return Tuple2.of(result, currentSceneTitle);
-                                                });
-                                    });
+                                    .flatMap(prompts -> processSongPromptBatch(
+                                            songList,
+                                            prompts,
+                                            agent,
+                                            stream,
+                                            additionalInstruction,
+                                            activeScene,
+                                            fetchedSongsInScene,
+                                            currentSceneTitle,
+                                            messageSink
+                                    ));
                         });
         });
+    }
+
+    private Uni<Tuple2<List<SongPromptDTO>, String>> processSongPromptBatch(
+            List<SoundFragment> songList,
+            List<Prompt> prompts,
+            AiAgent agent,
+            RadioStream stream,
+            String additionalInstruction,
+            LiveScene activeScene,
+            Set<UUID> fetchedSongsInScene,
+            String currentSceneTitle,
+            MessageSink messageSink
+    ) {
+        Random random = new Random();
+        List<Uni<SongPromptDTO>> songPromptUnis = songList.stream()
+                .map(song -> {
+                    Prompt selectedPrompt;
+                    do {
+                        selectedPrompt = prompts.get(random.nextInt(prompts.size()));
+                    } while (selectedPrompt.isPodcast() && agent.getTtsSetting().getDj().getEngineType() != TTSEngineType.ELEVENLABS);
+                    Prompt finalSelectedPrompt = selectedPrompt;
+                    return draftFactory.createDraft(
+                                    song,
+                                    agent,
+                                    stream,
+                                    selectedPrompt.getDraftId(),
+                                    LanguageTag.EN_US,
+                                    Map.of()
+                            )
+                            .map(draft -> new SongPromptDTO(
+                                    song.getId(),
+                                    draft,
+                                    finalSelectedPrompt.getPrompt() + additionalInstruction,
+                                    finalSelectedPrompt.getPromptType(),
+                                    agent.getLlmType(),
+                                    activeScene.getScheduledStartTime().toLocalTime(),
+                                    finalSelectedPrompt.isPodcast(),
+                                    finalSelectedPrompt.getTitle()
+                            ))
+                            .onFailure().recoverWithItem(() -> {
+                                LOGGER.error("Failed to create draft for song '{}' (ID: {}). Skipping this item.",
+                                        song.getTitle(), song.getId());
+                                messageSink.add(
+                                        stream.getSlugName(),
+                                        AiDjStatsDTO.MessageType.ERROR,
+                                        String.format("Failed to create draft for song '%s'", song.getTitle())
+                                );
+                                return null;
+                            });
+                })
+                .toList();
+
+        return Uni.join().all(songPromptUnis).andCollectFailures()
+                .map(results -> {
+                    List<SongPromptDTO> successfulResults = new ArrayList<>();
+                    for (int i = 0; i < results.size(); i++) {
+                        SongPromptDTO result = results.get(i);
+                        if (result != null) {
+                            successfulResults.add(result);
+                            fetchedSongsInScene.add(songList.get(i).getId());
+                        }
+                    }
+
+                    if (successfulResults.isEmpty()) {
+                        LOGGER.error("All song+draft+prompt combinations failed for scene '{}'", currentSceneTitle);
+                        messageSink.add(
+                                stream.getSlugName(),
+                                AiDjStatsDTO.MessageType.ERROR,
+                                String.format("All drafts failed for scene '%s'", currentSceneTitle)
+                        );
+                        return null;
+                    }
+
+                    if (successfulResults.size() < songList.size()) {
+                        LOGGER.warn("Partial success: {}/{} drafts created for scene '{}'",
+                                successfulResults.size(), songList.size(), currentSceneTitle);
+                    }
+
+                    return Tuple2.of(successfulResults, currentSceneTitle);
+                });
     }
 
     private Uni<Boolean> queueSongsDirectly(RadioStream stream, List<SoundFragment> songs, Set<UUID> fetchedSongsInScene) {

@@ -5,7 +5,6 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.SimpleBindings;
-
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -29,14 +28,14 @@ public class GroovyTemplateEngine {
         this.engine = eng;
     }
 
-    public String render(String script, Map<String, Object> context) {
+    public String render(String script, Map<String, Object> context, String draftSlug) {
         try {
             Bindings bindings = new SimpleBindings();
             if (context != null) {
                 bindings.putAll(context);
             }
-            Object out = engine.eval(script, bindings);
-            return out == null ? "" : String.valueOf(out);
+            engine.put(ScriptEngine.FILENAME, String.format("%s.groovy", draftSlug));
+            return String.valueOf(engine.eval(script, bindings));
         } catch (Exception e) {
             String msg = e.getClass().getName() + ": " + (e.getMessage() == null ? "" : e.getMessage());
             throw new RuntimeException("Failed to evaluate Groovy script: " + msg, e);

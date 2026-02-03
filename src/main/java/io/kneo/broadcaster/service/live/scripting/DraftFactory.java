@@ -22,6 +22,7 @@ import io.kneo.broadcaster.template.GroovyTemplateEngine;
 import io.kneo.broadcaster.util.TimeContextUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.core.util.WebHelper;
 import io.kneo.officeframe.cnst.CountryCode;
 import io.kneo.officeframe.service.GenreService;
 import io.smallrye.mutiny.Uni;
@@ -81,11 +82,11 @@ public class DraftFactory {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();
-        
+
         Uni<List<String>> genresUni = song != null
                 ? resolveGenreNames(song, selectedLanguage.toLanguageCode())
                 : Uni.createFrom().item(List.of());
-        
+
         return Uni.combine().all()
                 .unis(
                         getDraftTemplate(draftId, stream.getSlugName()),  //the drafts always un ENG
@@ -114,7 +115,8 @@ public class DraftFactory {
                                 genres,
                                 listeners,
                                 selectedLanguage,
-                                userVariables
+                                userVariables,
+                                WebHelper.generateSlug(template.getTitle())
                         );
                     } else {
                         String msg = "No draft template found. Fallbacks are disabled.";
@@ -141,7 +143,7 @@ public class DraftFactory {
         Uni<AiAgent> copilotUni = agent.getCopilot() != null
                 ? aiAgentService.getById(agent.getCopilot(), SuperUser.build(), selectedLanguage.toLanguageCode())
                 : Uni.createFrom().nullItem();
-        
+
         return Uni.combine().all()
                 .unis(
                         profileService.getById(station.getProfileId()),
@@ -155,7 +157,7 @@ public class DraftFactory {
                     Profile profile = tuple.getItem1();
                     List<String> genres = tuple.getItem2();
                     AiAgent copilot = tuple.getItem3();
-                    List<io.kneo.broadcaster.dto.BrandListenerDTO> listeners = tuple.getItem4();
+                    List<BrandListenerDTO> listeners = tuple.getItem4();
 
                     return buildFromTemplate(
                             code,
@@ -167,7 +169,8 @@ public class DraftFactory {
                             genres,
                             listeners,
                             selectedLanguage,
-                            userVariables
+                            userVariables,
+                            "live-draft-template"
                     );
                 });
     }
@@ -175,8 +178,8 @@ public class DraftFactory {
     private Uni<Draft> getDraftTemplate(UUID id, String stationSlug) {
         if (id == null) {
             String errorMsg = String.format(
-                "Prompt configuration error: draftId is null for station='%s'. Check prompt configuration - all prompts must have an associated draft template.",
-                stationSlug
+                    "Prompt configuration error: draftId is null for station='%s'. Check prompt configuration - all prompts must have an associated draft template.",
+                    stationSlug
             );
             LOGGER.error(errorMsg);
             return Uni.createFrom().failure(new IllegalStateException(errorMsg));
@@ -184,8 +187,8 @@ public class DraftFactory {
         return draftService.getById(id, SuperUser.build())
                 .onFailure().transform(t -> {
                     String errorMsg = String.format(
-                        "Draft template not found: draftId='%s', station='%s'. Error: %s",
-                        id, stationSlug, t.getMessage()
+                            "Draft template not found: draftId='%s', station='%s'. Error: %s",
+                            id, stationSlug, t.getMessage()
                     );
                     LOGGER.error(errorMsg, t);
                     return new IllegalStateException(errorMsg, t);
@@ -202,15 +205,16 @@ public class DraftFactory {
             List<String> genres,
             List<BrandListenerDTO> listeners,
             LanguageTag selectedLanguage,
-            Map<String, Object> userVariables
+            Map<String, Object> userVariables,
+            String draftSlug
     ) {
         CountryCode countryIso = stream.getCountry();
         Map<String, Object> data = new HashMap<>();
-        
+
         if (userVariables != null && !userVariables.isEmpty()) {
             data.putAll(userVariables);
         }
-        
+
         data.put("coPilotName", copilot.getName());
         data.put("coPilotVoiceId", copilot.getTtsSetting().getDj().getId());
         data.put("listeners", listeners);
@@ -219,7 +223,7 @@ public class DraftFactory {
             brand = stream.getLocalizedName().values().iterator().next();
         }
         AiOverriding overriddenAiDj = stream.getAiOverriding();
-        if (overriddenAiDj != null){
+        if (overriddenAiDj != null) {
             data.put("djName", overriddenAiDj.getName());
             data.put("djVoiceId", overriddenAiDj.getPrimaryVoice());
         } else {
@@ -227,9 +231,13 @@ public class DraftFactory {
             data.put("djVoiceId", agent.getTtsSetting().getDj().getId());
         }
         ProfileOverriding overriddenProfile = stream.getProfileOverriding();
-        if (overriddenProfile != null){
-            data.put("profileName", overriddenProfile.getName());
-            data.put("profileDescription", overriddenProfile.getDescription());
+        if (overriddenProfile != null) {
+            if (!overriddenProfile.getName().isEmpty()) {
+                data.put("profileName", overriddenProfile.getName());
+            }
+            if (!overriddenProfile.getDescription().trim().isEmpty()) {
+                data.put("profileDescription", overriddenProfile.getDescription());
+            }
         } else {
             data.put("profileName", profile.getName());
             data.put("profileDescription", profile.getDescription());
@@ -243,7 +251,7 @@ public class DraftFactory {
         data.put("weather", new WeatherHelper(weatherApiClient, countryIso));
         data.put("news", new NewsHelper(worldNewsApiClient, countryIso, selectedLanguage.name()));
         data.put("timeContext", TimeContextUtil.getCurrentMomentDetailed(stream.getTimeZone()));
-        
+
         if (song != null) {
             data.put("songTitle", song.getTitle());
             data.put("songArtist", song.getArtist());
@@ -256,7 +264,7 @@ public class DraftFactory {
             data.put("songGenres", List.of());
         }
 
-        return groovyEngine.render(template, data).trim();
+        return groovyEngine.render(template, data, draftSlug).trim();
     }
 
     private Uni<List<String>> resolveGenreNames(SoundFragment song, LanguageCode selectedLanguage) {
@@ -265,12 +273,12 @@ public class DraftFactory {
             LOGGER.warn("Song '{}' (ID: {}) has no genres assigned", song.getTitle(), song.getId());
             return Uni.createFrom().item(List.of());
         }
-        
+
         List<Uni<String>> genreUnis = genreIds.stream()
                 .map(genreId -> genreService.getById(genreId)
                         .map(genre -> genre.getLocalizedName().get(selectedLanguage)))
                 .collect(Collectors.toList());
-        
+
         return Uni.join().all(genreUnis).andFailFast();
     }
 

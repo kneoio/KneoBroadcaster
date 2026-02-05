@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -43,8 +44,8 @@ public abstract class StreamSupplier {
             return List.of();
         }
 
-        //int take = available.size() >= 2 && new Random().nextDouble() < 0.6 ? 2 : 1;
-        int take = 1;
+        int take = available.size() >= 2 && new Random().nextDouble() < 0.6 ? 2 : 1;
+        //int take = 1;
         return available.stream()
                 .limit(take)
                 .map(PendingSongEntry::getSoundFragment)

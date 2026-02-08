@@ -9,7 +9,6 @@ import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;
 import io.kneo.broadcaster.model.stream.PendingSongEntry;
 import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
-import io.kneo.broadcaster.service.live.generated.GeneratedWeatherService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
@@ -29,8 +28,6 @@ public abstract class StreamSupplier {
     @Inject
     GeneratedNewsService generatedNewsService;
 
-    @Inject
-    GeneratedWeatherService generatedWeatherService;
 
     protected List<SoundFragment> pickSongsFromScheduled(
             List<PendingSongEntry> scheduledSongs,

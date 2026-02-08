@@ -33,6 +33,7 @@ public class StatsAccumulator implements IStatsService {
 
         if (!userAgent.startsWith("TuneIn-DirMon")
                 && !userAgent.startsWith("Lavf/")
+                && !userAgent.startsWith("GStreamer")
                 && !userAgent.startsWith("Go-http-client/")) {            //TODO can be optimized
             accessCounts.computeIfAbsent(stationName, k -> new AtomicLong(0)).incrementAndGet();
             lastUserAgents.put(stationName, userAgent);

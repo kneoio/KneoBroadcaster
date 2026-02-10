@@ -262,7 +262,6 @@ public class OneTimeStreamSupplier extends StreamSupplier {
                                         song,
                                         15,
                                         stream.getBitRate(),
-                                        MergingType.NOT_MIXED,
                                         queueDTO
                                 ).onItem().invoke(() -> fetchedSongsInScene.add(song.getId()));
                             })

@@ -10,6 +10,7 @@ import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.TTSEngineType;
 import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.LiveScene;
@@ -313,12 +314,12 @@ public class RadioStreamSupplier extends StreamSupplier {
                                 AddToQueueDTO queueDTO = new AddToQueueDTO();
                                 queueDTO.setPriority(15);
                                 queueDTO.setMergingMethod(MergingType.NOT_MIXED);
-                                
+                                song.setType(PlaylistItemType.SONG);
+
                                 return playlistManager.addFragmentToSlice(
                                         song,
                                         15,
                                         stream.getBitRate(),
-                                        MergingType.NOT_MIXED,
                                         queueDTO
                                 ).onItem().invoke(() -> fetchedSongsInScene.add(song.getId()));
                             })

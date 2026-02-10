@@ -21,7 +21,6 @@ import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.ListenersRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
-import io.kneo.broadcaster.service.ListenerService;
 import io.kneo.broadcaster.service.ScriptService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stats.StatsAccumulator;
@@ -60,12 +59,11 @@ public class AiHelperService {
     public record DjRequestInfo(LocalDateTime requestTime, String djName) {
     }
 
-    private Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
+    private final Map<String, DjRequestInfo> aiDjStatsRequestTracker = new ConcurrentHashMap<>();
     private final Map<String, List<AiDjStatsDTO.StatusMessage>> aiDjMessagesTracker = new ConcurrentHashMap<>();
 
     private final RadioStationPool radioStationPool;
     private final BrandService brandService;
-    private final ListenerService listenerService;
     private final ListenersRepository listenerRepository;
     private final AiAgentService aiAgentService;
     private final ScriptService scriptService;
@@ -84,7 +82,6 @@ public class AiHelperService {
             AiAgentService aiAgentService,
             ScriptService scriptService,
             BrandService brandService,
-            ListenerService listenerService,
             ListenersRepository listenerRepository,
             SoundFragmentService soundFragmentService,
             GenreService genreService,
@@ -94,7 +91,6 @@ public class AiHelperService {
         this.aiAgentService = aiAgentService;
         this.scriptService = scriptService;
         this.brandService = brandService;
-        this.listenerService = listenerService;
         this.listenerRepository = listenerRepository;
         this.soundFragmentService = soundFragmentService;
         this.genreService = genreService;
@@ -204,11 +200,7 @@ public class AiHelperService {
                     if (station != null && station.getStreamManager() != null) {
                         StreamManagerStats stats = station.getStreamManager().getStats();
                         HLSSongStats songStats = stats.getSongStatistics();
-                        if (songStats == null) {
-                            dto.setCurrentlyPlaying("playing nothing");
-                        } else {
-                            dto.setCurrentlyPlaying("playing: " + songStats.songMetadata().getInfo());
-                        }
+                        dto.setCurrentlyPlaying("playing: " + songStats.songMetadata().getInfo());
 
                     }
                     return dto;

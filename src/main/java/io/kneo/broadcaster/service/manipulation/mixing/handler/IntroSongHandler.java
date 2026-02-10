@@ -4,6 +4,7 @@ import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
@@ -64,8 +65,10 @@ public class IntroSongHandler {
                     return repository.getFirstFile(soundFragment.getId())
                             .chain(songMetadata -> {
                                 if (ttsFilePath != null) {
+                                    soundFragment.setType(PlaylistItemType.MIX_INTRO_SONG);
                                     return handleWithTtsFile(stream, toQueueDTO, soundFragment, songMetadata, ttsFilePath, playlistManager);
                                 } else {
+                                    soundFragment.setType(PlaylistItemType.SONG);
                                     return handleWithoutTtsFile(stream, toQueueDTO, soundFragment, playlistManager);
                                 }
                             });
@@ -101,7 +104,7 @@ public class IntroSongHandler {
                             .chain(updatedMetadata -> {
                                 updateRadioStationStatus(brand);
                                 return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                                                brand.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                                                brand.getBitRate(), toQueueDTO)
                                         .onItem().invoke(result -> {
                                             if (result) {
                                                 LOGGER.info("Added merged song to queue: {}", soundFragment.getTitle());
@@ -115,7 +118,7 @@ public class IntroSongHandler {
                                               SoundFragment soundFragment, PlaylistManager playlistManager) {
         updateRadioStationStatus(stream);
         return playlistManager.addFragmentToSlice(soundFragment, toQueueDTO.getPriority(),
-                        stream.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                        stream.getBitRate(), toQueueDTO)
                 .onItem().invoke(result -> {
                     if (result) {
                         LOGGER.info("Added song to queue: {}", soundFragment.getTitle());

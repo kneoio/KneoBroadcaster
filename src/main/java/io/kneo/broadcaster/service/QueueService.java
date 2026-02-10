@@ -61,7 +61,7 @@ public class QueueService {
         LOGGER.debug("[QueueService] AddToQueueDTO details: {}", toQueueDTO.toString());
 
         updateProgress(uploadId, SSEProgressStatus.PROCESSING, null);
-        if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG) {  //keeping JIC
+        if (toQueueDTO.getMergingMethod() == MergingType.INTRO_SONG || toQueueDTO.getMergingMethod() == MergingType.LISTENER_INTRO_SONG) {  //keeping JIC
             LOGGER.info("[QueueService] Processing INTRO_SONG merging method for uploadId: {}", uploadId);
             return getRadioStation(brandName)
                     .chain(radioStation -> {

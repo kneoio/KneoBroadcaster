@@ -107,6 +107,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                             FileMetadata fileMetadata1 = new FileMetadata();
                                                                                             fileMetadata1.setTemporaryFilePath(Path.of(actualTempMixPath));
                                                                                             fragment1.setFileMetadataList(List.of(fileMetadata1));
+                                                                                            fragment1.setType(PlaylistItemType.MIX_1_SONG);
 
                                                                                             SoundFragment fragment2 = new SoundFragment();
                                                                                             fragment2.setId(soundFragment2.getId());
@@ -116,12 +117,13 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                             FileMetadata fileMetadata2 = new FileMetadata();
                                                                                             fileMetadata2.setTemporaryFilePath(tempPath2);
                                                                                             fragment2.setFileMetadataList(List.of(fileMetadata2));
+                                                                                            fragment2.setType(PlaylistItemType.MIX_2_SONG);
 
                                                                                             return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
-                                                                                                            stream.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                                                                                                            stream.getBitRate(), toQueueDTO)
                                                                                                     .chain(() ->
                                                                                                             playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
-                                                                                                                    stream.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
+                                                                                                                    stream.getBitRate(),  toQueueDTO));
                                                                                         });
                                                                             });
                                                                 });
@@ -172,6 +174,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                                 FileMetadata fileMetadata1 = new FileMetadata();
                                                                                                 fileMetadata1.setTemporaryFilePath(Path.of(actualTempMixPath));
                                                                                                 fragment1.setFileMetadataList(List.of(fileMetadata1));
+                                                                                                fragment1.setType(PlaylistItemType.MIX_1_INTRO_FADED_SONG);
 
                                                                                                 SoundFragment fragment2 = new SoundFragment();
                                                                                                 fragment2.setId(soundFragment2.getId());
@@ -181,12 +184,14 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                                 FileMetadata fileMetadata2 = new FileMetadata();
                                                                                                 fileMetadata2.setTemporaryFilePath(tempPath2);
                                                                                                 fragment2.setFileMetadataList(List.of(fileMetadata2));
+                                                                                                fragment2.setType(PlaylistItemType.MIX_2_SONG);
+
 
                                                                                                 return playlistManager.addFragmentToSlice(fragment1, toQueueDTO.getPriority(),
-                                                                                                                stream.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO)
+                                                                                                                stream.getBitRate(), toQueueDTO)
                                                                                                         .chain(() ->
                                                                                                                 playlistManager.addFragmentToSlice(fragment2, toQueueDTO.getPriority(),
-                                                                                                                        stream.getBitRate(), toQueueDTO.getMergingMethod(), toQueueDTO));
+                                                                                                                        stream.getBitRate(), toQueueDTO));
                                                                                             });
                                                                                 });
                                                                     });
@@ -215,12 +220,12 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                     FileMetadata fileMetadata = new FileMetadata();
                                     fileMetadata.setTemporaryFilePath(tempPath);
                                     fragment.setFileMetadataList(List.of(fileMetadata));
+                                    fragment.setType(PlaylistItemType.SONG);
 
                                     return playlistManager.addFragmentToSlice(
                                             fragment,
                                             toQueueDTO.getPriority(),
                                             stream.getBitRate(),
-                                            toQueueDTO.getMergingMethod(),
                                             toQueueDTO
                                     ).replaceWith(Boolean.TRUE);
                                 })));
@@ -262,6 +267,7 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                     crossfadeFragment.setArtist(sf1.getArtist() + " / " + sf2.getArtist());
                                                                                 }
                                                                                 crossfadeFragment.setSource(SourceType.TEMPORARY_MIX);
+                                                                                crossfadeFragment.setType(PlaylistItemType.MIX_SONG_1_SONG_2);
 
                                                                                 FileMetadata fileMetadata = new FileMetadata();
                                                                                 fileMetadata.setTemporaryFilePath(Path.of(finalPath));
@@ -271,7 +277,6 @@ public class AudioMixingHandler extends MixingHandlerBase {
                                                                                         crossfadeFragment,
                                                                                         toQueueDTO.getPriority(),
                                                                                         stream.getBitRate(),
-                                                                                        toQueueDTO.getMergingMethod(),
                                                                                         toQueueDTO
                                                                                 ).replaceWith(Boolean.TRUE);
                                                                             });

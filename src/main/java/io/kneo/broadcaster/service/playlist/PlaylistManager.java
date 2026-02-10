@@ -183,8 +183,8 @@ public class PlaylistManager {
                 )
                 .onItem().call(fragment -> {
                     try {
-                        List<FileMetadata> metadataList = fragment.getFileMetadataList();
-                        FileMetadata metadata = metadataList.getFirst();
+                        List<FileMetadata> fileMetadataList = fragment.getFileMetadataList();
+                        FileMetadata metadata = fileMetadataList.getFirst();
 
                         return soundFragmentService.getFileBySlugName(
                                         fragment.getId(),
@@ -215,13 +215,13 @@ public class PlaylistManager {
                 );
     }
 
-    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, MergingType mergingType, AddToQueueDTO queueDTO) {
+    public Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, int priority, long maxRate, AddToQueueDTO queueDTO) {
         try {
             List<FileMetadata> metadataList = soundFragment.getFileMetadataList();
             FileMetadata metadata = metadataList.getFirst();
             LiveSoundFragment liveSoundFragment = new LiveSoundFragment();
             SongMetadata songMetadata = new SongMetadata(soundFragment.getTitle(), soundFragment.getArtist());
-            songMetadata.setMergingType(mergingType);
+            songMetadata.setItemType(soundFragment.getType());
             liveSoundFragment.setSoundFragmentId(soundFragment.getId());
             liveSoundFragment.setMetadata(songMetadata);
             liveSoundFragment.setSourceFilePath(metadata.getTemporaryFilePath());
@@ -289,6 +289,7 @@ public class PlaylistManager {
     private Uni<Boolean> addFragmentToSlice(SoundFragment soundFragment, FileMetadata materializedMetadata, long maxRate) {
         LiveSoundFragment liveSoundFragment = new LiveSoundFragment();
         SongMetadata songMetadata = new SongMetadata(soundFragment.getTitle(), soundFragment.getArtist());
+        songMetadata.setItemType(soundFragment.getType());
         liveSoundFragment.setSoundFragmentId(soundFragment.getId());
         liveSoundFragment.setMetadata(songMetadata);
         liveSoundFragment.setSourceFilePath(materializedMetadata.getTemporaryFilePath());
@@ -350,7 +351,7 @@ public class PlaylistManager {
     }
 
     public PlaylistManagerStats getStats() {
-        return new PlaylistManagerStats(this, segmentDuration, (SongSupplier) songSupplier);
+        return new PlaylistManagerStats(this, segmentDuration);
     }
 
     private void moveFragmentToProcessedList(LiveSoundFragment fragmentToPlay) {

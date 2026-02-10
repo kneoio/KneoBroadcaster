@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.model.live;
 
 import io.kneo.broadcaster.model.cnst.LiveSongSource;
+import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,7 +16,9 @@ public class SongMetadata {
     private String artist;
     private String album;
     private String genre;
+    @Deprecated
     private MergingType mergingType;
+    private PlaylistItemType itemType;
     private String bitrate;
     private LiveSongSource source;
 

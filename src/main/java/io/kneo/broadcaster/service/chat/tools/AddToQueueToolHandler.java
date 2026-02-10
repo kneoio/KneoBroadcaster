@@ -85,7 +85,6 @@ public class AddToQueueToolHandler extends BaseToolHandler {
         } else {
             LOGGER.warn("[AddToQueue] No soundFragments parameter provided in input");
         }
-        LOGGER.info("[AddToQueue] Parsed {} sound fragments total", soundFragments.size());
 
         Integer finalPriority = priority;
         
@@ -139,7 +138,7 @@ public class AddToQueueToolHandler extends BaseToolHandler {
                         filePaths.put("audio1", audioFilePath.toAbsolutePath().toString());
                         
                         AddToQueueDTO dto = new AddToQueueDTO();
-                        dto.setMergingMethod(MergingType.INTRO_SONG);
+                        dto.setMergingMethod(MergingType.LISTENER_INTRO_SONG);
                         dto.setFilePaths(filePaths);
                         dto.setSoundFragments(finalSoundFragments);
                         dto.setPriority(finalPriority != null ? finalPriority : INTERRUPT.value());

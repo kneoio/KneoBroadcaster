@@ -71,7 +71,14 @@ public class ListenersRepository extends AsyncRepository {
         return client.query(sql)
                 .execute()
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
-                .onItem().transformToUni(this::from)
+                .onItem().transformToUni(row -> {
+                    Listener listener = from(row);
+                    return loadLabels(listener.getId())
+                            .onItem().transform(labels -> {
+                                listener.setLabels(labels);
+                                return listener;
+                            });
+                })
                 .concatenate()
                 .collect().asList();
     }
@@ -108,7 +115,12 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transform(RowSet::iterator)
                 .onItem().transformToUni(iterator -> {
                     if (iterator.hasNext()) {
-                        return from(iterator.next());
+                        return Uni.createFrom().item(from(iterator.next()))
+                                .chain(listener -> loadLabels(listener.getId())
+                                        .onItem().transform(labels -> {
+                                            listener.setLabels(labels);
+                                            return listener;
+                                        }));
                     } else {
                         LOGGER.warn("No {} found with id: {}, user: {} ", LISTENER, uuid, user.getId());
                         throw new DocumentHasNotFoundException(uuid);
@@ -146,15 +158,17 @@ public class ListenersRepository extends AsyncRepository {
                 .execute(Tuple.of(slugName, user.getId()))
                 .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
                 .onItem().transformToUni(row -> {
-                    Uni<Listener> listenerUni = from(row);
-                    return listenerUni.onItem().transform(listener -> {
-                        BrandListener brandListener = new BrandListener();
-                        brandListener.setId(row.getUUID("id"));
-                        brandListener.setBrandId(row.getUUID("brand_id"));
-                        brandListener.setRank(row.getInteger("rank"));
-                        brandListener.setListener(listener);
-                        return brandListener;
-                    });
+                    Listener listener = from(row);
+                    return loadLabels(listener.getId())
+                            .onItem().transform(labels -> {
+                                listener.setLabels(labels);
+                                BrandListener brandListener = new BrandListener();
+                                brandListener.setId(row.getUUID("id"));
+                                brandListener.setBrandId(row.getUUID("brand_id"));
+                                brandListener.setRank(row.getInteger("rank"));
+                                brandListener.setListener(listener);
+                                return brandListener;
+                            });
                 })
                 .concatenate()
                 .collect().asList();
@@ -222,6 +236,7 @@ public class ListenersRepository extends AsyncRepository {
                         .onItem().transformToUni(id ->
                                 insertRLSPermissions(tx, id, entityData, user)
                                         .onItem().transformToUni(ignored -> insertBrandAssociations(tx, id, representedInBrands, nowTime))
+                                        .onItem().transformToUni(ignored -> upsertLabels(tx, id, listener.getLabels()))
                                         .onItem().transform(ignored -> id)
                         )
         ).onItem().transformToUni(id -> findById(id, user, true));
@@ -278,7 +293,8 @@ public class ListenersRepository extends AsyncRepository {
                                             if (rowSet.rowCount() == 0) {
                                                 return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                             }
-                                            return updateBrandAssociations(tx, id, representedInBrands, nowTime);
+                                            return updateBrandAssociations(tx, id, representedInBrands, nowTime)
+                                                    .chain(() -> upsertLabels(tx, id, doc.getLabels()));
                                         });
                             }).onItem().transformToUni(ignored -> findById(id, user, true));
                         });
@@ -350,7 +366,7 @@ public class ListenersRepository extends AsyncRepository {
                 });
     }
 
-    private Uni<Listener> from(Row row) {
+    private Listener from(Row row) {
         Listener doc = new Listener();
         setDefaultFields(doc, row);
         doc.setUserId(row.getLong("user_id"));
@@ -370,7 +386,7 @@ public class ListenersRepository extends AsyncRepository {
         doc.setUserData(fromUserDataJson(userDataJson));
 
         doc.setArchived(row.getInteger("archived"));
-        return Uni.createFrom().item(doc);
+        return doc;
     }
 
     private JsonObject toNickNameJson(EnumMap<LanguageCode, Set<String>> nick) {
@@ -449,7 +465,7 @@ public class ListenersRepository extends AsyncRepository {
                 .onItem().transformToUni(rows -> {
                     var it = rows.iterator();
                     if (it.hasNext()) {
-                        return from(it.next());
+                        return Uni.createFrom().item(from(it.next()));
                     } else {
                         return Uni.createFrom().nullItem();
                     }
@@ -462,7 +478,7 @@ public class ListenersRepository extends AsyncRepository {
                 .execute(Tuple.of(userId))
                 .onItem().transformToUni(rows -> {
                     if (rows.iterator().hasNext()) {
-                        return from(rows.iterator().next());
+                        return Uni.createFrom().item(from(rows.iterator().next()));
                     } else {
                         return Uni.createFrom().nullItem();
                     }
@@ -515,5 +531,35 @@ public class ListenersRepository extends AsyncRepository {
             }
         });
         return userData;
+    }
+
+    private Uni<Void> upsertLabels(SqlClient client, UUID listenerId, List<UUID> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return client.preparedQuery("DELETE FROM kneobroadcaster__listener_labels WHERE listener_id = $1")
+                    .execute(Tuple.of(listenerId))
+                    .replaceWithVoid();
+        }
+
+        String deleteSql = "DELETE FROM kneobroadcaster__listener_labels WHERE listener_id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__listener_labels (listener_id, label_id) VALUES ($1, $2) ON CONFLICT DO NOTHING";
+
+        return client.preparedQuery(deleteSql)
+                .execute(Tuple.of(listenerId))
+                .chain(() -> Multi.createFrom().iterable(labels)
+                        .onItem().transformToUni(labelId ->
+                                client.preparedQuery(insertSql).execute(Tuple.of(listenerId, labelId))
+                        )
+                        .merge()
+                        .collect().asList()
+                ).replaceWithVoid();
+    }
+
+    private Uni<List<UUID>> loadLabels(UUID listenerId) {
+        String sql = "SELECT label_id FROM kneobroadcaster__listener_labels WHERE listener_id = $1";
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(listenerId))
+                .onItem().transformToMulti(rows -> Multi.createFrom().iterable(rows))
+                .onItem().transform(row -> row.getUUID("label_id"))
+                .collect().asList();
     }
 }

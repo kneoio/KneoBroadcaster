@@ -3,7 +3,6 @@ package io.kneo.broadcaster.service.live;
 import io.kneo.broadcaster.dto.BrandSoundFragmentDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.BrandSoundFragmentAiDTO;
-import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.RadioStationAiDTO;
 import io.kneo.broadcaster.dto.dashboard.AiDjStatsDTO;
@@ -95,20 +94,6 @@ public class AiHelperService {
         this.soundFragmentService = soundFragmentService;
         this.genreService = genreService;
         this.labelService = labelService;
-    }
-
-    public Uni<ListenerAiDTO> getListenerByTelegramName(String telegramName) {
-        return listenerRepository.findByUserDataField("telegram_name", telegramName)
-                .onItem().transform(listener -> {
-                    if (listener == null) {
-                        return null;
-                    }
-                    ListenerAiDTO aiDto = new ListenerAiDTO();
-                    aiDto.setTelegramName(telegramName);
-                    aiDto.setLocalizedName(listener.getLocalizedName());
-                    aiDto.setNickName(listener.getNickName());
-                    return aiDto;
-                });
     }
 
     public Uni<AvailableStationsAiDTO> getAllStations(List<StreamStatus> statuses, String country, LanguageTag djLanguage, String query) {

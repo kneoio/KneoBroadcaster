@@ -230,6 +230,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
             }
             List<UUID> brandIds = tuple.getItem3();
             dto.setListenerOf(brandIds);
+            dto.setLabels(doc.getLabels());
             Optional<IUser> userOptional = tuple.getItem4();
             userOptional.ifPresent(user -> {
                 dto.setEmail(user.getEmail());
@@ -249,6 +250,9 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
         }
         if (dto.getListenerOf() != null) {
             doc.setListenerOf(dto.getListenerOf());
+        }
+        if (dto.getLabels() != null) {
+            doc.setLabels(dto.getLabels());
         }
         return doc;
     }

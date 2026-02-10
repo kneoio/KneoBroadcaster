@@ -1,7 +1,6 @@
 package io.kneo.broadcaster.controller;
 
 import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
-import io.kneo.broadcaster.dto.aihelper.llmtool.ListenerAiDTO;
 import io.kneo.broadcaster.dto.aihelper.llmtool.LiveRadioStationStatAiDTO;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
@@ -34,7 +33,6 @@ public class AiHelperController {
     public void setupRoutes(Router router) {
         router.get("/api/ai/live/stations").handler(this::getLiveRadioStations);
         router.get("/api/ai/station/:slug/live").handler(this::getStationLiveStat);
-        router.get("/api/ai/listener/by-telegram-name/:name").handler(this::getListenerByTelegramName);
         router.get("/api/ai/stations").handler(this::getAllStations);
         router.get("/api/ai/brand/:brand/soundfragments").handler(this::getBrandSoundFragments);
    }
@@ -79,34 +77,6 @@ public class AiHelperController {
         }
     }
 
-    private void getListenerByTelegramName(RoutingContext rc) {
-        String name = rc.pathParam("name");
-        if (name == null || name.trim().isEmpty()) {
-            rc.response()
-                    .setStatusCode(400)
-                    .putHeader("Content-Type", "text/plain")
-                    .end("Telegram name parameter is required");
-            return;
-        }
-
-        aiHelperService.getListenerByTelegramName(name.trim())
-                .subscribe().with((ListenerAiDTO dto) -> {
-                    if (dto == null) {
-                        rc.response().setStatusCode(404).end();
-                        return;
-                    }
-                    rc.response()
-                            .setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(Json.encode(dto));
-                }, throwable -> {
-                    LOGGER.error("Error getting listener by telegram name", throwable);
-                    rc.response()
-                            .setStatusCode(500)
-                            .putHeader("Content-Type", "text/plain")
-                            .end("An error occurred while retrieving listener by telegram name");
-                });
-    }
 
     private void getStationLiveStat(RoutingContext rc) {
         String slug = rc.pathParam("slug");

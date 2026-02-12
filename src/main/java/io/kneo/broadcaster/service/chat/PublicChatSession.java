@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.service.chat;
 
+import java.io.Serializable;
 import java.time.Instant;
 
-record PublicChatSession(String email, Instant expiresAt) {
-
+public record PublicChatSession(String email, Instant expiresAt) implements Serializable {
     boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
     }

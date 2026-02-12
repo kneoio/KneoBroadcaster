@@ -123,10 +123,14 @@ public class PublicChatService extends ChatService {
                                 return Uni.createFrom().item(existingDto);
                             });
                 })
-                .onItem().transform(listenerDTO -> new RegistrationResult(
-                        listenerDTO.getUserId(),
-                        tokenService.generateToken(listenerDTO.getUserId(), listenerDTO.getSlugName())
-                ));
+                .onItem().transform(listenerDTO -> {
+                    String userToken = tokenService.generateToken(listenerDTO.getUserId(), listenerDTO.getSlugName());
+                    sessionManager.storeUserToken(userToken, email);
+                    return new RegistrationResult(
+                            listenerDTO.getUserId(),
+                            userToken
+                    );
+                });
     }
 
     public Uni<String> refreshToken(String oldToken) {
@@ -135,12 +139,17 @@ public class PublicChatService extends ChatService {
             return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
         }
         return userService.findById(result.userId())
-                .onItem().transform(userOptional -> {
+                .onItem().transformToUni(userOptional -> {
                     if (userOptional.isEmpty()) {
-                        throw new IllegalArgumentException("User not found");
+                        return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
                     }
                     IUser user = userOptional.get();
-                    return tokenService.generateToken(user.getId(), user.getUserName());
+                    String newToken = tokenService.generateToken(user.getId(), user.getUserName());
+                    String email = sessionManager.validateSessionAndGetEmail(oldToken);
+                    if (email != null) {
+                        sessionManager.storeUserToken(newToken, email);
+                    }
+                    return Uni.createFrom().item(newToken);
                 });
     }
 

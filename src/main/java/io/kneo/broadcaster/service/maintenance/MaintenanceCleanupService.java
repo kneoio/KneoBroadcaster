@@ -71,16 +71,6 @@ public class MaintenanceCleanupService {
         }
     }
 
-    private void performCleanup(Long tick) {
-        Set<String> activeSlugs = radioStationPool.getActiveSnapshot();
-        LOGGER.info("Maintenance cleanup (tick: {}) - Active slugs in pool (will be excluded): {}", tick, activeSlugs);
-        
-        cleanupTemporaryBrands(tick, activeSlugs);
-        cleanupPendingOneTimeStreams(tick);
-        cleanupExpiredSoundFragments(tick);
-        cleanupArchivedSoundFragments(tick);
-    }
-
     private void cleanupTemporaryBrands(Long tick, Set<String> activeSlugs) {
         brandService.getAll(1000, 0)
                 .onItem().transformToUni(brands -> {
@@ -156,8 +146,25 @@ public class MaintenanceCleanupService {
         return stream.getCreatedAt();
     }
 
-    private void cleanupExpiredSoundFragments(Long tick) {
-        soundFragmentRepository.findExpiredFragments()
+    private void performCleanup(Long tick) {
+        Set<String> activeSlugs = radioStationPool.getActiveSnapshot();
+        LOGGER.info("Maintenance cleanup (tick: {}) - Active slugs in pool (will be excluded): {}", tick, activeSlugs);
+
+        cleanupTemporaryBrands(tick, activeSlugs);
+        cleanupPendingOneTimeStreams(tick);
+        cleanupExpiredSoundFragments(tick)
+                .onItem().transformToUni(count -> {
+                    if (count > 0) LOGGER.info("Maintenance cleanup (tick: {}) deleted {} expired SoundFragments", tick, count);
+                    return cleanupArchivedSoundFragments(tick);
+                })
+                .subscribe().with(
+                        count -> { if (count > 0) LOGGER.info("Maintenance cleanup (tick: {}) deleted {} archived SoundFragments", tick, count); },
+                        failure -> LOGGER.error("SoundFragment cleanup chain failed (tick: {})", tick, failure)
+                );
+    }
+
+    private Uni<Integer> cleanupExpiredSoundFragments(Long tick) {
+        return soundFragmentRepository.findExpiredFragments()
                 .onItem().transformToUni(fragmentIds -> {
                     if (fragmentIds.isEmpty()) {
                         return Uni.createFrom().item(0);
@@ -167,26 +174,16 @@ public class MaintenanceCleanupService {
                                     .onFailure().recoverWithItem(error -> {
                                         LOGGER.error("Failed to delete expired SoundFragment {}: {}", fragmentId, error.getMessage(), error);
                                         return 0;
-                                    })
-                            )
+                                    }))
                             .toList();
                     return Uni.join().all(deleteOps).andFailFast()
                             .onItem().transform(results -> results.stream().mapToInt(Integer::intValue).sum());
-                })
-                .subscribe().with(
-                        deletedCount -> {
-                            if (deletedCount != null && deletedCount > 0) {
-                                LOGGER.info("Maintenance cleanup (tick: {}) deleted {} expired SoundFragments", tick, deletedCount);
-                            }
-                        },
-                        error -> LOGGER.error("Expired SoundFragment cleanup failed (tick: {})", tick, error)
-                );
+                });
     }
 
-    private void cleanupArchivedSoundFragments(Long tick) {
+    private Uni<Integer> cleanupArchivedSoundFragments(Long tick) {
         LocalDateTime cutoffDate = LocalDateTime.now().minusMonths(1);
-        
-        soundFragmentRepository.findArchivedFragments(cutoffDate)
+        return soundFragmentRepository.findArchivedFragments(cutoffDate)
                 .onItem().transformToUni(fragmentIds -> {
                     if (fragmentIds.isEmpty()) {
                         return Uni.createFrom().item(0);
@@ -196,19 +193,10 @@ public class MaintenanceCleanupService {
                                     .onFailure().recoverWithItem(error -> {
                                         LOGGER.error("Failed to delete archived SoundFragment {}: {}", fragmentId, error.getMessage(), error);
                                         return 0;
-                                    })
-                            )
+                                    }))
                             .toList();
                     return Uni.join().all(deleteOps).andFailFast()
                             .onItem().transform(results -> results.stream().mapToInt(Integer::intValue).sum());
-                })
-                .subscribe().with(
-                        deletedCount -> {
-                            if (deletedCount != null && deletedCount > 0) {
-                                LOGGER.info("Maintenance cleanup (tick: {}) deleted {} archived SoundFragments (>1 month old)", tick, deletedCount);
-                            }
-                        },
-                        error -> LOGGER.error("Archived SoundFragment cleanup failed (tick: {})", tick, error)
-                );
+                });
     }
 }

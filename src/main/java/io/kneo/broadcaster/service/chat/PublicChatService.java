@@ -46,6 +46,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -123,32 +124,29 @@ public class PublicChatService extends ChatService {
                                 return Uni.createFrom().item(existingDto);
                             });
                 })
-                .onItem().transform(listenerDTO -> {
-                    String userToken = tokenService.generateToken(listenerDTO.getUserId(), listenerDTO.getSlugName());
+                .onItem().transformToUni(listenerDTO -> {
+                    String userToken = UUID.randomUUID().toString();
                     sessionManager.storeUserToken(userToken, email);
-                    return new RegistrationResult(
+                    return Uni.createFrom().item(new RegistrationResult(
                             listenerDTO.getUserId(),
                             userToken
-                    );
+                    ));
                 });
     }
 
     public Uni<String> refreshToken(String oldToken) {
-        PublicChatTokenService.TokenValidationResult result = tokenService.validateToken(oldToken);
-        if (!result.valid()) {
+        String email = sessionManager.validateSessionAndGetEmail(oldToken);
+        if (email == null) {
             return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
         }
-        return userService.findById(result.userId())
-                .onItem().transformToUni(userOptional -> {
-                    if (userOptional.isEmpty()) {
+
+        return userService.findByEmail(email)
+                .onItem().transformToUni(user -> {
+                    if (user == null || user.getId() == 0) {
                         return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
                     }
-                    IUser user = userOptional.get();
-                    String newToken = tokenService.generateToken(user.getId(), user.getUserName());
-                    String email = sessionManager.validateSessionAndGetEmail(oldToken);
-                    if (email != null) {
-                        sessionManager.storeUserToken(newToken, email);
-                    }
+                    String newToken = UUID.randomUUID().toString();
+                    sessionManager.storeUserToken(newToken, email);
                     return Uni.createFrom().item(newToken);
                 });
     }
@@ -158,23 +156,18 @@ public class PublicChatService extends ChatService {
             return Uni.createFrom().failure(new IllegalArgumentException("Token is required"));
         }
 
-        PublicChatTokenService.TokenValidationResult result = tokenService.validateToken(token);
-        if (result.valid()) {
-            return userService.findById(result.userId())
-                    .onItem().transformToUni(userOptional -> {
-                        if (userOptional.isEmpty()) {
-                            return Uni.createFrom().failure(new IllegalArgumentException("User not found"));
-                        }
-                        return Uni.createFrom().item(userOptional.get());
-                    });
-        }
-
         String email = sessionManager.validateSessionAndGetEmail(token);
-        if (email != null) {
-            return Uni.createFrom().item(AnonymousUser.build());
+        if (email == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
         }
 
-        return Uni.createFrom().failure(new IllegalArgumentException("Invalid or expired token"));
+        return userService.findByEmail(email)
+                .onItem().transformToUni(user -> {
+                    if (user == null || user.getId() == 0) {
+                        return Uni.createFrom().item(AnonymousUser.build());
+                    }
+                    return Uni.createFrom().item(user);
+                });
     }
 
     public Uni<Void> ensureUserIsListenerOfStation(long userId, String stationSlug) {

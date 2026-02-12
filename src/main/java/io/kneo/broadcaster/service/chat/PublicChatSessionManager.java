@@ -55,7 +55,7 @@ public class PublicChatSessionManager {
         db.commit();
     }
 
-    @Scheduled(every = "30s")
+    //@Scheduled(every = "30s")
     void debugSessions() {
         System.out.println("=== MapDB Sessions Debug ===");
         System.out.println("Total sessions: " + sessions.size());

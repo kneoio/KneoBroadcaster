@@ -138,9 +138,13 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
     public Uni<ListenerDTO> upsert(String id, ListenerDTO dto, String stationSlug, IUser user) {
         assert brandService != null;
         assert repository != null;
+        
+        System.out.println("[UPSERT] id=" + id + ", dto.id=" + dto.getId() + ", stationSlug=" + stationSlug);
+        
         Listener listener = buildEntity(dto);
 
         if (id == null) {
+            System.out.println("[UPSERT] Taking INSERT path");
             if (stationSlug == null) {
                 return ensureUserExists(listener, dto.getEmail())
                         .chain(userId -> {
@@ -158,6 +162,7 @@ public class ListenerService extends AbstractService<Listener, ListenerDTO> {
                         .chain(this::mapToDTO);
             }
         } else {
+            System.out.println("[UPSERT] Taking UPDATE path");
             UUID listenerUUID = UUID.fromString(id);
             if (stationSlug == null) {
                 return repository.update(listenerUUID, listener, dto.getListenerOf(), user)

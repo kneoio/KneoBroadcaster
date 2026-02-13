@@ -67,7 +67,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
                                             });
                                 },
                                 err -> {
-                                    LOG.warn("Authentication failed for token: {}", token, err);
+                                    LOG.warn("Authentication failed for token: {}", token);
                                     rc.response().setStatusCode(401).end("Invalid or expired token");
                                 }
                         );

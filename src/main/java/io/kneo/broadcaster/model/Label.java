@@ -8,6 +8,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @NoArgsConstructor
+@Deprecated
 public class Label extends SimpleReferenceEntity {
     private String identifier;
     private String slugName;

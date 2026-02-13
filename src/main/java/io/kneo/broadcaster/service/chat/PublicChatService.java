@@ -38,6 +38,7 @@ import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.WebHelper;
+import io.kneo.officeframe.service.LabelService;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -90,6 +91,9 @@ public class PublicChatService extends ChatService {
 
     @Inject
     PublicChatTokenService tokenService;
+
+    @Inject
+    LabelService labelService;
 
     public Uni<Void> sendCode(String email) {
         String code = sessionManager.generateAndStoreCode(email);
@@ -264,7 +268,7 @@ public class PublicChatService extends ChatService {
             );
         } else if ("listener_data".equals(toolUse.name())) {
             return ListenerDataToolHandler.handle(
-                    toolUse, inputMap, listenerService, brandName, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
+                    toolUse, inputMap, listenerService, labelService, brandName, userId, chunkHandler, connectionId, conversationHistory, getFollowUpPrompt(), streamFn
             );
         } else if ("send_email_to_owner".equals(toolUse.name())) {
             return SendEmailToOwnerToolHandler.handle(

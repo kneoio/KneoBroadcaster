@@ -39,6 +39,7 @@ import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
 import io.kneo.core.service.UserService;
 import io.kneo.core.util.WebHelper;
 import io.kneo.officeframe.cnst.CountryCode;
+import io.kneo.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -65,8 +66,10 @@ public class RadioService {
     @Inject LocalFileCleanupService localFileCleanupService;
     @Inject BroadcasterConfig config;
     @Inject ListenerService listenerService;
-    @Inject UserService userService;
+    @Inject
+    UserService userService;
     @Inject OneTimeStreamRepository oneTimeStreamRepository;
+    @Inject LabelService labelService;
 
     public Uni<IStream> initializeStation(String brand) {
         return radioStationPool.initializeRadio(brand)
@@ -200,7 +203,14 @@ public class RadioService {
     private Uni<IUser> registerContributor(String email, String stationSlug) {
         ListenerDTO dto = new ListenerDTO();
         dto.setEmail(email);
-        return listenerService.upsert(null, dto, stationSlug, SuperUser.build())
+        
+        return labelService.findByIdentifier("artist")
+                .onItem().transformToUni(artistLabel -> {
+                    if (artistLabel != null) {
+                        dto.setLabels(List.of(artistLabel.getId()));
+                    }
+                    return listenerService.upsert(null, dto, stationSlug, SuperUser.build());
+                })
                 .onFailure(UserAlreadyExistsException.class)
                 .recoverWithUni(e -> {
                     String slugName = WebHelper.generateSlug(email);

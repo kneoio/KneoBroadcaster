@@ -6,7 +6,11 @@ import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.service.ListenerService;
+import io.kneo.core.model.SimpleReferenceEntity;
 import io.kneo.core.model.user.SuperUser;
+import io.kneo.officeframe.dto.LabelDTO;
+import io.kneo.officeframe.model.Label;
+import io.kneo.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -15,8 +19,12 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ListenerDataToolHandler extends BaseToolHandler {
 
@@ -26,6 +34,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             ToolUseBlock toolUse,
             Map<String, JsonValue> inputMap,
             ListenerService listenerService,
+            LabelService labelService,
             String stationSlug,
             long userId,
             Consumer<String> chunkHandler,
@@ -52,9 +61,9 @@ public class ListenerDataToolHandler extends BaseToolHandler {
                             .flatMap(listenerDTO -> {
                                 return switch (action) {
                                     case "get" ->
-                                            handleGet(toolUse, listenerDTO, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                            handleGet(toolUse, listenerDTO, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn, labelService);
                                     case "set" ->
-                                            handleSet(toolUse, listenerDTO, fieldName, fieldValue, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
+                                            handleSet(toolUse, listenerDTO, fieldName, fieldValue, listenerService, labelService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                                     case "remove" ->
                                             handleRemove(toolUse, listenerDTO, fieldName, listenerService, stationSlug, handler, chunkHandler, connectionId, conversationHistory, systemPromptCall2, streamFn);
                                     default ->
@@ -72,25 +81,55 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String connectionId,
             List<MessageParam> conversationHistory,
             String systemPromptCall2,
-            Function<MessageCreateParams, Uni<Void>> streamFn
+            Function<MessageCreateParams, Uni<Void>> streamFn,
+            LabelService labelService
     ) {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving listener data...");
 
-        JsonObject payload = new JsonObject()
-                .put("ok", true)
-                .put("listener_id", listenerDTO.getId().toString())
-                .put("user_id", listenerDTO.getUserId())
-                .put("email", listenerDTO.getEmail())
-                .put("slug_name", listenerDTO.getSlugName())
-                .put("localized_name", JsonObject.mapFrom(listenerDTO.getLocalizedName()))
-                .put("nick_name", JsonObject.mapFrom(listenerDTO.getNickName()))
-                .put("user_data", listenerDTO.getUserData() != null ? JsonObject.mapFrom(listenerDTO.getUserData()) : new JsonObject());
+        Uni<List<String>> labelsUni = Uni.createFrom().item(List.of());
+        Uni<List<String>> availableLabelsUni = labelService.getOfCategory("listener", io.kneo.core.localization.LanguageCode.en)
+                .onFailure().recoverWithItem(List.of())
+                .map(labels -> labels.stream()
+                        .map(LabelDTO::getIdentifier)
+                        .filter(name -> !name.isEmpty())
+                        .collect(Collectors.toList()));
+        
+        if (listenerDTO.getLabels() != null && !listenerDTO.getLabels().isEmpty()) {
+            List<Uni<Label>> labelUnis = listenerDTO.getLabels().stream()
+                    .map(labelId -> labelService.getById(labelId)
+                            .onFailure().recoverWithNull())
+                    .collect(Collectors.toList());
+            
+            labelsUni = Uni.join().all(labelUnis).andFailFast().map(list -> {
+                return list.stream()
+                        .filter(Objects::nonNull)
+                        .map(SimpleReferenceEntity::getIdentifier)
+                        .filter(name -> !name.isEmpty())
+                        .collect(Collectors.toList());
+            });
+        }
 
-        handler.addToolUseToHistory(toolUse, conversationHistory);
-        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+        return labelsUni.chain(resolvedLabels -> 
+            availableLabelsUni.chain(allLabels -> {
+                JsonObject payload = new JsonObject()
+                        .put("ok", true)
+                        .put("listener_id", listenerDTO.getId().toString())
+                        .put("user_id", listenerDTO.getUserId())
+                        .put("email", listenerDTO.getEmail())
+                        .put("slug_name", listenerDTO.getSlugName())
+                        .put("localized_name", JsonObject.mapFrom(listenerDTO.getLocalizedName()))
+                        .put("nick_name", JsonObject.mapFrom(listenerDTO.getNickName()))
+                        .put("user_data", listenerDTO.getUserData() != null ? JsonObject.mapFrom(listenerDTO.getUserData()) : new JsonObject())
+                        .put("labels", resolvedLabels)
+                        .put("available_labels", allLabels);
 
-        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
-        return streamFn.apply(secondCallParams);
+                handler.addToolUseToHistory(toolUse, conversationHistory);
+                handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                return streamFn.apply(secondCallParams);
+            })
+        );
     }
 
     private static Uni<Void> handleSet(
@@ -99,6 +138,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
             String fieldName,
             String fieldValue,
             ListenerService listenerService,
+            LabelService labelService,
             String stationSlug,
             ListenerDataToolHandler handler,
             Consumer<String> chunkHandler,
@@ -110,11 +150,51 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         if (fieldName.isEmpty()) {
             return handleError(toolUse, "field_name is required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
         }
-        if (fieldValue.isEmpty()) {
+        if (fieldValue.isEmpty() && !"labels".equals(fieldName)) {
             return handleError(toolUse, "field_value is required for 'set' action", handler, conversationHistory, systemPromptCall2, streamFn);
         }
 
         handler.sendProcessingChunk(chunkHandler, connectionId, "Storing user data...");
+
+        if ("labels".equals(fieldName)) {
+            String[] labelNames = fieldValue.split(",");
+            List<Uni<Label>> labelUnis = Stream.of(labelNames)
+                    .map(String::trim)
+                    .filter(name -> !name.isEmpty())
+                    .map(name -> labelService.findByIdentifier(name)
+                            .onFailure().recoverWithNull())
+                    .collect(Collectors.toList());
+
+            return Uni.join().all(labelUnis).andFailFast().chain(list -> {
+                        List<UUID> labelIds = list.stream()
+                                .filter(Objects::nonNull)
+                                .map(Label::getId)
+                                .collect(Collectors.toList());
+
+                        listenerDTO.setLabels(labelIds);
+                        return listenerService.upsert(listenerDTO.getId().toString(), listenerDTO, stationSlug, SuperUser.build());
+                    })
+                    .flatMap(updatedListener -> {
+                        LOGGER.info("[ListenerData] Set labels '{}' for listener {}", fieldValue, listenerDTO.getId());
+
+                        JsonObject payload = new JsonObject()
+                                .put("ok", true)
+                                .put("action", "set")
+                                .put("field_name", fieldName)
+                                .put("field_value", fieldValue)
+                                .put("message", "Labels updated successfully");
+
+                        handler.addToolUseToHistory(toolUse, conversationHistory);
+                        handler.addToolResultToHistory(toolUse, payload.encode(), conversationHistory);
+
+                        MessageCreateParams secondCallParams = handler.buildFollowUpParams(systemPromptCall2, conversationHistory);
+                        return streamFn.apply(secondCallParams);
+                    })
+                    .onFailure().recoverWithUni(err -> {
+                        LOGGER.error("[ListenerData] Failed to set labels", err);
+                        return handleError(toolUse, "Failed to set labels: " + err.getMessage(), handler, conversationHistory, systemPromptCall2, streamFn);
+                    });
+        }
 
         if (listenerDTO.getUserData() == null) {
             listenerDTO.setUserData(new HashMap<>());

@@ -11,7 +11,6 @@ import lombok.experimental.SuperBuilder;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 @Setter
 @Getter
@@ -25,6 +24,6 @@ public class ListenerAiDTO extends AbstractReferenceDTO {
     private EnumMap<LanguageCode, Set<String>> nickName = new EnumMap<>(LanguageCode.class);
     private String slugName;
     private List<List<String>> listenerOf;
-    private List<UUID> labels;
+    private List<String> labels;
 
 }

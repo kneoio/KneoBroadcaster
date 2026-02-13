@@ -469,6 +469,16 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.delete(UUID.fromString(id), user);
     }
 
+    public Uni<Integer> delete(UUID id) {
+        assert repository != null;
+        return repository.delete(id, SuperUser.build());
+    }
+
+    public Uni<Integer> hardDelete(UUID id) {
+        assert repository != null;
+        return repository.hardDelete(id);
+    }
+
     public Uni<Integer> archive(String id, IUser user) {
         assert repository != null;
         return repository.archive(UUID.fromString(id), user);

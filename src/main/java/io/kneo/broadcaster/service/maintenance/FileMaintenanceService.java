@@ -15,7 +15,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ApplicationScoped
 public class FileMaintenanceService {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileMaintenanceService.class);
-    private static final int INTERVAL_SECONDS = 360;
+    private static final int INTERVAL_SECONDS = 600;
     private static final Duration INITIAL_DELAY = Duration.ofMillis(100);
     private static final String ADDRESS_FILE_MAINTENANCE_STATS = "file-maintenance-stats";
 

@@ -1,13 +1,10 @@
 package io.kneo.broadcaster.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.aiagent.TTSSetting;
-import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
 import io.kneo.core.model.embedded.DocumentAccessInfo;
@@ -120,8 +117,8 @@ public class AiAgentRepository extends AsyncRepository {
         OffsetDateTime nowTime = OffsetDateTime.now();
 
         String sql = "INSERT INTO " + entityData.getTableName() +
-                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, preferred_voice, copilot, tts_setting) " +
-                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id";
+                " (author, reg_date, last_mod_user, last_mod_date, name, preferred_lang, llm_type, copilot, tts_setting) " +
+                "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id";
 
         Tuple params = Tuple.tuple()
                 .addLong(user.getId())
@@ -131,7 +128,6 @@ public class AiAgentRepository extends AsyncRepository {
                 .addString(agent.getName())
                 .addJsonArray(toPreferredLangJson(agent.getPreferredLang()))
                 .addString(agent.getLlmType().name())
-                .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
                 .addUUID(agent.getCopilot())
                 .addJsonObject(agent.getTtsSetting() != null ? JsonObject.mapFrom(agent.getTtsSetting()) : new JsonObject());
 
@@ -163,8 +159,8 @@ public class AiAgentRepository extends AsyncRepository {
 
                             String sql = "UPDATE " + entityData.getTableName() +
                                     " SET last_mod_user=$1, last_mod_date=$2, name=$3, preferred_lang=$4, " +
-                                    "llm_type=$5, preferred_voice=$6, copilot=$7, tts_setting=$8 " +
-                                    "WHERE id=$9";
+                                    "llm_type=$5, copilot=$6, tts_setting=$7 " +
+                                    "WHERE id=$8";
 
                             Tuple params = Tuple.tuple()
                                     .addLong(user.getId())
@@ -172,7 +168,6 @@ public class AiAgentRepository extends AsyncRepository {
                                     .addString(agent.getName())
                                     .addJsonArray(toPreferredLangJson(agent.getPreferredLang()))
                                     .addString(agent.getLlmType().name())
-                                    .addJsonArray(JsonArray.of(agent.getPrimaryVoice().toArray()))
                                     .addUUID(agent.getCopilot())
                                     .addJsonObject(agent.getTtsSetting() != null ? JsonObject.mapFrom(agent.getTtsSetting()) : new JsonObject())
                                     .addUUID(id);
@@ -247,14 +242,6 @@ public class AiAgentRepository extends AsyncRepository {
 
 
         doc.setLlmType(LlmType.valueOf(row.getString("llm_type")));
-
-        try {
-            JsonArray primaryVoiceJson = row.getJsonArray("preferred_voice");
-            doc.setPrimaryVoice(primaryVoiceJson != null ? mapper.readValue(primaryVoiceJson.encode(), new TypeReference<List<Voice>>() {}) : new ArrayList<>());
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Failed to deserialize AI Agent JSONB fields for agent: {}", doc.getName(), e);
-            doc.setPrimaryVoice(new ArrayList<>());
-        }
 
         try {
             JsonObject ttsSettingJson = row.getJsonObject("tts_setting");

@@ -8,7 +8,6 @@ import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
-import io.kneo.core.model.user.SuperUser;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -170,7 +169,7 @@ public class MaintenanceCleanupService {
                         return Uni.createFrom().item(0);
                     }
                     List<Uni<Integer>> deleteOps = fragmentIds.stream()
-                            .map(fragmentId -> soundFragmentService.delete(fragmentId.toString(), SuperUser.build())
+                            .map(fragmentId -> soundFragmentService.hardDelete(fragmentId)
                                     .onFailure().recoverWithItem(error -> {
                                         LOGGER.error("Failed to delete expired SoundFragment {}: {}", fragmentId, error.getMessage(), error);
                                         return 0;
@@ -189,7 +188,7 @@ public class MaintenanceCleanupService {
                         return Uni.createFrom().item(0);
                     }
                     List<Uni<Integer>> deleteOps = fragmentIds.stream()
-                            .map(fragmentId -> soundFragmentService.delete(fragmentId.toString(), SuperUser.build())
+                            .map(fragmentId -> soundFragmentService.hardDelete(fragmentId)
                                     .onFailure().recoverWithItem(error -> {
                                         LOGGER.error("Failed to delete archived SoundFragment {}: {}", fragmentId, error.getMessage(), error);
                                         return 0;

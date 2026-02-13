@@ -171,6 +171,23 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                 });
     }
 
+    public Uni<SoundFragment> findById(UUID uuid) {
+        String sql = "SELECT * FROM " + entityData.getTableName() + " WHERE id = $1";
+
+        return client.preparedQuery(sql)
+                .execute(Tuple.of(uuid))
+                .onItem().transform(RowSet::iterator)
+                .onItem().transformToUni(iterator -> {
+                    if (iterator.hasNext()) {
+                        Row row = iterator.next();
+                        return from(row, false, false, false);
+                    } else {
+                        return Uni.createFrom().failure(new DocumentHasNotFoundException(uuid));
+                    }
+                });
+    }
+
+
     public Uni<List<SoundFragment>> getBrandSongsRandomPage(UUID brandId, PlaylistItemType type) {
         int limit = 200;
         int offset = secureRandom.nextInt(20) * limit;
@@ -276,6 +293,72 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
         return archive(id, entityData, user);
     }
 
+    private Uni<Void> deleteStorageFiles(UUID uuid) {
+        String getKeysSql = "SELECT file_key FROM _files WHERE parent_id = $1";
+        return client.preparedQuery(getKeysSql).execute(Tuple.of(uuid))
+                .onItem().transformToUni(rows -> {
+                    List<String> keysToDelete = new ArrayList<>();
+                    rows.forEach(row -> {
+                        String key = row.getString("file_key");
+                        if (key != null && !key.isBlank()) {
+                            keysToDelete.add(key);
+                        }
+                    });
+
+                    List<Uni<Void>> deleteFileUnis = keysToDelete.stream()
+                            .map(key -> {
+                                        assert fileStorage != null;
+                                        return fileStorage.deleteFile(key)
+                                                .onFailure().recoverWithUni(e -> {
+                                                    LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", key, uuid, e);
+                                                    return Uni.createFrom().voidItem();
+                                                });
+                                    }
+                            ).collect(Collectors.toList());
+
+                    if (deleteFileUnis.isEmpty()) {
+                        return Uni.createFrom().voidItem();
+                    }
+                    return Uni.combine().all().unis(deleteFileUnis).discardItems();
+                });
+    }
+
+    private Uni<Integer> deleteDatabaseRecords(UUID uuid) {
+        return client.withTransaction(tx -> {
+            String getContributionIdsSql = "SELECT id FROM kneobroadcaster__contributions WHERE sound_fragment_id = $1";
+            String deleteAgreementsSql = "DELETE FROM kneobroadcaster__upload_agreements WHERE contribution_id = ANY($1)";
+            String deleteContributionsSql = "DELETE FROM kneobroadcaster__contributions WHERE sound_fragment_id = $1";
+            String deleteGenresSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
+            String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
+            String deleteFilesSql = "DELETE FROM _files WHERE parent_id = $1";
+            String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
+
+            return tx.preparedQuery(getContributionIdsSql).execute(Tuple.of(uuid))
+                    .onItem().transformToUni(rows -> {
+                        List<UUID> contributionIds = new ArrayList<>();
+                        rows.forEach(row -> contributionIds.add(row.getUUID("id")));
+                        
+                        if (contributionIds.isEmpty()) {
+                            return Uni.createFrom().voidItem();
+                        }
+                        
+                        return tx.preparedQuery(deleteAgreementsSql)
+                                .execute(Tuple.of(contributionIds.toArray(new UUID[0])));
+                    })
+                    .onItem().transformToUni(ignored -> {
+                        Uni<RowSet<Row>> contributionsDelete = tx.preparedQuery(deleteContributionsSql).execute(Tuple.of(uuid));
+                        Uni<RowSet<Row>> genresDelete = tx.preparedQuery(deleteGenresSql).execute(Tuple.of(uuid));
+                        Uni<RowSet<Row>> rlsDelete = tx.preparedQuery(deleteRlsSql).execute(Tuple.of(uuid));
+                        Uni<RowSet<Row>> filesDelete = tx.preparedQuery(deleteFilesSql).execute(Tuple.of(uuid));
+
+                        return Uni.combine().all().unis(contributionsDelete, genresDelete, rlsDelete, filesDelete)
+                                .discardItems()
+                                .onItem().transformToUni(ignored2 -> tx.preparedQuery(deleteDocSql).execute(Tuple.of(uuid)))
+                                .onItem().transform(RowSet::rowCount);
+                    });
+        });
+    }
+
     public Uni<Integer> delete(UUID uuid, IUser user) {
         return findById(uuid, user.getId(), true, false, false)
                 .onFailure(DocumentHasNotFoundException.class).recoverWithItem(() -> {
@@ -286,67 +369,23 @@ public class SoundFragmentRepository extends SoundFragmentRepositoryAbstract {
                     if (doc == null) {
                         return Uni.createFrom().item(0);
                     }
-                    String getKeysSql = "SELECT file_key FROM _files WHERE parent_id = $1";
-                    return client.preparedQuery(getKeysSql).execute(Tuple.of(uuid))
-                            .onItem().transformToUni(rows -> {
-                                List<String> keysToDelete = new ArrayList<>();
-                                rows.forEach(row -> {
-                                    String key = row.getString("file_key");
-                                    if (key != null && !key.isBlank()) {
-                                        keysToDelete.add(key);
-                                    }
-                                });
+                    return deleteStorageFiles(uuid)
+                            .onItem().transformToUni(v -> deleteDatabaseRecords(uuid));
+                });
+    }
 
-                                List<Uni<Void>> deleteFileUnis = keysToDelete.stream()
-                                        .map(key -> {
-                                                    assert fileStorage != null;
-                                                    return fileStorage.deleteFile(key)
-                                                            .onFailure().recoverWithUni(e -> {
-                                                                LOGGER.error("Failed to delete file {} from storage for SoundFragment {}. DB record deletion will proceed.", key, uuid, e);
-                                                                return Uni.createFrom().voidItem();
-                                                            });
-                                                }
-                                        ).collect(Collectors.toList());
-
-                                if (deleteFileUnis.isEmpty()) {
-                                    return Uni.createFrom().voidItem();
-                                }
-                                return Uni.combine().all().unis(deleteFileUnis).discardItems();
-                            }).onItem().transformToUni(v -> {
-                                return client.withTransaction(tx -> {
-                                    String getContributionIdsSql = "SELECT id FROM kneobroadcaster__contributions WHERE sound_fragment_id = $1";
-                                    String deleteAgreementsSql = "DELETE FROM kneobroadcaster__upload_agreements WHERE contribution_id = ANY($1)";
-                                    String deleteContributionsSql = "DELETE FROM kneobroadcaster__contributions WHERE sound_fragment_id = $1";
-                                    String deleteGenresSql = "DELETE FROM kneobroadcaster__sound_fragment_genres WHERE sound_fragment_id = $1";
-                                    String deleteRlsSql = String.format("DELETE FROM %s WHERE entity_id = $1", entityData.getRlsName());
-                                    String deleteFilesSql = "DELETE FROM _files WHERE parent_id = $1";
-                                    String deleteDocSql = String.format("DELETE FROM %s WHERE id = $1", entityData.getTableName());
-
-                                    return tx.preparedQuery(getContributionIdsSql).execute(Tuple.of(uuid))
-                                            .onItem().transformToUni(rows -> {
-                                                List<UUID> contributionIds = new ArrayList<>();
-                                                rows.forEach(row -> contributionIds.add(row.getUUID("id")));
-                                                
-                                                if (contributionIds.isEmpty()) {
-                                                    return Uni.createFrom().voidItem();
-                                                }
-                                                
-                                                return tx.preparedQuery(deleteAgreementsSql)
-                                                        .execute(Tuple.of(contributionIds.toArray(new UUID[0])));
-                                            })
-                                            .onItem().transformToUni(ignored -> {
-                                                Uni<RowSet<Row>> contributionsDelete = tx.preparedQuery(deleteContributionsSql).execute(Tuple.of(uuid));
-                                                Uni<RowSet<Row>> genresDelete = tx.preparedQuery(deleteGenresSql).execute(Tuple.of(uuid));
-                                                Uni<RowSet<Row>> rlsDelete = tx.preparedQuery(deleteRlsSql).execute(Tuple.of(uuid));
-                                                Uni<RowSet<Row>> filesDelete = tx.preparedQuery(deleteFilesSql).execute(Tuple.of(uuid));
-
-                                                return Uni.combine().all().unis(contributionsDelete, genresDelete, rlsDelete, filesDelete)
-                                                        .discardItems()
-                                                        .onItem().transformToUni(ignored2 -> tx.preparedQuery(deleteDocSql).execute(Tuple.of(uuid)))
-                                                        .onItem().transform(RowSet::rowCount);
-                                            });
-                                });
-                            });
+    public Uni<Integer> hardDelete(UUID uuid) {
+        return findById(uuid)
+                .onFailure(DocumentHasNotFoundException.class).recoverWithItem(() -> {
+                    LOGGER.warn("SoundFragment {} not found, may already be deleted", uuid);
+                    return null;
+                })
+                .onItem().transformToUni(doc -> {
+                    if (doc == null) {
+                        return Uni.createFrom().item(0);
+                    }
+                    return deleteStorageFiles(uuid)
+                            .onItem().transformToUni(v -> deleteDatabaseRecords(uuid));
                 });
     }
 

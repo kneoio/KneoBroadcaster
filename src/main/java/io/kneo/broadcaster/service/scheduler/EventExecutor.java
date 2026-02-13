@@ -291,17 +291,17 @@ public class EventExecutor {
         ActionType type = scenePrompt.getActionType();
         LOGGER.info("Executing action {} for event {}", type, event.getId());
 
-        if (type == ActionType.QUEUE_UP) {
+       // if (type == ActionType.QUEUE_UP) {
             if (event.getType() == EventType.ADVERTISEMENT) {
                 return executeScheduledEvent(event, PlaylistItemType.ADVERTISEMENT);
             }
             if (event.getType() == EventType.REMINDER) {
                 return executeScheduledEvent(event, PlaylistItemType.SONG);
             }
-        }
-        if (type == ActionType.COMMAND_STOP_STREAM) {
-            return executeStopStream(event, scenePrompt);
-        }
+       // }
+       // if (type == ActionType.COMMAND_STOP_STREAM) {
+       //     return executeStopStream(event, scenePrompt);
+       // }
 
         LOGGER.warn("Unknown action type: {} for event: {}", type, event.getId());
         return Uni.createFrom().voidItem();

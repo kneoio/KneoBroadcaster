@@ -16,15 +16,12 @@ public class AiAgent extends SimpleReferenceEntity {
     private List<LanguagePreference> preferredLang;
     private ZoneId timeZone;
     private LlmType llmType;
-    @Deprecated
-    private List<Voice> primaryVoice;
     private UUID copilot;
     private TTSSetting ttsSetting;
     private List<UUID> labels;
 
     public AiAgent() {
         this.preferredLang = new ArrayList<>();
-        this.primaryVoice = new ArrayList<>();
         this.labels = new ArrayList<>();
     }
 }

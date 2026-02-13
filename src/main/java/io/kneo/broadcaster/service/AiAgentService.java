@@ -107,18 +107,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
             
             dto.setLlmType(doc.getLlmType().name());
 
-            if (doc.getPrimaryVoice() != null && !doc.getPrimaryVoice().isEmpty()) {
-                List<VoiceDTO> voiceDTOs = doc.getPrimaryVoice().stream()
-                        .map(voice -> {
-                            VoiceDTO voiceDTO = new VoiceDTO();
-                            voiceDTO.setId(voice.getId());
-                            voiceDTO.setName(voice.getName());
-                            return voiceDTO;
-                        })
-                        .toList();
-                dto.setPrimaryVoice(voiceDTOs);
-            }
-
             if (doc.getCopilot() != null) dto.setCopilot(doc.getCopilot());
 
             if (doc.getTtsSetting() != null) {
@@ -187,19 +175,6 @@ public class AiAgentService extends AbstractService<AiAgent, AiAgentDTO> {
         }
         
         doc.setLlmType(LlmType.valueOf(dto.getLlmType()));
-
-
-        if (dto.getPrimaryVoice() != null && !dto.getPrimaryVoice().isEmpty()) {
-            List<Voice> voices = dto.getPrimaryVoice().stream()
-                    .map(voiceDto -> {
-                        Voice voice = new Voice();
-                        voice.setId(voiceDto.getId());
-                        voice.setName(voiceDto.getName());
-                        return voice;
-                    })
-                    .collect(Collectors.toList());
-            doc.setPrimaryVoice(voices);
-        }
 
         if (dto.getTtsSetting() != null) {
             TTSSetting ttsSetting = new TTSSetting();

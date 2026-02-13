@@ -18,7 +18,6 @@ public class AiAgentDTO extends AbstractDTO {
     private List<LanguagePreferenceDTO> preferredLang;
     @NotBlank
     private String llmType;
-    private List<VoiceDTO> primaryVoice;
     private UUID copilot;
     private TTSSettingDTO ttsSetting;
     private List<UUID> labels;

@@ -188,15 +188,15 @@ public class RadioService {
                 });
     }
 
-    public Uni<SubmissionDTO> submit(String brand, SubmissionDTO dto, String ipHeader, String userAgent) {
-        return brandService.getBySlugName(brand)
-                .chain(b -> registerContributor(dto.getEmail(), brand)
+    public Uni<SubmissionDTO> submit(String brandName, SubmissionDTO dto, String ipHeader, String userAgent) {
+        return brandService.getBySlugName(brandName)
+                .chain(brand -> registerContributor(dto.getEmail(), brandName)
                         .chain(u -> {
                             String[] ip = GeolocationService.parseIPHeader(ipHeader);
                             dto.setIpAddress(ip[0]);
                             dto.setCountry(CountryCode.valueOf(ip[1]));
                             dto.setUserAgent(userAgent);
-                            return processSubmission(b, dto, u);
+                            return processSubmission(brand, dto, u);
                         }));
     }
 
@@ -246,12 +246,12 @@ public class RadioService {
         
         List<FileMetadata> files = dto.getNewlyUploaded().stream()
                 .map(name -> {
-                    FileMetadata m = new FileMetadata();
+                    FileMetadata fileMetadata = new FileMetadata();
                     String sanitizedName = FileSecurityUtils.sanitizeFilename(name);
-                    m.setFileOriginalName(sanitizedName);
+                    fileMetadata.setFileOriginalName(sanitizedName);
                     Path filePath = FileSecurityUtils.secureResolve(tempBase, sanitizedName);
-                    m.setFilePath(filePath);
-                    return m;
+                    fileMetadata.setFilePath(filePath);
+                    return fileMetadata;
                 }).toList();
 
         entity.setFileMetadataList(files);
@@ -264,17 +264,17 @@ public class RadioService {
     }
 
     private SoundFragment buildEntity(SubmissionDTO dto) {
-        SoundFragment d = new SoundFragment();
-        d.setType(PlaylistItemType.SONG);
-        d.setStatus(50);
-        d.setTitle(dto.getTitle());
-        d.setArtist(dto.getArtist());
-        d.setGenres(dto.getGenres());
-        d.setLabels(dto.getLabels());
-        d.setAlbum(dto.getAlbum());
-        d.setDescription(dto.getDescription());
-        d.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
-        return d;
+        SoundFragment fragment = new SoundFragment();
+        fragment.setType(PlaylistItemType.SONG);
+        fragment.setStatus(50);
+        fragment.setTitle(dto.getTitle());
+        fragment.setArtist(dto.getArtist());
+        fragment.setGenres(dto.getGenres());
+        fragment.setLabels(dto.getLabels());
+        fragment.setAlbum(dto.getAlbum());
+        fragment.setDescription(dto.getDescription());
+        fragment.setSlugName(WebHelper.generateSlug(dto.getTitle(), dto.getArtist()));
+        return fragment;
     }
 
     private Uni<SoundFragment> moveFilesForNewEntity(

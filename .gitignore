@@ -24,3 +24,4 @@ audio_files_cache*.txt
 
 *.sql
 /.windsurf/
+/sessions_data/

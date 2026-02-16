@@ -135,7 +135,7 @@ public class AudioMetadataService {
             return metadata;
 
         } catch (Exception e) {
-            LOGGER.error("Failed to extract metadata from file: {}", filePath, e);
+            LOGGER.warn("Failed to extract metadata from file: {}, user will need to enter manually. Error: {}", filePath, e.getMessage());
             return createEmptyMetadata(filePath);
         }
     }

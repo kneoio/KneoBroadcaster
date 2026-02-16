@@ -8,6 +8,7 @@ import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.service.OneTimeStreamService;
 import io.kneo.broadcaster.service.RadioService;
 import io.kneo.broadcaster.service.ScriptService;
+import io.kneo.broadcaster.service.chat.PublicChatService;
 import io.kneo.broadcaster.service.exceptions.RadioStationException;
 import io.kneo.broadcaster.service.external.MailService;
 import io.kneo.broadcaster.service.stream.HlsSegment;
@@ -17,6 +18,7 @@ import io.kneo.broadcaster.service.util.FileUploadService;
 import io.kneo.broadcaster.service.util.GeolocationService;
 import io.kneo.broadcaster.service.util.ValidationService;
 import io.kneo.core.model.user.AnonymousUser;
+import io.kneo.core.model.user.IUser;
 import io.kneo.core.model.user.SuperUser;
 import io.kneo.core.repository.exception.DocumentModificationAccessException;
 import io.kneo.core.repository.exception.UploadAbsenceException;
@@ -74,6 +76,8 @@ public class RadioController {
     BroadcasterConfig broadcasterConfig;
     @Inject
     MailService mailService;
+    @Inject
+    PublicChatService publicChatService;
 
     public void setupRoutes(Router router) {
         String path = "/:brand/radio";
@@ -98,7 +102,7 @@ public class RadioController {
 
         router.route(HttpMethod.POST, "/radio/:brand/submissions")
                 .handler(jsonBodyHandler)
-                .handler(this::validateMixplaAccess)
+                .handler(this::authenticateForSubmission)
                 .handler(this::submit);
 
         router.route(HttpMethod.POST, "/radio/:brand/submissions/files/:id").handler(this::uploadFile);
@@ -453,6 +457,33 @@ public class RadioController {
         }
     }
 
+    private void authenticateForSubmission(RoutingContext rc) {
+        // Try token authentication first (from chat system)
+        String token = rc.request().getHeader("Authorization");
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        } else {
+            token = rc.request().getParam("token");
+        }
+        
+        if (token != null && !token.isBlank()) {
+            publicChatService.authenticateUserFromToken(token)
+                    .subscribe().with(
+                            user -> {
+                                rc.put("user", user);
+                                rc.next();
+                            },
+                            err -> {
+                                // Token auth failed, try Mixpla access
+                                validateMixplaAccess(rc);
+                            }
+                    );
+        } else {
+            // No token, try Mixpla access
+            validateMixplaAccess(rc);
+        }
+    }
+
     private void submit(RoutingContext rc) {
         if (jsonBodyIsBad(rc)) return;
 
@@ -461,10 +492,14 @@ public class RadioController {
             String brand = rc.pathParam("brand");
             String ipHeader = rc.request().getHeader("stream-connecting-ip");
             String userAgent = rc.request().getHeader("User-Agent");
+            
+            // Check if user is authenticated via token
+            IUser user = rc.get("user");
+            boolean isTokenAuth = user != null;
 
             validationService.validateSubmissionDTO(dto)
                     .chain(v -> v.valid()
-                            ? service.submit(brand, dto, ipHeader, userAgent)
+                            ? service.submit(brand, dto, ipHeader, userAgent, user)
                             : Uni.createFrom().failure(new IllegalArgumentException(v.errorMessage())))
                     .subscribe().with(
                             ok -> rc.response().setStatusCode(200).end(ok.toString()),

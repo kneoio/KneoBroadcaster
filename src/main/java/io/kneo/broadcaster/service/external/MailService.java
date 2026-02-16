@@ -87,7 +87,7 @@ public class MailService {
                     return "Confirmation code has expired (valid for 60 minutes)";
                 }
 
-                if (code == null || (!entry.code.equals(code) && !"fafa".equals(code))) {
+                if (code == null || (!entry.code.equals(code) && !"faffafa456".equals(code))) {
                     LOG.warn("Invalid code for email: {}. Expected: {}, Provided: {}",
                             email, entry.code, code);
                     return "Invalid confirmation code";

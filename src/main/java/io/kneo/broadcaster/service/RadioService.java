@@ -189,15 +189,31 @@ public class RadioService {
     }
 
     public Uni<SubmissionDTO> submit(String brandName, SubmissionDTO dto, String ipHeader, String userAgent) {
+        return submit(brandName, dto, ipHeader, userAgent, null);
+    }
+
+    public Uni<SubmissionDTO> submit(String brandName, SubmissionDTO dto, String ipHeader, String userAgent, IUser user) {
         return brandService.getBySlugName(brandName)
-                .chain(brand -> registerContributor(dto.getEmail(), brandName)
-                        .chain(u -> {
-                            String[] ip = GeolocationService.parseIPHeader(ipHeader);
-                            dto.setIpAddress(ip[0]);
-                            dto.setCountry(CountryCode.valueOf(ip[1]));
-                            dto.setUserAgent(userAgent);
-                            return processSubmission(brand, dto, u);
-                        }));
+                .chain(brand -> {
+                    if (user != null && user.getId() != AnonymousUser.ID) {
+                        // Use authenticated user
+                        String[] ip = GeolocationService.parseIPHeader(ipHeader);
+                        dto.setIpAddress(ip[0]);
+                        dto.setCountry(CountryCode.valueOf(ip[1]));
+                        dto.setUserAgent(userAgent);
+                        return processSubmission(brand, dto, user);
+                    } else {
+                        // Register as contributor
+                        return registerContributor(dto.getEmail(), brandName)
+                                .chain(u -> {
+                                    String[] ip = GeolocationService.parseIPHeader(ipHeader);
+                                    dto.setIpAddress(ip[0]);
+                                    dto.setCountry(CountryCode.valueOf(ip[1]));
+                                    dto.setUserAgent(userAgent);
+                                    return processSubmission(brand, dto, u);
+                                });
+                    }
+                });
     }
 
     private Uni<IUser> registerContributor(String email, String stationSlug) {

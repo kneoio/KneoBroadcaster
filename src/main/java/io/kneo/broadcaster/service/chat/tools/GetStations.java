@@ -22,7 +22,7 @@ public class GetStations {
 
         return Tool.builder()
                 .name("get_stations")
-                .description("Get a list of available radio stations")
+                .description("Get a list of available radio stations with their online/offline status")
                 .inputSchema(schema)
                 .build();
     }

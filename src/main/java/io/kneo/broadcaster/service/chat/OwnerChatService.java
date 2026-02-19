@@ -13,8 +13,6 @@ import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
 import io.kneo.broadcaster.service.chat.tools.AudienceTool;
 import io.kneo.broadcaster.service.chat.tools.AudienceToolHandler;
-import io.kneo.broadcaster.service.chat.tools.GetOnlineStations;
-import io.kneo.broadcaster.service.chat.tools.GetOnlineStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
@@ -61,7 +59,6 @@ public class OwnerChatService extends ChatService {
     protected List<Tool> getAvailableTools() {
         return List.of(
                 GetStations.toTool(),
-                GetOnlineStations.toTool(),
                 SearchBrandSoundFragments.toTool(),
                 AddToQueueTool.toTool(),
                 RadioStationControlTool.toTool(),
@@ -101,10 +98,6 @@ public class OwnerChatService extends ChatService {
         if ("get_stations".equals(toolUse.name())) {
             return GetStationsToolHandler.handle(
                     toolUse, inputMap, aiHelperService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
-            );
-        } else if ("get_online_stations".equals(toolUse.name())) {
-            return GetOnlineStationsToolHandler.handle(
-                    toolUse, waiter, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else if ("search_brand_sound_fragments".equals(toolUse.name())) {
             return SearchBrandSoundFragmentsToolHandler.handle(

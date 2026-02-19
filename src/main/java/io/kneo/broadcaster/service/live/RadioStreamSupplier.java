@@ -251,8 +251,8 @@ public class RadioStreamSupplier extends StreamSupplier {
                                     finalSelectedPrompt.getTitle()
                             ))
                             .onFailure().recoverWithItem(() -> {
-                                LOGGER.error("Failed to create draft for song '{}' (ID: {}). Skipping this item.",
-                                        song.getTitle(), song.getId());
+                                LOGGER.error("Failed to create draft '{}' for song '{}' (ID: {}). Skipping this item.",
+                                        finalSelectedPrompt.getDraftId(), song.getTitle(), song.getId());
                                 messageSink.add(
                                         stream.getSlugName(),
                                         AiDjStatsDTO.MessageType.ERROR,

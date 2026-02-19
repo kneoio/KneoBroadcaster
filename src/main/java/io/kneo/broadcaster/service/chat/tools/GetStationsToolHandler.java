@@ -39,11 +39,17 @@ public class GetStationsToolHandler extends BaseToolHandler {
                     
                     JsonArray stationsJson = new JsonArray();
                     stationsData.getRadioStations().forEach(station -> {
+                        boolean isOnline = station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.ON_LINE ||
+                                         station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.WARMING_UP ||
+                                         station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.QUEUE_SATURATED ||
+                                         station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.IDLE;
+                        
                         JsonObject stationObj = new JsonObject()
                                 .put("name", station.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))
                                 .put("slugName", station.getSlugName())
                                 .put("country", station.getCountry())
-                                .put("status", station.getStreamStatus().toString());
+                                .put("status", station.getStreamStatus().toString())
+                                .put("is_online", isOnline);
                         stationsJson.add(stationObj);
                     });
 

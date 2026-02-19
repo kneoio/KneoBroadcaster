@@ -250,13 +250,14 @@ public class RadioStreamSupplier extends StreamSupplier {
                                     finalSelectedPrompt.isPodcast(),
                                     finalSelectedPrompt.getTitle()
                             ))
-                            .onFailure().recoverWithItem(() -> {
-                                LOGGER.error("Failed to create draft '{}' for song '{}' (ID: {}). Skipping this item.",
-                                        finalSelectedPrompt.getDraftId(), song.getTitle(), song.getId());
+                            .onFailure().recoverWithItem(throwable -> {
+                                LOGGER.error("Failed to create draft '{}' for song '{}' (ID: {}). Error: {} - {}. Skipping this item.",
+                                        finalSelectedPrompt.getDraftId(), song.getTitle(), song.getId(),
+                                        throwable.getClass().getSimpleName(), throwable.getMessage(), throwable);
                                 messageSink.add(
                                         stream.getSlugName(),
                                         AiDjStatsDTO.MessageType.ERROR,
-                                        String.format("Failed to create draft for song '%s'", song.getTitle())
+                                        String.format("Failed to create draft for song '%s': %s", song.getTitle(), throwable.getMessage())
                                 );
                                 return null;
                             });

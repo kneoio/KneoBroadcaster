@@ -38,7 +38,23 @@ public class GroovyTemplateEngine {
             return String.valueOf(engine.eval(script, bindings));
         } catch (Exception e) {
             String msg = e.getClass().getName() + ": " + (e.getMessage() == null ? "" : e.getMessage());
-            throw new RuntimeException("Failed to evaluate Groovy script: " + msg, e);
+            
+            // Log script context for debugging
+            StringBuilder contextInfo = new StringBuilder();
+            if (context != null) {
+                contextInfo.append("Context variables: ");
+                context.keySet().forEach(key -> {
+                    Object value = context.get(key);
+                    String valueStr = value != null ? value.getClass().getSimpleName() : "null";
+                    contextInfo.append(key).append("=").append(valueStr).append(", ");
+                });
+                if (contextInfo.length() > 2) {
+                    contextInfo.setLength(contextInfo.length() - 2); // Remove trailing comma
+                }
+            }
+            
+            String errorMsg = String.format("Failed to evaluate Groovy script '%s': %s. %s", draftSlug, msg, contextInfo);
+            throw new RuntimeException(errorMsg, e);
         }
     }
 }

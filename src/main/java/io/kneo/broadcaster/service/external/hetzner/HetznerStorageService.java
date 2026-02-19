@@ -11,8 +11,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -21,6 +23,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.net.URI;
 import java.nio.file.Paths;
+import java.time.Duration;
 
 @ApplicationScoped
 public class HetznerStorageService {
@@ -39,12 +42,26 @@ public class HetznerStorageService {
         String endpointUrl = "https://" + hetznerConfig.getEndpoint();
         LOGGER.info("Initializing Hetzner S3 client with endpoint: {}, bucket: {}", 
                 endpointUrl, hetznerConfig.getBucketName());
+        
+        software.amazon.awssdk.http.SdkHttpClient httpClient = ApacheHttpClient.builder()
+                .connectionTimeout(Duration.ofSeconds(30))
+                .socketTimeout(Duration.ofSeconds(60))
+                .connectionAcquisitionTimeout(Duration.ofSeconds(30))
+                .build();
+        
+        ClientOverrideConfiguration overrideConfig = ClientOverrideConfiguration.builder()
+                .apiCallTimeout(Duration.ofMinutes(2))
+                .apiCallAttemptTimeout(Duration.ofSeconds(90))
+                .build();
+        
         this.s3Client = S3Client.builder()
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(hetznerConfig.getAccessKey(), hetznerConfig.getSecretKey())
                 ))
                 .region(Region.EU_CENTRAL_1)
                 .endpointOverride(URI.create(endpointUrl))
+                .httpClient(httpClient)
+                .overrideConfiguration(overrideConfig)
                 .forcePathStyle(true)
                 .build();
     }

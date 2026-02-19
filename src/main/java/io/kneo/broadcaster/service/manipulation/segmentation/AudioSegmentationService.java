@@ -138,14 +138,14 @@ public class AudioSegmentationService {
             int activeThreads = Thread.activeCount();
             //LOGGER.warn("Pre-FFmpeg spawn: usedMem={}MB, activeThreads={}, ffmpegBin={}, file={}",usedMem, activeThreads, ffmpeg.getFFmpeg().getPath(), audioFilePath);
 
-            try {
-                if (!System.getProperty("os.name").toLowerCase().contains("windows")) {
-                    try {
-                        String procs = new String(Runtime.getRuntime().exec("ps -e | wc -l").getInputStream().readAllBytes()).trim();
-                        LOGGER.warn("System processes count before spawn: {}", procs);
-                    } catch (Exception ignore) {}
-                }
-            } catch (Exception ignore) {}
+            //try {
+                //if (!System.getProperty("os.name").toLowerCase().contains("windows")) {
+                    //try {
+                        //String procs = new String(Runtime.getRuntime().exec("ps -e | wc -l").getInputStream().readAllBytes()).trim();
+                        //LOGGER.warn("System processes count before spawn: {}", procs);
+                    //} catch (Exception ignore) {}
+                //}
+            //} catch (Exception ignore) {}
 
             //LOGGER.info("FFmpeg multi-bitrate segmentation command: {}", builder.toString());
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());

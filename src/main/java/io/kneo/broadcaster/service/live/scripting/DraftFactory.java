@@ -234,9 +234,13 @@ public class DraftFactory {
         if (overriddenProfile != null) {
             if (!overriddenProfile.getName().isEmpty()) {
                 data.put("profileName", overriddenProfile.getName());
+            } else {
+                data.put("profileName", profile.getName());
             }
             if (!overriddenProfile.getDescription().trim().isEmpty()) {
                 data.put("profileDescription", overriddenProfile.getDescription());
+            } else {
+                data.put("profileDescription", profile.getDescription());
             }
         } else {
             data.put("profileName", profile.getName());

@@ -34,16 +34,6 @@ public class RadioStationControlToolHandler extends BaseToolHandler {
         String brand = inputMap.getOrDefault("brand", JsonValue.from("")).toString();
         String action = inputMap.getOrDefault("action", JsonValue.from("")).toString();
 
-        if (brand.isEmpty()) {
-            handler.sendBotChunk(chunkHandler, connectionId, "bot", "Station brand is required to control a station.");
-            return Uni.createFrom().voidItem();
-        }
-
-        if (action.isEmpty()) {
-            handler.sendBotChunk(chunkHandler, connectionId, "bot", "Action is required: 'start' or 'stop'.");
-            return Uni.createFrom().voidItem();
-        }
-
         if (!action.equals("start") && !action.equals("stop")) {
             handler.sendBotChunk(chunkHandler, connectionId, "bot", "Invalid action. Must be 'start' or 'stop'.");
             return Uni.createFrom().voidItem();

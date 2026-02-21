@@ -163,6 +163,11 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
         return repository.getFileBySlugName(soundFragmentId, slugName, user, false);
     }
 
+    public Uni<FileMetadata> getFirstFile(UUID soundFragmentId) {
+        assert repository != null;
+        return repository.getFirstFile(soundFragmentId);
+    }
+
     public Uni<List<BrandSoundFragmentDTO>> getBrandSoundFragments(String brandName, int limit, int offset, SoundFragmentFilterDTO filterDTO, IUser user) {
         assert repository != null;
         assert brandService != null;

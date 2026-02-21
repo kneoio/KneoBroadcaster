@@ -87,8 +87,8 @@ public class GenerateContentToolHandler extends BaseToolHandler {
                                     fragment.setType(PlaylistItemType.NEWS);
                                     PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
 
-                                    return soundFragmentService.getFileBySlugName(
-                                            fragment.getId(), fragment.getSlugName(), SuperUser.build()
+                                    return soundFragmentService.getFirstFile(
+                                            fragment.getId()
                                     ).chain(fileMetadata ->
                                             fileMetadata.materializeFileStream(playlistManager.getTempBaseDir())
                                                     .map(tempFilePath -> fileMetadata)

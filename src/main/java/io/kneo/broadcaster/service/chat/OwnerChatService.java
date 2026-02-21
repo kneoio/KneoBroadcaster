@@ -13,8 +13,12 @@ import io.kneo.broadcaster.service.chat.tools.AddToQueueTool;
 import io.kneo.broadcaster.service.chat.tools.AddToQueueToolHandler;
 import io.kneo.broadcaster.service.chat.tools.AudienceTool;
 import io.kneo.broadcaster.service.chat.tools.AudienceToolHandler;
+import io.kneo.broadcaster.service.chat.tools.GenerateContentTool;
+import io.kneo.broadcaster.service.chat.tools.GenerateContentToolHandler;
 import io.kneo.broadcaster.service.chat.tools.GetStations;
 import io.kneo.broadcaster.service.chat.tools.GetStationsToolHandler;
+import io.kneo.broadcaster.service.chat.tools.ListGeneratorPromptsTool;
+import io.kneo.broadcaster.service.chat.tools.ListGeneratorPromptsToolHandler;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchTool;
 import io.kneo.broadcaster.service.chat.tools.PerplexitySearchToolHandler;
 import io.kneo.broadcaster.service.chat.tools.RadioStationControlTool;
@@ -63,7 +67,9 @@ public class OwnerChatService extends ChatService {
                 AddToQueueTool.toTool(),
                 RadioStationControlTool.toTool(),
                 PerplexitySearchTool.toTool(),
-                AudienceTool.toTool()
+                AudienceTool.toTool(),
+                ListGeneratorPromptsTool.toTool(),
+                GenerateContentTool.toTool()
         );
     }
 
@@ -119,6 +125,14 @@ public class OwnerChatService extends ChatService {
         } else if ("listener".equals(toolUse.name())) {
             return AudienceToolHandler.handle(
                     toolUse, inputMap, listenerService, brandName, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+            );
+        } else if ("list_generator_prompts".equals(toolUse.name())) {
+            return ListGeneratorPromptsToolHandler.handle(
+                    toolUse, inputMap, promptService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+            );
+        } else if ("generate_content".equals(toolUse.name())) {
+            return GenerateContentToolHandler.handle(
+                    toolUse, inputMap, radioStationPool, aiAgentService, generatedNewsService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

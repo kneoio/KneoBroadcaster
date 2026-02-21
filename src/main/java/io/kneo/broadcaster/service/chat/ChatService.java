@@ -22,9 +22,12 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
+import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
+import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
 import io.kneo.broadcaster.service.live.scripting.PerplexitySearchHelper;
+import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.ResourceUtil;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.IUser;
@@ -75,6 +78,12 @@ public abstract class ChatService {
     protected PerplexitySearchHelper perplexitySearchHelper;
     @Inject
     protected ChatSummaryService chatSummaryService;
+    @Inject
+    protected PromptService promptService;
+    @Inject
+    protected GeneratedNewsService generatedNewsService;
+    @Inject
+    protected RadioStationPool radioStationPool;
 
     protected ChatService(BroadcasterConfig config, AiHelperService aiHelperService) {
         if (config != null) {

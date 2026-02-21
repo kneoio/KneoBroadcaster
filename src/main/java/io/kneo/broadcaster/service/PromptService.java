@@ -28,7 +28,7 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
         this.repository = repository;
     }
 
-    public Uni<List<PromptDTO>> getAll(final int limit, final int offset, final IUser user, final PromptFilterDTO filter) {
+    public Uni<List<PromptDTO>> getAllDTO(final int limit, final int offset, final IUser user, final PromptFilterDTO filter) {
         return repository.getAll(limit, offset, false, user, filter)
                 .chain(list -> {
                     if (list.isEmpty()) {
@@ -40,6 +40,10 @@ public class PromptService extends AbstractService<Prompt, PromptDTO> {
                         return Uni.join().all(unis).andFailFast();
                     }
                 });
+    }
+
+    public Uni<List<Prompt>> getAll(final int limit, final int offset, final IUser user, final PromptFilterDTO filter) {
+        return repository.getAll(limit, offset, false, user, filter);
     }
 
     public Uni<Integer> getAllCount(final IUser user, final PromptFilterDTO filter) {

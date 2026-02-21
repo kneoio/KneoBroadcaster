@@ -57,6 +57,9 @@ public class AudioSegmentationService {
 
     private Uni<Map<Long, ConcurrentLinkedQueue<HlsSegment>>> createHlsQueueFromMultipleBitrateSegments(
             Map<Long, List<SegmentInfo>> segmentsByBitrate) {
+        if (segmentsByBitrate.isEmpty()) {
+            return Uni.createFrom().item(new ConcurrentHashMap<>());
+        }
         return Uni.createFrom().item(() -> {
             Map<Long, ConcurrentLinkedQueue<HlsSegment>> resultMap = new ConcurrentHashMap<>();
             List<Uni<Void>> tasks = segmentsByBitrate.entrySet().stream()
@@ -127,7 +130,6 @@ public class AudioSegmentationService {
                         .addExtraArgs("-metadata", "artist=" + songMetadata.getArtist())
                         .addExtraArgs("-af", "dynaudnorm,acompressor")
                         .addExtraArgs("-threads", "0")
-                        .addExtraArgs("-preset", "ultrafast")
                         .addExtraArgs("-aac_coder", "twoloop")
                         .addExtraArgs("-nostdin")
                         .addExtraArgs("-vn")
@@ -147,7 +149,6 @@ public class AudioSegmentationService {
                 //}
             //} catch (Exception ignore) {}
 
-            //LOGGER.info("FFmpeg multi-bitrate segmentation command: {}", builder.toString());
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg.getFFmpeg());
             executor.createJob(builder).run();
 

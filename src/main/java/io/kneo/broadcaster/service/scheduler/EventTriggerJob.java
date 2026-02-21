@@ -43,7 +43,7 @@ public class EventTriggerJob {
         eventRepository.findActiveScheduled()
                 .subscribe().with(
                         events -> processEvents(events, now),
-                        error -> LOGGER.error("Failed to fetch scheduled events", error)
+                        error -> LOGGER.error("Failed to fetch scheduled events from PostgreSQL database at localhost:5432. Check if PostgreSQL is running and accessible. Operation: findActiveScheduled(), Timestamp: {}", now, error)
                 );
     }
 

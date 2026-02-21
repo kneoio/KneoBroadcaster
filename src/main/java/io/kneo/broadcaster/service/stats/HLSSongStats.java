@@ -1,4 +1,4 @@
-package io.kneo.broadcaster.service.stream;
+package io.kneo.broadcaster.service.stats;
 
 import io.kneo.broadcaster.model.live.SongMetadata;
 

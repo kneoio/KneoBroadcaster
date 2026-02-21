@@ -6,7 +6,7 @@ import io.kneo.broadcaster.model.cnst.SceneStatus;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stats.PlaylistManagerStats;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
-import io.kneo.broadcaster.service.stream.HLSSongStats;
+import io.kneo.broadcaster.service.stats.HLSSongStats;
 import lombok.Getter;
 import lombok.Setter;
 

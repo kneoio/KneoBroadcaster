@@ -199,9 +199,9 @@ public class StreamManager implements IStreamManager {
         String slug = stream.getSlugName();
         long maxRate = stream.getBitRate();
         long halfRate = maxRate / 2;
-        master.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(maxRate * 1000).append("\n");
+        master.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(maxRate).append("\n");
         master.append("/").append(slug).append("/radio/stream.m3u8?bitrate=").append(maxRate).append("\n");
-        master.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(halfRate * 1000).append("\n");
+        master.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(halfRate).append("\n");
         master.append("/").append(slug).append("/radio/stream.m3u8?bitrate=").append(halfRate).append("\n");
         return master.toString();
     }

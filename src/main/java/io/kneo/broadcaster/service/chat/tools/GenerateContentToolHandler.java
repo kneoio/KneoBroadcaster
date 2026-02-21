@@ -13,6 +13,7 @@ import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
+import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.core.localization.LanguageCode;
 import io.kneo.core.model.user.SuperUser;
@@ -41,6 +42,7 @@ public class GenerateContentToolHandler extends BaseToolHandler {
             RadioStationPool radioStationPool,
             AiAgentService aiAgentService,
             GeneratedNewsService generatedNewsService,
+            SoundFragmentService soundFragmentService,
             Consumer<String> chunkHandler,
             String connectionId,
             List<MessageParam> conversationHistory,
@@ -79,19 +81,28 @@ public class GenerateContentToolHandler extends BaseToolHandler {
                                 return generatedNewsService.generateFragment(
                                         promptId, agent, stream, stream.getMasterBrand().getId(),
                                         syntheticScene, agent.getPreferredLang().getFirst().getLanguageTag()
-                                ).flatMap(fragment -> {
+                                ).chain(fragment -> {
                                     handler.sendProcessingChunk(chunkHandler, connectionId, "Content generated, queueing to air...");
 
-                                    PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
                                     fragment.setType(PlaylistItemType.NEWS);
+                                    PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
 
-                                    AddToQueueDTO queueDTO = new AddToQueueDTO();
-                                    queueDTO.setPriority(finalPriority);
-                                    queueDTO.setMergingMethod(MergingType.NOT_MIXED);
+                                    return soundFragmentService.getFileBySlugName(
+                                            fragment.getId(), fragment.getSlugName(), SuperUser.build()
+                                    ).chain(fileMetadata ->
+                                            fileMetadata.materializeFileStream(playlistManager.getTempBaseDir())
+                                                    .map(tempFilePath -> fileMetadata)
+                                    ).chain(materializedMetadata -> {
+                                        fragment.setFileMetadataList(List.of(materializedMetadata));
 
-                                    return playlistManager.addFragmentToSlice(
-                                            fragment, finalPriority, stream.getBitRate(), queueDTO
-                                    );
+                                        AddToQueueDTO queueDTO = new AddToQueueDTO();
+                                        queueDTO.setPriority(finalPriority);
+                                        queueDTO.setMergingMethod(MergingType.NOT_MIXED);
+
+                                        return playlistManager.addFragmentToSlice(
+                                                fragment, finalPriority, stream.getBitRate(), queueDTO
+                                        );
+                                    });
                                 });
                             });
                 })

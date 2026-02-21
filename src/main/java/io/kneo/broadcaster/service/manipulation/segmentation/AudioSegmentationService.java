@@ -130,6 +130,7 @@ public class AudioSegmentationService {
                         .addExtraArgs("-metadata", "artist=" + songMetadata.getArtist())
                         .addExtraArgs("-af", "dynaudnorm,acompressor")
                         .addExtraArgs("-threads", "0")
+                        .addExtraArgs("-preset", "ultrafast")
                         .addExtraArgs("-aac_coder", "twoloop")
                         .addExtraArgs("-nostdin")
                         .addExtraArgs("-vn")

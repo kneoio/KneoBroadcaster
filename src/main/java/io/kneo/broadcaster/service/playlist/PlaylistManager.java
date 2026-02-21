@@ -86,6 +86,7 @@ public class PlaylistManager {
     private final ISupplier songSupplier;
     private final BrandSoundFragmentUpdateService brandSoundFragmentUpdateService;
     private final IStream stream;
+    @Getter
     private final String tempBaseDir;
     private volatile long lastStarvingFeedTime = 0;
     private final int segmentDuration;

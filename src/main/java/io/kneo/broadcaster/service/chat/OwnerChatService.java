@@ -132,7 +132,7 @@ public class OwnerChatService extends ChatService {
             );
         } else if ("generate_content".equals(toolUse.name())) {
             return GenerateContentToolHandler.handle(
-                    toolUse, inputMap, radioStationPool, aiAgentService, generatedNewsService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
+                    toolUse, inputMap, radioStationPool, aiAgentService, generatedNewsService, soundFragmentService, chunkHandler, connectionId, conversationHistory, followUpPrompt, streamFn
             );
         } else {
             return Uni.createFrom().failure(new IllegalArgumentException("Unknown tool: " + toolUse.name()));

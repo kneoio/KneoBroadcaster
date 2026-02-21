@@ -12,7 +12,6 @@ import io.kneo.broadcaster.agent.ModelslabClient;
 import io.kneo.broadcaster.agent.TextToSpeechClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.SoundFragmentDTO;
-import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.TTSEngineType;
@@ -333,12 +332,6 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         fragment.setLength(savedDto.getLength());
                         fragment.setDescription(savedDto.getDescription());
                         fragment.setSlugName(savedDto.getSlugName());
-
-                        FileMetadata fileMetadata = new FileMetadata();
-                        fileMetadata.setTemporaryFilePath(targetPath);
-                        fileMetadata.setSlugName(savedDto.getSlugName());
-                        fileMetadata.setFileOriginalName(audioFilePath.getFileName().toString());
-                        fragment.setFileMetadataList(List.of(fileMetadata));
 
                         PendingSongEntry entry = new PendingSongEntry(fragment, activeEntry.getScheduledStartTime());
                         activeEntry.addSong(entry);

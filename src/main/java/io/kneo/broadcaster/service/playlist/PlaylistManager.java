@@ -231,7 +231,7 @@ public class PlaylistManager {
 
             }
 
-            return segmentationService.slice(songMetadata, metadata.getTemporaryFilePath(), List.of(maxRate))
+            return segmentationService.slice(songMetadata, metadata.getTemporaryFilePath(), List.of(maxRate, maxRate / 2))
                     .onItem().transformToUni(segments -> {
                         if (segments.isEmpty()) {
                             LOGGER.warn("Slicing from metadata {} set in zero segments.", metadata.getFileKey());
@@ -293,7 +293,7 @@ public class PlaylistManager {
         liveSoundFragment.setSoundFragmentId(soundFragment.getId());
         liveSoundFragment.setMetadata(songMetadata);
         liveSoundFragment.setSourceFilePath(materializedMetadata.getTemporaryFilePath());
-        return segmentationService.slice(songMetadata, materializedMetadata.getTemporaryFilePath(), List.of(maxRate))
+        return segmentationService.slice(songMetadata, materializedMetadata.getTemporaryFilePath(), List.of(maxRate, maxRate / 2))
                 .onItem().transformToUni(segments -> {
                     if (segments.isEmpty()) {
                         LOGGER.warn("Slicing from metadata {} resulted in zero segments.", materializedMetadata.getFileKey());
@@ -398,7 +398,7 @@ public class PlaylistManager {
             resourceStream.close();
 
             SongMetadata waitingMetadata = new SongMetadata(getNextWaitingMessage(), "");
-            segmentationService.slice(waitingMetadata, tempWaitingFile, List.of(stream.getBitRate()))
+            segmentationService.slice(waitingMetadata, tempWaitingFile, List.of(stream.getBitRate(), stream.getBitRate() / 2))
                     .subscribe().with(
                             segments -> {
                                 if (segments.isEmpty()) {

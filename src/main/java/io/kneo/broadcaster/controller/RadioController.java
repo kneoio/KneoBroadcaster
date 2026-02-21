@@ -86,6 +86,7 @@ public class RadioController {
                 .setHandleFileUploads(false)
                 .setBodyLimit(BODY_HANDLER_LIMIT);
 
+        router.route(HttpMethod.GET, path + "/master.m3u8").handler(this::getMasterPlaylist);
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);   //used by Mixpla
@@ -225,6 +226,25 @@ public class RadioController {
                 );
     }
 
+    private void getMasterPlaylist(RoutingContext rc) {
+        String brand = rc.pathParam("brand").toLowerCase();
+        service.getStreamManager(brand)
+                .onItem().transform(IStreamManager::generateMasterPlaylist)
+                .subscribe().with(
+                        content -> rc.response()
+                                .putHeader("Content-Type", "application/vnd.apple.mpegurl")
+                                .putHeader("Cache-Control", "no-cache")
+                                .end(content),
+                        throwable -> {
+                            if (throwable instanceof RadioStationException) {
+                                rc.response().setStatusCode(404).end(throwable.getMessage());
+                            } else {
+                                rc.fail(throwable);
+                            }
+                        }
+                );
+    }
+
     private void getPlaylist(RoutingContext rc) {
         String brand = rc.pathParam("brand").toLowerCase();
         String userAgent = rc.request().getHeader("User-Agent");
@@ -254,7 +274,7 @@ public class RadioController {
                                     });
                         })
                 )
-                .onItem().transform(IStreamManager::generatePlaylist)
+                .onItem().transform(manager -> manager.generatePlaylist(rc.request().getParam("bitrate")))
                 .subscribe().with(
                         playlistContent -> {
                             rc.response()

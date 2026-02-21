@@ -9,7 +9,9 @@ public interface IStreamManager {
 
     void initialize(IStream stream);
 
-    String generatePlaylist();
+    String generatePlaylist(String clientId);
+
+    String generateMasterPlaylist();
 
     HlsSegment getSegment(String segmentParam);
 

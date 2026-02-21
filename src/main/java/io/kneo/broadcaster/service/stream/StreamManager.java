@@ -21,10 +21,13 @@ import org.slf4j.LoggerFactory;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,11 +38,11 @@ import java.util.regex.Pattern;
 public class StreamManager implements IStreamManager {
     private static final ZoneId ZONE_ID = ZoneId.of("Europe/Lisbon");
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamManager.class);
-    private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)\\.ts$");
+    private static final Pattern SEGMENT_PATTERN = Pattern.compile("([^_]+)_([0-9]+)_([0-9]+)\\.ts$");
 
-    private final ConcurrentSkipListMap<Long, HlsSegment> liveSegments = new ConcurrentSkipListMap<>();
+    private final ConcurrentSkipListMap<Long, Map<Long, HlsSegment>> liveSegments = new ConcurrentSkipListMap<>();
     private final AtomicLong currentSequence = new AtomicLong(0);
-    private final Queue<HlsSegment> pendingFragmentSegmentsQueue = new LinkedList<>();
+    private final Queue<Map<Long, HlsSegment>> pendingFragmentSegmentsQueue = new LinkedList<>();
     private static final int SEGMENTS_TO_DRIP_PER_FEED_CALL = 1;
 
     @Getter
@@ -57,12 +60,13 @@ public class StreamManager implements IStreamManager {
     private final SegmentFeederTimer segmentFeederTimer;
     private final SliderTimer sliderTimer;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final BrandSoundFragmentUpdateService updateService;
 
-    private final int maxVisibleSegments = 20; //was 10
-    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 10; //was 5
+    private final int maxVisibleSegments = 20;
+    private static final int PENDING_QUEUE_REFILL_THRESHOLD = 10;
 
     private final Map<String, Cancellable> timerSubscriptions = new ConcurrentHashMap<>();
-    private final BrandSoundFragmentUpdateService updateService;
+    private final Map<String, Long> clientBitrate = new ConcurrentHashMap<>();
     private final Object fragmentRetrievalLock = new Object();
     private final AiHelperService aiHelperService;
 
@@ -130,9 +134,9 @@ public class StreamManager implements IStreamManager {
                             stream.getSlugName(), liveSegments.size(), maxVisibleSegments * 2);
                     break;
                 }
-                HlsSegment segmentToMakeLive = pendingFragmentSegmentsQueue.poll();
-                liveSegments.put(segmentToMakeLive.getSequence(), segmentToMakeLive);
-
+                Map<Long, HlsSegment> bitrateSlot = pendingFragmentSegmentsQueue.poll();
+                long seq = bitrateSlot.values().iterator().next().getSequence();
+                liveSegments.put(seq, bitrateSlot);
             }
         }
 
@@ -141,26 +145,40 @@ public class StreamManager implements IStreamManager {
                 synchronized (fragmentRetrievalLock) {
                     LiveSoundFragment fragment = playlistManager.getNextFragment();
                     if (fragment != null && !fragment.getSegments().isEmpty()) {
-                        final long[] firstSeqInBatch = {-1L};
-                        final long[] lastSeqInBatch = {-1L};
-
+                        Map<Long, ConcurrentLinkedQueue<HlsSegment>> segmentsByBitrate = fragment.getSegments();
+                        long maxBitrate = stream.getBitRate();
+                        ConcurrentLinkedQueue<HlsSegment> maxBitrateQueue = segmentsByBitrate.get(maxBitrate);
+                        if (maxBitrateQueue == null || maxBitrateQueue.isEmpty()) {
+                            return;
+                        }
+                        int segmentCount = maxBitrateQueue.size();
+                        Map<Long, HlsSegment[]> bitrateArrays = new HashMap<>();
+                        for (Map.Entry<Long, ConcurrentLinkedQueue<HlsSegment>> entry : segmentsByBitrate.entrySet()) {
+                            bitrateArrays.put(entry.getKey(), entry.getValue().toArray(new HlsSegment[0]));
+                        }
                         boolean isFirst = true;
-                        for (HlsSegment segment : fragment.getSegments().get(stream.getBitRate())) {
+                        for (int i = 0; i < segmentCount; i++) {
                             long seq = currentSequence.getAndIncrement();
-                            if (firstSeqInBatch[0] == -1L) {
-                                firstSeqInBatch[0] = seq;
+                            Map<Long, HlsSegment> bitrateSlot = new HashMap<>();
+                            for (Map.Entry<Long, HlsSegment[]> entry : bitrateArrays.entrySet()) {
+                                HlsSegment[] arr = entry.getValue();
+                                if (i < arr.length) {
+                                    HlsSegment seg = arr[i];
+                                    seg.setSequence(seq);
+                                    seg.setLiveSoundFragment(fragment);
+                                    seg.setFirstSegmentOfFragment(isFirst);
+                                    bitrateSlot.put(entry.getKey(), seg);
+                                }
                             }
-                            lastSeqInBatch[0] = seq;
-                            segment.setSequence(seq);
-                            segment.setLiveSoundFragment(fragment);
-                            segment.setFirstSegmentOfFragment(isFirst);
-                            pendingFragmentSegmentsQueue.offer(segment);
+                            if (!bitrateSlot.isEmpty()) {
+                                pendingFragmentSegmentsQueue.offer(bitrateSlot);
+                            }
                             isFirst = false;
                         }
                     }
                 }
             } catch (Exception e) {
-                // Error handling
+                LOGGER.error("Error in feedSegments for {}: {}", stream.getSlugName(), e.getMessage(), e);
             }
         }
     }
@@ -169,29 +187,37 @@ public class StreamManager implements IStreamManager {
         if (liveSegments.isEmpty()) {
             return;
         }
-      /*  System.out.printf("slideWindow Debug: Checking window for %s. Current segments in liveSegments: %d, Max visible in playlist: %d%n",
-                radioStation.getSlugName(), liveSegments.size(), maxVisibleSegments);*/
-        int removedCount = 0;
         while (liveSegments.size() > maxVisibleSegments) {
-            long removedKey = liveSegments.firstKey();
             liveSegments.pollFirstEntry();
-            removedCount++;
-           /* System.out.printf("slideWindow Debug: Removed segment for %s with sequence %d. liveSegments now: %d%n",
-                    radioStation.getSlugName(), removedKey, liveSegments.size());*/
-        }
-        if (removedCount > 0) {
-           /* System.out.printf("slideWindow Debug: Finished sliding for %s. Removed %d segment(s). liveSegments now: %d. First key in liveSegments: %s%n",
-                    radioStation.getSlugName(), removedCount, liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());*/
-        } else {
-          /*  System.out.printf("slideWindow Debug: No segments needed removal for %s during this pass. liveSegments size: %d. First key: %s%n",
-                    radioStation.getSlugName(), liveSegments.size(), liveSegments.isEmpty() ? "N/A" : liveSegments.firstKey());*/
         }
     }
 
     @Override
-    public String generatePlaylist() {
+    public String generateMasterPlaylist() {
+        StringBuilder master = new StringBuilder();
+        master.append("#EXTM3U\n");
+        String slug = stream.getSlugName();
+        long maxRate = stream.getBitRate();
+        long halfRate = maxRate / 2;
+        master.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(maxRate * 1000).append("\n");
+        master.append("/").append(slug).append("/radio/stream.m3u8?bitrate=").append(maxRate).append("\n");
+        master.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(halfRate * 1000).append("\n");
+        master.append("/").append(slug).append("/radio/stream.m3u8?bitrate=").append(halfRate).append("\n");
+        return master.toString();
+    }
+
+    @Override
+    public String generatePlaylist(String clientId) {
+        long requestedBitrate = stream.getBitRate();
+        if (clientId != null) {
+            try {
+                requestedBitrate = Long.parseLong(clientId);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        clientBitrate.put(clientId != null ? clientId : "default", requestedBitrate);
+
         if (liveSegments.isEmpty()) {
-            //System.out.printf("generatePlaylist Debug: Playlist for %s: MEDIA-SEQUENCE=0, Segments=[] (Live segments empty)%n", radioSlugForDebug);
             return "#EXTM3U\n" +
                     "#EXT-X-VERSION:3\n" +
                     "#EXT-X-ALLOW-CACHE:NO\n" +
@@ -199,6 +225,7 @@ public class StreamManager implements IStreamManager {
                     "#EXT-X-MEDIA-SEQUENCE:0\n";
         }
 
+        final long bitrate = requestedBitrate;
         StringBuilder playlist = new StringBuilder();
         playlist.append("#EXTM3U\n")
                 .append("#EXT-X-VERSION:3\n")
@@ -212,21 +239,25 @@ public class StreamManager implements IStreamManager {
                 .append(ZonedDateTime.now(ZONE_ID).format(DateTimeFormatter.ISO_INSTANT))
                 .append("\n");
 
-        String currentRadioSlugForPath = (this.stream != null && this.stream.getSlugName() != null)
+        String slug = (this.stream != null && this.stream.getSlugName() != null)
                 ? this.stream.getSlugName() : "default_station_path";
-
 
         liveSegments.tailMap(firstSequenceInWindow).entrySet().stream()
                 .limit(maxVisibleSegments)
                 .forEach(entry -> {
-                    HlsSegment segment = entry.getValue();
+                    Map<Long, HlsSegment> bitrateSlot = entry.getValue();
+                    HlsSegment segment = bitrateSlot.containsKey(bitrate)
+                            ? bitrateSlot.get(bitrate)
+                            : bitrateSlot.values().iterator().next();
                     playlist.append("#EXTINF:")
                             .append(segment.getDuration())
                             .append(",")
                             .append(segment.getSongMetadata().toString())
                             .append("\n")
                             .append("segments/")
-                            .append(currentRadioSlugForPath)
+                            .append(slug)
+                            .append("_")
+                            .append(bitrate)
                             .append("_")
                             .append(segment.getSequence())
                             .append(".ts\n");
@@ -237,7 +268,9 @@ public class StreamManager implements IStreamManager {
 
     @Override
     public HlsSegment getSegment(long sequence) {
-        return liveSegments.get(sequence);
+        Map<Long, HlsSegment> bitrateSlot = liveSegments.get(sequence);
+        if (bitrateSlot == null) return null;
+        return bitrateSlot.get(stream.getBitRate());
     }
 
     @Override
@@ -248,11 +281,16 @@ public class StreamManager implements IStreamManager {
                 LOGGER.warn("Segment '{}' doesn't match expected pattern: {}", segmentParam, SEGMENT_PATTERN.pattern());
                 return null;
             }
-            long segmentSequence = Long.parseLong(matcher.group(2));
-            HlsSegment segment = liveSegments.get(segmentSequence);
-
+            long bitrate = Long.parseLong(matcher.group(2));
+            long sequence = Long.parseLong(matcher.group(3));
+            Map<Long, HlsSegment> bitrateSlot = liveSegments.get(sequence);
+            if (bitrateSlot == null) {
+                LOGGER.debug("Segment sequence {} not found in liveSegments", sequence);
+                return null;
+            }
+            HlsSegment segment = bitrateSlot.get(bitrate);
             if (segment == null) {
-                LOGGER.debug("Segment {} not found in liveSegments", segmentSequence);
+                LOGGER.debug("Bitrate {} not found for sequence {}", bitrate, sequence);
             }
             return segment;
         } catch (Exception e) {
@@ -261,24 +299,25 @@ public class StreamManager implements IStreamManager {
         }
     }
 
-
     @Override
     public StreamManagerStats getStats() {
-        return new StreamManagerStats(
-                Map.copyOf(liveSegments),
-                getSegmentHeartbeat()
-        );
+        Map<Long, HlsSegment> flatView = new LinkedHashMap<>();
+        liveSegments.forEach((seq, bitrateSlot) -> {
+            HlsSegment seg = bitrateSlot.get(stream.getBitRate());
+            if (seg == null && !bitrateSlot.isEmpty()) seg = bitrateSlot.values().iterator().next();
+            if (seg != null) flatView.put(seq, seg);
+        });
+        return new StreamManagerStats(flatView, getSegmentHeartbeat());
     }
-
 
     @Override
     public void shutdown() {
         LOGGER.info("Shutting down StreamManager for: {}", stream.getSlugName());
-        
+
         if (playlistManager != null) {
             playlistManager.shutdown();
         }
-        
+
         timerSubscriptions.forEach((key, subscription) -> {
             if (subscription != null) {
                 subscription.cancel();
@@ -289,6 +328,7 @@ public class StreamManager implements IStreamManager {
         currentSequence.set(0);
         liveSegments.clear();
         pendingFragmentSegmentsQueue.clear();
+        clientBitrate.clear();
         LOGGER.info("StreamManager for {} has been shut down. All queues cleared.", stream.getSlugName());
         if (stream != null) {
             stream.setStatus(StreamStatus.OFF_LINE);

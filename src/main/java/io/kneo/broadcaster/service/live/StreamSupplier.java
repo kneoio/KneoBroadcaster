@@ -15,8 +15,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -61,41 +59,16 @@ public abstract class StreamSupplier {
         List<ScenePrompt> contentPrompts = liveScene.getContentPrompts();
         UUID promptId = contentPrompts.getFirst().getPromptId();
         
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
-        
-        return soundFragmentService.findByArtistAndDate(promptId.toString(), startOfDay, endOfDay)
-                .flatMap(existingFragment -> {
-                    if (existingFragment != null) {
-                        if (existingFragment.getExpiresAt() != null && existingFragment.getExpiresAt().isBefore(LocalDateTime.now())) {
-                            LOGGER.info("Fragment {} expired at {}, regenerating", existingFragment.getId(), existingFragment.getExpiresAt());
-                            return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
-                        }
-                        LOGGER.info("Reusing existing fragment {} for scene {} (prompt: {})",
-                                existingFragment.getId(), liveScene.getSceneTitle(), promptId);
+        return generatedNewsService.findOrGenerateFragment(promptId, agent, stream, liveScene, airLanguage)
+                .map(fragment -> {
+                    if (liveScene.getGeneratedContentStatus() != GeneratedContentStatus.GENERATED) {
                         liveScene.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
-                        return Uni.createFrom().item(List.of(existingFragment));
                     }
-                    return generateContent(promptId, agent, stream, brandId, liveScene, airLanguage);
-                });
-    }
-
-    private Uni<List<SoundFragment>> generateContent(
-            UUID promptId,
-            AiAgent agent,
-            IStream stream,
-            UUID brandId,
-            LiveScene activeEntry,
-            LanguageTag airLanguage
-    ) {
-        LOGGER.info("Generating new content for scene: {} prompt: {}", activeEntry.getSceneTitle(), promptId);
-        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.PENDING);
-
-        return generatedNewsService.generateFragment(promptId, agent, stream, brandId, activeEntry, airLanguage)
-                .map(List::of)
+                    return List.of(fragment);
+                })
                 .onFailure().recoverWithUni(error -> {
                     LOGGER.error("Failed to generate content for prompt {}", promptId, error);
-                    activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
+                    liveScene.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
                     return Uni.createFrom().item(List.of());
                 });
     }

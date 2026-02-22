@@ -62,7 +62,6 @@ public class StationStatsDTO {
         private String searchInfo;
         private int songsCount;
         private int fetchedSongsCount;
-        private UUID generatedSoundFragmentId;
         private LocalTime actualStartTime;
         private LocalTime actualEndTime;
         private SceneStatus status;

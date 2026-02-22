@@ -21,7 +21,6 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -72,37 +71,16 @@ public class GenerateContentToolHandler extends BaseToolHandler {
                     UUID aiAgentId = stream.getAiAgentId();
                     return aiAgentService.getById(aiAgentId, SuperUser.build(), LanguageCode.en)
                             .flatMap(agent -> {
-                                LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
-                                LocalDateTime endOfDay = startOfDay.plusDays(1);
+                                handler.sendProcessingChunk(chunkHandler, connectionId, "Checking for existing content...");
 
-                                return soundFragmentService.findByArtistAndDate(promptId.toString(), startOfDay, endOfDay)
-                                        .flatMap(existingFragment -> {
-                                            if (existingFragment != null) {
-                                                if (existingFragment.getExpiresAt() != null && 
-                                                    existingFragment.getExpiresAt().isBefore(LocalDateTime.now())) {
-                                                    LOGGER.info("Fragment {} expired, regenerating", existingFragment.getId());
-                                                } else {
-                                                    LOGGER.info("Reusing existing fragment {} for prompt {}", 
-                                                            existingFragment.getId(), promptId);
-                                                    handler.sendProcessingChunk(chunkHandler, connectionId, 
-                                                            "Reusing existing content, queueing to air...");
-                                                    return queueFragmentToAir(existingFragment, stream, finalPriority, 
-                                                            soundFragmentService);
-                                                }
-                                            }
-
-                                            handler.sendProcessingChunk(chunkHandler, connectionId, "Generating audio content...");
-
-                                            return generatedNewsService.generateFragment(
-                                                    promptId, agent, stream, stream.getMasterBrand().getId(),
-                                                    null, agent.getPreferredLang().getFirst().getLanguageTag()
-                                            ).chain(fragment -> {
-                                                handler.sendProcessingChunk(chunkHandler, connectionId, 
-                                                        "Content generated, queueing to air...");
-                                                return queueFragmentToAir(fragment, stream, finalPriority, 
-                                                        soundFragmentService);
-                                            });
-                                        });
+                                return generatedNewsService.findOrGenerateFragment(
+                                        promptId, agent, stream, null, agent.getPreferredLang().getFirst().getLanguageTag()
+                                ).chain(fragment -> {
+                                    handler.sendProcessingChunk(chunkHandler, connectionId, 
+                                            "Content ready, queueing to air...");
+                                    return queueFragmentToAir(fragment, stream, finalPriority, 
+                                            soundFragmentService);
+                                });
                             });
                 })
                 .flatMap(result -> {

@@ -100,14 +100,44 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
     protected abstract Voice getVoice(AiAgent agent);
     protected abstract String getSystemPrompt();
 
+    public Uni<SoundFragment> findOrGenerateFragment(
+            UUID promptId,
+            AiAgent agent,
+            IStream stream,
+            LiveScene activeEntry,
+            LanguageTag airLanguage
+    ) {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+
+        return soundFragmentService.findByArtistAndDate(promptId.toString(), startOfDay, endOfDay)
+                .flatMap(existingFragment -> {
+                    if (existingFragment != null) {
+                        if (existingFragment.getExpiresAt() != null &&
+                                existingFragment.getExpiresAt().isBefore(LocalDateTime.now())) {
+                            LOGGER.info("Fragment {} expired at {}, regenerating", existingFragment.getId(), existingFragment.getExpiresAt());
+                            return generateFragment(promptId, agent, stream, activeEntry, airLanguage);
+                        }
+                        LOGGER.info("Reusing existing fragment {} for prompt {}", existingFragment.getId(), promptId);
+                        if (activeEntry != null) {
+                            LocalDateTime scheduledTime = activeEntry.getScheduledStartTime();
+                            PendingSongEntry entry = new PendingSongEntry(existingFragment, scheduledTime);
+                            activeEntry.addSong(entry);
+                        }
+                        return Uni.createFrom().item(existingFragment);
+                    }
+                    return generateFragment(promptId, agent, stream, activeEntry, airLanguage);
+                });
+    }
+
     public Uni<SoundFragment> generateFragment(
             UUID promptId,
             AiAgent agent,
             IStream stream,
-            UUID brandId,
             LiveScene activeEntry,
             LanguageTag airLanguage
     ) {
+        UUID brandId = stream.getMasterBrand().getId();
         String sceneTitle = activeEntry != null ? activeEntry.getSceneTitle() : "AI Generated";
         LocalDateTime scheduledTime = activeEntry != null ? activeEntry.getScheduledStartTime() : LocalDateTime.now();
         

@@ -97,7 +97,6 @@ public class GeneratedContentTriggerService {
         LOGGER.info("After clearing - Scene '{}' now has {} songs", liveScene.getSceneTitle(), liveScene.getSongs().size());
 
         UUID promptId = prompts.getFirst().getPromptId();
-        UUID brandId = stream.getMasterBrand().getId();
 
         LOGGER.info("Triggering content generation for scene '{}' ({}), prompt: {}",
                 liveScene.getSceneTitle(), sceneId, promptId);
@@ -106,7 +105,7 @@ public class GeneratedContentTriggerService {
                 .chain(agent ->
                 {
                     LanguageTag broadcastingLanguage = AiHelperUtils.selectLanguageByWeight(agent);
-                    return generatedNewsService.generateFragment(promptId, agent, stream, brandId, liveScene, broadcastingLanguage);
+                    return generatedNewsService.generateFragment(promptId, agent, stream, liveScene, broadcastingLanguage);
                 })
                 .onFailure().recoverWithUni(error -> {
                     LOGGER.error("Failed to generate content for scene '{}' ({}), prompt: {}", 

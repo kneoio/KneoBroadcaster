@@ -5,10 +5,9 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
-import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.WayOfSourcing;
-import io.kneo.broadcaster.model.stream.LiveScene;
+import io.kneo.broadcaster.model.soundfragment.SoundFragment;
+import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
@@ -23,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -74,36 +72,37 @@ public class GenerateContentToolHandler extends BaseToolHandler {
                     UUID aiAgentId = stream.getAiAgentId();
                     return aiAgentService.getById(aiAgentId, SuperUser.build(), LanguageCode.en)
                             .flatMap(agent -> {
-                                LiveScene syntheticScene = buildSyntheticScene(promptId);
+                                LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+                                LocalDateTime endOfDay = startOfDay.plusDays(1);
 
-                                handler.sendProcessingChunk(chunkHandler, connectionId, "Generating audio content...");
+                                return soundFragmentService.findByArtistAndDate(promptId.toString(), startOfDay, endOfDay)
+                                        .flatMap(existingFragment -> {
+                                            if (existingFragment != null) {
+                                                if (existingFragment.getExpiresAt() != null && 
+                                                    existingFragment.getExpiresAt().isBefore(LocalDateTime.now())) {
+                                                    LOGGER.info("Fragment {} expired, regenerating", existingFragment.getId());
+                                                } else {
+                                                    LOGGER.info("Reusing existing fragment {} for prompt {}", 
+                                                            existingFragment.getId(), promptId);
+                                                    handler.sendProcessingChunk(chunkHandler, connectionId, 
+                                                            "Reusing existing content, queueing to air...");
+                                                    return queueFragmentToAir(existingFragment, stream, finalPriority, 
+                                                            soundFragmentService);
+                                                }
+                                            }
 
-                                return generatedNewsService.generateFragment(
-                                        promptId, agent, stream, stream.getMasterBrand().getId(),
-                                        syntheticScene, agent.getPreferredLang().getFirst().getLanguageTag()
-                                ).chain(fragment -> {
-                                    handler.sendProcessingChunk(chunkHandler, connectionId, "Content generated, queueing to air...");
+                                            handler.sendProcessingChunk(chunkHandler, connectionId, "Generating audio content...");
 
-                                    fragment.setType(PlaylistItemType.NEWS);
-                                    PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
-
-                                    return soundFragmentService.getFirstFile(
-                                            fragment.getId()
-                                    ).chain(fileMetadata ->
-                                            fileMetadata.materializeFileStream(playlistManager.getTempBaseDir())
-                                                    .map(tempFilePath -> fileMetadata)
-                                    ).chain(materializedMetadata -> {
-                                        fragment.setFileMetadataList(List.of(materializedMetadata));
-
-                                        AddToQueueDTO queueDTO = new AddToQueueDTO();
-                                        queueDTO.setPriority(finalPriority);
-                                        queueDTO.setMergingMethod(MergingType.NOT_MIXED);
-
-                                        return playlistManager.addFragmentToSlice(
-                                                fragment, finalPriority, stream.getBitRate(), queueDTO
-                                        );
-                                    });
-                                });
+                                            return generatedNewsService.generateFragment(
+                                                    promptId, agent, stream, stream.getMasterBrand().getId(),
+                                                    null, agent.getPreferredLang().getFirst().getLanguageTag()
+                                            ).chain(fragment -> {
+                                                handler.sendProcessingChunk(chunkHandler, connectionId, 
+                                                        "Content generated, queueing to air...");
+                                                return queueFragmentToAir(fragment, stream, finalPriority, 
+                                                        soundFragmentService);
+                                            });
+                                        });
                             });
                 })
                 .flatMap(result -> {
@@ -114,7 +113,6 @@ public class GenerateContentToolHandler extends BaseToolHandler {
                             .encode();
 
                     handler.sendProcessingChunk(chunkHandler, connectionId, "Content queued successfully!");
-
                     handler.addToolUseToHistory(toolUse, conversationHistory);
                     handler.addToolResultToHistory(toolUse, resultMessage, conversationHistory);
 
@@ -137,28 +135,29 @@ public class GenerateContentToolHandler extends BaseToolHandler {
                 });
     }
 
-    private static LiveScene buildSyntheticScene(UUID promptId) {
-        ScenePrompt contentPrompt = new ScenePrompt();
-        contentPrompt.setPromptId(promptId);
-        contentPrompt.setActive(true);
+    private static Uni<Boolean> queueFragmentToAir(
+            SoundFragment fragment,
+            IStream stream,
+            int priority,
+            SoundFragmentService soundFragmentService
+    ) {
+        fragment.setType(PlaylistItemType.NEWS);
+        PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();
 
-        return new LiveScene(
-                UUID.randomUUID(),
-                "Agent-Generated Content",
-                LocalDateTime.now(),
-                300,
-                LocalTime.now(),
-                LocalTime.now().plusMinutes(5),
-                WayOfSourcing.GENERATED,
-                null,
-                null,
-                List.of(),
-                List.of(),
-                List.of(PlaylistItemType.NEWS),
-                List.of(),
-                null,
-                List.of(),
-                List.of(contentPrompt)
-        );
+        return soundFragmentService.getFirstFile(fragment.getId())
+                .chain(fileMetadata ->
+                        fileMetadata.materializeFileStream(playlistManager.getTempBaseDir())
+                                .map(tempFilePath -> fileMetadata)
+                ).chain(materializedMetadata -> {
+                    fragment.setFileMetadataList(List.of(materializedMetadata));
+
+                    AddToQueueDTO queueDTO = new AddToQueueDTO();
+                    queueDTO.setPriority(priority);
+                    queueDTO.setMergingMethod(MergingType.NOT_MIXED);
+
+                    return playlistManager.addFragmentToSlice(
+                            fragment, priority, stream.getBitRate(), queueDTO
+                    );
+                });
     }
 }

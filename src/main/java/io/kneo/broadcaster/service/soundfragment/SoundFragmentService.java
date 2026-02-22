@@ -640,4 +640,9 @@ public class SoundFragmentService extends AbstractService<SoundFragment, SoundFr
                     return repository.updateRatedByBrandCount(brandId, soundFragmentId, delta, user);
                 });
     }
+
+    public Uni<SoundFragment> findByArtistAndDate(String artist, java.time.LocalDateTime startOfDay, java.time.LocalDateTime endOfDay) {
+        assert repository != null;
+        return repository.findByArtistAndDate(artist, startOfDay, endOfDay);
+    }
 }

@@ -25,7 +25,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -114,12 +113,6 @@ public class StationDashboardService {
             dto.setEndTime(scene.getOriginalEndTime());
             dto.setSceneId(scene.getSceneId());
             dto.setDayPercentage(scene.getDayPercentage());
-            UUID generatedSoundFragmentId = scene.getGeneratedFragmentId();
-            if (generatedSoundFragmentId != null) {
-                dto.setGeneratedSoundFragmentId(generatedSoundFragmentId);
-            }
-            dto.setGeneratedFragmentId(scene.getGeneratedFragmentId());
-            dto.setGeneratedContentTimestamp(scene.getGeneratedContentTimestamp());
             dto.setGeneratedContentStatus(scene.getGeneratedContentStatus());
 
             if (activeEntry != null) {

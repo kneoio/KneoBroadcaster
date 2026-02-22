@@ -92,8 +92,6 @@ public class GeneratedContentTriggerService {
         }
         
         liveScene.getSongs().clear();
-        liveScene.setGeneratedFragmentId(null);
-        liveScene.setGeneratedContentTimestamp(null);
         liveScene.setGeneratedContentStatus(null);
         
         LOGGER.info("After clearing - Scene '{}' now has {} songs", liveScene.getSceneTitle(), liveScene.getSongs().size());

@@ -32,10 +32,6 @@ public class LiveScene {
     @Setter
     private LocalDateTime actualEndTime;
     @Setter
-    private LocalDateTime generatedContentTimestamp;
-    @Setter
-    private UUID generatedFragmentId;
-    @Setter
     private GeneratedContentStatus generatedContentStatus;
 
     private final WayOfSourcing sourcing;
@@ -58,8 +54,6 @@ public class LiveScene {
         this.songs = new ArrayList<>();
         this.originalStartTime = scene.getStartTime();
         this.originalEndTime = null;
-        this.generatedContentTimestamp = null;
-        this.generatedFragmentId = null;
 
         PlaylistRequest pr = scene.getPlaylistRequest();
         if (pr != null) {
@@ -103,8 +97,6 @@ public class LiveScene {
         this.songs = new ArrayList<>();
         this.originalStartTime = originalStartTime;
         this.originalEndTime = originalEndTime;
-        this.generatedContentTimestamp = null;
-        this.generatedFragmentId = null;
         this.sourcing = sourcing;
         this.playlistTitle = playlistTitle;
         this.artist = artist;

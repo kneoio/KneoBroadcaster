@@ -26,7 +26,6 @@ import io.kneo.broadcaster.service.chat.tools.RadioStationControlToolHandler;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragments;
 import io.kneo.broadcaster.service.chat.tools.SearchBrandSoundFragmentsToolHandler;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -45,9 +44,6 @@ public class OwnerChatService extends ChatService {
 
     @Inject
     ListenerService listenerService;
-
-    @Inject
-    UserService userService;
 
     @Inject
     public OwnerChatService(BroadcasterConfig config, AiHelperService aiHelperService) {

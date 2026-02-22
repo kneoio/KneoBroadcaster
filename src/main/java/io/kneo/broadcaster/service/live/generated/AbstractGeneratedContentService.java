@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -107,6 +108,9 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             LiveScene activeEntry,
             LanguageTag airLanguage
     ) {
+        String sceneTitle = activeEntry != null ? activeEntry.getSceneTitle() : "AI Generated";
+        LocalDateTime scheduledTime = activeEntry != null ? activeEntry.getScheduledStartTime() : LocalDateTime.now();
+        
         return promptService.getById(promptId, SuperUser.build())
                 .flatMap(masterPrompt -> {
                     if (masterPrompt.getLanguageTag() == airLanguage) {
@@ -121,7 +125,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                             if (text == null) {
                                 return Uni.createFrom().failure(new RuntimeException("Generated content contains technical difficulty/error - skipping generation"));
                             }
-                            return generateTtsAndSave(text, prompt, agent, brandId, activeEntry);
+                            return generateTtsAndSave(text, prompt, agent, brandId, sceneTitle, scheduledTime, activeEntry);
                         })
                 );
     }
@@ -200,6 +204,8 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             Prompt prompt,
             AiAgent agent,
             UUID brandId,
+            String sceneTitle,
+            LocalDateTime scheduledTime,
             LiveScene activeEntry
     ) {
         String uploadId = UUID.randomUUID().toString();
@@ -211,7 +217,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
 
         return Uni.createFrom().item(voice).chain(v -> {
             LOGGER.info("Starting TTS generation for scene '{}' using voice: {} (engine: {})",
-                    activeEntry.getSceneTitle(), voice.getId(), voice.getEngineType());
+                    sceneTitle, voice.getId(), voice.getEngineType());
 
             TextToSpeechClient ttsClient;
             String modelId;
@@ -268,19 +274,22 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                                         Path.of(mixedPath),
                                         prompt,
                                         brandId,
+                                        scheduledTime,
                                         activeEntry,
                                         text
                                 );
                             });
                         } catch (IOException | AudioMergeException e) {
-                            LOGGER.error("Failed to save or mix TTS audio for scene '{}'", activeEntry.getSceneTitle(), e);
+                            LOGGER.error("Failed to save or mix TTS audio for scene '{}'", sceneTitle, e);
                             return Uni.createFrom().failure(e);
                         }
                     })
                     .onFailure().recoverWithUni(error -> {
                         LOGGER.error("TTS generation failed for scene '{}' - Error: {}",
-                                activeEntry.getSceneTitle(), error.getMessage(), error);
-                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
+                                sceneTitle, error.getMessage(), error);
+                        if (activeEntry != null) {
+                            activeEntry.setGeneratedContentStatus(GeneratedContentStatus.ERROR);
+                        }
                         return Uni.createFrom().failure(error);
                     });
         });
@@ -290,6 +299,7 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             Path audioFilePath,
             Prompt prompt,
             UUID brandId,
+            LocalDateTime scheduledTime,
             LiveScene activeEntry,
             String text
     ) {
@@ -298,13 +308,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
             Files.createDirectories(targetDir);
 
             Path targetPath = targetDir.resolve(audioFilePath.getFileName());
-            Files.copy(audioFilePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(audioFilePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
 
             SoundFragmentDTO dto = new SoundFragmentDTO();
             dto.setType(getContentType());
             String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"));
             dto.setTitle(prompt.getTitle() + " " + currentDate);
-            dto.setArtist("AI Generated");
+            dto.setArtist(prompt.getId().toString());
             dto.setGenres(List.of());
             dto.setLabels(List.of());
             dto.setSource(SourceType.TEMPORARY_MIX);
@@ -333,13 +343,13 @@ public abstract class AbstractGeneratedContentService implements IGeneratedConte
                         fragment.setDescription(savedDto.getDescription());
                         fragment.setSlugName(savedDto.getSlugName());
 
-                        PendingSongEntry entry = new PendingSongEntry(fragment, activeEntry.getScheduledStartTime());
-                        activeEntry.addSong(entry);
-                        activeEntry.setGeneratedContentTimestamp(LocalDateTime.now());
-                        activeEntry.setGeneratedFragmentId(fragment.getId());
-                        activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
+                        if (activeEntry != null) {
+                            PendingSongEntry entry = new PendingSongEntry(fragment, scheduledTime);
+                            activeEntry.addSong(entry);
+                            activeEntry.setGeneratedContentStatus(GeneratedContentStatus.GENERATED);
+                        }
 
-                        LOGGER.info("Generated fragment saved and added to scene: {}", fragment.getId());
+                        LOGGER.info("Generated fragment saved: {}", fragment.getId());
                         return fragment;
                     });
         } catch (IOException e) {

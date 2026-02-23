@@ -225,6 +225,10 @@ public class BrandRepository extends AsyncRepository {
                                             insertRLSPermissions(tx, id, entityData, user)
                                                     .onItem().transform(v -> id)
                                     )
+                                    .onItem().transformToUni(id ->
+                                            updateBrandScripts(tx, id, station.getScripts())
+                                                    .onItem().transform(v -> id)
+                                    )
                     )
                     .onItem().transformToUni(id -> findById(id, user, true));
         });
@@ -276,7 +280,7 @@ public class BrandRepository extends AsyncRepository {
                                         if (rowSet.rowCount() == 0) {
                                             return Uni.createFrom().failure(new DocumentHasNotFoundException(id));
                                         }
-                                        return Uni.createFrom().item(id);
+                                        return updateBrandScripts(tx, id, station.getScripts());
                                     })
                     ).onItem().transformToUni(stationId -> findById(stationId, user, true));
                 });
@@ -428,5 +432,32 @@ public class BrandRepository extends AsyncRepository {
                     return entry;
                 })
                 .collect().asList();
+    }
+
+    private Uni<UUID> updateBrandScripts(io.vertx.mutiny.sqlclient.SqlClient tx, UUID brandId, List<BrandScriptEntry> scripts) {
+        String deleteSql = "DELETE FROM kneobroadcaster__brand_scripts WHERE brand_id = $1";
+        String insertSql = "INSERT INTO kneobroadcaster__brand_scripts (brand_id, script_id, user_variables, rank) VALUES ($1, $2, $3, $4)";
+
+        return tx.preparedQuery(deleteSql)
+                .execute(Tuple.of(brandId))
+                .onItem().transformToUni(deleteResult -> {
+                    if (scripts == null || scripts.isEmpty()) {
+                        return Uni.createFrom().item(brandId);
+                    }
+
+                    List<Uni<Void>> insertUnis = new java.util.ArrayList<>();
+                    for (int i = 0; i < scripts.size(); i++) {
+                        BrandScriptEntry entry = scripts.get(i);
+                        Tuple params = Tuple.tuple()
+                                .addUUID(brandId)
+                                .addUUID(entry.getScriptId())
+                                .addJsonObject(entry.getUserVariables() != null ? JsonObject.mapFrom(entry.getUserVariables()) : new JsonObject())
+                                .addInteger(i);
+                        insertUnis.add(tx.preparedQuery(insertSql).execute(params).replaceWithVoid());
+                    }
+
+                    return Uni.join().all(insertUnis).andFailFast()
+                            .onItem().transform(v -> brandId);
+                });
     }
 }

@@ -116,6 +116,7 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
             dto.setSeqNum(doc.getSeqNum());
             dto.setTalkativity(doc.getTalkativity());
             dto.setWeekdays(doc.getWeekdays());
+            dto.setOneTimeRun(doc.isOneTimeRun());
             dto.setPrompts(mapScenePromptsToDTOs(doc.getIntroPrompts()));
             dto.setStagePlaylist(mapStagePlaylistToDTO(doc.getPlaylistRequest()));
             return dto;
@@ -146,8 +147,14 @@ public class SceneService extends AbstractService<Scene, SceneDTO> {
         entity.setSeqNum(dto.getSeqNum());
         entity.setWeekdays(dto.getWeekdays());
         entity.setTalkativity(dto.getTalkativity());
+        entity.setOneTimeRun(dto.isOneTimeRun());
         entity.setIntroPrompts(dto.getPrompts() != null ? mapScenePromptDTOsToEntities(dto.getPrompts()) : List.of());
         entity.setPlaylistRequest(mapDTOToStagePlaylist(dto.getStagePlaylist()));
+        
+        if (entity.getPlaylistRequest() != null && entity.getPlaylistRequest().getSourcing() == WayOfSourcing.GENERATED) {
+            entity.setOneTimeRun(true);
+        }
+        
         return entity;
     }
 

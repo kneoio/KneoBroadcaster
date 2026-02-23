@@ -24,4 +24,5 @@ public class SceneDTO extends AbstractDTO {
     private int durationSeconds;
     private int seqNum;
     private List<Integer> weekdays;
+    private boolean oneTimeRun;
 }

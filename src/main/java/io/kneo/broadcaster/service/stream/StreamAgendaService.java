@@ -21,7 +21,6 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -338,10 +337,9 @@ public class StreamAgendaService {
             int nextIndex = (i + 1) % timeSlots.size();
             LocalTime sceneOriginalEnd = timeSlots.get(nextIndex).startTime();
 
-            int durationSeconds = calculateDurationUntilNext(sceneOriginalStart, sceneOriginalEnd);
+            int finalDurationSeconds = calculateDurationUntilNext(sceneOriginalStart, sceneOriginalEnd);
 
             LocalDateTime finalSceneStartTime = sceneStartTime;
-            int finalDurationSeconds = durationSeconds;
 
             sceneUnis.add(
                     fetchSongsForSceneWithDuration(sourceBrand, scene, finalDurationSeconds, songSupplier)
@@ -374,7 +372,7 @@ public class StreamAgendaService {
                                 return entry;
                             })
             );
-            sceneStartTime = sceneStartTime.plusSeconds(durationSeconds);
+            sceneStartTime = sceneStartTime.plusSeconds(finalDurationSeconds);
         }
 
         return Uni.join().all(sceneUnis).andFailFast()
@@ -391,16 +389,6 @@ public class StreamAgendaService {
             return nextSeconds - startSeconds;
         } else {
             return (24 * 60 * 60 - startSeconds) + nextSeconds;
-        }
-    }
-
-    private int calculateElapsedSeconds(LocalTime sceneStart, LocalTime currentTime) {
-        int sceneStartSeconds = sceneStart.toSecondOfDay();
-        int currentSeconds = currentTime.toSecondOfDay();
-        if (currentSeconds >= sceneStartSeconds) {
-            return currentSeconds - sceneStartSeconds;
-        } else {
-            return (24 * 60 * 60 - sceneStartSeconds) + currentSeconds;
         }
     }
 
@@ -475,23 +463,5 @@ public class StreamAgendaService {
                 sceneDurationSeconds, effectiveMusicTime, talkativity, selectedSongs.size(), totalTimeUsed);
 
         return selectedSongs;
-    }
-
-    private SoundFragment cloneSoundFragment(SoundFragment original) {
-        SoundFragment clone = new SoundFragment();
-        clone.setId(original.getId());
-        clone.setSource(original.getSource());
-        clone.setStatus(original.getStatus());
-        clone.setType(original.getType());
-        clone.setTitle(original.getTitle());
-        clone.setArtist(original.getArtist());
-        clone.setGenres(original.getGenres() != null ? new ArrayList<>(original.getGenres()) : null);
-        clone.setLabels(original.getLabels() != null ? new ArrayList<>(original.getLabels()) : null);
-        clone.setAlbum(original.getAlbum());
-        clone.setSlugName(original.getSlugName());
-        clone.setLength(original.getLength() != null ? Duration.ofMillis(original.getLength().toMillis()) : null);
-        clone.setDescription(original.getDescription());
-        clone.setArchived(original.getArchived());
-        return clone;
     }
 }

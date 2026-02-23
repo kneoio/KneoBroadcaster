@@ -64,6 +64,10 @@ public abstract class StreamSupplier {
                     if (liveScene.getGeneratedContentStatus() != GeneratedContentStatus.GENERATED) {
                         liveScene.setGeneratedContentStatus(GeneratedContentStatus.REUSING);
                     }
+                    if (liveScene.isOneTimeRun()) {
+                        liveScene.setLastRunDate(java.time.LocalDateTime.now());
+                        LOGGER.info("One-time scene '{}' marked as run at {}", liveScene.getSceneTitle(), liveScene.getLastRunDate());
+                    }
                     return List.of(fragment);
                 })
                 .onFailure().recoverWithUni(error -> {

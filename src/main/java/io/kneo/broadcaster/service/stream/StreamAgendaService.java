@@ -310,30 +310,38 @@ public class StreamAgendaService {
             return Uni.createFrom().item(schedule);
         }
 
-        List<Scene> sortedScenes = scenes.stream()
-                .filter(s -> s.getStartTime() != null)
-                .sorted(Comparator.comparing(Scene::getStartTime))
-                .toList();
+        record SceneTimeSlot(Scene scene, LocalTime startTime) {}
+        
+        List<SceneTimeSlot> timeSlots = new ArrayList<>();
+        for (Scene scene : scenes) {
+            if (scene.getStartTime() != null && !scene.getStartTime().isEmpty()) {
+                for (LocalTime startTime : scene.getStartTime()) {
+                    timeSlots.add(new SceneTimeSlot(scene, startTime));
+                }
+            }
+        }
 
-        if (sortedScenes.isEmpty()) {
+        timeSlots.sort(Comparator.comparing(SceneTimeSlot::startTime));
+
+        if (timeSlots.isEmpty()) {
             return Uni.createFrom().item(schedule);
         }
 
         LocalDateTime sceneStartTime = scheduleStart;
         List<Uni<LiveScene>> sceneUnis = new ArrayList<>();
 
-        for (int i = 0; i < sortedScenes.size(); i++) {
-            Scene scene = sortedScenes.get(i);
-            int nextIndex = (i + 1) % sortedScenes.size();
-            Scene nextScene = sortedScenes.get(nextIndex);
+        for (int i = 0; i < timeSlots.size(); i++) {
+            SceneTimeSlot slot = timeSlots.get(i);
+            Scene scene = slot.scene();
+            LocalTime sceneOriginalStart = slot.startTime();
+            
+            int nextIndex = (i + 1) % timeSlots.size();
+            LocalTime sceneOriginalEnd = timeSlots.get(nextIndex).startTime();
 
-            int durationSeconds = calculateDurationUntilNext(scene.getStartTime(), nextScene.getStartTime());
+            int durationSeconds = calculateDurationUntilNext(sceneOriginalStart, sceneOriginalEnd);
 
             LocalDateTime finalSceneStartTime = sceneStartTime;
             int finalDurationSeconds = durationSeconds;
-
-            LocalTime sceneOriginalStart = scene.getStartTime();
-            LocalTime sceneOriginalEnd = nextScene.getStartTime();
 
             sceneUnis.add(
                     fetchSongsForSceneWithDuration(sourceBrand, scene, finalDurationSeconds, songSupplier)
@@ -354,7 +362,8 @@ public class StreamAgendaService {
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSource() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSearchTerm() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSoundFragments() : null,
-                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getContentPrompts() : null
+                                        scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getContentPrompts() : null,
+                                        scene.isOneTimeRun()
                                 );
                                 LocalDateTime songStartTime = finalSceneStartTime;
                                 for (SoundFragment song : songs) {
@@ -373,15 +382,6 @@ public class StreamAgendaService {
                     entries.forEach(schedule::addScene);
                     return schedule;
                 });
-    }
-
-    private int findActiveSceneIndex(List<Scene> sortedScenes, LocalTime currentTime) {
-        for (int i = sortedScenes.size() - 1; i >= 0; i--) {
-            if (!currentTime.isBefore(sortedScenes.get(i).getStartTime())) {
-                return i;
-            }
-        }
-        return sortedScenes.size() - 1;
     }
 
     private int calculateDurationUntilNext(LocalTime start, LocalTime next) {

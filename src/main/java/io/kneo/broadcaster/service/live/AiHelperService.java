@@ -228,11 +228,11 @@ public class AiHelperService {
             return false;
         }
 
-        if (scene.getStartTime() == null) {
+        if (scene.getStartTime() == null || scene.getStartTime().isEmpty()) {
             return true;
         }
 
-        LocalTime sceneStart = scene.getStartTime().minusMinutes(SCENE_START_SHIFT_MINUTES);
+        LocalTime sceneStart = scene.getStartTime().get(0).minusMinutes(SCENE_START_SHIFT_MINUTES);
         LocalTime nextSceneStart = findNextSceneStartTime(stationSlug, currentDayOfWeek, scene, allScenes);
 
         boolean active;
@@ -250,14 +250,14 @@ public class AiHelperService {
 
 
     private LocalTime findNextSceneStartTime(String stationSlug, int currentDayOfWeek, Scene currentScene, NavigableSet<Scene> scenes) {
-        LocalTime currentStart = currentScene.getStartTime();
-        if (currentStart == null) {
+        if (currentScene.getStartTime() == null || currentScene.getStartTime().isEmpty()) {
             return null;
         }
+        LocalTime currentStart = currentScene.getStartTime().get(0);
         List<LocalTime> sortedTimes = scenes.stream()
-                .filter(s -> s.getStartTime() != null)
                 .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
-                .map(Scene::getStartTime)
+                .filter(s -> s.getStartTime() != null && !s.getStartTime().isEmpty())
+                .flatMap(s -> s.getStartTime().stream())
                 .sorted()
                 .distinct()
                 .toList();
@@ -332,21 +332,23 @@ public class AiHelperService {
     }
 
     private String findNextSceneTitle(String stationSlug, int currentDayOfWeek, Scene currentScene, NavigableSet<Scene> scenes) {
-        LocalTime currentStart = currentScene.getStartTime();
-        if (currentStart == null) {
+        if (currentScene.getStartTime() == null || currentScene.getStartTime().isEmpty()) {
             return null;
         }
-        List<Scene> sortedScenes = scenes.stream()
-                .filter(s -> s.getStartTime() != null)
-                .filter(s -> s.getWeekdays() == null || s.getWeekdays().isEmpty() || s.getWeekdays().contains(currentDayOfWeek))
-                .sorted(Comparator.comparing(Scene::getStartTime))
+        LocalTime currentStart = currentScene.getStartTime().get(0);
+
+        record SceneTime(Scene scene, LocalTime time) {}
+        List<SceneTime> sortedScenes = scenes.stream()
+                .filter(s -> s.getStartTime() != null && !s.getStartTime().isEmpty())
+                .flatMap(s -> s.getStartTime().stream().map(t -> new SceneTime(s, t)))
+                .sorted(Comparator.comparing(SceneTime::time))
                 .toList();
-        for (Scene scene : sortedScenes) {
-            if (scene.getStartTime().isAfter(currentStart)) {
-                return scene.getTitle();
+        for (SceneTime st : sortedScenes) {
+            if (st.time().isAfter(currentStart)) {
+                return st.scene().getTitle();
             }
         }
-        return !sortedScenes.isEmpty() ? sortedScenes.getFirst().getTitle() : null;
+        return null;
     }
 
     private Scene findActiveSceneByDuration(IStream station, NavigableSet<Scene> scenes) {

@@ -20,7 +20,7 @@ public class SceneDTO extends AbstractDTO {
     private double podcastMode;
     private List<ScenePromptDTO> prompts;
     private StagePlaylistDTO stagePlaylist;
-    private LocalTime startTime;
+    private List<LocalTime> startTime;
     private int durationSeconds;
     private int seqNum;
     private List<Integer> weekdays;

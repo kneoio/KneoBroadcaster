@@ -28,7 +28,7 @@ public class ScriptExportDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class SceneExportDTO {
         private String title;
-        private LocalTime startTime;
+        private List<LocalTime> startTime;
         private double talkativity;
         @JsonProperty("podcastProbability")
         private double podcastMode;

@@ -14,6 +14,7 @@ import io.kneo.core.repository.rls.RLSRepository;
 import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.Row;
@@ -22,6 +23,7 @@ import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -158,7 +160,7 @@ public class SceneRepository extends AsyncRepository {
                 .addOffsetDateTime(nowTime)
                 .addUUID(scene.getScriptId())
                 .addString(scene.getTitle())
-                .addLocalTime(scene.getStartTime())
+                .addJsonArray(scene.getStartTime() != null ? new JsonArray(scene.getStartTime()) : new JsonArray())
                 .addInteger(scene.getDurationSeconds())
                 .addInteger(scene.getSeqNum())
                 .addBoolean(scene.isOneTimeRun())
@@ -188,7 +190,7 @@ public class SceneRepository extends AsyncRepository {
                             " SET title=$1, start_time=$2, duration_seconds=$3, seq_num=$4, one_time_run=$5, talkativity=$6, weekdays=$7, stage_playlist=$8, last_mod_user=$9, last_mod_date=$10 WHERE id=$11";
                     Tuple params = Tuple.tuple()
                             .addString(scene.getTitle())
-                            .addLocalTime(scene.getStartTime())
+                            .addJsonArray(scene.getStartTime() != null ? new JsonArray(scene.getStartTime()) : new JsonArray())
                             .addInteger(scene.getDurationSeconds())
                             .addInteger(scene.getSeqNum())
                             .addBoolean(scene.isOneTimeRun())
@@ -248,7 +250,17 @@ public class SceneRepository extends AsyncRepository {
         doc.setScriptId(row.getUUID("script_id"));
         doc.setTitle(row.getString("title"));
         doc.setArchived(row.getInteger("archived"));
-        doc.setStartTime(row.getLocalTime("start_time"));
+        JsonArray startTimeJson = row.getJsonArray("start_time");
+        if (startTimeJson != null && !startTimeJson.isEmpty()) {
+            try {
+                List<LocalTime> startTimes = mapper.readValue(startTimeJson.encode(), new com.fasterxml.jackson.core.type.TypeReference<List<LocalTime>>() {});
+                doc.setStartTime(startTimes);
+            } catch (Exception e) {
+                doc.setStartTime(List.of());
+            }
+        } else {
+            doc.setStartTime(List.of());
+        }
         doc.setDurationSeconds(row.getInteger("duration_seconds"));
         Integer seqNum = row.getInteger("seq_num");
         if (seqNum != null) doc.setSeqNum(seqNum);

@@ -69,6 +69,7 @@ public class StationStatsDTO {
         private UUID generatedFragmentId;
         private LocalDateTime generatedContentTimestamp;
         private GeneratedContentStatus generatedContentStatus;
+        private boolean oneTimeRun;
         private List<SongEntryDTO> songs;
     }
 

@@ -47,11 +47,20 @@ public class RadioStream extends AbstractStream {
         }
 
         LocalTime now = LocalTime.now(timeZone);
+        LocalDateTime nowDateTime = LocalDateTime.now(timeZone);
         List<LiveScene> scenes = streamAgenda.getLiveScenes();
         
         for (int i = 0; i < scenes.size(); i++) {
             LiveScene entry = scenes.get(i);
             LiveScene nextEntry = (i < scenes.size() - 1) ? scenes.get(i + 1) : null;
+            
+            if (entry.isOneTimeRun() && entry.getLastRunDate() != null) {
+                if (entry.getLastRunDate().toLocalDate().equals(nowDateTime.toLocalDate())) {
+                    LOGGER.debug("Station '{}': Skipping one-time scene '{}' - already ran today at {}",
+                            slugName, entry.getSceneTitle(), entry.getLastRunDate());
+                    continue;
+                }
+            }
             
             if (entry.isActiveAt(now, nextEntry != null ? nextEntry.getOriginalStartTime() : null)) {
                 LOGGER.debug("Station '{}': Scene '{}' is active at time {}",

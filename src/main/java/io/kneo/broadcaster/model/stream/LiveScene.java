@@ -44,6 +44,10 @@ public class LiveScene {
     private final String searchTerm;
     private final List<UUID> soundFragments;
     private final List<ScenePrompt> contentPrompts;
+    private final boolean oneTimeRun;
+
+    @Setter
+    private LocalDateTime lastRunDate;
 
     public LiveScene(Scene scene, LocalDateTime scheduledStartTime) {
         this.sceneId = scene.getId();
@@ -52,7 +56,7 @@ public class LiveScene {
         this.durationSeconds = scene.getDurationSeconds();
         this.dayPercentage = this.durationSeconds / 86400.0;
         this.songs = new ArrayList<>();
-        this.originalStartTime = scene.getStartTime();
+        this.originalStartTime = (scene.getStartTime() != null && !scene.getStartTime().isEmpty()) ? scene.getStartTime().get(0) : null;
         this.originalEndTime = null;
 
         PlaylistRequest pr = scene.getPlaylistRequest();
@@ -81,6 +85,7 @@ public class LiveScene {
         }
 
         this.generatedContentStatus = (this.sourcing == WayOfSourcing.GENERATED) ? GeneratedContentStatus.PENDING : null;
+        this.oneTimeRun = scene.isOneTimeRun();
     }
 
     public LiveScene(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
@@ -88,7 +93,7 @@ public class LiveScene {
                      WayOfSourcing sourcing, String playlistTitle, String artist,
                      List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
                      List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments,
-                     List<ScenePrompt> contentPrompts) {
+                     List<ScenePrompt> contentPrompts, boolean oneTimeRun) {
         this.sceneId = sceneId;
         this.sceneTitle = sceneTitle;
         this.scheduledStartTime = scheduledStartTime;
@@ -107,6 +112,7 @@ public class LiveScene {
         this.searchTerm = searchTerm;
         this.soundFragments = soundFragments;
         this.contentPrompts = contentPrompts;
+        this.oneTimeRun = oneTimeRun;
     }
 
     public void addSong(PendingSongEntry song) {

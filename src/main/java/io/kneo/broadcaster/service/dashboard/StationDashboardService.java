@@ -114,6 +114,7 @@ public class StationDashboardService {
             dto.setSceneId(scene.getSceneId());
             dto.setDayPercentage(scene.getDayPercentage());
             dto.setGeneratedContentStatus(scene.getGeneratedContentStatus());
+            dto.setOneTimeRun(scene.isOneTimeRun());
 
             if (activeEntry != null) {
                 dto.setActive(activeEntry.getSceneId().equals(scene.getSceneId()));

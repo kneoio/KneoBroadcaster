@@ -109,6 +109,15 @@ public class SceneController extends AbstractSecuredController<Scene, SceneDTO> 
                 dto.setActivated(json.getBoolean("activated", false));
                 any = true;
             }
+
+            String scriptId = json.getString("scriptId");
+            if (scriptId != null && !scriptId.trim().isEmpty()) {
+                try {
+                    dto.setScriptId(UUID.fromString(scriptId));
+                    any = true;
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {

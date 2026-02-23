@@ -49,6 +49,9 @@ public class SceneRepository extends AsyncRepository {
         if (filter != null && filter.isActivated() && filter.getTimingMode() != null) {
             sql += " AND s.timing_mode = '" + filter.getTimingMode().name() + "'";
         }
+        if (filter != null && filter.isActivated() && filter.getScriptId() != null) {
+            sql += " AND t.script_id = '" + filter.getScriptId() + "'";
+        }
         sql += " ORDER BY s.name ASC, t.seq_num ASC, t.start_time ASC";
         if (limit > 0) {
             sql += String.format(" LIMIT %s OFFSET %s", limit, offset);
@@ -68,6 +71,9 @@ public class SceneRepository extends AsyncRepository {
         }
         if (filter != null && filter.isActivated() && filter.getTimingMode() != null) {
             sql += " AND s.timing_mode = '" + filter.getTimingMode().name() + "'";
+        }
+        if (filter != null && filter.isActivated() && filter.getScriptId() != null) {
+            sql += " AND t.script_id = '" + filter.getScriptId() + "'";
         }
         return client.preparedQuery(sql)
                 .execute(Tuple.of(user.getId()))

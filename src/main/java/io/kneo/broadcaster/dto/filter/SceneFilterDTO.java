@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Setter
 @Getter
 @NoArgsConstructor
@@ -12,6 +14,7 @@ public class SceneFilterDTO implements IFilterDTO {
     private boolean activated = false;
 
     private SceneTimingMode timingMode;
+    private UUID scriptId;
 
 
     @Override
@@ -21,6 +24,6 @@ public class SceneFilterDTO implements IFilterDTO {
 
     @Override
     public boolean hasAnyFilter() {
-        return timingMode != null;
+        return timingMode != null || scriptId != null;
     }
 }

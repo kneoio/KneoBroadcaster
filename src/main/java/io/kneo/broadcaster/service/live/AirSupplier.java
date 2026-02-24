@@ -98,13 +98,6 @@ public class AirSupplier {
         });
     }
 
-    public Uni<List<IStream>> getOnline(List<StreamStatus> statuses) {
-        return Uni.createFrom().item(() ->
-                radioStationPool.getOnlineStationsSnapshot().stream()
-                        .filter(station -> statuses.contains(station.getStatus()))
-                        .collect(Collectors.toList()));
-    }
-
     private Uni<LiveRadioStationDTO> buildLiveRadioStation(IStream stream) {
         LiveRadioStationDTO liveRadioStation = new LiveRadioStationDTO();
         PlaylistManager playlistManager = stream.getStreamManager().getPlaylistManager();

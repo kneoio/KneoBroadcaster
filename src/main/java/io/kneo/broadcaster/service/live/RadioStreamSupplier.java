@@ -87,6 +87,19 @@ public class RadioStreamSupplier extends StreamSupplier {
 
         Set<UUID> fetchedSongsInScene = stream.getFetchedSongsInScene(activeSceneId);
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime sceneEndTime = activeScene.getScheduledEndTime();
+        long minutesUntilEnd = java.time.Duration.between(now, sceneEndTime).toMinutes();
+        
+        if (minutesUntilEnd < 5 && minutesUntilEnd >= 0) {
+            messageSink.add(
+                    stream.getSlugName(),
+                    AiDjStatsDTO.MessageType.INFO,
+                    String.format("Scene '%s' ending in %d minutes - stopping song fetch to allow next scene", currentSceneTitle, minutesUntilEnd)
+            );
+            return Uni.createFrom().item(() -> null);
+        }
+
         Uni<List<SoundFragment>> songsUni;
         List<PendingSongEntry> scheduledSongs = activeScene.getSongs();
 
@@ -112,11 +125,8 @@ public class RadioStreamSupplier extends StreamSupplier {
             List<SoundFragment> pickedSongs = pickSongsFromScheduled(scheduledSongs, fetchedSongsInScene);
 
             if (pickedSongs.isEmpty()) {
-                // Check if scene should end by time or continue waiting
-                LocalDateTime now = LocalDateTime.now();
-                if (now.isAfter(activeScene.getScheduledEndTime())) {
-                    // Scene time is over, end it
-                    activeScene.setActualEndTime(now);
+                if (LocalDateTime.now().isAfter(activeScene.getScheduledEndTime())) {
+                    activeScene.setActualEndTime(LocalDateTime.now());
                     stream.clearSceneState(activeSceneId);
                 } else {
                     // Songs exhausted but time remains, wait for next cycle
@@ -150,66 +160,65 @@ public class RadioStreamSupplier extends StreamSupplier {
             if (songList == null) {
                 return Uni.createFrom().nullItem();
             }
-            return sceneService.getById(activeScene.getSceneId(), SuperUser.build())
+            double effectiveTalkativity = activeScene.getTalkativity();
+            double rate = stream.getPopularityRate();
+            if (rate < 4.0) {
+                double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
+                effectiveTalkativity =
+                        Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
+            }
+
+            if (AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
+                return sceneService.getById(activeScene.getSceneId(), SuperUser.build())
                         .chain(scene -> {
-                            double effectiveTalkativity = scene.getTalkativity();
-                            double rate = stream.getPopularityRate();
-                            if (rate < 4.0) {
-                                double factor = Math.max(0.0, Math.min(1.0, rate / 5.0));
-                                effectiveTalkativity =
-                                        Math.max(0.0, Math.min(1.0, effectiveTalkativity * factor));
-                            }
-
-
-                            if (AiHelperUtils.shouldPlayJingle(effectiveTalkativity)) {
-                                jinglePlaybackHandler.handleJinglePlayback(stream, scene, activeScene, fetchedSongsInScene);
-                                return Uni.createFrom().item(() -> null);
-                            }
-
-                            List<UUID> enabledIntroPrompts = scene.getIntroPrompts() != null
-                                    ? scene.getIntroPrompts().stream()
-                                    .filter(ScenePrompt::isActive)
-                                    .map(ScenePrompt::getPromptId)
-                                    .toList()
-                                    : List.of();
-
-                            if (enabledIntroPrompts.isEmpty()) {
-                                messageSink.add(
-                                        stream.getSlugName(),
-                                        AiDjStatsDTO.MessageType.INFO,
-                                        String.format("Scene '%s' has no prompts - queueing songs directly", currentSceneTitle)
-                                );
-                                return queueSongsDirectly(stream, songList, fetchedSongsInScene)
-                                        .map(success -> null);
-                            }
-
-                            List<Uni<Prompt>> promptUnis = enabledIntroPrompts.stream()
-                                    .map(masterId ->
-                                            promptService.getById(masterId, SuperUser.build())
-                                                    .flatMap(masterPrompt -> {
-                                                        if (masterPrompt.getLanguageTag() == broadcastingLanguage) {
-                                                            return Uni.createFrom().item(masterPrompt);
-                                                        }
-                                                        return promptService
-                                                                .findByMasterAndLanguage(masterId, broadcastingLanguage, false)
-                                                                .map(p -> p != null ? p : masterPrompt);
-                                                    })
-                                    )
-                                    .toList();
-
-                            return Uni.join().all(promptUnis).andFailFast()
-                                    .flatMap(prompts -> processSongPromptBatch(
-                                            songList,
-                                            prompts,
-                                            agent,
-                                            stream,
-                                            additionalInstruction,
-                                            activeScene,
-                                            fetchedSongsInScene,
-                                            currentSceneTitle,
-                                            messageSink
-                                    ));
+                            jinglePlaybackHandler.handleJinglePlayback(stream, scene, activeScene, fetchedSongsInScene);
+                            return Uni.createFrom().item(() -> null);
                         });
+            }
+
+            List<UUID> enabledIntroPrompts = activeScene.getIntroPrompts() != null
+                    ? activeScene.getIntroPrompts().stream()
+                    .filter(ScenePrompt::isActive)
+                    .map(ScenePrompt::getPromptId)
+                    .toList()
+                    : List.of();
+
+            if (enabledIntroPrompts.isEmpty()) {
+                messageSink.add(
+                        stream.getSlugName(),
+                        AiDjStatsDTO.MessageType.INFO,
+                        String.format("Scene '%s' has no prompts - queueing songs directly", currentSceneTitle)
+                );
+                return queueSongsDirectly(stream, songList, fetchedSongsInScene)
+                        .map(success -> null);
+            }
+
+            List<Uni<Prompt>> promptUnis = enabledIntroPrompts.stream()
+                    .map(masterId ->
+                            promptService.getById(masterId, SuperUser.build())
+                                    .flatMap(masterPrompt -> {
+                                        if (masterPrompt.getLanguageTag() == broadcastingLanguage) {
+                                            return Uni.createFrom().item(masterPrompt);
+                                        }
+                                        return promptService
+                                                .findByMasterAndLanguage(masterId, broadcastingLanguage, false)
+                                                .map(p -> p != null ? p : masterPrompt);
+                                    })
+                    )
+                    .toList();
+
+            return Uni.join().all(promptUnis).andFailFast()
+                    .flatMap(prompts -> processSongPromptBatch(
+                            songList,
+                            prompts,
+                            agent,
+                            stream,
+                            additionalInstruction,
+                            activeScene,
+                            fetchedSongsInScene,
+                            currentSceneTitle,
+                            messageSink
+                    ));
         });
     }
 

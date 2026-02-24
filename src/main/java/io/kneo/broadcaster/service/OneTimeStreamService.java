@@ -290,7 +290,9 @@ public class OneTimeStreamService {
                 request != null ? request.getSearchTerm() : null,
                 request != null ? request.getSoundFragments() : null,
                 request != null ? request.getContentPrompts() : null,
-                false
+                false,
+                0.5,
+                List.of()
         );
         if (dto.getSongs() != null) {
             for (StreamScheduleDTO.ScheduledSongDTO songDTO : dto.getSongs()) {

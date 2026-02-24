@@ -45,6 +45,8 @@ public class LiveScene {
     private final List<UUID> soundFragments;
     private final List<ScenePrompt> contentPrompts;
     private final boolean oneTimeRun;
+    private final double talkativity;
+    private final List<ScenePrompt> introPrompts;
 
     @Setter
     private LocalDateTime lastRunDate;
@@ -86,6 +88,8 @@ public class LiveScene {
 
         this.generatedContentStatus = (this.sourcing == WayOfSourcing.GENERATED) ? GeneratedContentStatus.PENDING : null;
         this.oneTimeRun = scene.isOneTimeRun();
+        this.talkativity = scene.getTalkativity();
+        this.introPrompts = scene.getIntroPrompts();
     }
 
     public LiveScene(UUID sceneId, String sceneTitle, LocalDateTime scheduledStartTime, int durationSeconds,
@@ -93,7 +97,8 @@ public class LiveScene {
                      WayOfSourcing sourcing, String playlistTitle, String artist,
                      List<UUID> genres, List<UUID> labels, List<PlaylistItemType> playlistItemTypes,
                      List<SourceType> sourceTypes, String searchTerm, List<UUID> soundFragments,
-                     List<ScenePrompt> contentPrompts, boolean oneTimeRun) {
+                     List<ScenePrompt> contentPrompts, boolean oneTimeRun, double talkativity,
+                     List<ScenePrompt> introPrompts) {
         this.sceneId = sceneId;
         this.sceneTitle = sceneTitle;
         this.scheduledStartTime = scheduledStartTime;
@@ -113,6 +118,8 @@ public class LiveScene {
         this.soundFragments = soundFragments;
         this.contentPrompts = contentPrompts;
         this.oneTimeRun = oneTimeRun;
+        this.talkativity = talkativity;
+        this.introPrompts = introPrompts;
     }
 
     public void addSong(PendingSongEntry song) {

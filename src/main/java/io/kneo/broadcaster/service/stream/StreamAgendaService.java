@@ -361,7 +361,9 @@ public class StreamAgendaService {
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSearchTerm() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getSoundFragments() : null,
                                         scene.getPlaylistRequest() != null ? scene.getPlaylistRequest().getContentPrompts() : null,
-                                        scene.isOneTimeRun()
+                                        scene.isOneTimeRun(),
+                                        scene.getTalkativity(),
+                                        scene.getIntroPrompts()
                                 );
                                 LocalDateTime songStartTime = finalSceneStartTime;
                                 for (SoundFragment song : songs) {

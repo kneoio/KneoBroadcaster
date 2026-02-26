@@ -32,6 +32,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,7 +90,7 @@ public class RadioStreamSupplier extends StreamSupplier {
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime sceneEndTime = activeScene.getScheduledEndTime();
-        long minutesUntilEnd = java.time.Duration.between(now, sceneEndTime).toMinutes();
+        long minutesUntilEnd = Duration.between(now, sceneEndTime).toMinutes();
         
         if (minutesUntilEnd < 5 && minutesUntilEnd >= 0) {
             messageSink.add(

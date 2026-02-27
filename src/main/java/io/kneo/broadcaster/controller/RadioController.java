@@ -85,13 +85,14 @@ public class RadioController {
         BodyHandler jsonBodyHandler = BodyHandler.create()
                 .setHandleFileUploads(false)
                 .setBodyLimit(BODY_HANDLER_LIMIT);
-
+        //online
         router.route(HttpMethod.GET, path + "/master.m3u8").handler(this::getMasterPlaylist);
         router.route(HttpMethod.GET, path + "/stream.m3u8").handler(this::getPlaylist);
         router.route(HttpMethod.GET, path + "/segments/:segment").handler(this::getSegment);
         router.route(HttpMethod.GET, path + "/status").handler(this::getStatus);   //used by Mixpla
         router.route(HttpMethod.GET, path + "/stream.mp3").handler(this::getMp3Stream);
 
+        //io
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
         router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);  //used by Web

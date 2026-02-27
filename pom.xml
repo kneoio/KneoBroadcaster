@@ -32,6 +32,17 @@
 
     <repositories>
         <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        
+        <repository>
             <id>be.0110.repo-releases</id>
             <url>https://mvn.0110.be/releases</url>
             <releases>

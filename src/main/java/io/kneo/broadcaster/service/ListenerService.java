@@ -1,5 +1,13 @@
 package io.kneo.broadcaster.service;
 
+import com.semantyca.core.dto.DocumentAccessDTO;
+import com.semantyca.core.dto.document.UserDTO;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.UndefinedUser;
+import com.semantyca.core.service.AbstractService;
+import com.semantyca.core.service.UserService;
+import com.semantyca.core.util.WebHelper;
 import io.kneo.broadcaster.dto.BrandListenerDTO;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.ListenerFilterDTO;
@@ -9,14 +17,6 @@ import io.kneo.broadcaster.model.ListenerFilter;
 import io.kneo.broadcaster.model.UserData;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.repository.ListenersRepository;
-import io.kneo.core.dto.DocumentAccessDTO;
-import io.kneo.core.dto.document.UserDTO;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.UndefinedUser;
-import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
-import io.kneo.core.util.WebHelper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

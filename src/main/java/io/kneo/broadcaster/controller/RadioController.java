@@ -1,5 +1,10 @@
 package io.kneo.broadcaster.controller;
 
+import com.semantyca.core.model.user.AnonymousUser;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.repository.exception.DocumentModificationAccessException;
+import com.semantyca.core.repository.exception.UploadAbsenceException;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.radio.SubmissionDTO;
 import io.kneo.broadcaster.dto.radiostation.OneTimeStreamRunReqDTO;
@@ -17,11 +22,6 @@ import io.kneo.broadcaster.service.stream.Mp3Streamer;
 import io.kneo.broadcaster.service.util.FileUploadService;
 import io.kneo.broadcaster.service.util.GeolocationService;
 import io.kneo.broadcaster.service.util.ValidationService;
-import io.kneo.core.model.user.AnonymousUser;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.exception.DocumentModificationAccessException;
-import io.kneo.core.repository.exception.UploadAbsenceException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
@@ -94,7 +94,7 @@ public class RadioController {
 
         //io
         router.route(HttpMethod.GET, "/radio/stations").handler(this::validateMixplaAccess).handler(this::getStations);
-        router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations);
+        router.route(HttpMethod.GET, "/radio/all-stations").handler(this::validateMixplaAccess).handler(this::getAllStations); //use by Welcome
         router.route(HttpMethod.GET, "/radio/all-stations/:brand").handler(this::validateMixplaAccess).handler(this::getStation);  //used by Web
         router.route(HttpMethod.GET, "/radio/shared-scripts").handler(this::validateMixplaAccess).handler(this::getSharedScripts);
         router.route(HttpMethod.POST, "/radio/run-stream").handler(jsonBodyHandler).handler(this::validateMixplaAccess).handler(this::runOneTimeStream);

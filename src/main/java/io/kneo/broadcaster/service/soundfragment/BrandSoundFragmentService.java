@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.service.soundfragment;
 
+import com.semantyca.core.model.user.IUser;
 import io.kneo.broadcaster.dto.BrandSoundFragmentFlatDTO;
 import io.kneo.broadcaster.dto.filter.SoundFragmentFilterDTO;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragmentFlat;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentBrandRepository;
 import io.kneo.broadcaster.service.BrandService;
-import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

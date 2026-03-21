@@ -1,15 +1,17 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.repository.exception.DocumentModificationAccessException;
+import com.semantyca.core.repository.rls.RLSRepository;
+import com.semantyca.mixpla.model.cnst.SourceType;
+import com.semantyca.officeframe.dto.GenreDTO;
+import com.semantyca.officeframe.dto.LabelDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragment;
 import io.kneo.broadcaster.model.soundfragment.BrandSoundFragmentFlat;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.repository.rls.RLSRepository;
-import io.kneo.officeframe.dto.GenreDTO;
-import io.kneo.officeframe.dto.LabelDTO;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
@@ -273,7 +275,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
                     flat.setTitle(row.getString("title"));
                     flat.setArtist(row.getString("artist"));
                     flat.setAlbum(row.getString("album"));
-                    flat.setSource(io.kneo.broadcaster.model.cnst.SourceType.valueOf(row.getString("source")));
+                    flat.setSource(SourceType.valueOf(row.getString("source")));
                     flat.setLabels(labels);
                     flat.setGenres(genres);
                     return flat;
@@ -331,7 +333,7 @@ public class SoundFragmentBrandRepository extends SoundFragmentRepositoryAbstrac
         return rlsRepository.findById(entityData.getRlsName(), user.getId(), soundFragmentId)
                 .onItem().transformToUni(permissions -> {
                     if (!permissions[0]) {
-                        return Uni.createFrom().failure(new io.kneo.core.repository.exception.DocumentModificationAccessException(
+                        return Uni.createFrom().failure(new DocumentModificationAccessException(
                                 "User does not have edit permission", user.getUserName(), soundFragmentId
                         ));
                     }

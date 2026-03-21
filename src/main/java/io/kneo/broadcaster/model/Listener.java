@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.SecureDataEntity;
+import com.semantyca.core.model.SecureDataEntity;
+import com.semantyca.core.model.cnst.LanguageCode;
 import lombok.Getter;
 import lombok.Setter;
 

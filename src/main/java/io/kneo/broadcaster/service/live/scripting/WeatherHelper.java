@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.live.scripting;
 
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.agent.WeatherApiClient;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.HashMap;

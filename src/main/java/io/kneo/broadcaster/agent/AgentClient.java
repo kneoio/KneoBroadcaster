@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.agent;
 
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.agentrest.AgentRespDTO;
 import io.kneo.broadcaster.dto.cnst.TranslationType;
 import io.kneo.broadcaster.model.aiagent.LlmType;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;

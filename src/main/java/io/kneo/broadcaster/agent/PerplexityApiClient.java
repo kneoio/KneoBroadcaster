@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.agent;
 
+import com.semantyca.core.model.cnst.LanguageCode;
 import io.kneo.broadcaster.config.PerplexityApiConfig;
-import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;

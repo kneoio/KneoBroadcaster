@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.agent;
 
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.config.WeatherApiConfig;
 import io.kneo.broadcaster.service.live.scripting.WeatherHelper;
 import io.kneo.broadcaster.util.PropertiesUtil;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;

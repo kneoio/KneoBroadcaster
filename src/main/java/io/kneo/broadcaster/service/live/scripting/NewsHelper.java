@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service.live.scripting;
 
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.agent.WorldNewsApiClient;
 import io.kneo.broadcaster.model.news.NewsArticle;
 import io.kneo.broadcaster.model.news.NewsResponse;
 import io.kneo.broadcaster.util.NewsMapper;
-import io.kneo.officeframe.cnst.CountryCode;
 import io.vertx.core.json.JsonObject;
 
 import java.util.ArrayList;

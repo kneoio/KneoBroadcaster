@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.live.scripting;
 
+import com.semantyca.core.model.cnst.LanguageCode;
 import io.kneo.broadcaster.agent.PerplexityApiClient;
-import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;

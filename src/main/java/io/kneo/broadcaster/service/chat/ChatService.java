@@ -10,6 +10,9 @@ import com.anthropic.models.messages.RawContentBlockDelta;
 import com.anthropic.models.messages.RawMessageStreamEvent;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
 import io.kneo.broadcaster.agent.ElevenLabsClient;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
@@ -20,9 +23,9 @@ import io.kneo.broadcaster.model.cnst.MessageType;
 import io.kneo.broadcaster.repository.ChatRepository;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.BrandService;
+import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.QueueService;
 import io.kneo.broadcaster.service.RadioService;
-import io.kneo.broadcaster.service.PromptService;
 import io.kneo.broadcaster.service.live.AiHelperService;
 import io.kneo.broadcaster.service.live.AirSupplier;
 import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
@@ -30,9 +33,6 @@ import io.kneo.broadcaster.service.live.scripting.PerplexitySearchHelper;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.util.ResourceUtil;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -160,7 +160,7 @@ public abstract class ChatService {
 
         chatRepository.appendToConversation(user.getId(), getChatType(), userMsg);
 
-        Uni<Brand> stationUni = brandService.getBySlugName(slugName, SuperUser.build()); //I still dont knw shou we use superuser here
+        Uni<Brand> stationUni = brandService.getBySlugName(slugName); //I still dont knw shou we use superuser here
 
         return stationUni.flatMap(station -> {
             String radioStationName = station != null && station.getLocalizedName() != null

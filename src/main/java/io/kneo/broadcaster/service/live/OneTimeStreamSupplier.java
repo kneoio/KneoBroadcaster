@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.live;
 
+import com.semantyca.core.model.user.SuperUser;
 import io.kneo.broadcaster.dto.aihelper.SongPromptDTO;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.model.FileMetadata;
@@ -18,7 +19,6 @@ import io.kneo.broadcaster.service.live.scripting.DraftFactory;
 import io.kneo.broadcaster.service.manipulation.mixing.MergingType;
 import io.kneo.broadcaster.service.playlist.PlaylistManager;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;

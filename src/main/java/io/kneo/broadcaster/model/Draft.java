@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.model;
 
+import com.semantyca.core.model.DataEntity;
 import io.kneo.broadcaster.model.aiagent.DraftingMethod;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.core.model.DataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

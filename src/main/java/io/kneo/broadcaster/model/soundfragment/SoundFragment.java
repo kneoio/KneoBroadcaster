@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.model.soundfragment;
 
+import com.semantyca.core.model.SecureDataEntity;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

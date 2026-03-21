@@ -1,5 +1,6 @@
 package io.kneo.broadcaster.service.stream;
 
+import com.semantyca.core.model.user.IUser;
 import io.kneo.broadcaster.dto.stream.StreamScheduleDTO;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
@@ -14,7 +15,6 @@ import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.BrandService;
 import io.kneo.broadcaster.service.SceneService;
 import io.kneo.broadcaster.service.ScriptService;
-import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

@@ -1,17 +1,18 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.model.embedded.DocumentAccessInfo;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.repository.AsyncRepository;
+import com.semantyca.core.repository.exception.DocumentHasNotFoundException;
+import com.semantyca.core.repository.exception.DocumentModificationAccessException;
+import com.semantyca.core.repository.rls.RLSRepository;
+import com.semantyca.core.repository.table.EntityData;
+import io.kneo.broadcaster.dto.filter.SceneFilterDTO;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.model.embedded.DocumentAccessInfo;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.repository.AsyncRepository;
-import io.kneo.core.repository.exception.DocumentHasNotFoundException;
-import io.kneo.core.repository.exception.DocumentModificationAccessException;
-import io.kneo.core.repository.rls.RLSRepository;
-import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
@@ -65,7 +66,7 @@ public class SceneRepository extends AsyncRepository {
                 .collect().asList();
     }
 
-    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, io.kneo.broadcaster.dto.filter.SceneFilterDTO filter) {
+    public Uni<Integer> getAllCount(IUser user, boolean includeArchived, SceneFilterDTO filter) {
         String sql = "SELECT COUNT(*) FROM " + entityData.getTableName() + " t, " + entityData.getRlsName() + " rls, mixpla_scripts s " +
                 "WHERE t.id = rls.entity_id AND t.script_id = s.id AND rls.reader = $1";
         if (!includeArchived) {

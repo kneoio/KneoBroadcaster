@@ -2,13 +2,13 @@ package io.kneo.broadcaster.repository;
 
 import com.anthropic.models.messages.MessageParam;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.semantyca.core.repository.AsyncRepository;
+import com.semantyca.core.repository.rls.RLSRepository;
+import com.semantyca.core.repository.table.EntityData;
 import io.kneo.broadcaster.model.chat.ChatMessage;
 import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.MessageType;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.repository.AsyncRepository;
-import io.kneo.core.repository.rls.RLSRepository;
-import io.kneo.core.repository.table.EntityData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;

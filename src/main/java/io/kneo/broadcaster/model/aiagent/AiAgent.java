@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.aiagent;
 
-import io.kneo.core.model.SimpleReferenceEntity;
+import com.semantyca.core.model.SimpleReferenceEntity;
 import lombok.Getter;
 import lombok.Setter;
 

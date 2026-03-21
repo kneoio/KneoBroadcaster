@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model;
 
+import com.semantyca.core.model.SecureDataEntity;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
-import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

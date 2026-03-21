@@ -1,5 +1,11 @@
 package io.kneo.broadcaster.service;
 
+import com.semantyca.core.dto.DocumentAccessDTO;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.service.AbstractService;
+import com.semantyca.core.service.UserService;
 import io.kneo.broadcaster.dto.aiagent.AiAgentDTO;
 import io.kneo.broadcaster.dto.aiagent.LanguagePreferenceDTO;
 import io.kneo.broadcaster.dto.aiagent.TTSSettingDTO;
@@ -11,12 +17,6 @@ import io.kneo.broadcaster.model.aiagent.TTSSetting;
 import io.kneo.broadcaster.model.aiagent.Voice;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.AiAgentRepository;
-import io.kneo.core.dto.DocumentAccessDTO;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.service.AbstractService;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

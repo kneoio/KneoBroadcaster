@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.server;
 
+import com.semantyca.core.server.AbstractApplicationInit;
 import io.kneo.broadcaster.controller.*;
-import io.kneo.core.server.AbstractApplicationInit;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.ext.web.Router;
 import io.vertx.mutiny.pgclient.PgPool;

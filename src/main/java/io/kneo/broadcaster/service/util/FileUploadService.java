@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.service.util;
 
+import com.semantyca.core.model.user.IUser;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.AudioMetadataDTO;
 import io.kneo.broadcaster.dto.UploadFileDTO;
 import io.kneo.broadcaster.service.manipulation.AudioMetadataService;
 import io.kneo.broadcaster.service.soundfragment.SoundFragmentService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
-import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.ext.web.RoutingContext;

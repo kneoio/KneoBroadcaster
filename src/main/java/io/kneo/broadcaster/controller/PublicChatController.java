@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.controller;
 
+import com.semantyca.core.controller.AbstractSecuredController;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.service.UserService;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.service.chat.PublicChatService;
 import io.kneo.broadcaster.service.chat.PublicChatSessionManager;
-import io.kneo.core.controller.AbstractSecuredController;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.service.UserService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;

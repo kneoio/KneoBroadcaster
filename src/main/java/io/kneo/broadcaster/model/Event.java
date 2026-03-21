@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.model.SecureDataEntity;
 import io.kneo.broadcaster.model.cnst.EventPriority;
 import io.kneo.broadcaster.model.cnst.EventType;
 import io.kneo.broadcaster.model.scheduler.Schedulable;
 import io.kneo.broadcaster.model.scheduler.Scheduler;
-import io.kneo.core.model.SecureDataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

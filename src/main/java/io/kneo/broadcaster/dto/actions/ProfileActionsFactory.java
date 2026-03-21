@@ -1,9 +1,10 @@
 package io.kneo.broadcaster.dto.actions;
 
-import io.kneo.core.dto.actions.ActionBox;
-import io.kneo.core.dto.actions.ActionsFactory;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.IRole;
+
+import com.semantyca.core.dto.actions.ActionBox;
+import com.semantyca.core.dto.actions.ActionsFactory;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.IRole;
 
 import java.util.List;
 

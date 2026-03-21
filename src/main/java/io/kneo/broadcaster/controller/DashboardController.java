@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.controller;
 
+import com.semantyca.core.dto.view.ViewPage;
 import io.kneo.broadcaster.server.EnvConst;
 import io.kneo.broadcaster.service.dashboard.DashboardService;
 import io.kneo.broadcaster.service.dashboard.StationDashboardService;
-import io.kneo.core.dto.view.ViewPage;
 import io.vertx.core.http.ServerWebSocket;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;

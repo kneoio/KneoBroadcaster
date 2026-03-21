@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.dto.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.dto.AbstractDTO;
 import io.kneo.broadcaster.dto.ScenePromptDTO;
 import io.kneo.broadcaster.dto.StagePlaylistDTO;
 import io.kneo.broadcaster.dto.scheduler.ScheduleDTO;
-import io.kneo.core.dto.AbstractDTO;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;

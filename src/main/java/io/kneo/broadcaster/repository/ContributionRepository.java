@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.kneo.core.repository.AsyncRepository;
-import io.kneo.core.repository.rls.RLSRepository;
+import com.semantyca.core.repository.AsyncRepository;
+import com.semantyca.core.repository.rls.RLSRepository;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.pgclient.PgPool;
 import io.vertx.mutiny.sqlclient.SqlConnection;

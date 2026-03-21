@@ -1,5 +1,15 @@
 package io.kneo.broadcaster.controller;
 
+import com.semantyca.core.controller.BaseController;
+import com.semantyca.core.dto.actions.ActionBox;
+import com.semantyca.core.dto.cnst.PayloadType;
+import com.semantyca.core.dto.view.View;
+import com.semantyca.core.dto.view.ViewPage;
+import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.util.RuntimeUtil;
+import com.semantyca.officeframe.dto.GenreDTO;
+import com.semantyca.officeframe.dto.LabelDTO;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.dto.ProfileDTO;
 import io.kneo.broadcaster.dto.VoiceFilterDTO;
 import io.kneo.broadcaster.dto.actions.AiAgentActionsFactory;
@@ -12,16 +22,6 @@ import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.ProfileService;
 import io.kneo.broadcaster.service.RefService;
-import io.kneo.core.controller.BaseController;
-import io.kneo.core.dto.actions.ActionBox;
-import io.kneo.core.dto.cnst.PayloadType;
-import io.kneo.core.dto.view.View;
-import io.kneo.core.dto.view.ViewPage;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.util.RuntimeUtil;
-import io.kneo.officeframe.cnst.CountryCode;
-import io.kneo.officeframe.dto.GenreDTO;
-import io.kneo.officeframe.dto.LabelDTO;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonArray;
@@ -38,7 +38,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static io.kneo.core.util.RuntimeUtil.countMaxPage;
+import static com.semantyca.core.util.RuntimeUtil.countMaxPage;
+
 
 @ApplicationScoped
 public class RefController extends BaseController {
@@ -75,7 +76,7 @@ public class RefController extends BaseController {
                                     tuple.getItem2(),
                                     tuple.getItem1(),
                                     page,
-                                    RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                                    countMaxPage(tuple.getItem1(), size),
                                     size);
                             viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
 
@@ -102,7 +103,7 @@ public class RefController extends BaseController {
                                     tuple.getItem2(),
                                     tuple.getItem1(),
                                     page,
-                                    RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                                    countMaxPage(tuple.getItem1(), size),
                                     size);
                             viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
 
@@ -126,7 +127,7 @@ public class RefController extends BaseController {
                             viewPage.addPayload(PayloadType.CONTEXT_ACTIONS, new ActionBox());
                             View<GenreDTO> dtoEntries = new View<>(tuple.getItem2(),
                                     tuple.getItem1(), page,
-                                    RuntimeUtil.countMaxPage(tuple.getItem1(), size),
+                                    countMaxPage(tuple.getItem1(), size),
                                     size);
                             viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                             return viewPage;
@@ -144,7 +145,7 @@ public class RefController extends BaseController {
                             int totalCount = labels.size();
                             View<LabelDTO> dtoEntries = new View<>(labels,
                                     totalCount, page,
-                                    RuntimeUtil.countMaxPage(totalCount, size),
+                                    countMaxPage(totalCount, size),
                                     size);
                             viewPage.addPayload(PayloadType.VIEW_DATA, dtoEntries);
                             return viewPage;

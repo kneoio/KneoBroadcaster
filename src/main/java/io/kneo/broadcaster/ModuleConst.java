@@ -1,7 +1,8 @@
 package io.kneo.broadcaster;
 
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.server.DefaultAppConst;
+
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.server.DefaultAppConst;
 
 import java.util.List;
 

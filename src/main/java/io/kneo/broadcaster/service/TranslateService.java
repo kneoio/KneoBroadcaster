@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.service;
 
+import com.semantyca.core.model.user.IUser;
 import io.kneo.broadcaster.agent.AgentClient;
 import io.kneo.broadcaster.dto.agentrest.TranslateReqDTO;
 import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.JobState;
 import io.kneo.broadcaster.model.Prompt;
 import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.core.model.user.IUser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;

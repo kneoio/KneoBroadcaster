@@ -1,14 +1,14 @@
 package io.kneo.broadcaster.model.brand;
 
+import com.semantyca.core.model.SecureDataEntity;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.officeframe.model.Label;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
 import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.SecureDataEntity;
-import io.kneo.officeframe.cnst.CountryCode;
-import io.kneo.officeframe.model.Label;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

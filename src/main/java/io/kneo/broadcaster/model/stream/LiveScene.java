@@ -1,11 +1,11 @@
 package io.kneo.broadcaster.model.stream;
 
+import com.semantyca.mixpla.model.cnst.SourceType;
 import io.kneo.broadcaster.model.PlaylistRequest;
 import io.kneo.broadcaster.model.Scene;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import lombok.Getter;
 import lombok.Setter;

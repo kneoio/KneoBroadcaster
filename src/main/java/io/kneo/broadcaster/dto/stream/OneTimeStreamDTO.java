@@ -2,8 +2,8 @@ package io.kneo.broadcaster.dto.stream;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

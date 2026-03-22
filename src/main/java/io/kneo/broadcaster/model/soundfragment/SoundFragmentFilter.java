@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model.soundfragment;
 
+import com.semantyca.mixpla.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

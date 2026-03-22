@@ -2,11 +2,11 @@ package io.kneo.broadcaster.model.brand;
 
 import com.semantyca.core.model.SecureDataEntity;
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import com.semantyca.officeframe.model.Label;
 import com.semantyca.officeframe.model.cnst.CountryCode;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import lombok.Getter;
@@ -29,7 +29,6 @@ public class Brand extends SecureDataEntity<UUID> {
     //private IStreamManager streamManager;
     private String slugName;
     private ZoneId timeZone;
-    private Integer archived;
     private Integer isTemporary = 0;
     private CountryCode country;
     private long bitRate;

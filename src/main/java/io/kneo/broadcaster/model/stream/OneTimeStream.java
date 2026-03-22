@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.model.stream;
 
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.util.WebHelper;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
 import io.kneo.broadcaster.model.Script;
 import io.kneo.broadcaster.model.brand.Brand;
 import io.kneo.broadcaster.model.brand.BrandScriptEntry;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.util.WebHelper;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;

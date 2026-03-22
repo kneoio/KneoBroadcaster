@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.model.soundfragment;
 
 import com.semantyca.core.model.SecureDataEntity;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import io.kneo.broadcaster.model.FileMetadata;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -29,7 +29,7 @@ public class SoundFragment extends SecureDataEntity<UUID> {
     private String slugName;
     private Duration length;
     private String description;
-    private Integer archived;
+    private int archived;
     private LocalDateTime expiresAt;
     private List<FileMetadata> fileMetadataList;
     private ContributionWorkflow contributionWorkflow;

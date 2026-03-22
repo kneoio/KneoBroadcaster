@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.service.stream;
 
+import com.semantyca.core.model.user.SuperUser;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.StreamAgenda;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

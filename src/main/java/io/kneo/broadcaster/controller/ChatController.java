@@ -1,12 +1,12 @@
 package io.kneo.broadcaster.controller;
 
+import com.semantyca.core.controller.AbstractSecuredController;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.UndefinedUser;
+import com.semantyca.core.repository.exception.UserNotFoundException;
+import com.semantyca.core.service.UserService;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
 import io.kneo.broadcaster.service.chat.OwnerChatService;
-import io.kneo.core.controller.AbstractSecuredController;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.UndefinedUser;
-import io.kneo.core.repository.exception.UserNotFoundException;
-import io.kneo.core.service.UserService;
 import io.smallrye.jwt.auth.principal.JWTParser;
 import io.smallrye.jwt.auth.principal.ParseException;
 import io.smallrye.mutiny.Uni;
@@ -132,7 +132,7 @@ public class ChatController extends AbstractSecuredController<Object, Object> {
         );
     }
 
-    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, io.kneo.core.model.user.IUser user) {
+    private void handleGetHistory(ServerWebSocket webSocket, JsonObject msgJson, IUser user) {
         if (user == null) {
             sendError(webSocket, "Authentication required to access chat history");
             return;

@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.stream;
 
-import io.kneo.broadcaster.model.cnst.StreamStatus;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 
 import java.time.LocalDateTime;
 

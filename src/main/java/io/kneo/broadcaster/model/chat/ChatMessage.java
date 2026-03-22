@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.model.chat;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.model.DataEntity;
 import io.kneo.broadcaster.model.cnst.ChatType;
 import io.kneo.broadcaster.model.cnst.MessageType;
-import io.kneo.core.model.DataEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

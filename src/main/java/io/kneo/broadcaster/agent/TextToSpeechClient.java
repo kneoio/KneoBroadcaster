@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.agent;
 
-import io.kneo.broadcaster.model.cnst.LanguageTag;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.smallrye.mutiny.Uni;
 
 public interface TextToSpeechClient {

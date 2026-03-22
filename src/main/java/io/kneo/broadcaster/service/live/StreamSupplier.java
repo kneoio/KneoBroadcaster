@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.service.live;
 
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.LiveScene;

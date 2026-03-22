@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.agent;
 
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;

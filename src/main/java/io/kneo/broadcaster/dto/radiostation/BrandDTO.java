@@ -1,13 +1,12 @@
 package io.kneo.broadcaster.dto.radiostation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.core.dto.AbstractDTO;
+import com.semantyca.core.dto.validation.ValidLocalizedName;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.ManagedBy;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
-import io.kneo.core.dto.AbstractDTO;
-import io.kneo.core.dto.validation.ValidCountry;
-import io.kneo.core.dto.validation.ValidLocalizedName;
-import io.kneo.core.localization.LanguageCode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -39,7 +38,6 @@ public class BrandDTO extends AbstractDTO {
     private String slugName;
     @NotNull(message = "Country is required")
     @NotBlank(message = "Country cannot be empty")
-    @ValidCountry(message = "It is not available for the country")
     private String country;
     @NotNull
     private ManagedBy managedBy;

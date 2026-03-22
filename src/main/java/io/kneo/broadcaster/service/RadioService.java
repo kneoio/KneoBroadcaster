@@ -1,5 +1,17 @@
 package io.kneo.broadcaster.service;
 
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.core.model.user.AnonymousUser;
+import com.semantyca.core.model.user.IUser;
+import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.core.repository.exception.ext.UserAlreadyExistsException;
+import com.semantyca.core.service.UserService;
+import com.semantyca.core.util.WebHelper;
+import com.semantyca.mixpla.model.cnst.SourceType;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
+import com.semantyca.officeframe.model.cnst.CountryCode;
+import com.semantyca.officeframe.service.LabelService;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.dto.cnst.AiAgentStatus;
@@ -11,11 +23,8 @@ import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
 import io.kneo.broadcaster.model.brand.Brand;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
 import io.kneo.broadcaster.model.cnst.RatingAction;
-import io.kneo.broadcaster.model.cnst.SourceType;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.cnst.SubmissionPolicy;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
@@ -31,15 +40,6 @@ import io.kneo.broadcaster.service.stream.RadioStationPool;
 import io.kneo.broadcaster.service.util.AnimationService;
 import io.kneo.broadcaster.service.util.GeolocationService;
 import io.kneo.broadcaster.util.FileSecurityUtils;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.AnonymousUser;
-import io.kneo.core.model.user.IUser;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.core.repository.exception.ext.UserAlreadyExistsException;
-import io.kneo.core.service.UserService;
-import io.kneo.core.util.WebHelper;
-import io.kneo.officeframe.cnst.CountryCode;
-import io.kneo.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -69,7 +69,8 @@ public class RadioService {
     @Inject
     UserService userService;
     @Inject OneTimeStreamRepository oneTimeStreamRepository;
-    @Inject LabelService labelService;
+    @Inject
+    LabelService labelService;
 
     public Uni<IStream> initializeStation(String brand) {
         return radioStationPool.initializeRadio(brand)

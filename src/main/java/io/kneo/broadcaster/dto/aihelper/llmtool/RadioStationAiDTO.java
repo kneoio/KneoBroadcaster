@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.dto.aihelper.llmtool;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
-import io.kneo.core.localization.LanguageCode;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import lombok.Getter;
 import lombok.Setter;
 

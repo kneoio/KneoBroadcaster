@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
+import com.semantyca.core.model.user.IUser;
 import io.kneo.broadcaster.model.soundfragment.SoundFragmentFilter;
-import io.kneo.core.model.user.IUser;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped

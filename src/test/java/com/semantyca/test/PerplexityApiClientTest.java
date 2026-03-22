@@ -1,7 +1,7 @@
 package com.semantyca.test;
 
+import com.semantyca.core.model.cnst.LanguageCode;
 import io.kneo.broadcaster.agent.PerplexityApiClient;
-import io.kneo.core.localization.LanguageCode;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;

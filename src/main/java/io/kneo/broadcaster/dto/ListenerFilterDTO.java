@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.dto;
 
-import io.kneo.officeframe.cnst.CountryCode;
+import com.semantyca.officeframe.model.cnst.CountryCode;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

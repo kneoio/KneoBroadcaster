@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.model;
 
 import com.semantyca.core.model.SecureDataEntity;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,7 +22,6 @@ public class Script extends SecureDataEntity<UUID> {
     private UUID defaultProfileId;
     private String description;
     private Integer accessLevel = 0;
-    private Integer archived;
     private List<UUID> labels;
     private List<UUID> brands;
     private NavigableSet<Scene> scenes =

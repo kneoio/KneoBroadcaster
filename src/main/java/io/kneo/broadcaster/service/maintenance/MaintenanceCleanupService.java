@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.service.maintenance;
 
-import io.kneo.broadcaster.model.cnst.StreamStatus;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.model.stream.StatusChangeRecord;
 import io.kneo.broadcaster.repository.OneTimeStreamRepository;

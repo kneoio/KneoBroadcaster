@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.filter;
 
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.aiagent.PromptType;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

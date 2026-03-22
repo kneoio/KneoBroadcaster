@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import com.semantyca.officeframe.dto.GenreDTO;
 import com.semantyca.officeframe.dto.LabelDTO;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import lombok.Getter;
 import lombok.Setter;
 

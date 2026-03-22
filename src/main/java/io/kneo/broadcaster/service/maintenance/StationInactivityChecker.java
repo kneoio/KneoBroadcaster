@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.service.maintenance;
 
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.config.BroadcasterConfig;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.model.stream.OneTimeStream;
 import io.kneo.broadcaster.service.BrandService;

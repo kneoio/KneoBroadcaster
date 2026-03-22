@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.aiagent;
 
-import io.kneo.broadcaster.model.cnst.LanguageTag;
+import com.semantyca.core.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.util;
 
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
 import io.kneo.broadcaster.model.brand.AiOverriding;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.stream.IStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

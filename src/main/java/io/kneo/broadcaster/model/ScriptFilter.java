@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.broadcaster.model.cnst.LanguageTag;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

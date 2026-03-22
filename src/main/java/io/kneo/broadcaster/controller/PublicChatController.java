@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.controller;
 
 import com.semantyca.core.controller.AbstractSecuredController;
+import com.semantyca.core.model.user.AnonymousUser;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.UserService;
 import io.kneo.broadcaster.dto.ChatMessageDTO;
@@ -166,7 +167,7 @@ public class PublicChatController extends AbstractSecuredController<Object, Obje
             authenticateUserFromToken(token)
                     .subscribe().with(
                             user -> {
-                                boolean isRegistered = user.getId() != io.kneo.core.model.user.AnonymousUser.ID;
+                                boolean isRegistered = user.getId() != AnonymousUser.ID;
                                 rc.response()
                                         .setStatusCode(200)
                                         .putHeader("Content-Type", "application/json")

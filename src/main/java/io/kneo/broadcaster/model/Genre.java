@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model;
 
-import io.kneo.core.model.SimpleReferenceEntity;
+import com.semantyca.core.model.SimpleReferenceEntity;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,5 +11,4 @@ import lombok.Setter;
 public class Genre extends SimpleReferenceEntity {
     private String slugName;
     private String label;
-    private Integer archived;
 }

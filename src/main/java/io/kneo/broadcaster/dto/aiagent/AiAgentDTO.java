@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.aiagent;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.kneo.core.dto.AbstractDTO;
+import com.semantyca.core.dto.AbstractDTO;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;

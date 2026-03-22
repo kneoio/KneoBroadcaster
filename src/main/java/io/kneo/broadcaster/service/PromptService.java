@@ -2,13 +2,13 @@ package io.kneo.broadcaster.service;
 
 import com.semantyca.core.dto.DocumentAccessDTO;
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.service.AbstractService;
 import com.semantyca.core.service.UserService;
 import io.kneo.broadcaster.dto.PromptDTO;
 import io.kneo.broadcaster.dto.filter.PromptFilterDTO;
 import io.kneo.broadcaster.model.Prompt;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.prompt.PromptRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;

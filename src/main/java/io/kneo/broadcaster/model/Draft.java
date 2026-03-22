@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.model;
 
 import com.semantyca.core.model.DataEntity;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.aiagent.DraftingMethod;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,7 +19,7 @@ public class Draft extends DataEntity<UUID> {
     private String description;
     private LanguageTag languageTag;
     private DraftingMethod method;
-    private Integer archived;
+    private int archived;
     private boolean enabled;
     private boolean isMaster;
     private boolean locked;

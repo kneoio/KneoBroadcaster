@@ -27,7 +27,6 @@ public class Event extends SecureDataEntity<UUID> implements Schedulable {
     private EventPriority priority;
     private PlaylistRequest playlistRequest;
     private Scheduler scheduler;
-    private Integer archived;
     private List<ScenePrompt> scenePrompts;
 
 }

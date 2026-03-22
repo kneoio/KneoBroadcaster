@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto;
 
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.aiagent.TTSEngineType;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.model;
 
 import com.semantyca.core.model.SecureDataEntity;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.aiagent.PromptType;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.vertx.core.json.JsonObject;
 import lombok.Getter;
 import lombok.Setter;

@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.dto.aiagent;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.aiagent.TTSEngineType;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import lombok.Getter;
 import lombok.Setter;
 

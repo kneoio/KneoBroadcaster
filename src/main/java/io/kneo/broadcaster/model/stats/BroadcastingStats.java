@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.model.stats;
 
-import io.kneo.broadcaster.model.cnst.StreamStatus;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

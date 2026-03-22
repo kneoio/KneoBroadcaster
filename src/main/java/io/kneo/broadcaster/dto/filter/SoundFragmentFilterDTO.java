@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.filter;
 
+import com.semantyca.mixpla.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

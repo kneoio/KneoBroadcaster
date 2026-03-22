@@ -4,9 +4,10 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.dto.aihelper.llmtool.AvailableStationsAiDTO;
 import io.kneo.broadcaster.service.live.AiHelperService;
-import io.kneo.core.localization.LanguageCode;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -39,10 +40,10 @@ public class GetStationsToolHandler extends BaseToolHandler {
                     
                     JsonArray stationsJson = new JsonArray();
                     stationsData.getRadioStations().forEach(station -> {
-                        boolean isOnline = station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.ON_LINE ||
-                                         station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.WARMING_UP ||
-                                         station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.QUEUE_SATURATED ||
-                                         station.getStreamStatus() == io.kneo.broadcaster.model.cnst.StreamStatus.IDLE;
+                        boolean isOnline = station.getStreamStatus() == StreamStatus.ON_LINE ||
+                                         station.getStreamStatus() == StreamStatus.WARMING_UP ||
+                                         station.getStreamStatus() == StreamStatus.QUEUE_SATURATED ||
+                                         station.getStreamStatus() == StreamStatus.IDLE;
                         
                         JsonObject stationObj = new JsonObject()
                                 .put("name", station.getLocalizedName().getOrDefault(LanguageCode.en, "Unknown"))

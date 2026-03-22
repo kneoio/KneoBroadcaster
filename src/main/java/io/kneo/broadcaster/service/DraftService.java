@@ -1,6 +1,7 @@
 package io.kneo.broadcaster.service;
 
 import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.cnst.LanguageTag;
 import com.semantyca.core.model.user.IUser;
 import com.semantyca.core.model.user.SuperUser;
 import com.semantyca.core.service.AbstractService;
@@ -12,7 +13,6 @@ import io.kneo.broadcaster.model.Draft;
 import io.kneo.broadcaster.model.ScriptVariable;
 import io.kneo.broadcaster.model.aiagent.AiAgent;
 import io.kneo.broadcaster.model.aiagent.LanguagePreference;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.repository.ScriptRepository;
 import io.kneo.broadcaster.repository.draft.DraftRepository;
 import io.kneo.broadcaster.service.live.scripting.DraftFactory;

@@ -1,9 +1,9 @@
 package io.kneo.broadcaster.repository.soundfragment;
 
+import com.semantyca.core.repository.rls.RLSRepository;
+import com.semantyca.core.repository.table.EntityData;
 import io.kneo.broadcaster.repository.file.IFileStorage;
 import io.kneo.broadcaster.repository.table.KneoBroadcasterNameResolver;
-import io.kneo.core.repository.rls.RLSRepository;
-import io.kneo.core.repository.table.EntityData;
 import io.vertx.mutiny.pgclient.PgPool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

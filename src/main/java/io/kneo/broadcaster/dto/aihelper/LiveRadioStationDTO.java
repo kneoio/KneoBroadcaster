@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto.aihelper;
 
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.dto.cnst.StreamType;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import lombok.Getter;
 import lombok.Setter;
 

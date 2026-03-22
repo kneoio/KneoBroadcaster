@@ -1,7 +1,7 @@
 package io.kneo.broadcaster.dto;
 
+import com.semantyca.core.dto.AbstractDTO;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.core.dto.AbstractDTO;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

@@ -1,8 +1,8 @@
 package io.kneo.broadcaster.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.semantyca.mixpla.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.PlaylistItemType;
-import io.kneo.broadcaster.model.cnst.SourceType;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import lombok.Getter;
 import lombok.Setter;

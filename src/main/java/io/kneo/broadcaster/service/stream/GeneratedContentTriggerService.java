@@ -1,8 +1,10 @@
 package io.kneo.broadcaster.service.stream;
 
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.cnst.LanguageTag;
+import com.semantyca.core.model.user.SuperUser;
 import io.kneo.broadcaster.model.ScenePrompt;
 import io.kneo.broadcaster.model.cnst.GeneratedContentStatus;
-import io.kneo.broadcaster.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.WayOfSourcing;
 import io.kneo.broadcaster.model.soundfragment.SoundFragment;
 import io.kneo.broadcaster.model.stream.IStream;
@@ -11,8 +13,6 @@ import io.kneo.broadcaster.model.stream.StreamAgenda;
 import io.kneo.broadcaster.service.AiAgentService;
 import io.kneo.broadcaster.service.live.generated.GeneratedNewsService;
 import io.kneo.broadcaster.util.AiHelperUtils;
-import io.kneo.core.localization.LanguageCode;
-import io.kneo.core.model.user.SuperUser;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

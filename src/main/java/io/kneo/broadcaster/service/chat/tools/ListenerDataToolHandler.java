@@ -4,13 +4,14 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.ToolUseBlock;
+import com.semantyca.core.model.SimpleReferenceEntity;
+import com.semantyca.core.model.cnst.LanguageCode;
+import com.semantyca.core.model.user.SuperUser;
+import com.semantyca.officeframe.dto.LabelDTO;
+import com.semantyca.officeframe.model.Label;
+import com.semantyca.officeframe.service.LabelService;
 import io.kneo.broadcaster.dto.ListenerDTO;
 import io.kneo.broadcaster.service.ListenerService;
-import io.kneo.core.model.SimpleReferenceEntity;
-import io.kneo.core.model.user.SuperUser;
-import io.kneo.officeframe.dto.LabelDTO;
-import io.kneo.officeframe.model.Label;
-import io.kneo.officeframe.service.LabelService;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -87,7 +88,7 @@ public class ListenerDataToolHandler extends BaseToolHandler {
         handler.sendProcessingChunk(chunkHandler, connectionId, "Retrieving listener data...");
 
         Uni<List<String>> labelsUni = Uni.createFrom().item(List.of());
-        Uni<List<String>> availableLabelsUni = labelService.getOfCategory("listener", io.kneo.core.localization.LanguageCode.en)
+        Uni<List<String>> availableLabelsUni = labelService.getOfCategory("listener", LanguageCode.en)
                 .onFailure().recoverWithItem(List.of())
                 .map(labels -> labels.stream()
                         .map(LabelDTO::getIdentifier)

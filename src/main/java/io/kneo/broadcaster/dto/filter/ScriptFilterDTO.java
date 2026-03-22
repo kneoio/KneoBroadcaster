@@ -1,6 +1,6 @@
 package io.kneo.broadcaster.dto.filter;
 
-import io.kneo.broadcaster.model.cnst.LanguageTag;
+import com.semantyca.core.model.cnst.LanguageTag;
 import io.kneo.broadcaster.model.cnst.SceneTimingMode;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;

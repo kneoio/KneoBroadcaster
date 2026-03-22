@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service;
 
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.config.BroadcasterConfig;
 import io.kneo.broadcaster.dto.cnst.SSEProgressStatus;
 import io.kneo.broadcaster.dto.queue.AddToQueueDTO;
 import io.kneo.broadcaster.dto.queue.SSEProgressDTO;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.repository.soundfragment.SoundFragmentRepository;
 import io.kneo.broadcaster.service.exceptions.AudioMergeException;

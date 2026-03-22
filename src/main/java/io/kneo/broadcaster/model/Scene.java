@@ -23,7 +23,6 @@ public class Scene extends SecureDataEntity<UUID> {
     private List<LocalTime> startTime;
     private int durationSeconds;
     private int seqNum;
-    private Integer archived;
     private boolean oneTimeRun;
     private double talkativity = 0.5;
     private List<Integer> weekdays;

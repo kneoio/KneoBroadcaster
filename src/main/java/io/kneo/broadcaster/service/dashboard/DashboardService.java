@@ -1,10 +1,10 @@
 package io.kneo.broadcaster.service.dashboard;
 
+import com.semantyca.mixpla.model.cnst.StreamStatus;
 import io.kneo.broadcaster.config.HlsPlaylistConfig;
 import io.kneo.broadcaster.dto.dashboard.SchedulerStatsDTO;
 import io.kneo.broadcaster.dto.dashboard.StationEntry;
 import io.kneo.broadcaster.dto.dashboard.StatsDTO;
-import io.kneo.broadcaster.model.cnst.StreamStatus;
 import io.kneo.broadcaster.model.stats.ConfigurationStats;
 import io.kneo.broadcaster.model.stream.IStream;
 import io.kneo.broadcaster.service.maintenance.FileMaintenanceService;
